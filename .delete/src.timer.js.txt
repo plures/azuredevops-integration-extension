@@ -1,0 +1,4 @@
+// snapshot of src/timer.js (ESM re-export stub)
+// Original location: src/timer.js
+
+export * from './timer.ts';

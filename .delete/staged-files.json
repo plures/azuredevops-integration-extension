@@ -1,0 +1,28 @@
+{
+  "staged": [
+    {
+      "original": "src/azureClient.js",
+      "reason": "ESM re-export stub duplicating TypeScript source (azureClient.ts). Confuses maintainers and can be removed after import normalization.",
+      "preserveAs": ".delete/src.azureClient.js.txt",
+      "nextAction": "Decide import strategy: prefer TypeScript extensionless imports or keep .js stubs. Convert to tests/docs before deletion." 
+    },
+    {
+      "original": "src/provider.js",
+      "reason": "ESM re-export stub duplicating provider.ts.",
+      "preserveAs": ".delete/src.provider.js.txt",
+      "nextAction": "Remove once imports standardized; otherwise update README to explain purpose." 
+    },
+    {
+      "original": "src/timer.js",
+      "reason": "ESM re-export stub duplicating timer.ts.",
+      "preserveAs": ".delete/src.timer.js.txt",
+      "nextAction": "Remove after choosing consistent import/resolution strategy." 
+    },
+    {
+      "original": "src/timerHarness.js",
+      "reason": "Development harness not used in production. Useful as basis for unit tests.",
+      "preserveAs": ".delete/src.timerHarness.js.txt",
+      "nextAction": "Convert into tests/timer.test.ts and remove harness; or keep in a dev-only tooling folder with README." 
+    }
+  ]
+}

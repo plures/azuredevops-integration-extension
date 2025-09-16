@@ -1,0 +1,4 @@
+// snapshot of src/provider.js (ESM re-export stub)
+// Original location: src/provider.js
+
+export * from './provider.ts';
