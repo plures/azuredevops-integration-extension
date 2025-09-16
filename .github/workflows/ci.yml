@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Use Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Install dependencies
+        run: npm ci
+      - name: Check format
+        run: npm run check-format
+      - name: Lint
+        run: npm run lint
+      - name: Build webview
+        run: npm run webview:build
+      - name: Build
+        run: npm run build
+      - name: Run selective tests for changed files (PRs)
+        if: github.event_name == 'pull_request'
+        run: npm run test:changed
+
+      - name: Run full tests (push to main)
+        if: github.event_name == 'push'
+        run: npm test
+      - name: Coverage check
+        if: github.event_name == 'push'
+        run: npm run coverage:ci
+
+  release-check:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Use Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Install dependencies
+        run: npm ci
+      - name: Run release-check
+        run: npm run release-check

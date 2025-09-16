@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "../", // allow importing shared extension code
+    "module": "esnext",
+    "target": "ES2022",
+    "moduleResolution": "node",
+    "declaration": false,
+    "noEmitOnError": true,
+    "composite": false,
+    "skipLibCheck": true
+  },
+  "include": ["src", "../src/azureClient.ts", "../src/types.d.ts"],
+  "exclude": ["node_modules", "dist", "../dist", "../webview-svelte", "../media"]
+}

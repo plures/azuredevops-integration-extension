@@ -1,0 +1,2 @@
+- Prefer functional code style
+- Use memeory to track progress, preferences, and lessons learned
