@@ -435,7 +435,7 @@
     "dev:webview": "npm --prefix src/webview run dev",
     "coverage": "c8 --reporter=text npm test",
     "coverage:ci": "c8 --reporter=text --check-coverage --lines 70 --branches 65 --functions 65 npm test",
-    "release-check": "node ./scripts/release-check.js"
+    "release-check": "node ./scripts/release-check.cjs"
   },
   "devDependencies": {
     "@commitlint/config-conventional": "^17.0.0",
