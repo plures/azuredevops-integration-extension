@@ -60,7 +60,7 @@ jobs:
       - name: Run release-check
         run: npm run release-check
 
-integration-tests:
+  integration-tests:
     runs-on: ubuntu-latest
     needs: build-and-test
     if: github.ref == 'refs/heads/main'
