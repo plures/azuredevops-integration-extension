@@ -2,10 +2,12 @@
 // Uses flat config (ESLint v9) with TypeScript support
 import js from '@eslint/js';
 import tsParser from '@typescript-eslint/parser';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
 
 export default [
   js.configs.recommended,
   {
+    plugins: { '@typescript-eslint': tsPlugin },
     files: ['src/**/*.ts', 'tests/**/*.ts'],
     languageOptions: {
       parser: tsParser,
