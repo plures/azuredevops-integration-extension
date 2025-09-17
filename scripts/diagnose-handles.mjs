@@ -26,7 +26,10 @@ async function inspectHandles() {
     await import('../src/azureClient.ts');
     await import('../src/provider.ts');
   } catch (err) {
-    console.error('Import error (expected if modules require runtime env):', util.inspect(err, { depth: 1 }));
+    console.error(
+      'Import error (expected if modules require runtime env):',
+      util.inspect(err, { depth: 1 })
+    );
   }
 
   // Give any microtasks a moment to settle.

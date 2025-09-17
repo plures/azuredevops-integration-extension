@@ -18,7 +18,10 @@ export default [
     },
     rules: {
       'no-unused-vars': 'off',
-      '@typescript-eslint/no-unused-vars': ['warn', { varsIgnorePattern: '^_', argsIgnorePattern: '^_', ignoreRestSiblings: true }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { varsIgnorePattern: '^_', argsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
       'no-undef': 'off',
       'no-console': 'off',
     },
@@ -35,17 +38,17 @@ export default [
         'error',
         {
           selector: "CallExpression[callee.name='require']",
-          message: 'Use ESM `import` instead of `require()` in this ESM-first repository.'
+          message: 'Use ESM `import` instead of `require()` in this ESM-first repository.',
         },
         {
           selector: "MemberExpression[object.name='module'][property.name='exports']",
-          message: 'Use ESM `export` instead of `module.exports`.'
+          message: 'Use ESM `export` instead of `module.exports`.',
         },
         {
           selector: "AssignmentExpression[left.object.name='module'][left.property.name='exports']",
-          message: 'Use ESM `export` instead of `module.exports`.'
-        }
-      ]
-    }
+          message: 'Use ESM `export` instead of `module.exports`.',
+        },
+      ],
+    },
   },
 ];
