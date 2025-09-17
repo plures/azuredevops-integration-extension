@@ -15,7 +15,7 @@ export default [
       reportUnusedDisableDirectives: true,
     },
     rules: {
-      'no-unused-vars': ['error', { 'varsIgnorePattern': '^_', 'argsIgnorePattern': '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', { varsIgnorePattern: '^_', argsIgnorePattern: '^_', ignoreRestSiblings: true }],
       'no-undef': 'off',
       'no-console': 'off',
     },
