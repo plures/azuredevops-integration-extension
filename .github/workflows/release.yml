@@ -8,6 +8,8 @@ on:
 jobs:
   build-package-and-publish:
     runs-on: ubuntu-latest
+    env:
+      VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js 18
@@ -24,10 +26,18 @@ jobs:
         run: |
           npm install -g @vscode/vsce
           vsce package -o extension.vsix
+      - name: Verify tag commit is on main
+        id: verify
+        run: |
+          # Fetch origin/main and check whether the tagged commit is contained in main
+          git fetch origin main --depth=1
+          if git merge-base --is-ancestor $GITHUB_SHA origin/main; then
+            echo "is_on_main=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_on_main=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish to Marketplace
-        if: ${{ secrets.VSCE_TOKEN != '' }}
-        env:
-          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
+        if: ${{ env.VSCE_TOKEN != '' && steps.verify.outputs.is_on_main == 'true' }}
         run: |
           npm install -g @vscode/vsce
-          vsce publish --packagePath extension.vsix --pat ${{ secrets.VSCE_TOKEN }}
+          vsce publish --packagePath extension.vsix --pat ${{ env.VSCE_TOKEN }}
