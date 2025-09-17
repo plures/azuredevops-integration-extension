@@ -1,5 +1,5 @@
 // Minimal runtime stub of VS Code API for local unit tests. Expand as tests require.
-export default {
+const api = {
   workspace: {
     getConfiguration: () => ({
       get: () => undefined,
@@ -18,3 +18,5 @@ export default {
   },
   SecretStorage: class {},
 };
+
+export default api;
