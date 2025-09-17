@@ -8,7 +8,7 @@ describe('WorkItemTimer inactivity auto-pause', function () {
     const timer = new WorkItemTimer({
       inactivityTimeoutSec: 1,
       inactivityCheckMs: 200,
-      onWarn: (m) => {
+      onWarn: (_m) => {
         warnCalled = true;
       },
     });
