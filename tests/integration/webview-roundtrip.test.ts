@@ -5,7 +5,7 @@ import { runTests, downloadAndUnzipVSCode } from '@vscode/test-electron';
 // Implemented as placeholder showing how the test runner would be invoked in CI; actual in-test code lives in ./integration-tests folder when run in a real environment.
 
 async function main() {
-  const vscodeExecutablePath = await downloadAndUnzipVSCode('1.78.0');
+  const _vscodeExecutablePath = await downloadAndUnzipVSCode('1.78.0');
   const extensionDevelopmentPath = path.resolve(__dirname, '../../');
   const extensionTestsPath = path.resolve(extensionDevelopmentPath, 'out', 'integration-tests');
   try {

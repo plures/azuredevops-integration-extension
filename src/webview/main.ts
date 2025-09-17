@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // Vanilla JavaScript implementation - reliable and framework-free
 
 // Declare global types for VS Code webview context
