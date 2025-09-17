@@ -1,0 +1,7 @@
+{
+  "name": "vscode",
+  "version": "0.0.0",
+  "description": "lightweight runtime stub for vscode API used in local unit tests",
+  "main": "index.js",
+  "type": "commonjs"
+}

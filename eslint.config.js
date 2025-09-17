@@ -9,19 +9,40 @@ export default [
     files: ['src/**/*.ts', 'tests/**/*.ts'],
     languageOptions: {
       parser: tsParser,
-      parserOptions: { ecmaVersion: 'latest', sourceType: 'module' }
+      parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
     },
     linterOptions: {
-      reportUnusedDisableDirectives: true
+      reportUnusedDisableDirectives: true,
     },
     rules: {
       'no-unused-vars': 'warn',
       'no-undef': 'off',
-      'no-console': 'off'
-    }
+      'no-console': 'off',
+    },
   },
   {
     // Ignore legacy JS transpiled/duplicate sources for now
-    ignores: ['src/**/*.js']
-  }
+    ignores: ['src/**/*.js'],
+  },
+  {
+    files: ['**/*.{js,ts,mjs,cjs}'],
+    ignores: ['node_modules/**', 'out-tests/**', 'dist/**', 'media/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.name='require']",
+          message: 'Use ESM `import` instead of `require()` in this ESM-first repository.'
+        },
+        {
+          selector: "MemberExpression[object.name='module'][property.name='exports']",
+          message: 'Use ESM `export` instead of `module.exports`.'
+        },
+        {
+          selector: "AssignmentExpression[left.object.name='module'][left.property.name='exports']",
+          message: 'Use ESM `export` instead of `module.exports`.'
+        }
+      ]
+    }
+  },
 ];

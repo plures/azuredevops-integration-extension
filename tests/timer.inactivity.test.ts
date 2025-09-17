@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { WorkItemTimer } from '../src/timer';
+import { WorkItemTimer } from '../src/timer.ts';
 
 describe('WorkItemTimer inactivity auto-pause', function () {
   it('pauses due to inactivity after timeout', function (done) {
@@ -8,7 +8,9 @@ describe('WorkItemTimer inactivity auto-pause', function () {
     const timer = new WorkItemTimer({
       inactivityTimeoutSec: 1,
       inactivityCheckMs: 200,
-      onWarn: (m) => { warnCalled = true; }
+      onWarn: (m) => {
+        warnCalled = true;
+      },
     });
     timer.start(1, 'Test');
     // Wait long enough for inactivity check to run
@@ -16,7 +18,9 @@ describe('WorkItemTimer inactivity auto-pause', function () {
       try {
         expect(warnCalled).to.equal(true);
         done();
-      } catch (e) { done(e); }
+      } catch (e) {
+        done(e);
+      }
     }, 1600);
   }).timeout(5000);
 });

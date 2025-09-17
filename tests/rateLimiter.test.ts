@@ -1,8 +1,5 @@
-import { RateLimiter } from '../src/rateLimiter';
+import { RateLimiter } from '../src/rateLimiter.ts';
 import { expect } from 'chai';
-
-// Helper to measure approximate elapsed time
-function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
 describe('RateLimiter', () => {
   it('allows immediate burst up to capacity then throttles', async () => {
@@ -10,7 +7,7 @@ describe('RateLimiter', () => {
     const start = Date.now();
     let acquired = 0;
     // Acquire 5 immediately
-    for (let i=0;i<5;i++) {
+    for (let i = 0; i < 5; i++) {
       await limiter.acquire();
       acquired++;
     }

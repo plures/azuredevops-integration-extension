@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { toNormalized, getField } from '../src/workItemNormalize';
+import { toNormalized, getField } from '../src/workItemNormalize.ts';
 
 describe('workItemNormalize', () => {
   it('getField returns nested field values', () => {
@@ -10,7 +10,15 @@ describe('workItemNormalize', () => {
   });
 
   it('toNormalized maps fields correctly', () => {
-    const item = { id: 10, fields: { 'System.Title': 'T', 'System.State': 'New', 'System.WorkItemType': 'Task', 'System.Tags': 'a;b' } };
+    const item = {
+      id: 10,
+      fields: {
+        'System.Title': 'T',
+        'System.State': 'New',
+        'System.WorkItemType': 'Task',
+        'System.Tags': 'a;b',
+      },
+    };
     const n = toNormalized(item as any);
     expect(n.id).to.equal(10);
     expect(n.title).to.equal('T');

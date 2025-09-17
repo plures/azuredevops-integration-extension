@@ -1,6 +1,6 @@
 import { expect } from 'chai';
-import { migrateLegacyPAT } from '../src/activation';
-import { makeMockContext } from './helpers/mockContext';
+import { migrateLegacyPAT } from '../src/activation.ts';
+import { makeMockContext } from './helpers/mockContext.ts';
 
 describe('activation migration helpers', () => {
   it('migrates PAT from globalState to secrets', async () => {

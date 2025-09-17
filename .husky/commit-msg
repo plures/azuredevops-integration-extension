@@ -1,4 +1,5 @@
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
 
-npx --no-install commitlint --edit "$1"
+# Use the ESM commitlint config explicitly to avoid require() attempts on .js under ESM projects
+npx --no-install commitlint --config ./commitlint.config.mjs --edit "$1"

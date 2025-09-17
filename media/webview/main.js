@@ -1,158 +1,945 @@
-(function(){const t=document.createElement("link").relList;if(t&&t.supports&&t.supports("modulepreload"))return;for(const a of document.querySelectorAll('link[rel="modulepreload"]'))o(a);new MutationObserver(a=>{for(const n of a)if(n.type==="childList")for(const r of n.addedNodes)r.tagName==="LINK"&&r.rel==="modulepreload"&&o(r)}).observe(document,{childList:!0,subtree:!0});function s(a){const n={};return a.integrity&&(n.integrity=a.integrity),a.referrerPolicy&&(n.referrerPolicy=a.referrerPolicy),a.crossOrigin==="use-credentials"?n.credentials="include":a.crossOrigin==="anonymous"?n.credentials="omit":n.credentials="same-origin",n}function o(a){if(a.ep)return;a.ep=!0;const n=s(a);fetch(a.href,n)}})();const U=(()=>{try{return window.vscode||acquireVsCodeApi()}catch(e){return console.error("[webview] Failed to acquire VS Code API",e),null}})();let u=[],f=null,W=null,C=!1,p="list";const i={searchInput:null,statusOverview:null,sprintFilter:null,typeFilter:null,assignedToFilter:null,excludeDone:null,excludeClosed:null,excludeRemoved:null,excludeInReview:null,workItemsContainer:null,timerContainer:null,timerDisplay:null,content:null,timerInfo:null,startTimerBtn:null,pauseTimerBtn:null,stopTimerBtn:null};function R(){i.searchInput=document.getElementById("searchInput"),i.statusOverview=document.getElementById("statusOverview"),i.sprintFilter=document.getElementById("sprintFilter"),i.typeFilter=document.getElementById("typeFilter"),i.assignedToFilter=document.getElementById("assignedToFilter"),i.excludeDone=document.getElementById("excludeDone"),i.excludeClosed=document.getElementById("excludeClosed"),i.excludeRemoved=document.getElementById("excludeRemoved"),i.excludeInReview=document.getElementById("excludeInReview"),i.workItemsContainer=document.getElementById("workItemsContainer"),i.timerContainer=document.getElementById("timerContainer"),i.timerDisplay=document.getElementById("timerDisplay"),i.timerInfo=document.getElementById("timerInfo");const e=document.getElementById("startTimerBtn"),t=document.getElementById("pauseTimerBtn"),s=document.getElementById("stopTimerBtn");if(i.startTimerBtn=e,i.pauseTimerBtn=t,i.stopTimerBtn=s,i.content=document.getElementById("content"),!i.workItemsContainer){console.error("[webview] Critical: workItemsContainer element not found");return}console.log("[webview] Initializing webview..."),z(),J(),console.log("[webview] Setting timer visibility to false during init"),O(!1),d({type:"webviewReady"}),M()}function z(){document.addEventListener("click",function(e){const t=e.target.closest(".status-badge");if(t){const r=t.getAttribute("data-status");r&&G(r);return}const s=e.target.closest('[data-action="selectWorkItem"]');if(s&&!e.target.closest("button")){const r=parseInt(s.getAttribute("data-id")||"0");selectWorkItem(r.toString());return}const o=e.target.closest("button[data-action]");if(!o)return;e.stopPropagation();const a=o.getAttribute("data-action"),n=o.getAttribute("data-id")?parseInt(o.getAttribute("data-id")||"0"):null;switch(console.log("[webview] Button clicked:",a,"id:",n),a){case"refresh":M();break;case"createWorkItem":d({type:"createWorkItem"});break;case"toggleView":{console.log("[webview] toggleView clicked");const c=e.target.dataset.view;console.log("[webview] View button clicked:",c,"Current view:",p),c&&c!==p&&(p=c,F(),console.log("[webview] Switching to view:",p),p==="kanban"?P():B());break}case"toggleKanban":p=p==="list"?"kanban":"list",F(),p==="kanban"?P():B();break;case"search":{const r=i.searchInput?.value;r&&d({type:"search",query:r});break}case"pauseTimer":d({type:"pauseTimer"});break;case"resumeTimer":d({type:"resumeTimer"});break;case"stopTimer":d({type:"stopTimer"});break;case"startTimer":n&&d({type:"startTimer",workItemId:n});break;case"createBranch":n&&d({type:"createBranch",id:n});break;case"openInBrowser":n&&d({type:"openInBrowser",id:n});break;case"copyId":n&&d({type:"copyId",id:n});break;case"viewDetails":n&&d({type:"viewWorkItem",workItemId:n});break;case"editWorkItem":n&&d({type:"editWorkItemInEditor",workItemId:n});break}}),document.addEventListener("change",function(e){const t=e.target,s=t.closest("select[data-action]");if(s){s.getAttribute("data-action")==="applyFilters"&&applyFilters();return}const o=t.closest("input[data-action]");o&&o.type==="checkbox"&&o.getAttribute("data-action")==="applyFilters"&&applyFilters()}),i.searchInput?.addEventListener("keypress",e=>{if(e.key==="Enter"){const t=i.searchInput?.value;t&&d({type:"search",query:t})}})}function E(e){if(!e)return"Unknown";const t=e.state||e.fields?.["System.State"]||e["System.State"]||e.fields?.["System.State.name"],s=typeof t=="string"&&t.trim()?t.trim():"";if(!s)return"Unknown";const o={todo:"To Do","to do":"To Do",new:"New",active:"Active","in progress":"In Progress",doing:"In Progress","doing ":"In Progress","code review":"Code Review",testing:"Testing",done:"Done",resolved:"Resolved",closed:"Closed",removed:"Removed"},a=s.toLowerCase();return o[a]||s}function G(e){const t=u.filter(s=>E(s)===e);i.searchInput&&(i.searchInput.value=""),i.sprintFilter&&(i.sprintFilter.value=""),i.typeFilter&&(i.typeFilter.value=""),i.assignedToFilter&&(i.assignedToFilter.value=""),i.workItemsContainer.innerHTML=t.map(s=>{const o=s.id,a=s.title||`Work Item #${o}`,n=s.state||"Unknown",r=s.type||"Unknown",c=s.assignedTo||"Unassigned",g=s.priority||2,m=s.description||"",v=s.tags||[],w=s.iterationPath||"",T=W===o,y=V(r),I=N(g),k=A(E(s));return`
-      <div class="work-item-card ${T?"selected":""} ${k}" 
-           data-id="${o}" 
+(function () {
+  const n = document.createElement('link').relList;
+  if (n && n.supports && n.supports('modulepreload')) return;
+  for (const r of document.querySelectorAll('link[rel="modulepreload"]')) a(r);
+  new MutationObserver((r) => {
+    for (const o of r)
+      if (o.type === 'childList')
+        for (const i of o.addedNodes) i.tagName === 'LINK' && i.rel === 'modulepreload' && a(i);
+  }).observe(document, { childList: !0, subtree: !0 });
+  function t(r) {
+    const o = {};
+    return (
+      r.integrity && (o.integrity = r.integrity),
+      r.referrerPolicy && (o.referrerPolicy = r.referrerPolicy),
+      r.crossOrigin === 'use-credentials'
+        ? (o.credentials = 'include')
+        : r.crossOrigin === 'anonymous'
+        ? (o.credentials = 'omit')
+        : (o.credentials = 'same-origin'),
+      o
+    );
+  }
+  function a(r) {
+    if (r.ep) return;
+    r.ep = !0;
+    const o = t(r);
+    fetch(r.href, o);
+  }
+})();
+(() => {
+  try {
+    return window.vscode || acquireVsCodeApi();
+  } catch (e) {
+    return console.error('[webview] Failed to acquire VS Code API', e), null;
+  }
+})();
+let m = [],
+  k = null,
+  h = null,
+  $ = !1,
+  g = 'list';
+const s = {
+  searchInput: null,
+  statusOverview: null,
+  sprintFilter: null,
+  typeFilter: null,
+  assignedToFilter: null,
+  excludeDone: null,
+  excludeClosed: null,
+  excludeRemoved: null,
+  excludeInReview: null,
+  workItemsContainer: null,
+  timerContainer: null,
+  timerDisplay: null,
+  timerTask: null,
+  content: null,
+  timerInfo: null,
+  startTimerBtn: null,
+  pauseTimerBtn: null,
+  stopTimerBtn: null,
+  draftSummary: null,
+  summaryContainer: null,
+  toggleSummaryBtn: null,
+  summaryStatus: null,
+};
+function W() {
+  (s.searchInput = document.getElementById('searchInput')),
+    (s.statusOverview = document.getElementById('statusOverview')),
+    (s.sprintFilter = document.getElementById('sprintFilter')),
+    (s.typeFilter = document.getElementById('typeFilter')),
+    (s.assignedToFilter = document.getElementById('assignedToFilter')),
+    (s.excludeDone = document.getElementById('excludeDone')),
+    (s.excludeClosed = document.getElementById('excludeClosed')),
+    (s.excludeRemoved = document.getElementById('excludeRemoved')),
+    (s.excludeInReview = document.getElementById('excludeInReview')),
+    (s.workItemsContainer = document.getElementById('workItemsContainer')),
+    (s.timerContainer = document.getElementById('timerContainer')),
+    (s.timerDisplay = document.getElementById('timerDisplay')),
+    (s.timerInfo = document.getElementById('timerInfo'));
+  const e = document.getElementById('startTimerBtn'),
+    n = document.getElementById('pauseTimerBtn'),
+    t = document.getElementById('stopTimerBtn');
+  if (
+    ((s.startTimerBtn = e),
+    (s.pauseTimerBtn = n),
+    (s.stopTimerBtn = t),
+    (s.content = document.getElementById('content')),
+    (s.draftSummary = document.getElementById('draftSummary')),
+    (s.summaryContainer = document.getElementById('summaryContainer')),
+    (s.toggleSummaryBtn = document.getElementById('toggleSummaryBtn')),
+    (s.summaryStatus = document.getElementById('summaryStatus')),
+    !s.workItemsContainer)
+  ) {
+    console.error('[webview] Critical: workItemsContainer element not found');
+    return;
+  }
+  console.log('[webview] Initializing webview...'),
+    U(),
+    j(),
+    console.log('[webview] Setting timer visibility to false during init'),
+    updateTimerVisibility(!1),
+    postMessage({ type: 'webviewReady' }),
+    H();
+}
+function U() {
+  document.addEventListener('click', function (e) {
+    const n = e.target.closest('.status-badge');
+    if (n) {
+      const i = n.getAttribute('data-status');
+      i && O(i);
+      return;
+    }
+    const t = e.target.closest('[data-action="selectWorkItem"]');
+    if (t && !e.target.closest('button')) {
+      const i = parseInt(t.getAttribute('data-id') || '0');
+      selectWorkItem(i.toString());
+      return;
+    }
+    const a = e.target.closest('button[data-action]');
+    if (!a) return;
+    e.stopPropagation();
+    const r = a.getAttribute('data-action'),
+      o = a.getAttribute('data-id') ? parseInt(a.getAttribute('data-id') || '0') : null;
+    switch ((console.log('[webview] Button clicked:', r, 'id:', o), r)) {
+      case 'refresh':
+        H();
+        break;
+      case 'toggleSummary': {
+        const i = s.summaryContainer,
+          l = s.toggleSummaryBtn;
+        if (!i) return;
+        i.hasAttribute('hidden')
+          ? (i.removeAttribute('hidden'),
+            l && l.setAttribute('aria-expanded', 'true'),
+            l && (l.textContent = 'Compose Summary ▴'))
+          : (i.setAttribute('hidden', ''),
+            l && l.setAttribute('aria-expanded', 'false'),
+            l && (l.textContent = 'Compose Summary ▾'));
+        break;
+      }
+      case 'generateCopilotPrompt': {
+        const i = o || (k ? k.workItemId : void 0),
+          l = s.draftSummary ? s.draftSummary.value : '';
+        if (!i) {
+          console.warn('[webview] generateCopilotPrompt: no work item id available'),
+            s.summaryStatus &&
+              (s.summaryStatus.textContent = 'No work item selected to generate prompt.');
+          return;
+        }
+        s.summaryStatus &&
+          (s.summaryStatus.textContent = 'Preparing Copilot prompt and copying to clipboard...'),
+          postMessage({ type: 'generateCopilotPrompt', workItemId: i, draftSummary: l });
+        break;
+      }
+      case 'stopAndApply': {
+        const i = s.draftSummary ? s.draftSummary.value : '';
+        s.summaryStatus && (s.summaryStatus.textContent = 'Stopping timer and applying updates...'),
+          postMessage({ type: 'stopAndApply', comment: i });
+        break;
+      }
+      case 'createWorkItem':
+        postMessage({ type: 'createWorkItem' });
+        break;
+      case 'toggleView': {
+        console.log('[webview] toggleView clicked');
+        const l = e.target.dataset.view;
+        console.log('[webview] View button clicked:', l, 'Current view:', g),
+          l &&
+            l !== g &&
+            ((g = l),
+            P(),
+            console.log('[webview] Switching to view:', g),
+            g === 'kanban' ? D() : F());
+        break;
+      }
+      case 'toggleKanban':
+        (g = g === 'list' ? 'kanban' : 'list'), P(), g === 'kanban' ? D() : F();
+        break;
+      case 'search': {
+        const i = s.searchInput?.value;
+        i && postMessage({ type: 'search', query: i });
+        break;
+      }
+      case 'pauseTimer':
+        postMessage({ type: 'pauseTimer' });
+        break;
+      case 'resumeTimer':
+        postMessage({ type: 'resumeTimer' });
+        break;
+      case 'stopTimer':
+        postMessage({ type: 'stopTimer' });
+        break;
+      case 'startTimer':
+        o && postMessage({ type: 'startTimer', workItemId: o });
+        break;
+      case 'createBranch':
+        o && postMessage({ type: 'createBranch', id: o });
+        break;
+      case 'openInBrowser':
+        o && postMessage({ type: 'openInBrowser', id: o });
+        break;
+      case 'copyId':
+        o && postMessage({ type: 'copyId', id: o });
+        break;
+      case 'viewDetails':
+        o && postMessage({ type: 'viewWorkItem', workItemId: o });
+        break;
+      case 'editWorkItem':
+        o && postMessage({ type: 'editWorkItemInEditor', workItemId: o });
+        break;
+    }
+  }),
+    document.addEventListener('change', function (e) {
+      const n = e.target,
+        t = n.closest('select[data-action]');
+      if (t) {
+        t.getAttribute('data-action') === 'applyFilters' && applyFilters();
+        return;
+      }
+      const a = n.closest('input[data-action]');
+      a &&
+        a.type === 'checkbox' &&
+        a.getAttribute('data-action') === 'applyFilters' &&
+        applyFilters();
+    }),
+    s.searchInput?.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        const n = s.searchInput?.value;
+        n && postMessage({ type: 'search', query: n });
+      }
+    });
+}
+function A(e) {
+  if (!e) return 'Unknown';
+  const n =
+      e.state || e.fields?.['System.State'] || e['System.State'] || e.fields?.['System.State.name'],
+    t = typeof n == 'string' && n.trim() ? n.trim() : '';
+  if (!t) return 'Unknown';
+  const a = {
+      todo: 'To Do',
+      'to do': 'To Do',
+      new: 'New',
+      active: 'Active',
+      'in progress': 'In Progress',
+      doing: 'In Progress',
+      'doing ': 'In Progress',
+      'code review': 'Code Review',
+      testing: 'Testing',
+      done: 'Done',
+      resolved: 'Resolved',
+      closed: 'Closed',
+      removed: 'Removed',
+    },
+    r = t.toLowerCase();
+  return a[r] || t;
+}
+function O(e) {
+  const n = m.filter((t) => A(t) === e);
+  s.searchInput && (s.searchInput.value = ''),
+    s.sprintFilter && (s.sprintFilter.value = ''),
+    s.typeFilter && (s.typeFilter.value = ''),
+    s.assignedToFilter && (s.assignedToFilter.value = ''),
+    (s.workItemsContainer.innerHTML = n
+      .map((t) => {
+        const a = t.id,
+          r = t.title || `Work Item #${a}`,
+          o = t.state || 'Unknown',
+          i = t.type || 'Unknown',
+          l = t.assignedTo || 'Unassigned',
+          c = t.priority || 2,
+          d = t.description || '',
+          u = t.tags || [],
+          p = t.iterationPath || '',
+          b = h === a,
+          y = M(i),
+          w = L(c),
+          v = C(A(t));
+        return `
+      <div class="work-item-card ${b ? 'selected' : ''} ${v}" 
+           data-id="${a}" 
            data-action="selectWorkItem">
         <div class="work-item-header">
           <div class="work-item-type-icon ${y.class}">
             ${y.icon}
           </div>
-          <div class="work-item-id">#${o}</div>
-          <div class="work-item-priority ${I}">
-            ${S(g).icon} ${S(g).label}
+          <div class="work-item-id">#${a}</div>
+          <div class="work-item-priority ${w}">
+            ${S(c).icon} ${S(c).label}
           </div>
         </div>
         
         <div class="work-item-content">
-          <div class="work-item-title" title="${l(a)}">
-            ${l(a)}
+          <div class="work-item-title" title="${escapeHtml(r)}">
+            ${escapeHtml(r)}
           </div>
           
-          ${m?`
+          ${
+            d
+              ? `
             <div class="work-item-description">
-              ${l(m.substring(0,120))}${m.length>120?"...":""}
+              ${escapeHtml(d.substring(0, 120))}${d.length > 120 ? '...' : ''}
             </div>
-          `:""}
+          `
+              : ''
+          }
           
           <div class="work-item-details">
             <div class="work-item-meta-row">
-              <span class="work-item-type">${l(r)}</span>
-              <span class="work-item-state state-${n.toLowerCase().replace(/\\s+/g,"-")}">${l(n)}</span>
+              <span class="work-item-type">${escapeHtml(i)}</span>
+              <span class="work-item-state state-${o
+                .toLowerCase()
+                .replace(/\\s+/g, '-')}">${escapeHtml(o)}</span>
             </div>
             
-            ${c!=="Unassigned"?`
+            ${
+              l !== 'Unassigned'
+                ? `
               <div class="work-item-assignee">
                 <span class="assignee-icon">👤</span>
-                <span>${l(c)}</span>
+                <span>${escapeHtml(l)}</span>
               </div>
-            `:""}
+            `
+                : ''
+            }
             
-            ${w?`
+            ${
+              p
+                ? `
               <div class="work-item-iteration">
                 <span class="iteration-icon">🔄</span>
-                <span>${l(w.split("\\\\").pop()||w)}</span>
+                <span>${escapeHtml(p.split('\\\\').pop() || p)}</span>
               </div>
-            `:""}
+            `
+                : ''
+            }
             
-            ${v.length>0?`
+            ${
+              u.length > 0
+                ? `
               <div class="work-item-tags">
-                ${v.slice(0,3).map(b=>`
-                  <span class="tag">${l(b)}</span>
-                `).join("")}
-                ${v.length>3?`<span class="tag-overflow">+${v.length-3}</span>`:""}
+                ${u
+                  .slice(0, 3)
+                  .map(
+                    (f) => `
+                  <span class="tag">${escapeHtml(f)}</span>
+                `
+                  )
+                  .join('')}
+                ${u.length > 3 ? `<span class="tag-overflow">+${u.length - 3}</span>` : ''}
               </div>
-            `:""}
+            `
+                : ''
+            }
           </div>
         </div>
         
         <div class="work-item-actions">
-          <button class="action-btn timer-btn" data-action="startTimer" data-id="${o}" title="Start Timer">
+          <button class="action-btn timer-btn" data-action="startTimer" data-id="${a}" title="Start Timer">
             ⏱️
           </button>
-          <button class="action-btn view-btn" data-action="viewDetails" data-id="${o}" title="View Details">
+          <button class="action-btn view-btn" data-action="viewDetails" data-id="${a}" title="View Details">
             👁️
           </button>
-          <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${o}" title="Edit">
+          <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${a}" title="Edit">
             ✏️
           </button>
         </div>
       </div>
-    `}).join(""),D(t)}function D(e=u){if(!i.statusOverview)return;const t=e.reduce((s,o)=>{const a=E(o);return s[a]=(s[a]||0)+1,s},{});i.statusOverview.innerHTML=Object.entries(t).map(([s,o])=>`
-        <div class="status-badge ${A(String(s))}" data-status="${s}" title="${l(String(s))}">
-          <span class="status-name">${s}</span>
-          <span class="status-count">${o}</span>
+    `;
+      })
+      .join('')),
+    E(n);
+}
+function E(e = m) {
+  if (!s.statusOverview) return;
+  const n = e.reduce((t, a) => {
+    const r = A(a);
+    return (t[r] = (t[r] || 0) + 1), t;
+  }, {});
+  s.statusOverview.innerHTML = Object.entries(n)
+    .map(([t, a]) => {
+      const r = C(String(t)),
+        o = t;
+      return `
+        <div class="status-badge ${r}" data-status="${t}" title="${escapeHtml(String(o))}">
+          <span class="status-name">${t}</span>
+          <span class="status-count">${a}</span>
         </div>
-      `).join("")}function J(){window.addEventListener("message",e=>{const t=e.data;switch(t.type){case"workItemsLoaded":Y(t.workItems||[]);break;case"workItemsError":Z(t.error);break;case"timerUpdate":_(t.timer);break;case"toggleKanbanView":te();break;case"selfTestPing":ee(t.nonce);break;default:console.log("[webview] Unknown message type:",t.type)}})}function M(){C||(C=!0,Q(),d({type:"getWorkItems"}))}function Q(){i.workItemsContainer&&(i.workItemsContainer.innerHTML=`
+      `;
+    })
+    .join('');
+}
+function j() {
+  window.addEventListener('message', (e) => {
+    const n = e.data;
+    switch (n.type) {
+      case 'workItemsLoaded':
+        K(n.workItems || []);
+        break;
+      case 'copilotPromptCopied': {
+        n.workItemId,
+          s.summaryStatus &&
+            (s.summaryStatus.textContent =
+              'Copilot prompt copied to clipboard. Paste into Copilot chat to generate a summary.'),
+          setTimeout(() => {
+            s.summaryStatus && (s.summaryStatus.textContent = '');
+          }, 3500);
+        break;
+      }
+      case 'stopAndApplyResult': {
+        const t = n.workItemId,
+          a = n.hours;
+        s.summaryStatus &&
+          (s.summaryStatus.textContent = `Applied ${a.toFixed(2)} hours to work item #${t}.`),
+          s.draftSummary && (s.draftSummary.value = '');
+        try {
+          typeof t == 'number' && X(t);
+        } catch (r) {
+          console.warn('[webview] Failed to remove persisted draft after apply', r);
+        }
+        setTimeout(() => {
+          s.summaryStatus && (s.summaryStatus.textContent = '');
+        }, 4e3);
+        break;
+      }
+      case 'workItemsError':
+        G(n.error);
+        break;
+      case 'timerUpdate':
+        J(n.timer);
+        break;
+      case 'toggleKanbanView':
+        handleToggleKanbanView();
+        break;
+      case 'selfTestPing':
+        handleSelfTestPing(n.nonce);
+        break;
+      default:
+        console.log('[webview] Unknown message type:', n.type);
+    }
+  });
+}
+function H() {
+  $ || (($ = !0), q(), postMessage({ type: 'getWorkItems' }));
+}
+function q() {
+  s.workItemsContainer &&
+    (s.workItemsContainer.innerHTML = `
     <div class="loading">
       <div>Loading work items...</div>
     </div>
-  `)}function X(){if(i.sprintFilter){const e=new Set;u.forEach(t=>{if(t.iterationPath){const s=t.iterationPath.split("\\").pop()||t.iterationPath;e.add(s)}}),i.sprintFilter.innerHTML='<option value="">All Sprints</option>'+Array.from(e).sort().map(t=>`<option value="${l(t)}">${l(t)}</option>`).join("")}if(i.typeFilter){const e=new Set;u.forEach(t=>{t.type&&e.add(t.type)}),i.typeFilter.innerHTML='<option value="">All Types</option>'+Array.from(e).sort().map(t=>`<option value="${l(t)}">${l(t)}</option>`).join("")}if(i.assignedToFilter){const e=new Set;u.forEach(t=>{t.assignedTo&&t.assignedTo!=="Unassigned"&&e.add(t.assignedTo)}),i.assignedToFilter.innerHTML='<option value="">All Assignees</option>'+Array.from(e).sort().map(t=>`<option value="${l(t)}">${l(t)}</option>`).join("")}}function Y(e){console.log("[webview] handleWorkItemsLoaded called with",e.length,"items:",e),C=!1,u=e,console.log("[webview] After assignment, workItems.length:",u.length),X(),B()}function Z(e){console.error("[webview] Work items error:",e),C=!1,i.workItemsContainer&&(i.workItemsContainer.innerHTML=`
+  `);
+}
+function z() {
+  if (s.sprintFilter) {
+    const e = new Set();
+    m.forEach((n) => {
+      if (n.iterationPath) {
+        const t = n.iterationPath.split('\\').pop() || n.iterationPath;
+        e.add(t);
+      }
+    }),
+      (s.sprintFilter.innerHTML =
+        '<option value="">All Sprints</option>' +
+        Array.from(e)
+          .sort()
+          .map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`)
+          .join(''));
+  }
+  if (s.typeFilter) {
+    const e = new Set();
+    m.forEach((n) => {
+      n.type && e.add(n.type);
+    }),
+      (s.typeFilter.innerHTML =
+        '<option value="">All Types</option>' +
+        Array.from(e)
+          .sort()
+          .map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`)
+          .join(''));
+  }
+  if (s.assignedToFilter) {
+    const e = new Set();
+    m.forEach((n) => {
+      n.assignedTo && n.assignedTo !== 'Unassigned' && e.add(n.assignedTo);
+    }),
+      (s.assignedToFilter.innerHTML =
+        '<option value="">All Assignees</option>' +
+        Array.from(e)
+          .sort()
+          .map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`)
+          .join(''));
+  }
+}
+function K(e) {
+  console.log('[webview] handleWorkItemsLoaded called with', e.length, 'items:', e),
+    ($ = !1),
+    (m = e),
+    console.log('[webview] After assignment, workItems.length:', m.length),
+    z(),
+    F();
+}
+function G(e) {
+  console.error('[webview] Work items error:', e),
+    ($ = !1),
+    s.workItemsContainer &&
+      (s.workItemsContainer.innerHTML = `
     <div class="error">
       <div><strong>Error loading work items:</strong></div>
-      <div>${l(e)}</div>
+      <div>${escapeHtml(e)}</div>
       <button class="btn" onclick="requestWorkItems()" style="margin-top: 0.5rem;">Retry</button>
     </div>
-  `)}function V(e){return{Bug:{icon:"🐛",class:"type-bug"},Task:{icon:"📋",class:"type-task"},"User Story":{icon:"📖",class:"type-story"},Feature:{icon:"⭐",class:"type-feature"},Epic:{icon:"🎯",class:"type-epic"},Issue:{icon:"❗",class:"type-issue"},"Test Case":{icon:"🧪",class:"type-test"},"Product Backlog Item":{icon:"📄",class:"type-pbi"}}[e]||{icon:"📝",class:"type-default"}}function N(e){return e===1?"priority-1":e===2?"priority-2":e===3?"priority-3":e===4?"priority-4":"priority-default"}function S(e){return e===0?{icon:"🔴",label:"Critical"}:e===1?{icon:"🟡",label:"High"}:e===2?{icon:"🟢",label:"Medium"}:e===3?{icon:"🔵",label:"Low"}:e===4?{icon:"🟣",label:"Lowest"}:{icon:"🟢",label:"Medium"}}function A(e){return{New:"state-new",Active:"state-active",Resolved:"state-resolved",Closed:"state-closed",Removed:"state-removed",Done:"state-done","To Do":"state-todo",Doing:"state-doing","In Progress":"state-inprogress","Code Review":"state-review",Testing:"state-testing"}[e]||"state-default"}function B(){if(console.log("[webview] renderWorkItems called, workItems.length:",u.length,"workItems sample:",u[0]),!i.workItemsContainer)return;if(u.length===0){i.workItemsContainer.innerHTML=`
+  `);
+}
+function M(e) {
+  return (
+    {
+      Bug: { icon: '🐛', class: 'type-bug' },
+      Task: { icon: '📋', class: 'type-task' },
+      'User Story': { icon: '📖', class: 'type-story' },
+      Feature: { icon: '⭐', class: 'type-feature' },
+      Epic: { icon: '🎯', class: 'type-epic' },
+      Issue: { icon: '❗', class: 'type-issue' },
+      'Test Case': { icon: '🧪', class: 'type-test' },
+      'Product Backlog Item': { icon: '📄', class: 'type-pbi' },
+    }[e] || { icon: '📝', class: 'type-default' }
+  );
+}
+function L(e) {
+  return e === 1
+    ? 'priority-1'
+    : e === 2
+    ? 'priority-2'
+    : e === 3
+    ? 'priority-3'
+    : e === 4
+    ? 'priority-4'
+    : 'priority-default';
+}
+function S(e) {
+  return e === 0
+    ? { icon: '🔴', label: 'Critical' }
+    : e === 1
+    ? { icon: '🟡', label: 'High' }
+    : e === 2
+    ? { icon: '🟢', label: 'Medium' }
+    : e === 3
+    ? { icon: '🔵', label: 'Low' }
+    : e === 4
+    ? { icon: '🟣', label: 'Lowest' }
+    : { icon: '🟢', label: 'Medium' };
+}
+function C(e) {
+  return (
+    {
+      New: 'state-new',
+      Active: 'state-active',
+      Resolved: 'state-resolved',
+      Closed: 'state-closed',
+      Removed: 'state-removed',
+      Done: 'state-done',
+      'To Do': 'state-todo',
+      Doing: 'state-doing',
+      'In Progress': 'state-inprogress',
+      'Code Review': 'state-review',
+      Testing: 'state-testing',
+    }[e] || 'state-default'
+  );
+}
+function F() {
+  if (
+    (console.log(
+      '[webview] renderWorkItems called, workItems.length:',
+      m.length,
+      'workItems sample:',
+      m[0]
+    ),
+    !s.workItemsContainer)
+  )
+    return;
+  if (m.length === 0) {
+    s.workItemsContainer.innerHTML = `
       <div class="status-message">
         <div>No work items found</div>
         <div style="font-size: 0.9em; color: var(--vscode-descriptionForeground); margin-top: 0.5rem;">Use the refresh button (🔄) in the header to reload work items</div>
-      </div>`;return}const e=(s,o)=>{if(s!=null)switch(o){case"System.Id":return s.id??s.fields?.["System.Id"];case"System.Title":return s.title??s.fields?.["System.Title"];case"System.State":return s.state??s.fields?.["System.State"];case"System.WorkItemType":return s.type??s.fields?.["System.WorkItemType"];case"System.AssignedTo":{const a=s.assignedTo||s.fields?.["System.AssignedTo"];return a&&typeof a=="object"?a.displayName||a.uniqueName||a.name:a}case"System.Tags":return s.tags?Array.isArray(s.tags)?s.tags.join(";"):s.tags:s.fields?.["System.Tags"];case"Microsoft.VSTS.Common.Priority":return s.priority??s.fields?.["Microsoft.VSTS.Common.Priority"];default:return s[o]??s.fields?.[o]}},t=u.map(s=>{const o=e(s,"System.Id"),a=e(s,"System.Title")||`Work Item #${o}`,n=e(s,"System.State")||"Unknown",r=e(s,"System.WorkItemType")||"Unknown",g=e(s,"System.AssignedTo")||"Unassigned",m=e(s,"Microsoft.VSTS.Common.Priority")||2,v=e(s,"System.Tags"),w=typeof v=="string"?v.split(";").filter(Boolean):Array.isArray(v)?v:[],T=e(s,"System.IterationPath")||"",y=s.description||s.fields?.["System.Description"]||"",I=W===o,k=V(String(r)),b=N(Number(m)),L=A(String(n));return`
-      <div class="work-item-card ${I?"selected":""} ${L}" data-id="${o}" data-action="selectWorkItem">
+      </div>`;
+    return;
+  }
+  const e = (t, a) => {
+      if (t != null)
+        switch (a) {
+          case 'System.Id':
+            return t.id ?? t.fields?.['System.Id'];
+          case 'System.Title':
+            return t.title ?? t.fields?.['System.Title'];
+          case 'System.State':
+            return t.state ?? t.fields?.['System.State'];
+          case 'System.WorkItemType':
+            return t.type ?? t.fields?.['System.WorkItemType'];
+          case 'System.AssignedTo': {
+            const r = t.assignedTo || t.fields?.['System.AssignedTo'];
+            return r && typeof r == 'object' ? r.displayName || r.uniqueName || r.name : r;
+          }
+          case 'System.Tags':
+            return t.tags
+              ? Array.isArray(t.tags)
+                ? t.tags.join(';')
+                : t.tags
+              : t.fields?.['System.Tags'];
+          case 'Microsoft.VSTS.Common.Priority':
+            return t.priority ?? t.fields?.['Microsoft.VSTS.Common.Priority'];
+          default:
+            return t[a] ?? t.fields?.[a];
+        }
+    },
+    n = m
+      .map((t) => {
+        const a = e(t, 'System.Id'),
+          r = e(t, 'System.Title') || `Work Item #${a}`,
+          o = e(t, 'System.State') || 'Unknown',
+          i = e(t, 'System.WorkItemType') || 'Unknown',
+          c = e(t, 'System.AssignedTo') || 'Unassigned',
+          d = e(t, 'Microsoft.VSTS.Common.Priority') || 2,
+          u = e(t, 'System.Tags'),
+          p = typeof u == 'string' ? u.split(';').filter(Boolean) : Array.isArray(u) ? u : [],
+          b = e(t, 'System.IterationPath') || '',
+          y = t.description || t.fields?.['System.Description'] || '',
+          w = h === a,
+          v = M(String(i)),
+          f = L(Number(d)),
+          B = C(String(o));
+        return `
+      <div class="work-item-card ${
+        w ? 'selected' : ''
+      } ${B}" data-id="${a}" data-action="selectWorkItem">
         <div class="work-item-header">
-          <div class="work-item-type-icon ${k.class}">${k.icon}</div>
-          <div class="work-item-id">#${o}</div>
-          <div class="work-item-priority ${b}">${S(Number(m)).icon} ${S(Number(m)).label}</div>
+          <div class="work-item-type-icon ${v.class}">${v.icon}</div>
+          <div class="work-item-id">#${a}</div>
+          <div class="work-item-priority ${f}">${S(Number(d)).icon} ${S(Number(d)).label}</div>
         </div>
         <div class="work-item-content">
-          <div class="work-item-title" title="${l(String(a))}">${l(String(a))}</div>
-          ${y?`<div class="work-item-description">${l(String(y).substring(0,120))}${String(y).length>120?"...":""}</div>`:""}
+          <div class="work-item-title" title="${escapeHtml(String(r))}">${escapeHtml(
+          String(r)
+        )}</div>
+          ${
+            y
+              ? `<div class="work-item-description">${escapeHtml(String(y).substring(0, 120))}${
+                  String(y).length > 120 ? '...' : ''
+                }</div>`
+              : ''
+          }
           <div class="work-item-details">
             <div class="work-item-meta-row">
-              <span class="work-item-type">${l(String(r))}</span>
-              <span class="work-item-state state-${String(n).toLowerCase().replace(/\s+/g,"-")}">${l(String(n))}</span>
+              <span class="work-item-type">${escapeHtml(String(i))}</span>
+              <span class="work-item-state state-${String(o)
+                .toLowerCase()
+                .replace(/\s+/g, '-')}">${escapeHtml(String(o))}</span>
             </div>
-            ${g!=="Unassigned"?`<div class="work-item-assignee"><span class="assignee-icon">👤</span><span>${l(String(g))}</span></div>`:""}
-            ${T?`<div class="work-item-iteration"><span class="iteration-icon">🔄</span><span>${l(String(T).split("\\").pop()||String(T))}</span></div>`:""}
-            ${w.length?`<div class="work-item-tags">${w.slice(0,3).map($=>`<span class="work-item-tag">${l(String($).trim())}</span>`).join("")}${w.length>3?`<span class="tag-overflow">+${w.length-3}</span>`:""}</div>`:""}
+            ${
+              c !== 'Unassigned'
+                ? `<div class="work-item-assignee"><span class="assignee-icon">👤</span><span>${escapeHtml(
+                    String(c)
+                  )}</span></div>`
+                : ''
+            }
+            ${
+              b
+                ? `<div class="work-item-iteration"><span class="iteration-icon">🔄</span><span>${escapeHtml(
+                    String(b).split('\\').pop() || String(b)
+                  )}</span></div>`
+                : ''
+            }
+            ${
+              p.length
+                ? `<div class="work-item-tags">${p
+                    .slice(0, 3)
+                    .map(
+                      (T) => `<span class="work-item-tag">${escapeHtml(String(T).trim())}</span>`
+                    )
+                    .join('')}${
+                    p.length > 3 ? `<span class="tag-overflow">+${p.length - 3}</span>` : ''
+                  }</div>`
+                : ''
+            }
           </div>
         </div>
         <div class="work-item-actions">
-          <button class="action-btn timer-btn" data-action="startTimer" data-id="${o}" title="Start Timer">⏱️</button>
-          <button class="action-btn view-btn" data-action="viewDetails" data-id="${o}" title="View Details">👁️</button>
-          <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${o}" title="Edit">✏️</button>
+          <button class="action-btn timer-btn" data-action="startTimer" data-id="${a}" title="Start Timer">⏱️</button>
+          <button class="action-btn view-btn" data-action="viewDetails" data-id="${a}" title="View Details">👁️</button>
+          <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${a}" title="Edit">✏️</button>
         </div>
-      </div>`}).join("");i.workItemsContainer.innerHTML=t,D()}function F(){console.log("[webview] updateViewToggle called, currentView:",p);const e=document.querySelectorAll(".view-toggle-btn");if(console.log("[webview] Found",e.length,"view toggle buttons"),e.length===0){console.log("[webview] No view toggle buttons found, relying on sidebar controls");return}e.forEach(t=>{const s=t.dataset.view;s===p?(t.classList.add("active"),console.log("[webview] Set active:",s)):t.classList.remove("active")})}function P(){if(console.log("[webview] renderKanbanView called, workItems.length:",u.length),!i.workItemsContainer)return;if(u.length===0){i.workItemsContainer.innerHTML=`
+      </div>`;
+      })
+      .join('');
+  (s.workItemsContainer.innerHTML = n), E();
+}
+function P() {
+  console.log('[webview] updateViewToggle called, currentView:', g);
+  const e = document.querySelectorAll('.view-toggle-btn');
+  if ((console.log('[webview] Found', e.length, 'view toggle buttons'), e.length === 0)) {
+    console.log('[webview] No view toggle buttons found, relying on sidebar controls');
+    return;
+  }
+  e.forEach((n) => {
+    const t = n.dataset.view;
+    t === g
+      ? (n.classList.add('active'), console.log('[webview] Set active:', t))
+      : n.classList.remove('active');
+  });
+}
+function D() {
+  if (
+    (console.log('[webview] renderKanbanView called, workItems.length:', m.length),
+    !s.workItemsContainer)
+  )
+    return;
+  if (m.length === 0) {
+    s.workItemsContainer.innerHTML = `
       <div class="status-message">
         <div>No work items found</div>
         <div style="font-size: 0.9em; color: var(--vscode-descriptionForeground); margin-top: 0.5rem;">
           Use the refresh button (🔄) in the header to reload work items
         </div>
       </div>
-    `;return}const e=(n,r)=>{if(n!=null)switch(r){case"System.Id":return n.id??n.fields?.["System.Id"];case"System.Title":return n.title??n.fields?.["System.Title"];case"System.State":return n.state??n.fields?.["System.State"];case"System.WorkItemType":return n.type??n.fields?.["System.WorkItemType"];case"System.AssignedTo":{const c=n.assignedTo||n.fields?.["System.AssignedTo"];return c&&typeof c=="object"?c.displayName||c.uniqueName||c.name:c}case"System.Tags":return n.tags?Array.isArray(n.tags)?n.tags.join(";"):n.tags:n.fields?.["System.Tags"];case"Microsoft.VSTS.Common.Priority":return n.priority??n.fields?.["Microsoft.VSTS.Common.Priority"];default:return n[r]??n.fields?.[r]}},t=u.reduce((n,r)=>{let c=e(r,"System.State")||"Unknown";return typeof c!="string"&&(c=String(c??"Unknown")),n[c]||(n[c]=[]),n[c].push(r),n},{}),o=["New","To Do","Active","In Progress","Doing","Code Review","Testing","Resolved","Done","Closed"].filter(n=>t[n]);Object.keys(t).forEach(n=>{o.includes(n)||o.push(n)});const a=`
+    `;
+    return;
+  }
+  const e = (o, i) => {
+      if (o != null)
+        switch (i) {
+          case 'System.Id':
+            return o.id ?? o.fields?.['System.Id'];
+          case 'System.Title':
+            return o.title ?? o.fields?.['System.Title'];
+          case 'System.State':
+            return o.state ?? o.fields?.['System.State'];
+          case 'System.WorkItemType':
+            return o.type ?? o.fields?.['System.WorkItemType'];
+          case 'System.AssignedTo': {
+            const l = o.assignedTo || o.fields?.['System.AssignedTo'];
+            return l && typeof l == 'object' ? l.displayName || l.uniqueName || l.name : l;
+          }
+          case 'System.Tags':
+            return o.tags
+              ? Array.isArray(o.tags)
+                ? o.tags.join(';')
+                : o.tags
+              : o.fields?.['System.Tags'];
+          case 'Microsoft.VSTS.Common.Priority':
+            return o.priority ?? o.fields?.['Microsoft.VSTS.Common.Priority'];
+          default:
+            return o[i] ?? o.fields?.[i];
+        }
+    },
+    n = m.reduce((o, i) => {
+      let l = e(i, 'System.State') || 'Unknown';
+      return (
+        typeof l != 'string' && (l = String(l ?? 'Unknown')), o[l] || (o[l] = []), o[l].push(i), o
+      );
+    }, {}),
+    a = [
+      'New',
+      'To Do',
+      'Active',
+      'In Progress',
+      'Doing',
+      'Code Review',
+      'Testing',
+      'Resolved',
+      'Done',
+      'Closed',
+    ].filter((o) => n[o]);
+  Object.keys(n).forEach((o) => {
+    a.includes(o) || a.push(o);
+  });
+  const r = `
     <div class="kanban-board">
-      ${o.map(n=>{const r=t[n];return`
+      ${a
+        .map((o) => {
+          const i = n[o];
+          return `
           <div class="kanban-column">
-            <div class="kanban-column-header ${A(n)}">
-              <h3>${n}</h3>
-              <span class="item-count">${r.length}</span>
+            <div class="kanban-column-header ${C(o)}">
+              <h3>${o}</h3>
+              <span class="item-count">${i.length}</span>
             </div>
             <div class="kanban-column-content">
-              ${r.map(g=>{const m=e(g,"System.Id"),v=e(g,"System.Title")||`Work Item #${m}`,w=e(g,"System.WorkItemType")||"Unknown",y=e(g,"System.AssignedTo")||"Unassigned",I=e(g,"Microsoft.VSTS.Common.Priority")||2,k=e(g,"System.Tags"),b=typeof k=="string"?k.split(";").filter(Boolean):Array.isArray(k)?k:[],L=W===m,$=V(w),q=N(Number(I));let h=y;return typeof h=="string"&&h.includes(" ")&&(h=h.split(" ")[0]),`
-                  <div class="kanban-card ${L?"selected":""}" data-id="${m}" data-action="selectWorkItem">
+              ${i
+                .map((c) => {
+                  const d = e(c, 'System.Id'),
+                    u = e(c, 'System.Title') || `Work Item #${d}`,
+                    p = e(c, 'System.WorkItemType') || 'Unknown',
+                    y = e(c, 'System.AssignedTo') || 'Unassigned',
+                    w = e(c, 'Microsoft.VSTS.Common.Priority') || 2,
+                    v = e(c, 'System.Tags'),
+                    f =
+                      typeof v == 'string'
+                        ? v.split(';').filter(Boolean)
+                        : Array.isArray(v)
+                        ? v
+                        : [],
+                    B = h === d,
+                    T = M(p),
+                    N = L(Number(w));
+                  let I = y;
+                  return (
+                    typeof I == 'string' && I.includes(' ') && (I = I.split(' ')[0]),
+                    `
+                  <div class="kanban-card ${
+                    B ? 'selected' : ''
+                  }" data-id="${d}" data-action="selectWorkItem">
                     <div class="kanban-card-header">
-                      <div class="work-item-type-icon ${$.class}">${$.icon}</div>
-                      <div class="work-item-id">#${m}</div>
-                      <div class="work-item-priority ${q}">${S(Number(I)).icon} ${S(Number(I)).label}</div>
+                      <div class="work-item-type-icon ${T.class}">${T.icon}</div>
+                      <div class="work-item-id">#${d}</div>
+                      <div class="work-item-priority ${N}">${S(Number(w)).icon} ${
+                      S(Number(w)).label
+                    }</div>
                     </div>
                     <div class="kanban-card-content">
-                      <div class="work-item-title" title="${l(String(v))}">${l(String(v))}</div>
+                      <div class="work-item-title" title="${escapeHtml(String(u))}">${escapeHtml(
+                      String(u)
+                    )}</div>
                       <div class="kanban-card-meta">
-                        <span class="work-item-type">${l(String(w))}</span>
-                        ${y!=="Unassigned"?`<span class="work-item-assignee"><span class="assignee-icon">👤</span>${l(String(h))}</span>`:""}
+                        <span class="work-item-type">${escapeHtml(String(p))}</span>
+                        ${
+                          y !== 'Unassigned'
+                            ? `<span class="work-item-assignee"><span class="assignee-icon">👤</span>${escapeHtml(
+                                String(I)
+                              )}</span>`
+                            : ''
+                        }
                       </div>
-                      ${b.length?`<div class="work-item-tags">${b.slice(0,2).map(K=>`<span class="work-item-tag">${l(String(K).trim())}</span>`).join("")}${b.length>2?`<span class="tag-overflow">+${b.length-2}</span>`:""}</div>`:""}
+                      ${
+                        f.length
+                          ? `<div class="work-item-tags">${f
+                              .slice(0, 2)
+                              .map(
+                                (R) =>
+                                  `<span class="work-item-tag">${escapeHtml(
+                                    String(R).trim()
+                                  )}</span>`
+                              )
+                              .join('')}${
+                              f.length > 2
+                                ? `<span class="tag-overflow">+${f.length - 2}</span>`
+                                : ''
+                            }</div>`
+                          : ''
+                      }
                     </div>
                     <div class="kanban-card-actions">
-                      <button class="action-btn timer-btn" data-action="startTimer" data-id="${m}" title="Start Timer">⏱️</button>
-                      <button class="action-btn view-btn" data-action="viewDetails" data-id="${m}" title="View Details">👁️</button>
+                      <button class="action-btn timer-btn" data-action="startTimer" data-id="${d}" title="Start Timer">⏱️</button>
+                      <button class="action-btn view-btn" data-action="viewDetails" data-id="${d}" title="View Details">👁️</button>
                     </div>
-                  </div>`}).join("")}
+                  </div>`
+                  );
+                })
+                .join('')}
             </div>
           </div>
-        `}).join("")}
+        `;
+        })
+        .join('')}
     </div>
-  `;i.workItemsContainer.innerHTML=a,D()}function _(e){f=e,x(),j()}function x(){if(!f){i.timerDisplay&&(i.timerDisplay.textContent="00:00:00"),i.timerInfo&&(i.timerInfo.textContent="No active timer");return}const e=f.elapsedSeconds||0,t=Math.floor(e/3600),s=Math.floor(e%3600/60),o=e%60,a=`${t.toString().padStart(2,"0")}:${s.toString().padStart(2,"0")}:${o.toString().padStart(2,"0")}`;i.timerDisplay&&(i.timerDisplay.textContent=a);const n=f.workItemTitle||`#${f.workItemId}`,r=f.isPaused?" (Paused)":"";i.timerInfo&&(i.timerInfo.textContent=`${n}${r}`)}function j(){const e=f!==null,t=e&&!f.isPaused;i.startTimerBtn&&(i.startTimerBtn.disabled=e),i.pauseTimerBtn&&(i.pauseTimerBtn.disabled=!t),i.stopTimerBtn&&(i.stopTimerBtn.disabled=!e),O(e)}function O(e){console.log("[webview] updateTimerVisibility called with show:",e);const t=document.getElementById("timerColumn");if(!t){console.warn("[webview] Timer column not found");return}e?(t.style.display="flex",t.classList.remove("timer-hidden"),t.classList.add("timer-visible"),console.log("[webview] Timer shown - display:",t.style.display)):(t.classList.remove("timer-visible"),t.classList.add("timer-hidden"),setTimeout(()=>{f||(t.style.display="none",t.classList.remove("timer-hidden"),console.log("[webview] Timer hidden - display:",t.style.display))},300))}function ee(e){const t=`items:${u.length};timer:${f?"1":"0"}`;d({type:"selfTestAck",nonce:e,signature:t})}function te(){console.log("[webview] handleToggleKanbanView called, current view:",p),p=p==="list"?"kanban":"list",F(),p==="kanban"?P():B()}function d(e){U?U.postMessage(e):console.warn("[webview] Cannot post message - VS Code API not available")}function l(e){return typeof e!="string"?"":e.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;")}window.requestWorkItems=M;const H=document.createElement("style");H.textContent=`
+  `;
+  (s.workItemsContainer.innerHTML = r), E();
+}
+function J(e) {
+  if (((k = e), e)) {
+    updateTimerDisplay(), updateTimerButtonStates();
+    try {
+      const n = e.workItemId,
+        t = n ? Q(n) : null;
+      if (t && t.length > 0) s.draftSummary && (s.draftSummary.value = t);
+      else if (s.draftSummary && s.draftSummary.value.trim() === '') {
+        const r = (e.elapsedSeconds || 0) / 3600 || 0,
+          o = e.workItemTitle || `#${e.workItemId}`;
+        s.draftSummary.value = `Worked approximately ${r.toFixed(
+          2
+        )} hours on ${o}. Provide a short summary of what you accomplished.`;
+      }
+    } catch (n) {
+      console.warn('[webview] Failed to prefill summary', n);
+    }
+  } else updateTimerDisplay(), updateTimerButtonStates();
+}
+function x(e, n) {
+  try {
+    localStorage.setItem(`azuredevops.draft.${e}`, n || ''),
+      console.log('[webview] Saved draft for work item', e);
+  } catch (t) {
+    console.warn('[webview] Failed to save draft to localStorage', t);
+  }
+}
+function Q(e) {
+  try {
+    return localStorage.getItem(`azuredevops.draft.${e}`);
+  } catch (n) {
+    return console.warn('[webview] Failed to load draft from localStorage', n), null;
+  }
+}
+function X(e) {
+  try {
+    localStorage.removeItem(`azuredevops.draft.${e}`),
+      console.log('[webview] Removed draft for work item', e);
+  } catch (n) {
+    console.warn('[webview] Failed to remove draft from localStorage', n);
+  }
+}
+(function () {
+  const n = () => {
+    if (!s.draftSummary) return !1;
+    const t = s.draftSummary;
+    return (
+      t.addEventListener('input', () => {
+        const a = k ? k.workItemId : h;
+        a && x(a, t.value);
+      }),
+      t.addEventListener('blur', () => {
+        const a = k ? k.workItemId : h;
+        a && x(a, t.value);
+      }),
+      !0
+    );
+  };
+  document.readyState === 'loading'
+    ? document.addEventListener('DOMContentLoaded', () => setTimeout(n, 0))
+    : setTimeout(n, 0);
+})();
+(function () {
+  setInterval(() => {}, 500);
+})();
+window.requestWorkItems = H;
+const V = document.createElement('style');
+V.textContent = `
   .work-item.selected {
     background: var(--vscode-list-activeSelectionBackground, #094771) !important;
     border-color: var(--vscode-list-activeSelectionForeground, #ffffff);
   }
-`;document.head.appendChild(H);function se(){document.readyState==="loading"?document.addEventListener("DOMContentLoaded",R):R()}se();
+`;
+document.head.appendChild(V);
+function Y() {
+  document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', W) : W();
+}
+Y();

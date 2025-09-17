@@ -33,7 +33,7 @@ async function generate() {
   for (const size of sizes) {
     const out = path.join(distDir, `workitems-icon-${size}.png`);
     await sharp(svg).resize(size, size).png({ compressionLevel: 9 }).toFile(out);
-  console.log('Generated', out); // console provided by Node.js
+    console.log('Generated', out); // console provided by Node.js
   }
   // Pick a default size (128) to replace existing extension icon.
   const primary = path.join(distDir, 'workitems-icon-128.png');
@@ -43,7 +43,7 @@ async function generate() {
   console.log('Replaced primary extension icon with 128px variant.');
 }
 
-generate().catch(err => {
+generate().catch((err) => {
   console.error(err);
   process.exit(1);
 });

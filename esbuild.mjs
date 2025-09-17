@@ -24,11 +24,13 @@ async function build() {
       minify: isProd,
       format: 'esm',
       banner: { js: banner },
-      logLevel: 'info'
+      logLevel: 'info',
     });
     console.log(`[esbuild] Built extension (ESM${isProd ? ' prod' : ''}) -> dist/extension.js`);
     if (isWatch) {
-      console.log('[esbuild] Watch mode enabled (manual rebuild on change provided by esbuild incremental).');
+      console.log(
+        '[esbuild] Watch mode enabled (manual rebuild on change provided by esbuild incremental).'
+      );
     }
     return ctx;
   } catch (err) {

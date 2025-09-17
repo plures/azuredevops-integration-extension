@@ -8,9 +8,9 @@ export default defineConfig({
   plugins: [
     svelte({
       compilerOptions: {
-        dev: false
-      }
-    })
+        dev: false,
+      },
+    }),
   ],
   build: {
     outDir: path.resolve(process.cwd(), 'media', 'webview'),
@@ -24,8 +24,8 @@ export default defineConfig({
         assetFileNames: (info) => {
           if (info.name && info.name.endsWith('.css')) return 'main.css';
           return info.name || 'asset.[ext]';
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 });

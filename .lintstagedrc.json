@@ -1,13 +1,5 @@
 {
-  "src/**/*.{ts,js}": [
-    "npm run lint:fix",
-    "npm run format:staged"
-  ],
-  "src/**/*.{html,css}": [
-    "npm run format:staged"
-  ],
-  "tests/**/*.ts": [
-    "npm run lint:fix",
-    "npm run format:staged"
-  ]
+  "src/**/*.{ts,js}": ["npm run lint:fix", "npm run format:staged"],
+  "src/**/*.{html,css}": ["npm run format:staged"],
+  "tests/**/*.ts": ["npm run lint:fix", "npm run format:staged"]
 }

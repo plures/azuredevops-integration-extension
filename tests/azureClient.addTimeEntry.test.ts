@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import nock from 'nock';
-import { AzureDevOpsIntClient } from '../src/azureClient';
+import { AzureDevOpsIntClient } from '../src/azureClient.ts';
 
 describe('AzureDevOpsIntClient addTimeEntry', function () {
   afterEach(() => nock.cleanAll());

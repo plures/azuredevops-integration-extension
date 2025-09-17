@@ -13,7 +13,11 @@ export class WorkItemsProvider {
   private _refreshInFlight = false;
   private _lastRefreshTs = 0;
 
-  constructor(client: AzureDevOpsIntClient, postMessage: PostMessageFn, options: { kanbanView?: boolean; currentFilters?: Record<string, any> } = {}) {
+  constructor(
+    client: AzureDevOpsIntClient,
+    postMessage: PostMessageFn,
+    options: { kanbanView?: boolean; currentFilters?: Record<string, any> } = {}
+  ) {
     this.client = client;
     this.postMessage = postMessage;
     this._kanbanView = options.kanbanView ?? false;
@@ -36,11 +40,11 @@ export class WorkItemsProvider {
       console.log('[azureDevOpsInt] refresh(): starting fetch for query:', defaultQuery);
       const fetched = await this.client.getWorkItems(defaultQuery);
       console.log('[azureDevOpsInt] refresh(): received', fetched.length, 'work items');
-      
+
       // Always update the work items, even if empty
       this._workItems = fetched;
       this._postWorkItemsLoaded();
-      
+
       if (fetched.length === 0) {
         console.log('[azureDevOpsInt] refresh(): No work items found for query:', defaultQuery);
       }
@@ -117,8 +121,12 @@ export class WorkItemsProvider {
     this._post({ type: 'workItemSelected', workItem: item });
   }
 
-  getSelectedWorkItem() { return this._selectedWorkItem; }
-  getWorkItems() { return [...this._workItems]; }
+  getSelectedWorkItem() {
+    return this._selectedWorkItem;
+  }
+  getWorkItems() {
+    return [...this._workItems];
+  }
 
   dispose() {
     this._workItems = [];
@@ -127,11 +135,20 @@ export class WorkItemsProvider {
   }
 
   private _postWorkItemsLoaded() {
-    this._post({ type: 'workItemsLoaded', workItems: this._workItems, kanbanView: this._kanbanView });
-    if (Object.keys(this._currentFilters).length > 0) this._post({ type: 'restoreFilters', filters: this._currentFilters });
+    this._post({
+      type: 'workItemsLoaded',
+      workItems: this._workItems,
+      kanbanView: this._kanbanView,
+    });
+    if (Object.keys(this._currentFilters).length > 0)
+      this._post({ type: 'restoreFilters', filters: this._currentFilters });
   }
-  private _post(msg: any) { this.postMessage && this.postMessage(msg); }
-  private _error(message: string) { this._post({ type: 'error', message }); }
+  private _post(msg: any) {
+    this.postMessage && this.postMessage(msg);
+  }
+  private _error(message: string) {
+    this._post({ type: 'error', message });
+  }
 }
 
 export default WorkItemsProvider;

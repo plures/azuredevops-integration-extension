@@ -1,6 +1,11 @@
 import { WorkItemTimerState, TimeEntry } from './types';
 
-export interface TimerPersistPayload { state?: WorkItemTimerState; timeEntries?: TimeEntry[]; updateLastSave?: boolean; }
+export interface TimerPersistPayload {
+  state?: WorkItemTimerState;
+  timeEntries?: TimeEntry[];
+  updateLastSave?: boolean;
+  defaultElapsedLimitHours?: number;
+}
 export interface TimerOptions {
   onState?: (_s: WorkItemTimerState | undefined) => void;
   onInfo?: (_m: string) => void;
@@ -14,6 +19,7 @@ export interface TimerOptions {
   pomodoroEnabled?: boolean;
   breakPrompt?: (resumeCb: () => void) => void;
   inactivityCheckMs?: number; // optional: frequency for inactivity checks (testable)
+  defaultElapsedLimitHours?: number; // cap elapsed time on stop if left running
 }
 
 export class WorkItemTimer {
@@ -31,6 +37,7 @@ export class WorkItemTimer {
 
   private _tickIntervalMs = 1000;
   private _inactivityCheckMs = 10000;
+  private defaultElapsedLimitHours = 3.5; // hours
   private _state: WorkItemTimerState | undefined;
   private _ticker: any;
   private _inactivityTicker: any;
@@ -51,11 +58,19 @@ export class WorkItemTimer {
     this._inactivityCheckMs = options.inactivityCheckMs ?? 10000;
     this.pomodoroEnabled = options.pomodoroEnabled ?? false;
     this.breakPrompt = options.breakPrompt || ((cb) => cb());
+    this.defaultElapsedLimitHours = options.defaultElapsedLimitHours ?? 3.5;
     this._lastActivity = this.now();
   }
 
   loadFromPersisted() {
-    const { state, timeEntries } = this.restorePersisted() || {};
+    const persisted = this.restorePersisted() || ({} as any);
+    const state = persisted.state;
+    const timeEntries = persisted.timeEntries;
+    // If a cap value was persisted with the timer state, restore it so behavior is consistent across reloads
+    const persistedCap =
+      (persisted as any).defaultElapsedLimitHours ||
+      (state && (state.__defaultElapsedLimitHours ?? undefined));
+    if (typeof persistedCap === 'number') this.defaultElapsedLimitHours = persistedCap;
     if (state) {
       this._state = state;
       if (!this._state.isPaused) {
@@ -69,11 +84,24 @@ export class WorkItemTimer {
     }
   }
 
-  snapshot() { return this._state ? { ...this._state } : undefined; }
+  snapshot() {
+    return this._state ? { ...this._state } : undefined;
+  }
 
   start(workItemId: number, workItemTitle: string) {
-    if (this._state) { this.onWarn('Timer already running. Stop it first.'); return false; }
-    this._state = { workItemId, workItemTitle, startTime: this.now(), elapsedSeconds: 0, isPaused: false, isPomodoro: this.pomodoroEnabled, pomodoroCount: 0 };
+    if (this._state) {
+      this.onWarn('Timer already running. Stop it first.');
+      return false;
+    }
+    this._state = {
+      workItemId,
+      workItemTitle,
+      startTime: this.now(),
+      elapsedSeconds: 0,
+      isPaused: false,
+      isPomodoro: this.pomodoroEnabled,
+      pomodoroCount: 0,
+    };
     this._persist();
     this._startLoops();
     this.onInfo(`Timer started for #${workItemId}: ${workItemTitle}`);
@@ -82,7 +110,10 @@ export class WorkItemTimer {
   }
 
   pause(manual = true) {
-    if (!this._state || this._state.isPaused) { this.onInfo('No active timer to pause'); return false; }
+    if (!this._state || this._state.isPaused) {
+      this.onInfo('No active timer to pause');
+      return false;
+    }
     this._applyElapsed();
     this._state.isPaused = true;
     (this._state as any).pausedTime = this.now();
@@ -94,7 +125,10 @@ export class WorkItemTimer {
   }
 
   resume(fromActivity = false) {
-    if (!this._state || !this._state.isPaused) { this.onInfo('No paused timer to resume'); return false; }
+    if (!this._state || !this._state.isPaused) {
+      this.onInfo('No paused timer to resume');
+      return false;
+    }
     const anyState: any = this._state;
     if (anyState.pausedTime) {
       const pausedMs = Math.max(0, this.now() - anyState.pausedTime);
@@ -113,39 +147,90 @@ export class WorkItemTimer {
   activityPing() {
     this._lastActivity = this.now();
     const anyState: any = this._state;
-    if (this._state && this._state.isPaused && anyState.pausedDueToInactivity && this.autoResumeOnActivity) {
+    if (
+      this._state &&
+      this._state.isPaused &&
+      anyState.pausedDueToInactivity &&
+      this.autoResumeOnActivity
+    ) {
       this.resume(true);
       this.onInfo('Timer resumed due to activity');
     }
   }
 
   stop(addTimeEntryCallback?: (workItemId: number, hoursDecimal: number) => Promise<any> | any) {
-    if (!this._state) { this.onInfo('No timer running'); return null; }
+    if (!this._state) {
+      this.onInfo('No timer running');
+      return null;
+    }
     this._applyElapsed();
-    const totalSec = this._state.elapsedSeconds;
-    const hours = parseFloat((totalSec / 3600).toFixed(2));
-    const entry: TimeEntry = { workItemId: this._state.workItemId, startTime: this._state.startTime, endTime: this.now(), duration: totalSec };
+    // Compute elapsed and enforce configured cap (for forgotten timers)
+    const totalSecRaw = this._state.elapsedSeconds;
+    const capSec = Math.max(0, Math.floor(this.defaultElapsedLimitHours * 3600));
+    let usedSec = totalSecRaw;
+    let capApplied = false;
+    if (capSec > 0 && totalSecRaw > capSec) {
+      usedSec = capSec;
+      capApplied = true;
+    }
+    const hours = parseFloat((usedSec / 3600).toFixed(2));
+    const entry: TimeEntry = {
+      workItemId: this._state.workItemId,
+      startTime: this._state.startTime,
+      endTime: this._state.startTime + usedSec * 1000,
+      duration: usedSec,
+    };
     this._timeEntries.push(entry);
     this._persist();
     const finishedId = this._state.workItemId;
     this._clearState();
-    if (addTimeEntryCallback) Promise.resolve(addTimeEntryCallback(finishedId, hours)).catch(err => this.onError((err && err.message) || String(err)));
-    this.onInfo(`Timer stopped. Total time: ${hours.toFixed(2)} hours.`);
-    return { ...entry, hoursDecimal: hours };
+    if (addTimeEntryCallback)
+      Promise.resolve(addTimeEntryCallback(finishedId, hours)).catch((err) =>
+        this.onError((err && err.message) || String(err))
+      );
+    if (capApplied) {
+      this.onWarn(
+        `Timer stopped. Elapsed time exceeded configured cap; recorded ${hours.toFixed(
+          2
+        )} hours (cap: ${this.defaultElapsedLimitHours.toFixed(2)}h).`
+      );
+    } else {
+      this.onInfo(`Timer stopped. Total time: ${hours.toFixed(2)} hours.`);
+    }
+    return {
+      ...entry,
+      hoursDecimal: hours,
+      capApplied,
+      capLimitHours: this.defaultElapsedLimitHours,
+    } as any;
   }
 
-  getTimeEntries() { return [...this._timeEntries]; }
+  getTimeEntries() {
+    return [...this._timeEntries];
+  }
 
   timeReport(period: 'Today' | 'This Week' | 'This Month' | 'All Time') {
     const now = this.now();
     let from: number;
     switch (period) {
-      case 'Today': from = new Date().setHours(0,0,0,0); break;
-      case 'This Week': { const d = new Date(); d.setDate(d.getDate() - d.getDay()); from = d.setHours(0,0,0,0); break; }
-      case 'This Month': from = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime(); break;
-      case 'All Time': default: from = 0; break;
+      case 'Today':
+        from = new Date().setHours(0, 0, 0, 0);
+        break;
+      case 'This Week': {
+        const d = new Date();
+        d.setDate(d.getDate() - d.getDay());
+        from = d.setHours(0, 0, 0, 0);
+        break;
+      }
+      case 'This Month':
+        from = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+        break;
+      case 'All Time':
+      default:
+        from = 0;
+        break;
     }
-    const filtered = this._timeEntries.filter(e => e.startTime >= from && e.startTime <= now);
+    const filtered = this._timeEntries.filter((e) => e.startTime >= from && e.startTime <= now);
     const map = new Map<number, { total: number; entries: TimeEntry[] }>();
     for (const e of filtered) {
       if (!map.has(e.workItemId)) map.set(e.workItemId, { total: 0, entries: [] });
@@ -192,8 +277,14 @@ export class WorkItemTimer {
     this._inactivityTicker = setInterval(() => this._checkInactivity(), this._inactivityCheckMs);
   }
   private _stopLoops() {
-    if (this._ticker) { clearInterval(this._ticker); this._ticker = undefined; }
-    if (this._inactivityTicker) { clearInterval(this._inactivityTicker); this._inactivityTicker = undefined; }
+    if (this._ticker) {
+      clearInterval(this._ticker);
+      this._ticker = undefined;
+    }
+    if (this._inactivityTicker) {
+      clearInterval(this._inactivityTicker);
+      this._inactivityTicker = undefined;
+    }
   }
   private _clearState() {
     this._stopLoops();
@@ -202,7 +293,24 @@ export class WorkItemTimer {
     this.onState(undefined);
   }
   private _persist(updateLastSave = true) {
-    try { this.persist({ state: this._state, timeEntries: this._timeEntries, updateLastSave }); } catch (e: any) { this.onError(e.message || e); }
+    try {
+      this.persist({
+        state: this._state,
+        timeEntries: this._timeEntries,
+        updateLastSave,
+        defaultElapsedLimitHours: this.defaultElapsedLimitHours,
+      });
+    } catch (e: any) {
+      this.onError(e.message || e);
+    }
+  }
+
+  // Allow updating the cap at runtime when settings change
+  setDefaultElapsedLimitHours(hours: number) {
+    if (typeof hours === 'number' && Number.isFinite(hours) && hours >= 0) {
+      this.defaultElapsedLimitHours = hours;
+      this.onInfo(`Default elapsed limit updated to ${hours} hours.`);
+    }
   }
 }
 

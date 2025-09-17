@@ -4,14 +4,23 @@ export function makeMockContext() {
   return {
     globalState: {
       get: (k: string) => global.get(k),
-      update: async (k: string, v: any) => { global.set(k, v); return Promise.resolve(); }
+      update: async (k: string, v: any) => {
+        global.set(k, v);
+        return Promise.resolve();
+      },
     },
     secrets: {
       get: async (k: string) => secrets.get(k),
-      store: async (k: string, v: string) => { secrets.set(k, v); return Promise.resolve(); },
-      delete: async (k: string) => { secrets.delete(k); return Promise.resolve(); }
+      store: async (k: string, v: string) => {
+        secrets.set(k, v);
+        return Promise.resolve();
+      },
+      delete: async (k: string) => {
+        secrets.delete(k);
+        return Promise.resolve();
+      },
     },
     extensionPath: '',
-    subscriptions: [] as any[]
+    subscriptions: [] as any[],
   } as any;
 }

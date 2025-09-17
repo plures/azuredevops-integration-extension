@@ -1,7 +1,12 @@
-const { execSync } = require('child_process');
+import { execSync } from 'child_process';
+import fs from 'fs';
 
 function run(cmd) {
-  try { return execSync(cmd, { encoding: 'utf8', stdio: 'pipe' }).trim(); } catch (e) { return null; }
+  try {
+    return execSync(cmd, { encoding: 'utf8', stdio: 'pipe' }).trim();
+  } catch (e) {
+    return null;
+  }
 }
 
 function checkUnitTests() {
@@ -15,7 +20,9 @@ function checkCoverage() {
   const lines = (out.match(/Lines:\s+(\d+\.\d+)%/i) || [])[1];
   const branches = (out.match(/Branches:\s+(\d+\.\d+)%/i) || [])[1];
   const funcs = (out.match(/Functions:\s+(\d+\.\d+)%/i) || [])[1];
-  const l = parseFloat(lines || 0), b = parseFloat(branches || 0), f = parseFloat(funcs || 0);
+  const l = parseFloat(lines || 0),
+    b = parseFloat(branches || 0),
+    f = parseFloat(funcs || 0);
   let score = 0;
   if (l >= 85) score += 20;
   if (b >= 80) score += 15;
@@ -34,9 +41,14 @@ function checkTypes() {
 }
 
 function checkDocs() {
-  const req = ['README.md','CHANGELOG.md','RELEASE_PLAN_1_0.md','CONTRIBUTING.md'];
+  const req = ['README.md', 'CHANGELOG.md', 'RELEASE_PLAN_1_0.md', 'CONTRIBUTING.md'];
   let ok = 0;
-  for (const f of req) { try { require('fs').accessSync(f); ok++; } catch(e){} }
+  for (const f of req) {
+    try {
+      fs.accessSync(f);
+      ok++;
+    } catch (e) {}
+  }
   return ok === req.length ? 5 : 0;
 }
 
@@ -47,8 +59,10 @@ function checkSecurity() {
     const j = JSON.parse(out);
     const crit = j.metadata.vulnerabilities.critical || 0;
     const high = j.metadata.vulnerabilities.high || 0;
-    return (crit + high) === 0 ? 10 : 0;
-  } catch(e) { return 0; }
+    return crit + high === 0 ? 10 : 0;
+  } catch (e) {
+    return 0;
+  }
 }
 
 function computeScore() {

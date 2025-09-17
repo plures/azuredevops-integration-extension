@@ -68,6 +68,11 @@
   "contributes": {
     "commands": [
       {
+        "command": "azureDevOpsInt.setDefaultElapsedLimit",
+        "title": "Azure DevOps Integration: Set Default Timer Elapsed Cap (hours)",
+        "icon": "$(clock)"
+      },
+      {
         "command": "azureDevOpsInt.setup",
         "title": "Azure DevOps Integration: Setup Connection",
         "icon": "$(settings-gear)"
@@ -296,6 +301,12 @@
           "default": 300,
           "description": "Timer auto-pause after inactivity (seconds)"
         },
+        "azureDevOpsIntegration.defaultElapsedLimitHours": {
+          "type": "number",
+          "default": 3.5,
+          "minimum": 0,
+          "description": "Default elapsed hours cap to apply when a timer has been left running (e.g. if a timer was forgotten overnight). A value of 3.5 corresponds to a typical full dev workday in Azure DevOps."
+        },
         "azureDevOpsIntegration.autoStartTimerOnBranch": {
           "type": "boolean",
           "default": true,
@@ -387,6 +398,10 @@
           "when": "azureDevOpsInt.connected"
         },
         {
+          "command": "azureDevOpsInt.setDefaultElapsedLimit",
+          "when": "azureDevOpsInt.connected"
+        },
+        {
           "command": "azureDevOpsInt.generatePRDescription",
           "when": "azureDevOpsInt.connected"
         }
@@ -406,7 +421,7 @@
   "scripts": {
     "clean": "rimraf dist",
     "vscode:prepublish": "npm run build",
-    "build:ext": "node esbuild.js",
+    "build:ext": "node esbuild.mjs",
     "build": "npm run check-types && npm run lint && npm run webview:build && npm run build:ext",
     "compile": "npm run build",
     "watch": "npm-run-all -p watch:*",
@@ -414,12 +429,12 @@
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "package": "npm run build --production",
     "compile-tests": "tsc -p . --outDir out",
+    "compile-tests:cjs": "tsc -p tsconfig.tests.json",
     "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "npm run compile-tests && npm run build && npm run lint",
-    "check-types": "tsc --noEmit",
-    "lint": "eslint src",
-    "test": "mocha -r ts-node/register tests/**/*.test.ts",
-    "test:integration": "ts-node tests/integration/webview-roundtrip.test.ts",
+    "pretest": "npm run lint && npm run webview:build && npm run build:ext",
+    "test": "node scripts/run-esm-tests-cmd.mjs",
+    "test:compiled": "npm run compile-tests && node ./node_modules/mocha/bin/mocha \"out/**/*.test.js\"",
+    "test:integration": "node --trace-warnings scripts/run-integration.mjs",
     "test:changed": "node ./scripts/select-tests.js",
     "webview:build": "vite build --config vite.webview.config.ts",
     "webview:dev": "vite --config vite.webview.config.ts",
@@ -435,7 +450,20 @@
     "dev:webview": "npm --prefix src/webview run dev",
     "coverage": "c8 --reporter=text npm test",
     "coverage:ci": "c8 --reporter=text --check-coverage --lines 70 --branches 65 --functions 65 npm test",
-    "release-check": "node ./scripts/release-check.js"
+    "release-check": "node ./scripts/release-check.js",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src --max-warnings 0"
+  },
+  "lint-staged": {
+    "*.{ts,js,mjs}": [
+      "eslint --fix",
+      "prettier --write",
+      "git add"
+    ],
+    "*.{tsx,jsx,json,md,css,scss,html}": [
+      "prettier --write",
+      "git add"
+    ]
   },
   "devDependencies": {
     "@commitlint/config-conventional": "^17.0.0",
@@ -464,7 +492,8 @@
     "sinon": "^16.1.1",
     "ts-node": "^10.9.1",
     "typescript": "^5.8.3",
-    "vite": "^7.1.5"
+    "vite": "^7.1.5",
+    "vscode": "file:./vscode-stub"
   },
   "dependencies": {
     "axios": "^1.12.0",
@@ -478,5 +507,11 @@
   "types": "src/types.d.ts",
   "overrides": {
     "glob": "^9.3.0"
+  },
+  "ts-node": {
+    "compilerOptions": {
+      "module": "NodeNext"
+    },
+    "transpileOnly": true
   }
 }

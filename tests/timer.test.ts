@@ -1,13 +1,18 @@
 import { expect } from 'chai';
-import { WorkItemTimer } from '../src/timer';
+import { WorkItemTimer } from '../src/timer.ts';
 
-function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 describe('WorkItemTimer (basic)', function () {
   it('start -> stop produces a time entry', async function () {
     const persisted: any = { state: undefined, entries: [] };
     const timer = new WorkItemTimer({
-      persist: (p) => { persisted.state = p.state; persisted.entries = p.timeEntries; },
+      persist: (p) => {
+        persisted.state = p.state;
+        persisted.entries = p.timeEntries;
+      },
       restorePersisted: () => ({ state: undefined, timeEntries: [] }),
       inactivityTimeoutSec: 60, // disable auto pause
     });

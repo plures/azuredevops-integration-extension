@@ -1,5 +1,5 @@
-const { execSync } = require('child_process');
-const path = require('path');
+import { execSync } from 'child_process';
+import path from 'path';
 
 // Files which should always trigger full test suite when changed
 const GLOBAL_TRIGGERS = [
@@ -9,7 +9,7 @@ const GLOBAL_TRIGGERS = [
   'esbuild.js',
   '.eslintrc.js',
   '.prettierrc',
-  '.github/workflows/ci.yml'
+  '.github/workflows/ci.yml',
 ];
 
 // Map directories or file globs to test globs
@@ -31,7 +31,10 @@ function getChangedFiles() {
     const base = process.env.GITHUB_BASE_SHA || run('git merge-base origin/main HEAD');
     const out = run(`git diff --name-only ${base} ${head}`);
     if (!out) return [];
-    return out.split('\n').map(f => f.trim()).filter(Boolean);
+    return out
+      .split('\n')
+      .map((f) => f.trim())
+      .filter(Boolean);
   } catch (e) {
     console.error('Failed to compute changed files, falling back to full test suite.', e.message);
     return null; // signal to run full suite
@@ -39,7 +42,7 @@ function getChangedFiles() {
 }
 
 function isGlobalTrigger(filePath) {
-  return GLOBAL_TRIGGERS.some(g => filePath === g || filePath.startsWith(g));
+  return GLOBAL_TRIGGERS.some((g) => filePath === g || filePath.startsWith(g));
 }
 
 function testGlobsForSrcFile(filePath) {
@@ -77,7 +80,7 @@ function selectTests(changedFiles) {
     }
     if (f.startsWith('src/')) {
       const globs = testGlobsForSrcFile(f);
-      globs.forEach(g => selected.add(g));
+      globs.forEach((g) => selected.add(g));
       continue;
     }
     if (f.startsWith('scripts/') || f.startsWith('.github/')) {
@@ -101,7 +104,9 @@ function main() {
     process.exit(execSync('npm test', { stdio: 'inherit' }));
   }
   console.log('Running tests for changed files, patterns:', selected.join(', '));
-  const mochaCmd = `npx mocha -r ts-node/register ${selected.join(' ')}`;
+  const mochaCmd = `node --loader ts-node/esm ./node_modules/mocha/bin/mocha --extensions ts ${selected.join(
+    ' '
+  )}`;
   try {
     execSync(mochaCmd, { stdio: 'inherit' });
   } catch (e) {

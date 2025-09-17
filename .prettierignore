@@ -1,0 +1,17 @@
+# Ignore node modules and build artifacts
+node_modules/
+
+# VS Code test runner downloads (large generated archive)
+.vscode-test/
+
+# Extension build output
+dist/
+
+# VS Code workspace settings
+.vscode/
+
+# temporary files
+tmp/
+
+# Ignore generated webview bundle if present (optionally)
+media/webview/main.js

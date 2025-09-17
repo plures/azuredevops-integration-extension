@@ -7,8 +7,13 @@ import { runTests, downloadAndUnzipVSCode } from '@vscode/test-electron';
 async function main() {
   const vscodeExecutablePath = await downloadAndUnzipVSCode('1.78.0');
   const extensionDevelopmentPath = path.resolve(__dirname, '../../');
+  const extensionTestsPath = path.resolve(extensionDevelopmentPath, 'out', 'integration-tests');
   try {
-    await runTests({ extensionDevelopmentPath, launchArgs: ['--extensionDevelopmentPath=' + extensionDevelopmentPath] });
+    await runTests({
+      extensionDevelopmentPath,
+      extensionTestsPath,
+      launchArgs: ['--extensionDevelopmentPath=' + extensionDevelopmentPath],
+    });
   } catch (err) {
     console.error('Failed to run tests', err);
     process.exit(1);

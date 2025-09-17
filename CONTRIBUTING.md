@@ -9,6 +9,7 @@ Key conventions maintained by this project:
 - Staged deletions: Files moved to `.delete/` are preserved snapshots. Convert any useful code (e.g. timer harness) into tests under `tests/` before removing the original.
 
 - Running locally:
+
   - `npm install`
   - `npm run webview:dev` to run Vite dev server for the webview.
   - `npm run watch` and then use the "Extension: Watch" launch configuration to debug in VS Code.

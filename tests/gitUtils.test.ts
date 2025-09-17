@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { makeBranchSlug } from '../src/gitUtils';
+import { makeBranchSlug } from '../src/gitUtils.ts';
 
 describe('gitUtils', () => {
   it('makes a slug', () => {

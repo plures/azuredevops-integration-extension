@@ -18,8 +18,8 @@ export default defineConfig({
         assetFileNames: (assetInfo) => {
           if (assetInfo.name?.endsWith('.css')) return 'main.css';
           return assetInfo.name || 'asset.[ext]';
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 });

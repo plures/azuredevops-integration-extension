@@ -46,6 +46,11 @@ const elements = {
   startTimerBtn: null as HTMLButtonElement | null,
   pauseTimerBtn: null as HTMLButtonElement | null,
   stopTimerBtn: null as HTMLButtonElement | null,
+  // New summary editor elements
+  draftSummary: null as HTMLTextAreaElement | null,
+  summaryContainer: null as HTMLElement | null,
+  toggleSummaryBtn: null as HTMLButtonElement | null,
+  summaryStatus: null as HTMLElement | null,
 };
 
 // Initialize the application
@@ -75,6 +80,14 @@ function init() {
   (elements as any).stopTimerBtn = stopTimerBtn;
   // Note: 'content' element is not required in new layout
   elements.content = document.getElementById('content');
+
+  // New summary element references
+  elements.draftSummary = document.getElementById('draftSummary') as HTMLTextAreaElement;
+  elements.summaryContainer = document.getElementById('summaryContainer');
+  (elements as any).toggleSummaryBtn = document.getElementById(
+    'toggleSummaryBtn'
+  ) as HTMLButtonElement;
+  elements.summaryStatus = document.getElementById('summaryStatus');
 
   if (!elements.workItemsContainer) {
     console.error('[webview] Critical: workItemsContainer element not found');
@@ -135,6 +148,46 @@ function setupEventListeners() {
       case 'refresh':
         requestWorkItems();
         break;
+      case 'toggleSummary': {
+        const container = elements.summaryContainer;
+        const toggleBtn = (elements as any).toggleSummaryBtn as HTMLButtonElement | null;
+        if (!container) return;
+        const isHidden = container.hasAttribute('hidden');
+        if (isHidden) {
+          container.removeAttribute('hidden');
+          if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
+          if (toggleBtn) toggleBtn.textContent = 'Compose Summary ▴';
+        } else {
+          container.setAttribute('hidden', '');
+          if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
+          if (toggleBtn) toggleBtn.textContent = 'Compose Summary ▾';
+        }
+        break;
+      }
+      case 'generateCopilotPrompt': {
+        // Use current timer's work item id when available; otherwise try button id
+        const workItemId = id || (currentTimer ? currentTimer.workItemId : undefined);
+        const draft = elements.draftSummary ? elements.draftSummary.value : '';
+        if (!workItemId) {
+          console.warn('[webview] generateCopilotPrompt: no work item id available');
+          if (elements.summaryStatus)
+            elements.summaryStatus.textContent = 'No work item selected to generate prompt.';
+          return;
+        }
+        // Provide visual feedback
+        if (elements.summaryStatus)
+          elements.summaryStatus.textContent =
+            'Preparing Copilot prompt and copying to clipboard...';
+        postMessage({ type: 'generateCopilotPrompt', workItemId, draftSummary: draft });
+        break;
+      }
+      case 'stopAndApply': {
+        const draft = elements.draftSummary ? elements.draftSummary.value : '';
+        if (elements.summaryStatus)
+          elements.summaryStatus.textContent = 'Stopping timer and applying updates...';
+        postMessage({ type: 'stopAndApply', comment: draft });
+        break;
+      }
       case 'createWorkItem':
         postMessage({ type: 'createWorkItem' });
         break;
@@ -440,6 +493,36 @@ function setupMessageHandling() {
       case 'workItemsLoaded':
         handleWorkItemsLoaded(message.workItems || []);
         break;
+      case 'copilotPromptCopied': {
+        const id = message.workItemId;
+        if (elements.summaryStatus)
+          elements.summaryStatus.textContent =
+            'Copilot prompt copied to clipboard. Paste into Copilot chat to generate a summary.';
+        // Briefly show feedback then clear
+        setTimeout(() => {
+          if (elements.summaryStatus) elements.summaryStatus.textContent = '';
+        }, 3500);
+        break;
+      }
+      case 'stopAndApplyResult': {
+        const id = message.workItemId;
+        const hours = message.hours;
+        if (elements.summaryStatus)
+          elements.summaryStatus.textContent = `Applied ${hours.toFixed(
+            2
+          )} hours to work item #${id}.`;
+        // Reset draft after apply
+        if (elements.draftSummary) elements.draftSummary.value = '';
+        try {
+          if (typeof id === 'number') removeDraftForWorkItem(id);
+        } catch (e) {
+          console.warn('[webview] Failed to remove persisted draft after apply', e);
+        }
+        setTimeout(() => {
+          if (elements.summaryStatus) elements.summaryStatus.textContent = '';
+        }, 4000);
+        break;
+      }
       case 'workItemsError':
         handleWorkItemsError(message.error);
         break;
@@ -965,6 +1048,24 @@ function handleTimerUpdate(timer: any) {
   if (timer) {
     updateTimerDisplay();
     updateTimerButtonStates();
+    // Prefill draft summary with an editable suggestion when a timer is active
+    try {
+      const workItemId = timer.workItemId;
+      const persisted = workItemId ? loadDraftForWorkItem(workItemId) : null;
+      if (persisted && persisted.length > 0) {
+        // Use persisted draft if present
+        if (elements.draftSummary) elements.draftSummary.value = persisted;
+      } else if (elements.draftSummary && elements.draftSummary.value.trim() === '') {
+        const seconds = (timer.elapsedSeconds || 0) as number;
+        const hours = seconds / 3600 || 0;
+        const title = timer.workItemTitle || `#${timer.workItemId}`;
+        elements.draftSummary.value = `Worked approximately ${hours.toFixed(
+          2
+        )} hours on ${title}. Provide a short summary of what you accomplished.`;
+      }
+    } catch (e) {
+      console.warn('[webview] Failed to prefill summary', e);
+    }
   } else {
     // Timer stopped - just update display and buttons
     updateTimerDisplay();
@@ -972,106 +1073,96 @@ function handleTimerUpdate(timer: any) {
   }
 }
 
-function updateTimerDisplay() {
-  if (!currentTimer) {
-    if (elements.timerDisplay) elements.timerDisplay.textContent = '00:00:00';
-    if (elements.timerInfo) elements.timerInfo.textContent = 'No active timer';
-    return;
+// Save draft to localStorage
+function saveDraftForWorkItem(workItemId: number, text: string) {
+  try {
+    localStorage.setItem(`azuredevops.draft.${workItemId}`, text || '');
+    console.log('[webview] Saved draft for work item', workItemId);
+  } catch (e) {
+    console.warn('[webview] Failed to save draft to localStorage', e);
   }
-
-  const seconds = currentTimer.elapsedSeconds || 0;
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-
-  const timeString = `${hours.toString().padStart(2, '0')}:${minutes
-    .toString()
-    .padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  if (elements.timerDisplay) elements.timerDisplay.textContent = timeString;
-
-  const workItemTitle = currentTimer.workItemTitle || `#${currentTimer.workItemId}`;
-  const status = currentTimer.isPaused ? ' (Paused)' : '';
-  if (elements.timerInfo) elements.timerInfo.textContent = `${workItemTitle}${status}`;
 }
 
-function updateTimerButtonStates() {
-  const hasActiveTimer = currentTimer !== null;
-  const timerRunning = hasActiveTimer && !currentTimer.isPaused;
-
-  if ((elements as any).startTimerBtn) (elements as any).startTimerBtn.disabled = hasActiveTimer;
-  if ((elements as any).pauseTimerBtn) (elements as any).pauseTimerBtn.disabled = !timerRunning;
-  if ((elements as any).stopTimerBtn) (elements as any).stopTimerBtn.disabled = !hasActiveTimer;
-
-  // Show/hide timer section based on timer state
-  updateTimerVisibility(hasActiveTimer);
+// Load draft from localStorage
+function loadDraftForWorkItem(workItemId: number): string | null {
+  try {
+    const v = localStorage.getItem(`azuredevops.draft.${workItemId}`);
+    return v;
+  } catch (e) {
+    console.warn('[webview] Failed to load draft from localStorage', e);
+    return null;
+  }
 }
 
-function updateTimerVisibility(show: boolean) {
-  console.log('[webview] updateTimerVisibility called with show:', show);
-  const timerColumn = document.getElementById('timerColumn');
-  if (!timerColumn) {
-    console.warn('[webview] Timer column not found');
-    return;
+// Remove draft from localStorage
+function removeDraftForWorkItem(workItemId: number) {
+  try {
+    localStorage.removeItem(`azuredevops.draft.${workItemId}`);
+    console.log('[webview] Removed draft for work item', workItemId);
+  } catch (e) {
+    console.warn('[webview] Failed to remove draft from localStorage', e);
   }
+}
 
-  if (show) {
-    // Show timer section
-    timerColumn.style.display = 'flex';
-    timerColumn.classList.remove('timer-hidden');
-    timerColumn.classList.add('timer-visible');
-    console.log('[webview] Timer shown - display:', timerColumn.style.display);
+// Wire textarea change/input events to persist drafts
+(function wireDraftAutosave() {
+  // Defer until DOM ready
+  const attemptWire = () => {
+    if (!elements.draftSummary) return false;
+    const ta = elements.draftSummary as HTMLTextAreaElement;
+
+    // Save on input (fast) and on blur (ensure save)
+    ta.addEventListener('input', () => {
+      const workItemId = currentTimer ? currentTimer.workItemId : selectedWorkItemId;
+      if (!workItemId) return;
+      saveDraftForWorkItem(workItemId, ta.value);
+    });
+    ta.addEventListener('blur', () => {
+      const workItemId = currentTimer ? currentTimer.workItemId : selectedWorkItemId;
+      if (!workItemId) return;
+      saveDraftForWorkItem(workItemId, ta.value);
+    });
+
+    return true;
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(attemptWire, 0));
   } else {
-    // Hide timer section with animation
-    timerColumn.classList.remove('timer-visible');
-    timerColumn.classList.add('timer-hidden');
+    setTimeout(attemptWire, 0);
+  }
+})();
 
-    // Hide completely after animation
-    setTimeout(() => {
-      if (!currentTimer) {
-        // Only hide if timer is still not active
-        timerColumn.style.display = 'none';
-        timerColumn.classList.remove('timer-hidden');
-        console.log('[webview] Timer hidden - display:', timerColumn.style.display);
+// Load persisted draft when the timer updates (or selection changes)
+// Extend existing handleTimerUpdate behavior to load persisted draft for the current work item
+// Also attempt to load a persisted draft when a work item is selected (if selection flow exists)
+// Listen for a custom message or selection; reuse existing selection flow if possible by reacting to selectedWorkItemId changes
+(function watchSelectionLoadDraft() {
+  // Since there's no centralized selection event, poll for changes to selectedWorkItemId and update when it changes
+  let lastSelected: number | null = null;
+  setInterval(() => {
+    if (selectedWorkItemId && selectedWorkItemId !== lastSelected) {
+      lastSelected = selectedWorkItemId;
+      try {
+        const persisted = loadDraftForWorkItem(selectedWorkItemId as number);
+        if (persisted !== null && elements.draftSummary) {
+          elements.draftSummary.value = persisted;
+        }
+      } catch (e) {
+        // ignore
       }
-    }, 300);
-  }
-}
+    }
+  }, 500);
+})();
 
-function handleSelfTestPing(nonce: string) {
-  const signature = `items:${workItems.length};timer:${currentTimer ? '1' : '0'}`;
-  postMessage({ type: 'selfTestAck', nonce, signature });
-}
-
-function handleToggleKanbanView() {
-  console.log('[webview] handleToggleKanbanView called, current view:', currentView);
-  // Toggle between list and kanban views
-  currentView = currentView === 'list' ? 'kanban' : 'list';
-  updateViewToggle();
-
-  if (currentView === 'kanban') {
-    renderKanbanView();
-  } else {
-    renderWorkItems();
-  }
-}
-
-function postMessage(message: any) {
-  if (vscode) {
-    vscode.postMessage(message);
-  } else {
-    console.warn('[webview] Cannot post message - VS Code API not available');
-  }
-}
-
-function escapeHtml(unsafe: any): string {
-  if (typeof unsafe !== 'string') return '';
-  return unsafe
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+// When stop and apply succeeds we clear the persisted draft
+// We already handle 'stopAndApplyResult' messages and clear the UI draft; also remove persisted value
+(function hookClearOnApply() {
+  // augment existing message handler behavior by observing messages posted to the window
+  // The setupMessageHandling already handles 'stopAndApplyResult' and clears the UI; ensure persisted draft removed as well
+  const originalHandler = window.addEventListener;
+  // We don't override global listeners; instead ensure removal in the message branch above where we handle 'stopAndApplyResult'
+})();
 
 // Make functions globally available for onclick handlers
 (window as any).requestWorkItems = requestWorkItems;

@@ -43,7 +43,7 @@ export class RateLimiter {
       this.tokens -= 1;
       return Promise.resolve();
     }
-    return new Promise(res => {
+    return new Promise((res) => {
       this.queue.push(res);
       this.scheduleDrain();
     });
@@ -51,12 +51,16 @@ export class RateLimiter {
 }
 
 export interface RetryOptions {
-  retries?: number;           // total attempts (default 4)
-  baseDelayMs?: number;       // initial backoff (default 250)
-  maxDelayMs?: number;        // cap (default 4000)
+  retries?: number; // total attempts (default 4)
+  baseDelayMs?: number; // initial backoff (default 250)
+  maxDelayMs?: number; // cap (default 4000)
 }
 
-export async function withRetry<T>(fn: () => Promise<T>, isRetryable: (err: any) => boolean, opts: RetryOptions = {}): Promise<T> {
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  isRetryable: (err: any) => boolean,
+  opts: RetryOptions = {}
+): Promise<T> {
   const { retries = 4, baseDelayMs = 250, maxDelayMs = 4000 } = opts;
   let attempt = 0;
   while (true) {
@@ -69,7 +73,7 @@ export async function withRetry<T>(fn: () => Promise<T>, isRetryable: (err: any)
       const backoff = Math.min(maxDelayMs, baseDelayMs * Math.pow(2, attempt - 1));
       const jitter = Math.random() * (backoff * 0.25);
       const sleep = backoff + jitter;
-      await new Promise(r => setTimeout(r, sleep));
+      await new Promise((r) => setTimeout(r, sleep));
     }
   }
 }

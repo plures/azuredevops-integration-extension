@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { WorkItemsProvider } from '../src/provider';
+import { WorkItemsProvider } from '../src/provider.ts';
 
 describe('WorkItemsProvider debounce/refresh behavior', () => {
   it('prevents overlapping refreshes and respects debounce', async () => {
@@ -8,16 +8,16 @@ describe('WorkItemsProvider debounce/refresh behavior', () => {
       async getWorkItems() {
         calls++;
         // simulate slow network
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise((r) => setTimeout(r, 300));
         return [{ id: 1, fields: { 'System.Title': 'Hi' } }];
       }
     }
-    const provider = new WorkItemsProvider(new SlowClient() as any, (_m) => {}, {});
+    const provider = new WorkItemsProvider(new SlowClient() as any, () => {}, {});
     // Call refresh twice quickly
     provider.refresh();
     provider.refresh();
     // Wait for operations to complete
-    await new Promise(r => setTimeout(r, 700));
+    await new Promise((r) => setTimeout(r, 700));
     expect(calls).to.equal(1);
   }).timeout(2000);
 });
