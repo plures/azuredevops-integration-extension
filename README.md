@@ -25,7 +25,7 @@ From VS Code: Extensions view → search "Azure DevOps Integration" → Install.
 Command palette quick install:
 
 1. Press Ctrl+P (Cmd+P on macOS)
-2. Type: ext install plures.azuredevops-integration-extension
+2. Type: ext install PluresLLC.azuredevops-integration-extension
 3. Press Enter
 
 ## 🔐 Create a Personal Access Token

@@ -4,6 +4,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.0.1] - 2025-09-18
+
+### Changed (maintenance)
+
+- Aligned Marketplace publisher to `PluresLLC` and updated badges/links.
+- README install command corrected to `ext install PluresLLC.azure-devops-integration-extension`.
+
 ## [1.0.0] - 2025-09-18
 
 ### Added
@@ -40,4 +47,5 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Vite-based webview build output to `media/webview`; esbuild bundles extension to `dist/`.
 - Minimal VS Code API test stub for unit tests.
 
-[1.0.0]: https://github.com/plures/AzureDevOps-Integration-Extension/releases/tag/v1.0.0
+[1.0.1]: https://github.com/plures/azuredevops-integration-extension/releases/tag/v1.0.1
+[1.0.0]: https://github.com/plures/azuredevops-integration-extension/releases/tag/v1.0.0

@@ -6,7 +6,7 @@ Purpose
 
 Quick Setup
 
-1. Node: Use Node 18 LTS.
+1. Node: Use Node v22.19.0 (LTS) or greater.
 2. Install: npm ci
 3. Bootstrap dev hooks: npm run prepare
 4. Start webview dev: npm run webview:dev

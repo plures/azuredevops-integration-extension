@@ -13,5 +13,5 @@ dist/
 # temporary files
 tmp/
 
-# Ignore generated webview bundle if present (optionally)
-media/webview/main.js
+# Ignore generated webview assets (built by Vite)
+media/webview/

@@ -3,17 +3,17 @@
   "name": "azuredevops-integration-extension",
   "displayName": "Azure DevOps Integration for VS Code",
   "description": "Integrate Azure DevOps work items, time tracking, and Git workflows directly in VS Code. Manage tasks, track time, create branches, and submit pull requests without leaving your editor.",
-  "version": "1.0.0",
-  "publisher": "plures",
+  "version": "1.0.1",
+  "publisher": "PluresLLC",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/plures/AzureDevOps-Integration-Extension"
+    "url": "https://github.com/plures/azuredevops-integration-extension"
   },
   "bugs": {
-    "url": "https://github.com/plures/AzureDevOps-Integration-Extension/issues"
+    "url": "https://github.com/plures/azuredevops-integration-extension/issues"
   },
-  "homepage": "https://github.com/plures/AzureDevOps-Integration-Extension#readme",
+  "homepage": "https://github.com/plures/azuredevops-integration-extension#readme",
   "license": "MIT",
   "galleryBanner": {
     "color": "#0078D4",
@@ -21,18 +21,18 @@
   },
   "badges": [
     {
-      "url": "https://img.shields.io/visual-studio-marketplace/v/plures.azure-devops-integration-extension.svg",
-      "href": "https://marketplace.visualstudio.com/items?itemName=plures.azure-devops-integration-extension",
+      "url": "https://img.shields.io/visual-studio-marketplace/v/PluresLLC.azure-devops-integration-extension.svg",
+      "href": "https://marketplace.visualstudio.com/items?itemName=PluresLLC.azure-devops-integration-extension",
       "description": "VS Code Marketplace Version"
     },
     {
-      "url": "https://img.shields.io/visual-studio-marketplace/d/plures.azure-devops-integration-extension.svg",
-      "href": "https://marketplace.visualstudio.com/items?itemName=plures.azure-devops-integration-extension",
+      "url": "https://img.shields.io/visual-studio-marketplace/d/PluresLLC.azure-devops-integration-extension.svg",
+      "href": "https://marketplace.visualstudio.com/items?itemName=PluresLLC.azure-devops-integration-extension",
       "description": "VS Code Marketplace Downloads"
     },
     {
-      "url": "https://img.shields.io/visual-studio-marketplace/r/plures.azure-devops-integration-extension.svg",
-      "href": "https://marketplace.visualstudio.com/items?itemName=plures.azure-devops-integration-extension",
+      "url": "https://img.shields.io/visual-studio-marketplace/r/PluresLLC.azure-devops-integration-extension.svg",
+      "href": "https://marketplace.visualstudio.com/items?itemName=PluresLLC.azure-devops-integration-extension",
       "description": "VS Code Marketplace Rating"
     }
   ],
