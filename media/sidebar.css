@@ -1,0 +1,921 @@
+/* Streamlined Azure DevOps Sidebar Styles */
+:root {
+  --container-padding: 12px;
+  --border-radius: 6px;
+  --transition-speed: 0.15s;
+  --primary-color: #0078d4;
+  --success-color: #107c10;
+  --warning-color: #f8961e;
+  --danger-color: #d13438;
+  --info-color: #5c2d91;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --card-hover-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --compact-spacing: 6px;
+}
+
+body {
+  padding: 0;
+  margin: 0;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background-color: var(--vscode-sideBar-background);
+}
+
+.container {
+  padding: var(--container-padding);
+}
+
+/* Header Styles */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Removed icon from title - VS Code handles this automatically */
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Quick Actions Bar */
+.quick-actions {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 6px;
+  background: var(--vscode-editor-background);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--vscode-widget-border);
+  flex-wrap: wrap;
+}
+
+.action-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: 1px solid var(--vscode-button-border);
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all var(--transition-speed);
+  white-space: nowrap;
+}
+
+.action-button:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.action-button i {
+  font-size: 14px;
+}
+
+/* Icon Button Styles */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  color: var(--vscode-foreground);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition-speed);
+}
+
+.icon-button:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  border-color: var(--vscode-widget-border);
+}
+
+.icon-button i {
+  font-size: 12px;
+}
+
+/* Search and Filter Section */
+.search-container {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.search-container input {
+  flex: 1;
+  padding: 4px 8px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: var(--border-radius);
+  font-size: 12px;
+  transition: all var(--transition-speed);
+}
+
+.search-container input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
+}
+
+.search-container input::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+.search-container button {
+  padding: 8px 16px;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-speed);
+}
+
+.search-container button:hover {
+  background: #106ebe;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 120, 212, 0.3);
+}
+
+.filter-container {
+  margin-bottom: 8px;
+}
+
+.filter-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.filter-checkboxes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 4px;
+  background: var(--vscode-editor-background);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--vscode-widget-border);
+  font-size: 11px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--vscode-foreground);
+  transition: color var(--transition-speed);
+}
+
+.checkbox-label:hover {
+  color: var(--primary-color);
+}
+
+.checkbox-label input[type='checkbox'] {
+  cursor: pointer;
+  width: 12px;
+  height: 12px;
+}
+
+.filter-container select {
+  padding: 3px 6px;
+  background: var(--vscode-dropdown-background);
+  color: var(--vscode-dropdown-foreground);
+  border: 1px solid var(--vscode-dropdown-border);
+  border-radius: var(--border-radius);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all var(--transition-speed);
+}
+
+.filter-container select:hover {
+  border-color: var(--primary-color);
+}
+
+.filter-container select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
+}
+
+/* Timer Container */
+.timer-container {
+  margin-bottom: 8px;
+  padding: 8px;
+  background: linear-gradient(135deg, var(--primary-color), #106ebe);
+  color: white;
+  border-radius: var(--border-radius);
+  box-shadow: var(--card-shadow);
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.timer-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.timer-icon {
+  font-size: 14px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+#timer-display {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+#timer-display.paused {
+  opacity: 0.7;
+  animation: blink 1.5s infinite;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+#timer-task {
+  font-size: 11px;
+  opacity: 0.9;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timer-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.timer-controls button {
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--border-radius);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-speed);
+}
+
+.timer-controls button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+/* Work Items List */
+.work-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Work Item Card */
+.work-item-card {
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: var(--border-radius);
+  padding: 8px;
+  cursor: pointer;
+  transition: all var(--transition-speed);
+  position: relative;
+  overflow: hidden;
+}
+
+.work-item-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--primary-color);
+  transform: scaleY(0);
+  transition: transform var(--transition-speed);
+}
+
+.work-item-card:hover {
+  box-shadow: var(--card-hover-shadow);
+  transform: translateX(2px);
+  border-color: var(--primary-color);
+}
+
+.work-item-card:hover::before {
+  transform: scaleY(1);
+}
+
+/* Active Timer Work Item */
+.work-item-card.active-timer {
+  background: linear-gradient(135deg, var(--vscode-editor-background), rgba(0, 120, 212, 0.1));
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
+}
+
+.work-item-card.active-timer::before {
+  transform: scaleY(1);
+  background: var(--primary-color);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.work-item-card.active-timer .timer-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding: 1px 4px;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 600;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.work-item-card.compact {
+  padding: 6px;
+}
+
+.work-item-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.work-item-id {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--vscode-textLink-foreground);
+  padding: 1px 4px;
+  background: var(--vscode-textBlockQuote-background);
+  border-radius: 8px;
+}
+
+.work-item-type {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.work-item-type i {
+  font-size: 10px;
+}
+
+.work-item-type.task {
+  background: rgba(0, 120, 212, 0.1);
+  color: var(--primary-color);
+  border: 1px solid rgba(0, 120, 212, 0.2);
+}
+
+.work-item-type.bug {
+  background: rgba(209, 52, 56, 0.1);
+  color: var(--danger-color);
+  border: 1px solid rgba(209, 52, 56, 0.2);
+}
+
+.work-item-type.user-story {
+  background: rgba(16, 124, 16, 0.1);
+  color: var(--success-color);
+  border: 1px solid rgba(16, 124, 16, 0.2);
+}
+
+.work-item-type.feature {
+  background: rgba(92, 45, 145, 0.1);
+  color: var(--info-color);
+  border: 1px solid rgba(92, 45, 145, 0.2);
+}
+
+.work-item-priority {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.work-item-priority::after {
+  content: '';
+}
+
+.work-item-priority.priority-1 {
+  background: rgba(209, 36, 36, 0.08);
+  color: var(--danger-color);
+}
+.work-item-priority.priority-2 {
+  background: rgba(248, 150, 30, 0.06);
+  color: var(--warning-color);
+}
+.work-item-priority.priority-3 {
+  background: rgba(16, 124, 16, 0.05);
+  color: var(--success-color);
+}
+.work-item-priority.priority-4 {
+  background: rgba(0, 122, 204, 0.04);
+  color: var(--primary-color);
+}
+
+/* Ensure labels collapse in small widths */
+.work-item-priority .priority-label {
+  display: inline-block;
+  max-width: 8ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.work-item-title {
+  font-size: 11px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  line-height: 1.3;
+  color: var(--vscode-foreground);
+}
+
+.work-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 4px;
+}
+
+.work-item-state {
+  padding: 1px 4px;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 10px;
+}
+
+.state-new {
+  background: rgba(0, 120, 212, 0.1);
+  color: var(--primary-color);
+}
+
+.state-active {
+  background: rgba(248, 150, 30, 0.1);
+  color: var(--warning-color);
+}
+
+.state-resolved {
+  background: rgba(16, 124, 16, 0.1);
+  color: var(--success-color);
+}
+
+.state-closed {
+  background: var(--vscode-textBlockQuote-background);
+  color: var(--vscode-descriptionForeground);
+}
+
+.work-item-assignee {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+}
+
+.work-item-assignee i {
+  font-size: 10px;
+}
+
+.work-item-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border-radius: 10px;
+}
+
+.work-item-actions {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--vscode-widget-border);
+}
+
+.work-item-actions button {
+  flex: 1;
+  padding: 2px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--transition-speed);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.work-item-actions button:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  border-color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+/* Kanban Board */
+.kanban-board {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+}
+
+.kanban-column {
+  flex: 1;
+  min-width: 280px;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: var(--border-radius);
+  padding: 12px;
+}
+
+.kanban-header {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: var(--vscode-editor-background);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.kanban-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 100px;
+}
+
+/* Time Report */
+.time-report {
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: var(--border-radius);
+  padding: 16px;
+}
+
+.time-report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.time-report-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.total-time {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.time-report-item {
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: var(--border-radius);
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.time-report-item:hover {
+  box-shadow: var(--card-hover-shadow);
+}
+
+.time-duration {
+  font-weight: 600;
+  color: var(--success-color);
+}
+
+.time-entries {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.time-entry {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.time-entry:last-child {
+  border-bottom: none;
+}
+
+/* Loading State */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.loading i {
+  font-size: 32px;
+  margin-bottom: 16px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 48px;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+/* Error Message */
+.error-message {
+  background: rgba(209, 52, 56, 0.1);
+  color: var(--danger-color);
+  padding: 16px;
+  border-radius: var(--border-radius);
+  border: 1px solid rgba(209, 52, 56, 0.2);
+  margin: 16px 0;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--vscode-scrollbarSlider-background);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+/* Status Overview */
+.status-overview {
+  margin-bottom: 8px;
+  padding: 6px;
+  background: var(--vscode-editor-background);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--vscode-widget-border);
+}
+
+.status-badges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.status-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all var(--transition-speed);
+  min-width: 50px;
+  text-align: center;
+  border: 1px solid transparent;
+}
+
+.status-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--card-shadow);
+  border-color: var(--primary-color);
+}
+
+.status-badge.active {
+  border-color: var(--primary-color);
+  background: var(--vscode-list-activeSelectionBackground);
+}
+
+.status-badge.state-new {
+  background: rgba(0, 120, 212, 0.1);
+  color: var(--primary-color);
+}
+
+.status-badge.state-active,
+.status-badge.state-in-progress {
+  background: rgba(248, 150, 30, 0.1);
+  color: var(--warning-color);
+}
+
+.status-badge.state-resolved {
+  background: rgba(16, 124, 16, 0.1);
+  color: var(--success-color);
+}
+
+.status-badge.state-done,
+.status-badge.state-closed {
+  background: var(--vscode-textBlockQuote-background);
+  color: var(--vscode-descriptionForeground);
+}
+
+.status-name {
+  font-size: 10px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.status-count {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.status-percentage {
+  font-size: 9px;
+  opacity: 0.8;
+  margin-top: 1px;
+}
+
+/* Quick Status Change Button in Work Item Card */
+.status-quick-change {
+  margin-left: auto;
+  padding: 2px 6px;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: 1px solid var(--vscode-button-border);
+  border-radius: 4px;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all var(--transition-speed);
+}
+
+.status-quick-change:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+  transform: scale(1.02);
+}
+
+/* Codicon Styles */
+.codicon {
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+.work-item-type .codicon {
+  font-size: 11px;
+}
+
+.work-item-assignee .codicon {
+  font-size: 10px;
+}
+
+.timer-icon .codicon {
+  font-size: 14px;
+}
+
+/* Additional Compact Styles */
+.work-item-card {
+  padding: 6px;
+}
+
+.work-item-header {
+  margin-bottom: 3px;
+}
+
+.work-item-title {
+  margin-bottom: 3px;
+}
+
+.work-item-meta {
+  margin-bottom: 3px;
+}
+
+.work-item-actions {
+  margin-top: 3px;
+  padding-top: 3px;
+}
+
+/* Responsive Design */
+@media (max-width: 400px) {
+  .quick-actions {
+    flex-direction: column;
+  }
+
+  .action-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .filter-container {
+    flex-direction: column;
+  }
+
+  .filter-container select {
+    width: 100%;
+  }
+
+  .status-badges {
+    justify-content: space-between;
+  }
+
+  .status-badge {
+    min-width: 70px;
+    padding: 6px 8px;
+  }
+}

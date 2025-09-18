@@ -1,0 +1,19 @@
+{
+  "name": "azure-devops-mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Model Context Protocol server exposing Azure DevOps work items via JSON-RPC over stdio.",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsc -w -p tsconfig.json"
+  },
+  "dependencies": {
+    "axios": "^1.10.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

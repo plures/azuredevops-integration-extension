@@ -1,0 +1,13 @@
+{
+  "extends": "./src/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "out-tests",
+    "module": "NodeNext",
+    "target": "ES2022",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["tests/**/*.ts", "src/**/*.ts"]
+}
