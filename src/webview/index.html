@@ -481,6 +481,43 @@
         border-color: var(--vscode-focusBorder);
       }
 
+      /* Timer indicator styles */
+      .timer-indicator {
+        background: rgba(255, 165, 0, 0.2);
+        color: #ffa500;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+        border: 1px solid rgba(255, 165, 0, 0.3);
+        white-space: nowrap;
+      }
+
+      .has-active-timer {
+        border-left: 3px solid #ffa500;
+      }
+
+      .has-active-timer .timer-indicator {
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.7; }
+        100% { opacity: 1; }
+      }
+
+      /* Comment button specific style */
+      .comment-btn {
+        background: var(--vscode-button-secondaryBackground);
+        color: #4caf50;
+      }
+
+      .comment-btn:hover {
+        background: rgba(76, 175, 80, 0.1);
+        border-color: #4caf50;
+      }
+
       /* Priority styles */
       .priority-1 {
         color: #ff4444;

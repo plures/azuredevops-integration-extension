@@ -479,6 +479,34 @@ async function handleMessage(msg: any) {
       updateTimerContext(undefined);
       break;
     }
+    case 'addComment': {
+      const workItemId: number | undefined =
+        typeof msg.workItemId === 'number' ? msg.workItemId : undefined;
+      const comment: string | undefined =
+        typeof msg.comment === 'string' ? msg.comment.trim() : undefined;
+      
+      if (!workItemId) {
+        vscode.window.showWarningMessage('No work item specified for comment.');
+        break;
+      }
+      
+      if (!comment || comment.length === 0) {
+        vscode.window.showWarningMessage('Comment cannot be empty.');
+        break;
+      }
+      
+      try {
+        if (!client) throw new Error('Client not initialized');
+        await client.addWorkItemComment(workItemId, comment);
+        vscode.window.showInformationMessage(`Comment added to work item #${workItemId}.`);
+      } catch (err: any) {
+        console.error('Failed to add comment', err);
+        vscode.window.showErrorMessage(
+          'Failed to add comment: ' + (err?.message || String(err))
+        );
+      }
+      break;
+    }
     default:
       console.warn('Unknown webview message', msg);
       verbose('Unknown message type');
