@@ -105,7 +105,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
       - name: Fetch tags
         run: git fetch --tags --force
-      - name: Determine bump type and bump version
+      - name: Install dependencies
+        run: npm ci
+      - name: Determine bump type and update changelog
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -135,7 +137,20 @@ jobs:
           fi
           echo "Bump type: $bump"
 
-          # npm version will create a commit and a vX.Y.Z tag
-          npm version "$bump" -m "chore(release): %s"
+          # Get the new version that will be created
+          current_version=$(node -p "require('./package.json').version")
+          new_version=$(npm version "$bump" --no-git-tag-version)
+          new_version=${new_version#v}  # Remove 'v' prefix
+          
+          # Update changelog with new version
+          node scripts/update-changelog.js "$new_version"
+          
+          # Add changelog to git
+          git add CHANGELOG.md package.json package-lock.json
+          
+          # Create commit and tag
+          git commit -m "chore(release): $new_version"
+          git tag "v$new_version"
+          
           # Push commit and tags using the default GITHUB_TOKEN credentials from checkout
           git push --follow-tags
