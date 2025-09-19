@@ -356,6 +356,7 @@
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "package": "npm run build --production",
+    "package:vsix": "vsce package --out azuredevops-integration-extension-${npm_package_version}.vsix",
     "compile-tests": "tsc -p . --outDir out",
     "compile-tests:cjs": "tsc -p tsconfig.tests.json",
     "watch-tests": "tsc -p . -w --outDir out",
@@ -379,6 +380,7 @@
     "coverage": "c8 --reporter=text npm test",
     "coverage:ci": "c8 --reporter=text --check-coverage --lines 70 --branches 65 --functions 65 npm test",
     "release-check": "node ./scripts/release-check.js",
+    "update-changelog": "node ./scripts/update-changelog.js",
     "check-types": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0"
   },
@@ -404,6 +406,7 @@
     "@typescript-eslint/parser": "^8.31.1",
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.6.0",
     "c8": "^8.0.0",
     "chai": "^5.1.1",
     "commitlint": "^17.0.0",
