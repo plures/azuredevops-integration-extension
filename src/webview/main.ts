@@ -1427,5 +1427,48 @@ function startApp() {
   }
 }
 
+// Activity detection for timer auto-resume
+(function setupActivityDetection() {
+  let lastActivityTime = Date.now();
+  let activityPingTimer: NodeJS.Timeout | undefined;
+
+  // Throttle activity pings to avoid spamming the extension
+  function sendActivityPing() {
+    if (activityPingTimer) return; // Already scheduled
+    
+    activityPingTimer = setTimeout(() => {
+      postMessage({ type: 'activity' });
+      activityPingTimer = undefined;
+    }, 500); // Send activity ping at most once every 500ms
+  }
+
+  // Events that indicate user activity
+  const activityEvents = [
+    'click', 'keydown', 'scroll', 'mousemove', 'touchstart', 'focus'
+  ];
+
+  // Add throttled event listeners
+  activityEvents.forEach(eventType => {
+    document.addEventListener(eventType, () => {
+      const now = Date.now();
+      // Only send activity ping if enough time has passed since last activity
+      if (now - lastActivityTime > 1000) { // Minimum 1 second between activities
+        lastActivityTime = now;
+        sendActivityPing();
+      }
+    }, { passive: true });
+  });
+
+  // Also send activity ping when the webview gains focus/visibility
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      sendActivityPing();
+    }
+  });
+
+  // Send initial activity ping when webview loads
+  sendActivityPing();
+})();
+
 // Start the app
 startApp();
