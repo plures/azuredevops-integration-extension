@@ -4,6 +4,19 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.1.0] - 2025-09-19
+
+### Added
+
+- Add VSIX packaging automation and changelog workflow integration
+
+### Other
+
+- Merge pull request #14 from plures/copilot/fix-13
+- Add @vscode/vsce as dev dependency and fix packaging
+- Initial plan
+
+
 ## [1.0.1] - 2025-09-18
 
 ### Changed (maintenance)
