@@ -2,6 +2,11 @@
 // This file is loaded by the VS Code test runner
 
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get __dirname equivalent in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Setup test environment
 export async function run(): Promise<void> {

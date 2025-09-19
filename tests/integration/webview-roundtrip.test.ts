@@ -88,7 +88,7 @@ async function main() {
     console.log('Downloading VS Code...');
     let vscodeExecutablePath;
     try {
-      vscodeExecutablePath = await downloadAndUnzipVSCode('1.78.0');
+      vscodeExecutablePath = await downloadAndUnzipVSCode('1.102.0');
       console.log('VS Code downloaded successfully');
     } catch (downloadError) {
       console.warn('Failed to download VS Code:', downloadError.message);
