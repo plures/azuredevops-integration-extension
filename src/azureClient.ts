@@ -431,6 +431,27 @@ export class AzureDevOpsIntClient {
     if (note) await this.addWorkItemComment(id, `Time tracked: ${hours} hours. ${note}`);
   }
 
+  async getWorkItemTypes(): Promise<any[]> {
+    try {
+      const resp = await this.axios.get(`/wit/workitemtypes?api-version=7.0`);
+      return resp.data.value || [];
+    } catch (e) {
+      console.error('Error fetching work item types:', e);
+      return [];
+    }
+  }
+
+  async getWorkItemTypeStates(workItemType: string): Promise<string[]> {
+    try {
+      const resp = await this.axios.get(`/wit/workitemtypes/${encodeURIComponent(workItemType)}?api-version=7.0`);
+      const states = resp.data.states || [];
+      return states.map((state: any) => state.name || state);
+    } catch (e) {
+      console.error(`Error fetching states for work item type ${workItemType}:`, e);
+      return [];
+    }
+  }
+
   async getIterations() {
     try {
       const url = this.buildTeamApiUrl('/work/teamsettings/iterations?api-version=7.0');

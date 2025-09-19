@@ -274,6 +274,9 @@ function setupEventListeners() {
       case 'editWorkItem':
         if (id) postMessage({ type: 'editWorkItemInEditor', workItemId: id });
         break;
+      case 'addComment':
+        if (id) handleAddComment(id);
+        break;
     }
   });
 
@@ -358,6 +361,24 @@ function selectWorkItem(id: string) {
   } catch {
     // ignore draft load errors
   }
+}
+
+function handleAddComment(workItemId: number) {
+  const comment = prompt('Enter your comment for work item #' + workItemId + ':');
+  if (comment && comment.trim()) {
+    postMessage({ type: 'addComment', workItemId, comment: comment.trim() });
+  }
+}
+
+function formatTimerDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, '0')}`;
+  }
+  return `${m}:${Math.floor(seconds % 60)
+    .toString()
+    .padStart(2, '0')}`;
 }
 
 function updateTimerDisplay() {
@@ -944,13 +965,24 @@ function renderWorkItems() {
       const priorityClass = getPriorityClass(Number(priority));
       const stateClass = getStateClass(String(state));
 
+      // Check if timer is running on this work item
+      const hasActiveTimer = currentTimer && currentTimer.workItemId === id;
+      const timerDisplay = hasActiveTimer
+        ? formatTimerDuration(currentTimer.elapsedSeconds || 0)
+        : '';
+
       return `
-      <div class="work-item-card ${
-        isSelected ? 'selected' : ''
-      } ${stateClass}" data-id="${id}" data-action="selectWorkItem">
+      <div class="work-item-card ${isSelected ? 'selected' : ''} ${stateClass} ${
+        hasActiveTimer ? 'has-active-timer' : ''
+      }" data-id="${id}" data-action="selectWorkItem">
         <div class="work-item-header">
           <div class="work-item-type-icon ${typeIcon.class}">${typeIcon.icon}</div>
           <div class="work-item-id">#${id}</div>
+          ${
+            hasActiveTimer
+              ? `<div class="timer-indicator" title="Timer running: ${timerDisplay}">⏱️ ${timerDisplay}</div>`
+              : ''
+          }
           <div class="work-item-priority ${priorityClass}">${
         getPriorityIcon(Number(priority)).icon
       } ${getPriorityIcon(Number(priority)).label}</div>
@@ -1004,6 +1036,7 @@ function renderWorkItems() {
         </div>
         <div class="work-item-actions">
           <button class="action-btn timer-btn" data-action="startTimer" data-id="${id}" title="Start Timer">⏱️</button>
+          <button class="action-btn comment-btn" data-action="addComment" data-id="${id}" title="Add Comment">💬</button>
           <button class="action-btn view-btn" data-action="viewDetails" data-id="${id}" title="View Details">👁️</button>
           <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${id}" title="Edit">✏️</button>
         </div>
@@ -1151,17 +1184,28 @@ function renderKanbanView() {
                   const typeIcon = getWorkItemTypeIcon(type);
                   const priorityClass = getPriorityClass(Number(priority));
 
+                  // Check if timer is running on this work item
+                  const hasActiveTimer = currentTimer && currentTimer.workItemId === id;
+                  const timerDisplay = hasActiveTimer
+                    ? formatTimerDuration(currentTimer.elapsedSeconds || 0)
+                    : '';
+
                   let shortAssigned = assignedTo;
                   if (typeof shortAssigned === 'string' && shortAssigned.includes(' '))
                     shortAssigned = shortAssigned.split(' ')[0];
 
                   return `
-                  <div class="kanban-card ${
-                    isSelected ? 'selected' : ''
+                  <div class="kanban-card ${isSelected ? 'selected' : ''} ${
+                    hasActiveTimer ? 'has-active-timer' : ''
                   }" data-id="${id}" data-action="selectWorkItem">
                     <div class="kanban-card-header">
                       <div class="work-item-type-icon ${typeIcon.class}">${typeIcon.icon}</div>
                       <div class="work-item-id">#${id}</div>
+                      ${
+                        hasActiveTimer
+                          ? `<div class="timer-indicator" title="Timer running: ${timerDisplay}">⏱️ ${timerDisplay}</div>`
+                          : ''
+                      }
                       <div class="work-item-priority ${priorityClass}">${
                     getPriorityIcon(Number(priority)).icon
                   } ${getPriorityIcon(Number(priority)).label}</div>
@@ -1200,6 +1244,7 @@ function renderKanbanView() {
                     </div>
                     <div class="kanban-card-actions">
                       <button class="action-btn timer-btn" data-action="startTimer" data-id="${id}" title="Start Timer">⏱️</button>
+                      <button class="action-btn comment-btn" data-action="addComment" data-id="${id}" title="Add Comment">💬</button>
                       <button class="action-btn view-btn" data-action="viewDetails" data-id="${id}" title="View Details">👁️</button>
                     </div>
                   </div>`;
@@ -1232,6 +1277,12 @@ function handleTimerUpdate(timer: any) {
   if (timer) {
     updateTimerDisplay();
     updateTimerButtonStates();
+    // Re-render work items to show timer indicators
+    if (currentView === 'kanban') {
+      renderKanbanView();
+    } else {
+      renderWorkItems();
+    }
     // Prefill draft summary with an editable suggestion when a timer is active
     try {
       const workItemId = timer.workItemId;
@@ -1254,6 +1305,12 @@ function handleTimerUpdate(timer: any) {
     // Timer stopped - just update display and buttons
     updateTimerDisplay();
     updateTimerButtonStates();
+    // Re-render work items to remove timer indicators
+    if (currentView === 'kanban') {
+      renderKanbanView();
+    } else {
+      renderWorkItems();
+    }
   }
 }
 
