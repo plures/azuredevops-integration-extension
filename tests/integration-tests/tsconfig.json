@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "NodeNext",
-    "moduleResolution": "NodeNext", 
+    "moduleResolution": "NodeNext",
     "outDir": "../../out/integration-tests",
     "rootDir": "./",
     "strict": true,
@@ -12,7 +12,8 @@
     "skipLibCheck": true,
     "declaration": false,
     "sourceMap": true,
-    "types": ["mocha", "node", "vscode"]
+    "types": ["mocha", "node", "vscode"],
+    "typeRoots": ["../../node_modules/@types"]
   },
   "include": ["./**/*.ts"],
   "exclude": ["node_modules"]

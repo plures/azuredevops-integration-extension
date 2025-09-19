@@ -12,7 +12,8 @@ const __dirname = path.dirname(__filename);
 export async function run(): Promise<void> {
   // Run all tests in this directory
   const glob = await import('glob');
-  const Mocha = (await import('mocha')).default;
+  const mochaImport = await import('mocha');
+  const Mocha = mochaImport.default || mochaImport;
 
   // Create the mocha test
   const mocha = new Mocha({
