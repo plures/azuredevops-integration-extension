@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -82,3 +85,57 @@ jobs:
         run: npm ci
       - name: Run integration tests
         run: npm run pretest && npm run test:integration
+
+  version-bump-and-tag:
+    name: Bump version and tag (main)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Fetch tags
+        run: git fetch --tags --force
+      - name: Determine bump type and bump version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Skip if this is already a release commit
+          if git log -1 --pretty=%s | grep -qE '^chore\(release\):'; then
+            echo "Release commit detected, skipping bump."
+            exit 0
+          fi
+
+          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          range=""
+          if [ -n "$last_tag" ]; then
+            range="$last_tag..HEAD"
+          fi
+
+          subjects=$(git log --format=%s $range)
+          bodies=$(git log --format=%B $range)
+
+          bump="patch"
+          # Major if breaking change markers present ("!" in type or BREAKING CHANGE in body)
+          if echo "$subjects" | grep -Ei '^[a-z]+(\(.+\))?!:' >/dev/null || echo "$bodies" | grep -Ei 'BREAKING CHANGE' >/dev/null; then
+            bump="major"
+          elif echo "$subjects" | grep -Ei '^feat(\(.+\))?: ' >/dev/null; then
+            bump="minor"
+          else
+            bump="patch"
+          fi
+          echo "Bump type: $bump"
+
+          # npm version will create a commit and a vX.Y.Z tag
+          npm version "$bump" -m "chore(release): %s"
+          # Push commit and tags using the default GITHUB_TOKEN credentials from checkout
+          git push --follow-tags
