@@ -1,27 +1,19 @@
 # Azure DevOps MCP Server
 
-Model Context Protocol style JSON-RPC 2.0 (one JSON object per line on stdio) server that exposes a lean set of Azure DevOps Work Item operations. Designed for agent / toolchain integration with minimal dependencies and predictable shapes.
+A Model Context Protocol (MCP) tools server over stdio that exposes Azure DevOps operations for work items, comments, time logging, and more. It follows the MCP tools workflow (initialize → tools/list → tools/call) and also preserves legacy JSON‑RPC method names for compatibility.
 
-## Supported Methods (All `jsonrpc: "2.0"`)
+## Protocols supported
 
-| Method           | Params Shape                                                                  | Result                          | Notes                                 |
-| ---------------- | ----------------------------------------------------------------------------- | ------------------------------- | ------------------------------------- |
-| `ping`           | `{}` or omitted                                                               | `{ pong: true, time: epochMs }` | Simple health check                   |
-| `listWorkItems`  | `{ query?: string }`                                                          | `FlatWorkItem[]`                | Named query or raw WIQL string        |
-| `getWorkItem`    | `{ id: number }`                                                              | `FlatWorkItem`                  | Single item (flattened)               |
-| `createWorkItem` | `{ type?: string, title: string, description?: string, assignedTo?: string }` | `FlatWorkItem`                  | Defaults type to `Task`               |
-| `updateWorkItem` | `{ workItemId: number, patch: Patch[] }`                                      | `FlatWorkItem`                  | JSON Patch ops (Azure DevOps format)  |
-| `addComment`     | `{ workItemId: number, text: string }`                                        | Azure Comment Response          | Not flattened; original service shape |
-| `search`         | `{ term: string }`                                                            | `FlatWorkItem[]`                | Title substring OR exact ID match     |
-| `filter`         | `{ sprint?, includeState?, excludeStates?, type?, assignedTo? }`              | `FlatWorkItem[]`                | Composes WIQL dynamically             |
+- MCP tools protocol (preferred): `initialize`, `tools/list`, `tools/call`, `shutdown`
+- Legacy JSON‑RPC 2.0 methods (backward‑compatible): `ping`, `listWorkItems`, `getWorkItem`, etc. — these delegate to the same underlying operations
 
-## Environment Variables
+## Environment variables
 
 - `AZDO_ORG` (required)
 - `AZDO_PROJECT` (required)
-- `AZDO_PAT` (required – Personal Access Token with Work Items (Read & Write))
+- `AZDO_PAT` (required – Personal Access Token with Work Items Read/Write; Code Read/Write for PRs; Build Read for builds)
 
-## Install & Build
+## Install & build
 
 PowerShell:
 
@@ -52,33 +44,84 @@ Unix shell:
 AZDO_ORG=yourOrg AZDO_PROJECT=YourProject AZDO_PAT=xxxxx node dist/server.js
 ```
 
-## JSON-RPC Example
+## MCP tools workflow
+
+1) initialize
 
 Request:
 
 ```json
-{ "jsonrpc": "2.0", "id": 1, "method": "listWorkItems", "params": { "query": "My Work Items" } }
+{ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": { "protocolVersion": "2025-06-18" } }
 ```
 
-Response (truncated example):
+Response (example):
 
 ```json
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "result": [
-    {
-      "id": 123,
-      "title": "Implement feature",
-      "state": "Active",
-      "type": "Task",
-      "assignedTo": "Jane Doe"
-    }
-  ]
+  "result": {
+    "protocolVersion": "2025-06-18",
+    "serverInfo": { "name": "azure-devops-mcp", "version": "0.1.0" },
+    "capabilities": { "tools": {}, "logging": {} }
+  }
 }
 ```
 
-## Flattened Work Item Shape
+1) tools/list
+
+```json
+{ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }
+```
+
+Response (truncated):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      { "name": "listWorkItems", "description": "List work items via named query or WIQL", "inputSchema": { "type": "object", "properties": { "query": {"type":"string"} } } },
+      { "name": "getWorkItem", "description": "Get a work item by id", "inputSchema": { "type": "object", "required":["id"], "properties": { "id": {"type":"number"} } } },
+      { "name": "createWorkItem", "description": "Create a work item", "inputSchema": { "type": "object", "required":["title"], "properties": { "type": {"type":"string"}, "title": {"type":"string"}, "description": {"type":"string"}, "assignedTo": {"type":"string"} } } },
+      { "name": "updateWorkItem", "description": "Apply JSON Patch ops to a work item", "inputSchema": { "type": "object", "required":["workItemId","patch"], "properties": { "workItemId": {"type":"number"}, "patch": {"type":"array"} } } },
+      { "name": "addComment", "description": "Add a comment to a work item", "inputSchema": { "type": "object", "required":["workItemId","text"], "properties": { "workItemId": {"type":"number"}, "text": {"type":"string"} } } },
+      { "name": "search", "description": "Search work items by title substring or exact id", "inputSchema": { "type": "object", "required":["term"], "properties": { "term": {"type":"string"} } } },
+      { "name": "filter", "description": "Filter work items with WIQL composition", "inputSchema": { "type": "object" } },
+      { "name": "getWorkItemRelations", "description": "List relations for a work item", "inputSchema": { "type": "object", "required":["id"], "properties": { "id": {"type":"number"} } } },
+      { "name": "getWorkItemGraph", "description": "Traverse parents/children around a root id", "inputSchema": { "type": "object", "required":["rootId"], "properties": { "rootId": {"type":"number"}, "depthUp": {"type":"number"}, "depthDown": {"type":"number"} } } },
+      { "name": "addTimeEntry", "description": "Log completed work hours and optional note", "inputSchema": { "type": "object", "required":["id","hours"], "properties": { "id": {"type":"number"}, "hours": {"type":"number"}, "note": {"type":"string"} } } },
+      { "name": "createLinkedWorkItem", "description": "Create a child under a parent id", "inputSchema": { "type": "object", "required":["parentId","type","title"], "properties": { "parentId": {"type":"number"}, "type": {"type":"string"}, "title": {"type":"string"}, "description": {"type":"string"}, "assignedTo": {"type":"string"} } } },
+      { "name": "getWorkItemTypes", "description": "List available work item types", "inputSchema": { "type": "object", "properties": {} } },
+      { "name": "getWorkItemTypeStates", "description": "List states for a work item type", "inputSchema": { "type": "object", "required":["workItemType"], "properties": { "workItemType": {"type":"string"} } } },
+      { "name": "getMyActiveContext", "description": "Convenience: current sprint + my items", "inputSchema": { "type": "object", "properties": {} } }
+    ]
+  }
+}
+```
+
+1) tools/call
+
+```json
+{ "jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": { "name": "listWorkItems", "arguments": { "query": "My Work Items" } } }
+```
+
+Response (example):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "content": [ { "type": "json", "data": [ {"id": 123, "title": "Implement feature", "state": "Active", "type": "Task"} ] } ]
+  }
+}
+```
+
+On error, the server returns a single content item with `isError: true` and a text message.
+
+## Flattened work item shape
 
 ```ts
 interface FlatWorkItem {
@@ -88,11 +131,10 @@ interface FlatWorkItem {
   type?: string;
   assignedTo?: string;
   changedDate?: string;
-  // Additional service-provided fields may be appended in future (non-breaking)
 }
 ```
 
-## Patch Format
+## Patch format
 
 Use standard Azure DevOps JSON Patch operations, e.g.
 
@@ -100,34 +142,22 @@ Use standard Azure DevOps JSON Patch operations, e.g.
 [{ "op": "add", "path": "/fields/System.Title", "value": "New Title" }]
 ```
 
-## Error Handling
+## Legacy JSON‑RPC method compatibility
 
-Errors follow JSON-RPC 2.0 with `error.code` values:
-
-| Code           | Meaning                                                                    |
-| -------------- | -------------------------------------------------------------------------- |
-| -32600         | Invalid request envelope                                                   |
-| -32601         | Method not found                                                           |
-| -32602         | Invalid params                                                             |
-| -32000         | Internal unhandled error                                                   |
-| -32001..-32007 | Specific operation failures (list/get/create/update/comment/search/filter) |
-
-`error.data` may include `status` (HTTP status) and `dataSnippet` (response excerpt) when available.
+You can still call methods like `listWorkItems`, `getWorkItem`, `createWorkItem`, etc. using a classic JSON‑RPC 2.0 envelope. These are internally routed to the same operations used by `tools/call`.
 
 ## Notes
 
-- One line in, one line out – no delimiter beyond `\n`.
-- Logging (stderr) is structured JSON prefixed with `[mcp-azdo]` and safe for ingestion filtering.
-- Returned arrays are currently unpaginated; implement client-side slicing if large.
-- Authentication uses PAT Basic auth header per request (no token caching beyond that).
+- One line in, one line out – each JSON envelope is newline‑delimited
+- Logging (stderr) is structured JSON with prefix `[mcp-azdo]`
+- Returned arrays are unpaginated; slice on the client if needed
+- Authentication uses PAT Basic auth per request
 
-## Future Enhancements
+## Roadmap
 
-- Iteration endpoints (`getIterations`, `getCurrentIteration`)
-- Pull request & build surfaces
-- Optional pagination / field projection
-- Streaming partial results for large WIQL queries
-- Delta endpoints (changed since timestamp)
-- Structured metrics endpoint
+- Iterations helpers exposed as tools (`getIterations`, `getCurrentIteration`)
+- PR and build tools
+- Optional pagination and field projection
+- Streaming for large WIQL results
 
 MIT License.

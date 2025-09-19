@@ -228,11 +228,11 @@ export class AzureDevOpsIntClient {
             const safePath = this._escapeWIQL(iterPath);
             wiql = `SELECT [System.Id], [System.Title], [System.State], [System.WorkItemType], [System.AssignedTo], [System.CreatedDate], [System.ChangedDate], [System.IterationPath], [System.Tags], [Microsoft.VSTS.Common.Priority] FROM WorkItems WHERE [System.IterationPath] UNDER '${safePath}' AND [System.State] <> 'Closed' AND [System.State] <> 'Removed' ORDER BY [Microsoft.VSTS.Common.Priority] ASC, [System.Id] ASC`;
           }
-        } catch (e) {
+        } catch (_e) {
           // Fallback to @CurrentIteration-based WIQL already produced
           console.warn(
             '[azureDevOpsInt][GETWI] getCurrentIteration failed, using @CurrentIteration',
-            e
+            _e
           );
         }
       }
@@ -340,6 +340,175 @@ export class AzureDevOpsIntClient {
       console.error('Error fetching work item by id:', err);
       return null;
     }
+  }
+
+  /**
+   * Fetch multiple work items by ids. Optionally expand relations.
+   */
+  async getWorkItemsByIds(ids: number[], expandRelations: boolean = true): Promise<WorkItem[]> {
+    if (!Array.isArray(ids) || ids.length === 0) return [];
+    const idList = Array.from(new Set(ids.filter((n) => typeof n === 'number'))).join(',');
+    const expand = expandRelations ? 'all' : 'none';
+    try {
+      const resp = await this.axios.get(
+        `/wit/workitems?ids=${idList}&$expand=${expand}&api-version=7.0`
+      );
+      const raw = resp.data?.value || [];
+      return raw.map((r: any) => ({ id: r.id, fields: r.fields } as WorkItem));
+    } catch (e) {
+      console.error('Error fetching work items by ids', e);
+      return [];
+    }
+  }
+
+  /**
+   * Return relations array for a work item (parent/children/links). Returns empty array on failure.
+   */
+  async getWorkItemRelations(id: number): Promise<any[]> {
+    try {
+      const resp = await this.axios.get(`/wit/workitems/${id}?$expand=relations&api-version=7.0`);
+      return resp.data?.relations || [];
+    } catch (e) {
+      console.error('Error fetching work item relations', e);
+      return [];
+    }
+  }
+
+  /**
+   * Build an org-level work item API URL used in relation payloads.
+   * Example: https://dev.azure.com/{org}/_apis/wit/workItems/{id}
+   */
+  private workItemApiUrl(id: number | string) {
+    return `https://dev.azure.com/${this.encodedOrganization}/_apis/wit/workItems/${id}`;
+  }
+
+  /**
+   * Create a new work item and link it under a parent (Hierarchy link). The link is child->parent.
+   */
+  async createWorkItemUnderParent(
+    parentId: number,
+    type: string,
+    title: string,
+    description?: string,
+    assignedTo?: string
+  ): Promise<WorkItem> {
+    const patch: any[] = [{ op: 'add', path: '/fields/System.Title', value: title }];
+    if (description)
+      patch.push({ op: 'add', path: '/fields/System.Description', value: description });
+    if (assignedTo) patch.push({ op: 'add', path: '/fields/System.AssignedTo', value: assignedTo });
+    // Add relation child -> parent
+    patch.push({
+      op: 'add',
+      path: '/relations/-',
+      value: {
+        rel: 'System.LinkTypes.Hierarchy-Reverse',
+        url: this.workItemApiUrl(parentId),
+        attributes: { comment: 'Linked by VS Code extension' },
+      },
+    });
+    const resp = await this.axios.post(`/wit/workitems/$${type}?api-version=7.0`, patch, {
+      headers: { 'Content-Type': 'application/json-patch+json' },
+    });
+    return { id: resp.data.id, fields: resp.data.fields } as WorkItem;
+  }
+
+  /**
+   * Build a small hierarchy graph for a given root id. Returns nodes and edges with up/down traversal.
+   */
+  async getWorkItemGraph(
+    rootId: number,
+    depthUp: number = 2,
+    depthDown: number = 2
+  ): Promise<{
+    nodes: Array<{ id: number; title?: string; type?: string; state?: string }>;
+    edges: Array<{ from: number; to: number; rel: string }>;
+  }> {
+    const nodes = new Map<number, { id: number; title?: string; type?: string; state?: string }>();
+    const edges: Array<{ from: number; to: number; rel: string }> = [];
+    const enqueue: Array<{ id: number; dir: 'up' | 'down'; depth: number }> = [
+      { id: rootId, dir: 'up', depth: 0 },
+      { id: rootId, dir: 'down', depth: 0 },
+    ];
+    const visitedUp = new Set<number>();
+    const visitedDown = new Set<number>();
+
+    const captureNode = (it: any) => {
+      if (!it) return;
+      const f = it.fields || {};
+      nodes.set(it.id, {
+        id: it.id,
+        title: f['System.Title'],
+        type: f['System.WorkItemType'],
+        state: f['System.State'],
+      });
+    };
+
+    // Helper to fetch single with relations and fields
+    const fetchOne = async (id: number) => {
+      try {
+        const resp = await this.axios.get(`/wit/workitems/${id}?$expand=relations&api-version=7.0`);
+        return resp.data;
+      } catch {
+        return undefined;
+      }
+    };
+
+    while (enqueue.length) {
+      const { id, dir, depth } = enqueue.shift()!;
+      if (dir === 'up') {
+        if (visitedUp.has(id) || depth > depthUp) continue;
+        visitedUp.add(id);
+      } else {
+        if (visitedDown.has(id) || depth > depthDown) continue;
+        visitedDown.add(id);
+      }
+      const item = await fetchOne(id);
+      if (!item) continue;
+      captureNode(item);
+      const rels: any[] = item.relations || [];
+      for (const r of rels) {
+        const rel: string = r.rel || '';
+        const url: string = r.url || '';
+        const m = url.match(/workItems\/(\d+)/i);
+        const otherId = m ? Number(m[1]) : undefined;
+        if (!otherId) continue;
+        if (rel.includes('Hierarchy-Forward')) {
+          // item -> child
+          edges.push({ from: item.id, to: otherId, rel });
+          if (dir !== 'up') enqueue.push({ id: otherId, dir: 'down', depth: depth + 1 });
+        } else if (rel.includes('Hierarchy-Reverse')) {
+          // item -> parent (reverse means this item is child)
+          edges.push({ from: otherId, to: item.id, rel: 'System.LinkTypes.Hierarchy-Forward' });
+          if (dir !== 'down') enqueue.push({ id: otherId, dir: 'up', depth: depth + 1 });
+        }
+      }
+    }
+
+    // Populate any missing node fields by batch fetch
+    const missing = Array.from(nodes.values())
+      .filter((n) => !n.title)
+      .map((n) => n.id);
+    if (missing.length) {
+      try {
+        const resp = await this.axios.get(
+          `/wit/workitems?ids=${missing.join(',')}&api-version=7.0`
+        );
+        const vals = resp.data?.value || [];
+        for (const v of vals) {
+          const f = v.fields || {};
+          nodes.set(v.id, {
+            id: v.id,
+            title: f['System.Title'],
+            type: f['System.WorkItemType'],
+            state: f['System.State'],
+          });
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    return { nodes: Array.from(nodes.values()), edges };
   }
 
   async runWIQL(wiql: string): Promise<WorkItem[]> {

@@ -59,6 +59,7 @@
   "main": "./dist/extension.js",
   "files": [
     "dist/**",
+    "mcp-server/dist/**",
     "media/**",
     "NOTICE.md",
     "LICENSE.txt",
@@ -133,6 +134,11 @@
         "icon": "$(git-pull-request)"
       },
       {
+        "command": "azureDevOpsInt.showBuildStatus",
+        "title": "Azure DevOps Integration: Show Build Status",
+        "icon": "$(pulse)"
+      },
+      {
         "command": "azureDevOpsInt.toggleKanbanView",
         "title": "Azure DevOps Integration: Toggle Kanban View",
         "icon": "$(layout)"
@@ -146,6 +152,22 @@
         "command": "azureDevOpsInt.resetPreferredRepositories",
         "title": "Azure DevOps Integration: Reset Preferred Repositories",
         "icon": "$(trash)"
+      },
+      {
+        "command": "azureDevOpsInt.generateAIWorkflowPrompt",
+        "title": "Azure DevOps Integration: Generate AI Workflow Prompt",
+        "icon": "$(sparkle)"
+      }
+      ,
+      {
+        "command": "azureDevOpsInt.startMcpServer",
+        "title": "Azure DevOps Integration: Start MCP Server",
+        "icon": "$(run)"
+      },
+      {
+        "command": "azureDevOpsInt.stopMcpServer",
+        "title": "Azure DevOps Integration: Stop MCP Server",
+        "icon": "$(debug-stop)"
       }
     ],
     "viewsContainers": {
@@ -332,6 +354,16 @@
         {
           "command": "azureDevOpsInt.resetPreferredRepositories",
           "when": "azureDevOpsInt.connected"
+        },
+        {
+          "command": "azureDevOpsInt.startMcpServer",
+          "when": "!azureDevOpsInt.mcpRunning && azureDevOpsInt.connected",
+          "icon": "$(run)"
+        },
+        {
+          "command": "azureDevOpsInt.stopMcpServer",
+          "when": "azureDevOpsInt.mcpRunning",
+          "icon": "$(debug-stop)"
         }
       ]
     },
@@ -349,8 +381,9 @@
   "scripts": {
     "clean": "rimraf dist",
     "vscode:prepublish": "npm run build",
-    "build:ext": "node esbuild.mjs",
-    "build": "npm run check-types && npm run lint && npm run webview:build && npm run build:ext",
+  "build:ext": "node esbuild.mjs",
+  "build:mcp": "npm --prefix mcp-server run build",
+  "build": "npm run check-types && npm run lint && npm run webview:build && npm run build:mcp && npm run build:ext",
     "compile": "npm run build",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",

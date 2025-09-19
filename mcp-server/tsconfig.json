@@ -6,6 +6,7 @@
     "module": "esnext",
     "target": "ES2022",
     "moduleResolution": "node",
+    "types": ["node"],
     "declaration": false,
     "noEmitOnError": true,
     "composite": false,

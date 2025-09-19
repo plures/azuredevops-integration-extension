@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AzureDevOpsIntClient } from './azureClient.js';
+import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { WorkItemsProvider } from './provider.js';
 import { WorkItemTimer } from './timer.js';
 
@@ -23,6 +24,8 @@ let viewProviderRegistered = false;
 let initialRefreshed = false; // prevent duplicate initial refresh (silentInit + webview init)
 let outputChannel: vscode.OutputChannel | undefined; // lazy created when debugLogging enabled
 let extensionContextRef: vscode.ExtensionContext | undefined; // keep a reference for later ops
+let mcpOutput: vscode.OutputChannel | undefined; // MCP server output channel
+let mcpProc: ChildProcessWithoutNullStreams | undefined; // running MCP server process
 // Self-test tracking (prove Svelte webview round‑trip works)
 // Self-test pending promise handlers (typed loosely to avoid unused param lint churn)
 let selfTestPending:
@@ -148,7 +151,12 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('azureDevOpsInt.resetPreferredRepositories', () =>
       resetPreferredRepositories()
     ),
-    vscode.commands.registerCommand('azureDevOpsInt.selfTestWebview', () => selfTestWebview())
+    vscode.commands.registerCommand('azureDevOpsInt.selfTestWebview', () => selfTestWebview()),
+    vscode.commands.registerCommand('azureDevOpsInt.generateAIWorkflowPrompt', () =>
+      generateAIWorkflowPromptCommand()
+    ),
+    vscode.commands.registerCommand('azureDevOpsInt.startMcpServer', () => startMcpServer()),
+    vscode.commands.registerCommand('azureDevOpsInt.stopMcpServer', () => stopMcpServer())
   );
 
   // Attempt silent init if settings already present
@@ -156,7 +164,13 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-  // noop for now
+  try {
+    if (mcpProc && !mcpProc.killed) {
+      mcpProc.kill();
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
@@ -1266,6 +1280,78 @@ async function showBuildStatus() {
   vscode.window.showInformationMessage('Build status feature not implemented yet.');
 }
 
+// Start MCP server process and wire output
+async function startMcpServer() {
+  try {
+    if (mcpProc && !mcpProc.killed) {
+      vscode.window.showInformationMessage('MCP server already running.');
+      return;
+    }
+    const cfg = getConfig();
+    const org = cfg.get<string>('organization') || '';
+    const project = cfg.get<string>('project') || '';
+    const pat = extensionContextRef ? await getSecretPAT(extensionContextRef) : undefined;
+    if (!org || !project || !pat) {
+      vscode.window.showWarningMessage('Set up Azure DevOps connection first (Setup Connection).');
+      return;
+    }
+
+    if (!mcpOutput) mcpOutput = vscode.window.createOutputChannel('Azure DevOps MCP');
+    mcpOutput.show(true);
+
+    const serverPath = path.join(__dirname, '..', 'mcp-server', 'dist', 'server.js');
+    // Spawn Node to run the MCP server
+    mcpProc = spawn(process.execPath, [serverPath], {
+      env: {
+        ...process.env,
+        AZDO_ORG: org,
+        AZDO_PROJECT: project,
+        AZDO_PAT: pat,
+      },
+      stdio: 'pipe',
+    });
+
+    mcpProc.stdout.on('data', (d: Buffer) => {
+      try {
+        mcpOutput?.appendLine(d.toString().trim());
+      } catch {
+        /* ignore */
+      }
+    });
+    mcpProc.stderr.on('data', (d: Buffer) => {
+      try {
+        mcpOutput?.appendLine(d.toString().trim());
+      } catch {
+        /* ignore */
+      }
+    });
+    mcpProc.on('exit', (code) => {
+      mcpOutput?.appendLine(`[mcp] exited with code ${code}`);
+      mcpProc = undefined;
+      vscode.commands.executeCommand('setContext', 'azureDevOpsInt.mcpRunning', false);
+    });
+
+    vscode.commands.executeCommand('setContext', 'azureDevOpsInt.mcpRunning', true);
+    vscode.window.showInformationMessage('Azure DevOps MCP server started.');
+  } catch (e: any) {
+    vscode.window.showErrorMessage('Failed to start MCP server: ' + (e?.message || String(e)));
+  }
+}
+
+async function stopMcpServer() {
+  try {
+    if (!mcpProc || mcpProc.killed) {
+      vscode.window.showInformationMessage('MCP server is not running.');
+      return;
+    }
+    mcpProc.kill();
+    vscode.commands.executeCommand('setContext', 'azureDevOpsInt.mcpRunning', false);
+    vscode.window.showInformationMessage('Azure DevOps MCP server stopped.');
+  } catch (e: any) {
+    vscode.window.showErrorMessage('Failed to stop MCP server: ' + (e?.message || String(e)));
+  }
+}
+
 // Test helpers (no-op in production): allow tests to inject module-scoped dependencies
 export function __setTestContext(
   ctx: Partial<{
@@ -1434,4 +1520,164 @@ function buildCopilotPrompt(entry: any, workItem: any) {
   const end = entry.endTime ? new Date(entry.endTime).toLocaleString() : '';
   const hrs = Number(entry.hoursDecimal || entry.duration / 3600 || 0).toFixed(2);
   return `You are my assistant. Summarize the work I performed on work item #${entry.workItemId} entitled "${title}" between ${start} and ${end} (total ${hrs} hours). Produce a concise 1-2 sentence summary suitable as a comment on the work item that highlights the outcome, key changes, and suggested next steps.`;
+}
+
+// ---------------- AI Workflow Prompt ----------------
+async function generateAIWorkflowPromptCommand() {
+  try {
+    const cfg = getConfig();
+    if (!client) {
+      vscode.window.showWarningMessage('Connect to Azure DevOps first (Setup Connection).');
+      return;
+    }
+    // Gather context: active items and minimal relations
+    const defaultQuery: string = cfg.get('defaultQuery') || 'My Work Items';
+    const sourceItems: any[] =
+      provider?.getWorkItems?.() || (await client.getWorkItems(defaultQuery));
+    // Limit to 20 most recent to keep prompt compact
+    const items = (sourceItems || []).slice(0, 20);
+    const enriched: Array<{
+      id: number;
+      title?: string;
+      type?: string;
+      state?: string;
+      parents: number[];
+      children: number[];
+    }> = [];
+    for (const w of items) {
+      const id = Number(w.id || w.fields?.['System.Id']);
+      const title = w.fields?.['System.Title'];
+      const type = w.fields?.['System.WorkItemType'];
+      const state = w.fields?.['System.State'];
+      let parents: number[] = [];
+      let children: number[] = [];
+      try {
+        const rels = await (client as any).getWorkItemRelations?.(id);
+        if (Array.isArray(rels)) {
+          for (const r of rels) {
+            const url = r.url as string;
+            const m = url ? url.match(/workItems\/(\d+)/i) : null;
+            const otherId = m ? Number(m[1]) : undefined;
+            if (!otherId) continue;
+            if (String(r.rel || '').includes('Hierarchy-Forward')) children.push(otherId);
+            if (String(r.rel || '').includes('Hierarchy-Reverse')) parents.push(otherId);
+          }
+        }
+      } catch {
+        /* ignore rel errors */
+      }
+      enriched.push({ id, title, type, state, parents, children });
+    }
+
+    // Fetch available work item types (names only)
+    const typesList = await (client as any).getWorkItemTypes?.();
+    const typeNames: string[] = Array.isArray(typesList)
+      ? typesList.map((t: any) => t.name || t).filter(Boolean)
+      : ['Epic', 'Feature', 'User Story', 'Task', 'Bug'];
+
+    const org = cfg.get<string>('organization') || '<org>';
+    const project = cfg.get<string>('project') || '<project>';
+
+    const md = buildAIWorkflowTemplate({ enriched, typeNames, org, project });
+    await vscode.env.clipboard.writeText(md);
+
+    const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: md });
+    await vscode.window.showTextDocument(doc, { preview: false });
+    vscode.window.showInformationMessage(
+      'AI workflow prompt generated. It has been copied to your clipboard and opened for review.'
+    );
+  } catch (e: any) {
+    console.error('Failed to generate AI workflow prompt', e);
+    vscode.window.showErrorMessage('Failed to generate AI workflow prompt: ' + (e?.message || e));
+  }
+}
+
+function buildAIWorkflowTemplate(args: {
+  enriched: Array<{
+    id: number;
+    title?: string;
+    type?: string;
+    state?: string;
+    parents: number[];
+    children: number[];
+  }>;
+  typeNames: string[];
+  org: string;
+  project: string;
+}) {
+  const { enriched, typeNames, org, project } = args;
+
+  const itemsList = enriched
+    .map(
+      (e) =>
+        `- #${e.id} · ${e.type || ''} · ${e.state || ''} · ${e.title || ''}` +
+        (e.parents.length ? ` · parent: ${e.parents.map((p) => `#${p}`).join(', ')}` : '') +
+        (e.children.length ? ` · children: ${e.children.map((c) => `#${c}`).join(', ')}` : '')
+    )
+    .join('\n');
+
+  const methodCheat = `
+- listWorkItems({ query? }): returns flattened items assigned to me
+- getWorkItem({ id }): returns one item
+- getWorkItemRelations({ id }): returns [{ rel, id }]
+- getWorkItemGraph({ id, depthUp?, depthDown? }): returns { nodes, edges }
+- search({ term }): find by title or id
+- filter({ sprint?, type?, includeState?, excludeStates?, assignedTo? }): filtered list
+- createWorkItem({ type, title, description?, assignedTo? })
+- createLinkedWorkItem({ parentId, type, title, description?, assignedTo? })
+- updateWorkItem({ workItemId, patch }): JSON Patch
+- addComment({ workItemId, text })
+- addTimeEntry({ workItemId, hours, note? }): increments CompletedWork + optional comment
+- getWorkItemTypes()
+- getWorkItemTypeStates({ type })`;
+
+  const tailored = `# AI Workflow: Azure DevOps Work Items (via MCP)
+
+You are integrated with a Model Context Protocol (MCP) server that exposes Azure DevOps work items for the organization "${org}" and project "${project}". Use the fewest, most‑targeted questions to understand what I'm working on and then operate on work items on my behalf. Prefer reading context via the MCP methods before asking.
+
+## Behaviour contract
+- Goal inference: If I say "I'm working on X", determine whether X matches an existing Epic/Feature/User Story/Task. If ambiguous, ask one concise question, biased to the highest parent first (Epic → Feature → Story → Task).
+- Minimal questions: Only ask what's necessary to place my current work in the hierarchy. If multiple candidates match, show the top 3 with ids and ask me to pick.
+- Time tracking: When I say I'm starting or stopping work, summarize progress and, upon my confirmation, log time to the selected work item using addTimeEntry. If I forget to stop, propose a sensible duration based on our discussion history.
+- Out‑of‑scope detection: If my description doesn't fit existing parent/child scope, propose creating a new work item of an appropriate type. Suggest: ${typeNames.join(
+    ', '
+  )}. Create it using createWorkItem or createLinkedWorkItem and link it to the chosen parent.
+- Rolling summary: Maintain a lightweight ongoing summary of the current work item context. Include intent, scope, key changes, and next steps.
+- Comments: When meaningful progress occurs, propose a concise comment and offer to post it.
+
+## Available MCP methods
+${methodCheat}
+
+## Current context (recent assigned items)
+${itemsList || '- (none found)'}
+
+## Conversation script (ask-me flow)
+1. Determine if I'm working within an existing epic/feature/story/task.
+   - Call listWorkItems({ query: 'My Work Items' }) and getWorkItemRelations for likely candidates.
+   - If I mention a title or id, call search({ term }) or getWorkItem({ id }).
+   - If multiple matches, present up to 3: "Are you working on #123 Title A, #456 Title B, or #789 Title C?"
+2. Once a work item is confirmed, ask: "Do you want to track time against #<id>? If yes, how many hours (or say 'start timer and remind later')?"
+   - If I provide a duration, call addTimeEntry({ workItemId: id, hours, note: '<short summary>' }).
+   - If I prefer to start a timer, keep a reminder note and check back when I say I'm done.
+3. If the task appears out of scope, ask one drill‑down question. If still out of scope, propose a new work item:
+   - Suggest type based on granularity: Epic > Feature > Story > Task.
+   - Call createLinkedWorkItem({ parentId, type, title, description }).
+4. As work progresses, periodically propose a new comment with a two‑sentence summary and post via addComment upon approval.
+5. On "wrap up":
+   - Offer to log time (if not already) via addTimeEntry.
+   - Propose a state transition (e.g., Active → Resolved) using updateWorkItem with a replace patch on /fields/System.State.
+
+## Patch examples
+- Set state to Active:
+  updateWorkItem({ workItemId: id, patch: [{ op: 'replace', path: '/fields/System.State', value: 'Active' }] })
+- Update description:
+  updateWorkItem({ workItemId: id, patch: [{ op: 'replace', path: '/fields/System.Description', value: '<html/markdown>' }] })
+
+## Output style
+- Keep questions short. Include ids and titles when referencing work items.
+- When you intend to call an MCP method, show a one‑line rationale first.
+- After any mutating call, echo the resulting id/title/state so I can follow along.
+`;
+
+  return tailored;
 }

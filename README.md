@@ -17,6 +17,7 @@ Integrate Azure DevOps work items, time tracking, branching, and pull requests d
 - Per‑work‑item draft persistence in the editor (your notes stick to each item locally)
 - Smart stop flow: proposes Completed/Remaining updates and can post a Copilot‑generated summary comment
 - Reliable queries across process templates with runtime compatibility fallback
+- Generate a personalized AI workflow prompt (MCP) to let AI assist with work items
 
 ## 📥 Installation
 
@@ -74,6 +75,7 @@ Optional: set a Team for iteration-aware queries
 | azureDevOpsInt.showPullRequests           | Azure DevOps Integration: Show My Pull Requests        |
 | azureDevOpsInt.selectTeam                 | Azure DevOps Integration: Select Team                  |
 | azureDevOpsInt.resetPreferredRepositories | Azure DevOps Integration: Reset Preferred Repositories |
+| azureDevOpsInt.generateAIWorkflowPrompt  | Azure DevOps Integration: Generate AI Workflow Prompt   |
 
 More helpful commands (selection):
 
@@ -135,6 +137,28 @@ Enable setting: azureDevOpsIntegration.debugLogging. An output channel "Azure De
 - The first time you create a PR, you'll be prompted to pick one or more repositories. These are saved as `azureDevOpsIntegration.preferredRepositoryIds`.
 - To change or clear your choices, run: Azure DevOps Integration: Reset Preferred Repositories.
 - The "Show My Pull Requests" command searches across repositories and filters to your identity.
+
+## 🤖 AI workflow (MCP)
+
+This extension can generate a personalized instruction prompt to help AI assistants (like GitHub Copilot Chat with MCP) interact with your Azure DevOps work items with minimal back‑and‑forth.
+
+- Run: Azure DevOps Integration: Generate AI Workflow Prompt
+- The prompt will be copied to your clipboard and opened in a new editor tab
+- Paste it into your AI tool; with the MCP server configured (AZDO_ORG, AZDO_PROJECT, AZDO_PAT), the AI can list/search/create/update work items, add comments, and log time
+
+Details and the list of available MCP methods are in docs/AI_WORKFLOW_TEMPLATE.md.
+
+### MCP server controls in the extension
+
+- Start MCP Server — `azureDevOpsInt.startMcpServer`
+- Stop MCP Server — `azureDevOpsInt.stopMcpServer`
+
+Prerequisites:
+
+- In Settings, set Organization and Project (azureDevOpsIntegration.organization / .project)
+- PAT stored via Setup Connection (the extension reads it from the secret store)
+
+When started, the server logs to the "Azure DevOps MCP" output channel. The command palette shows Start or Stop based on the current server status. The extension sets the required environment (`AZDO_ORG`, `AZDO_PROJECT`, `AZDO_PAT`) when launching the server.
 
 ## 📦 Development
 
