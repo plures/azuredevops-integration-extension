@@ -911,15 +911,15 @@ async function editWorkItemInEditor(workItemId: number) {
     try {
       const validStates = await client.getWorkItemTypeStates(currentType);
       if (validStates.length > 0) {
-        stateOptions = validStates.map(state => ({
+        stateOptions = validStates.map((state) => ({
           label: state,
-          description: `${state} state`
+          description: `${state} state`,
         }));
         // If current state is not in the valid states, add it to prevent user confusion
         if (!validStates.includes(currentState) && currentState) {
           stateOptions.unshift({
             label: currentState,
-            description: `Current: ${currentState} state`
+            description: `Current: ${currentState} state`,
           });
         }
       } else {
@@ -943,11 +943,11 @@ async function editWorkItemInEditor(workItemId: number) {
         { label: 'Removed', description: 'Work item removed' },
       ];
       // Ensure current state is available if it's not in the fallback list
-      const fallbackStates = stateOptions.map(opt => opt.label);
+      const fallbackStates = stateOptions.map((opt) => opt.label);
       if (!fallbackStates.includes(currentState) && currentState) {
         stateOptions.unshift({
           label: currentState,
-          description: `Current: ${currentState} state`
+          description: `Current: ${currentState} state`,
         });
       }
     }

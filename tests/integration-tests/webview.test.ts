@@ -5,18 +5,22 @@ import * as assert from 'assert';
 
 suite('Webview Integration Tests', () => {
   test('Extension should be present', () => {
-    const extension = vscode.extensions.getExtension('PluresLLC.azure-devops-integration-extension');
+    const extension = vscode.extensions.getExtension(
+      'PluresLLC.azure-devops-integration-extension'
+    );
     assert.ok(extension, 'Extension should be installed');
   });
 
   test('Extension should activate without errors', async () => {
-    const extension = vscode.extensions.getExtension('PluresLLC.azure-devops-integration-extension');
+    const extension = vscode.extensions.getExtension(
+      'PluresLLC.azure-devops-integration-extension'
+    );
     assert.ok(extension, 'Extension should be installed');
-    
+
     if (!extension.isActive) {
       await extension.activate();
     }
-    
+
     assert.ok(extension.isActive, 'Extension should be active');
   });
 
@@ -27,7 +31,7 @@ suite('Webview Integration Tests', () => {
       'azureDevOpsInt.refresh',
       'azureDevOpsInt.startTimer',
       'azureDevOpsInt.stopTimer',
-      'azureDevOpsInt.selfTestWebview'
+      'azureDevOpsInt.selfTestWebview',
     ];
 
     for (const cmd of expectedCommands) {
@@ -35,9 +39,9 @@ suite('Webview Integration Tests', () => {
     }
   });
 
-  test('Self test webview command should work', async function() {
+  test('Self test webview command should work', async function () {
     this.timeout(10000); // 10 seconds timeout for this test
-    
+
     try {
       // This command tests the webview round-trip functionality
       await vscode.commands.executeCommand('azureDevOpsInt.selfTestWebview');

@@ -443,7 +443,9 @@ export class AzureDevOpsIntClient {
 
   async getWorkItemTypeStates(workItemType: string): Promise<string[]> {
     try {
-      const resp = await this.axios.get(`/wit/workitemtypes/${encodeURIComponent(workItemType)}?api-version=7.0`);
+      const resp = await this.axios.get(
+        `/wit/workitemtypes/${encodeURIComponent(workItemType)}?api-version=7.0`
+      );
       const states = resp.data.states || [];
       return states.map((state: any) => state.name || state);
     } catch (e) {

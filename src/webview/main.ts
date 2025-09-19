@@ -1435,7 +1435,7 @@ function startApp() {
   // Throttle activity pings to avoid spamming the extension
   function sendActivityPing() {
     if (activityPingTimer) return; // Already scheduled
-    
+
     activityPingTimer = setTimeout(() => {
       postMessage({ type: 'activity' });
       activityPingTimer = undefined;
@@ -1443,20 +1443,23 @@ function startApp() {
   }
 
   // Events that indicate user activity
-  const activityEvents = [
-    'click', 'keydown', 'scroll', 'mousemove', 'touchstart', 'focus'
-  ];
+  const activityEvents = ['click', 'keydown', 'scroll', 'mousemove', 'touchstart', 'focus'];
 
   // Add throttled event listeners
-  activityEvents.forEach(eventType => {
-    document.addEventListener(eventType, () => {
-      const now = Date.now();
-      // Only send activity ping if enough time has passed since last activity
-      if (now - lastActivityTime > 1000) { // Minimum 1 second between activities
-        lastActivityTime = now;
-        sendActivityPing();
-      }
-    }, { passive: true });
+  activityEvents.forEach((eventType) => {
+    document.addEventListener(
+      eventType,
+      () => {
+        const now = Date.now();
+        // Only send activity ping if enough time has passed since last activity
+        if (now - lastActivityTime > 1000) {
+          // Minimum 1 second between activities
+          lastActivityTime = now;
+          sendActivityPing();
+        }
+      },
+      { passive: true }
+    );
   });
 
   // Also send activity ping when the webview gains focus/visibility

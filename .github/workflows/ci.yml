@@ -145,16 +145,16 @@ jobs:
           current_version=$(node -p "require('./package.json').version")
           new_version=$(npm version "$bump" --no-git-tag-version)
           new_version=${new_version#v}  # Remove 'v' prefix
-          
+
           # Update changelog with new version
           node scripts/update-changelog.js "$new_version"
-          
+
           # Add changelog to git
           git add CHANGELOG.md package.json package-lock.json
-          
+
           # Create commit and tag
           git commit -m "chore(release): $new_version"
           git tag "v$new_version"
-          
+
           # Push commit and tags using the default GITHUB_TOKEN credentials from checkout
           git push --follow-tags

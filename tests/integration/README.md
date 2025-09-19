@@ -43,6 +43,7 @@ xvfb-run -a npm run test:integration
 #### CI/GitHub Actions
 
 The GitHub Actions workflow automatically:
+
 - Installs `xvfb` for headless testing
 - Sets up virtual display
 - Runs tests with proper environment
@@ -77,6 +78,7 @@ Error: Missing X server or $DISPLAY
 ```
 
 **Solution**: Install and use `xvfb-run`:
+
 ```bash
 sudo apt-get install xvfb
 xvfb-run -a npm run test:integration
@@ -93,6 +95,7 @@ This is normal in restricted environments. Tests will skip gracefully.
 ### Extension Not Found
 
 Ensure the extension is built before running tests:
+
 ```bash
 npm run build
 npm run test:integration

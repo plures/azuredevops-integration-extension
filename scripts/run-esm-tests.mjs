@@ -36,9 +36,10 @@ function collectTests(dir) {
 }
 
 const testDir = path.resolve(process.cwd(), 'tests');
-const files = collectTests(testDir).filter((f) => 
-  !f.includes(path.sep + 'integration' + path.sep) && 
-  !f.includes(path.sep + 'integration-tests' + path.sep)
+const files = collectTests(testDir).filter(
+  (f) =>
+    !f.includes(path.sep + 'integration' + path.sep) &&
+    !f.includes(path.sep + 'integration-tests' + path.sep)
 );
 
 // Ensure ts-node operates in transpile-only mode at runtime (no type-check) and emits NodeNext ESM
