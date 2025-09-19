@@ -141,3 +141,6 @@ vite.config.ts.timestamp-*
 # Local artifacts
 *.vsix
 *.bundle
+
+# Demo files (for testing only)
+demo/

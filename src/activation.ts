@@ -880,14 +880,51 @@ async function editWorkItemInEditor(workItemId: number) {
 
     if (newDescription === undefined) return; // User cancelled
 
-    // Get new state - show common states
-    const stateOptions = [
-      { label: 'New', description: 'New work item' },
-      { label: 'Active', description: 'Work in progress' },
-      { label: 'Resolved', description: 'Work completed' },
-      { label: 'Closed', description: 'Work verified and closed' },
-      { label: 'Removed', description: 'Work item removed' },
-    ];
+    // Get valid states for this work item type dynamically
+    let stateOptions: { label: string; description: string }[];
+    try {
+      const validStates = await client.getWorkItemTypeStates(currentType);
+      if (validStates.length > 0) {
+        stateOptions = validStates.map(state => ({
+          label: state,
+          description: `${state} state`
+        }));
+        // If current state is not in the valid states, add it to prevent user confusion
+        if (!validStates.includes(currentState) && currentState) {
+          stateOptions.unshift({
+            label: currentState,
+            description: `Current: ${currentState} state`
+          });
+        }
+      } else {
+        // Fallback to common states if API returns empty
+        stateOptions = [
+          { label: 'New', description: 'New work item' },
+          { label: 'Active', description: 'Work in progress' },
+          { label: 'Resolved', description: 'Work completed' },
+          { label: 'Closed', description: 'Work verified and closed' },
+          { label: 'Removed', description: 'Work item removed' },
+        ];
+      }
+    } catch (e) {
+      console.error('Failed to fetch valid states, using fallback:', e);
+      // Fallback to common states if API fails
+      stateOptions = [
+        { label: 'New', description: 'New work item' },
+        { label: 'Active', description: 'Work in progress' },
+        { label: 'Resolved', description: 'Work completed' },
+        { label: 'Closed', description: 'Work verified and closed' },
+        { label: 'Removed', description: 'Work item removed' },
+      ];
+      // Ensure current state is available if it's not in the fallback list
+      const fallbackStates = stateOptions.map(opt => opt.label);
+      if (!fallbackStates.includes(currentState) && currentState) {
+        stateOptions.unshift({
+          label: currentState,
+          description: `Current: ${currentState} state`
+        });
+      }
+    }
 
     const selectedState = await vscode.window.showQuickPick(stateOptions, {
       placeHolder: `Current state: ${currentState}. Select new state:`,
