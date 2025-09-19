@@ -376,7 +376,9 @@ function formatTimerDuration(seconds: number): string {
   if (h > 0) {
     return `${h}:${m.toString().padStart(2, '0')}`;
   }
-  return `${m}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
+  return `${m}:${Math.floor(seconds % 60)
+    .toString()
+    .padStart(2, '0')}`;
 }
 
 function updateTimerDisplay() {
@@ -962,19 +964,25 @@ function renderWorkItems() {
       const typeIcon = getWorkItemTypeIcon(String(type));
       const priorityClass = getPriorityClass(Number(priority));
       const stateClass = getStateClass(String(state));
-      
+
       // Check if timer is running on this work item
       const hasActiveTimer = currentTimer && currentTimer.workItemId === id;
-      const timerDisplay = hasActiveTimer ? formatTimerDuration(currentTimer.elapsedSeconds || 0) : '';
+      const timerDisplay = hasActiveTimer
+        ? formatTimerDuration(currentTimer.elapsedSeconds || 0)
+        : '';
 
       return `
-      <div class="work-item-card ${
-        isSelected ? 'selected' : ''
-      } ${stateClass} ${hasActiveTimer ? 'has-active-timer' : ''}" data-id="${id}" data-action="selectWorkItem">
+      <div class="work-item-card ${isSelected ? 'selected' : ''} ${stateClass} ${
+        hasActiveTimer ? 'has-active-timer' : ''
+      }" data-id="${id}" data-action="selectWorkItem">
         <div class="work-item-header">
           <div class="work-item-type-icon ${typeIcon.class}">${typeIcon.icon}</div>
           <div class="work-item-id">#${id}</div>
-          ${hasActiveTimer ? `<div class="timer-indicator" title="Timer running: ${timerDisplay}">⏱️ ${timerDisplay}</div>` : ''}
+          ${
+            hasActiveTimer
+              ? `<div class="timer-indicator" title="Timer running: ${timerDisplay}">⏱️ ${timerDisplay}</div>`
+              : ''
+          }
           <div class="work-item-priority ${priorityClass}">${
         getPriorityIcon(Number(priority)).icon
       } ${getPriorityIcon(Number(priority)).label}</div>
@@ -1175,23 +1183,29 @@ function renderKanbanView() {
                   const isSelected = selectedWorkItemId === id;
                   const typeIcon = getWorkItemTypeIcon(type);
                   const priorityClass = getPriorityClass(Number(priority));
-                  
+
                   // Check if timer is running on this work item
                   const hasActiveTimer = currentTimer && currentTimer.workItemId === id;
-                  const timerDisplay = hasActiveTimer ? formatTimerDuration(currentTimer.elapsedSeconds || 0) : '';
+                  const timerDisplay = hasActiveTimer
+                    ? formatTimerDuration(currentTimer.elapsedSeconds || 0)
+                    : '';
 
                   let shortAssigned = assignedTo;
                   if (typeof shortAssigned === 'string' && shortAssigned.includes(' '))
                     shortAssigned = shortAssigned.split(' ')[0];
 
                   return `
-                  <div class="kanban-card ${
-                    isSelected ? 'selected' : ''
-                  } ${hasActiveTimer ? 'has-active-timer' : ''}" data-id="${id}" data-action="selectWorkItem">
+                  <div class="kanban-card ${isSelected ? 'selected' : ''} ${
+                    hasActiveTimer ? 'has-active-timer' : ''
+                  }" data-id="${id}" data-action="selectWorkItem">
                     <div class="kanban-card-header">
                       <div class="work-item-type-icon ${typeIcon.class}">${typeIcon.icon}</div>
                       <div class="work-item-id">#${id}</div>
-                      ${hasActiveTimer ? `<div class="timer-indicator" title="Timer running: ${timerDisplay}">⏱️ ${timerDisplay}</div>` : ''}
+                      ${
+                        hasActiveTimer
+                          ? `<div class="timer-indicator" title="Timer running: ${timerDisplay}">⏱️ ${timerDisplay}</div>`
+                          : ''
+                      }
                       <div class="work-item-priority ${priorityClass}">${
                     getPriorityIcon(Number(priority)).icon
                   } ${getPriorityIcon(Number(priority)).label}</div>
