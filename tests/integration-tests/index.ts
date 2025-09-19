@@ -15,11 +15,11 @@ export async function run(): Promise<void> {
   const mochaImport = await import('mocha');
   const Mocha = mochaImport.default || mochaImport;
 
-  // Create the mocha test
+  // Create the mocha test with shorter timeout to prevent hanging
   const mocha = new Mocha({
     ui: 'tdd',
     color: true,
-    timeout: 30000,
+    timeout: 15000, // Reduced from 30s to 15s to fail faster
   });
 
   // Find all test files
@@ -30,7 +30,13 @@ export async function run(): Promise<void> {
   files.forEach((f) => mocha.addFile(path.resolve(testRoot, f)));
 
   return new Promise((resolve, reject) => {
+    // Add a global timeout to prevent the entire test suite from hanging
+    const globalTimeout = setTimeout(() => {
+      reject(new Error('Integration tests timed out after 60 seconds'));
+    }, 60000);
+
     mocha.run((failures: number) => {
+      clearTimeout(globalTimeout);
       if (failures > 0) {
         reject(new Error(`${failures} tests failed.`));
       } else {

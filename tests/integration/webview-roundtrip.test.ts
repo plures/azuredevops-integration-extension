@@ -124,21 +124,31 @@ async function main() {
     }
 
     console.log('Running integration tests...');
-    await runTests({
-      vscodeExecutablePath,
-      extensionDevelopmentPath,
-      extensionTestsPath,
-      launchArgs: [
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--no-sandbox',
-        '--disable-gpu',
-        '--disable-dev-shm-usage',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--extensionDevelopmentPath=' + extensionDevelopmentPath,
-      ],
-    });
+
+    // Add timeout wrapper to prevent hanging
+    const testTimeout = 120000; // 2 minutes timeout for the entire test run
+    await Promise.race([
+      runTests({
+        vscodeExecutablePath,
+        extensionDevelopmentPath,
+        extensionTestsPath,
+        launchArgs: [
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor',
+          '--no-sandbox',
+          '--disable-gpu',
+          '--disable-dev-shm-usage',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--extensionDevelopmentPath=' + extensionDevelopmentPath,
+        ],
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => {
+          reject(new Error(`Integration tests timed out after ${testTimeout / 1000} seconds`));
+        }, testTimeout)
+      ),
+    ]);
 
     console.log('Integration tests completed successfully');
   } catch (err) {
