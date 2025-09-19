@@ -99,7 +99,12 @@ async function main() {
     }
 
     const extensionDevelopmentPath = path.resolve(__dirname, '../../');
-    const extensionTestsPath = path.resolve(extensionDevelopmentPath, 'out', 'integration-tests');
+    const extensionTestsPath = path.resolve(
+      extensionDevelopmentPath,
+      'out',
+      'integration-tests',
+      'index.js'
+    );
 
     // Check if integration tests are compiled and compile if needed
     const fs = await import('fs');
