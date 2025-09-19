@@ -43,10 +43,10 @@ function categorizeCommits(commits) {
     refactor: [],
     test: [],
     chore: [],
-    other: []
+    other: [],
   };
 
-  commits.forEach(commit => {
+  commits.forEach((commit) => {
     const match = commit.match(/^(\w+)(\(.+\))?: (.+)/);
     if (match) {
       const [, type, , description] = match;
@@ -69,7 +69,7 @@ function generateChangelogEntry(version, categories) {
 
   if (categories.feat.length > 0) {
     entry += '### Added\n\n';
-    categories.feat.forEach(item => {
+    categories.feat.forEach((item) => {
       entry += `- ${item}\n`;
     });
     entry += '\n';
@@ -77,7 +77,7 @@ function generateChangelogEntry(version, categories) {
 
   if (categories.fix.length > 0) {
     entry += '### Fixed\n\n';
-    categories.fix.forEach(item => {
+    categories.fix.forEach((item) => {
       entry += `- ${item}\n`;
     });
     entry += '\n';
@@ -85,7 +85,7 @@ function generateChangelogEntry(version, categories) {
 
   if (categories.refactor.length > 0 || categories.style.length > 0) {
     entry += '### Changed\n\n';
-    [...categories.refactor, ...categories.style].forEach(item => {
+    [...categories.refactor, ...categories.style].forEach((item) => {
       entry += `- ${item}\n`;
     });
     entry += '\n';
@@ -93,7 +93,7 @@ function generateChangelogEntry(version, categories) {
 
   if (categories.docs.length > 0) {
     entry += '### Documentation\n\n';
-    categories.docs.forEach(item => {
+    categories.docs.forEach((item) => {
       entry += `- ${item}\n`;
     });
     entry += '\n';
@@ -101,7 +101,7 @@ function generateChangelogEntry(version, categories) {
 
   if (categories.test.length > 0 || categories.chore.length > 0) {
     entry += '### Developer Experience\n\n';
-    [...categories.test, ...categories.chore].forEach(item => {
+    [...categories.test, ...categories.chore].forEach((item) => {
       entry += `- ${item}\n`;
     });
     entry += '\n';
@@ -109,7 +109,7 @@ function generateChangelogEntry(version, categories) {
 
   if (categories.other.length > 0) {
     entry += '### Other\n\n';
-    categories.other.forEach(item => {
+    categories.other.forEach((item) => {
       entry += `- ${item}\n`;
     });
     entry += '\n';
@@ -121,22 +121,22 @@ function generateChangelogEntry(version, categories) {
 function updateChangelog(newEntry) {
   const changelogPath = path.join(process.cwd(), 'CHANGELOG.md');
   const content = fs.readFileSync(changelogPath, 'utf8');
-  
+
   // Find the position after the header and intro
   const lines = content.split('\n');
   let insertIndex = 0;
-  
+
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].startsWith('## [')) {
       insertIndex = i;
       break;
     }
   }
-  
+
   // Insert the new entry
   lines.splice(insertIndex, 0, newEntry);
   fs.writeFileSync(changelogPath, lines.join('\n'));
-  
+
   console.log('Updated CHANGELOG.md');
 }
 

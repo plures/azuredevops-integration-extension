@@ -359,6 +359,7 @@
     "package:vsix": "vsce package --out azuredevops-integration-extension-${npm_package_version}.vsix",
     "compile-tests": "tsc -p . --outDir out",
     "compile-tests:cjs": "tsc -p tsconfig.tests.json",
+    "compile-tests:integration": "tsc -p tests/integration-tests/tsconfig.json",
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run lint && npm run webview:build && npm run build:ext",
     "test": "node scripts/run-esm-tests-cmd.mjs",

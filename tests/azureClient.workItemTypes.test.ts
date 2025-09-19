@@ -10,13 +10,13 @@ describe('AzureDevOpsIntClient work item types and states', function () {
     const mockWorkItemTypes = [
       { name: 'Task', description: 'Task work item type' },
       { name: 'Bug', description: 'Bug work item type' },
-      { name: 'User Story', description: 'User Story work item type' }
+      { name: 'User Story', description: 'User Story work item type' },
     ];
-    
+
     nock('https://dev.azure.com')
       .get('/org/proj/_apis/wit/workitemtypes?api-version=7.0')
       .reply(200, { value: mockWorkItemTypes });
-    
+
     const types = await client.getWorkItemTypes();
     expect(types).to.have.length(3);
     expect(types[0]).to.have.property('name', 'Task');
@@ -26,27 +26,23 @@ describe('AzureDevOpsIntClient work item types and states', function () {
 
   it('getWorkItemTypes returns empty array on error', async function () {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
-    
+
     nock('https://dev.azure.com')
       .get('/org/proj/_apis/wit/workitemtypes?api-version=7.0')
       .reply(500, 'Internal Server Error');
-    
+
     const types = await client.getWorkItemTypes();
     expect(types).to.be.an('array').that.is.empty;
   });
 
   it('getWorkItemTypeStates returns valid states for a work item type', async function () {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
-    const mockStates = [
-      { name: 'New' },
-      { name: 'Active' },
-      { name: 'Closed' }
-    ];
-    
+    const mockStates = [{ name: 'New' }, { name: 'Active' }, { name: 'Closed' }];
+
     nock('https://dev.azure.com')
       .get('/org/proj/_apis/wit/workitemtypes/Task?api-version=7.0')
       .reply(200, { states: mockStates });
-    
+
     const states = await client.getWorkItemTypeStates('Task');
     expect(states).to.have.length(3);
     expect(states).to.include('New');
@@ -60,13 +56,13 @@ describe('AzureDevOpsIntClient work item types and states', function () {
       { name: 'New' },
       { name: 'Active' },
       { name: 'Resolved' },
-      { name: 'Closed' }
+      { name: 'Closed' },
     ];
-    
+
     nock('https://dev.azure.com')
       .get('/org/proj/_apis/wit/workitemtypes/User%20Story?api-version=7.0')
       .reply(200, { states: mockStates });
-    
+
     const states = await client.getWorkItemTypeStates('User Story');
     expect(states).to.have.length(4);
     expect(states).to.include('New');
@@ -77,11 +73,11 @@ describe('AzureDevOpsIntClient work item types and states', function () {
 
   it('getWorkItemTypeStates returns empty array on error', async function () {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
-    
+
     nock('https://dev.azure.com')
       .get('/org/proj/_apis/wit/workitemtypes/InvalidType?api-version=7.0')
       .reply(404, 'Not Found');
-    
+
     const states = await client.getWorkItemTypeStates('InvalidType');
     expect(states).to.be.an('array').that.is.empty;
   });
@@ -89,11 +85,11 @@ describe('AzureDevOpsIntClient work item types and states', function () {
   it('getWorkItemTypeStates handles states as strings instead of objects', async function () {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
     const mockStatesAsStrings = ['New', 'Active', 'Closed'];
-    
+
     nock('https://dev.azure.com')
       .get('/org/proj/_apis/wit/workitemtypes/Task?api-version=7.0')
       .reply(200, { states: mockStatesAsStrings });
-    
+
     const states = await client.getWorkItemTypeStates('Task');
     expect(states).to.have.length(3);
     expect(states).to.include('New');
