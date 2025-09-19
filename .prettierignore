@@ -7,6 +7,10 @@ node_modules/
 # Extension build output
 dist/
 
+# Test compilation output
+out/
+out-tests/
+
 # VS Code workspace settings
 .vscode/
 

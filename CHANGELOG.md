@@ -24,7 +24,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Add @vscode/vsce as dev dependency and fix packaging
 - Initial plan
 
-
 ## [1.1.0] - 2025-09-19
 
 ### Added

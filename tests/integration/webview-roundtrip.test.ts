@@ -88,7 +88,7 @@ async function main() {
     console.log('Downloading VS Code...');
     let vscodeExecutablePath;
     try {
-      vscodeExecutablePath = await downloadAndUnzipVSCode('1.78.0');
+      vscodeExecutablePath = await downloadAndUnzipVSCode('1.102.0');
       console.log('VS Code downloaded successfully');
     } catch (downloadError) {
       console.warn('Failed to download VS Code:', downloadError.message);
@@ -99,7 +99,12 @@ async function main() {
     }
 
     const extensionDevelopmentPath = path.resolve(__dirname, '../../');
-    const extensionTestsPath = path.resolve(extensionDevelopmentPath, 'out', 'integration-tests');
+    const extensionTestsPath = path.resolve(
+      extensionDevelopmentPath,
+      'out',
+      'integration-tests',
+      'index.js'
+    );
 
     // Check if integration tests are compiled and compile if needed
     const fs = await import('fs');
@@ -119,21 +124,31 @@ async function main() {
     }
 
     console.log('Running integration tests...');
-    await runTests({
-      vscodeExecutablePath,
-      extensionDevelopmentPath,
-      extensionTestsPath,
-      launchArgs: [
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--no-sandbox',
-        '--disable-gpu',
-        '--disable-dev-shm-usage',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--extensionDevelopmentPath=' + extensionDevelopmentPath,
-      ],
-    });
+
+    // Add timeout wrapper to prevent hanging
+    const testTimeout = 120000; // 2 minutes timeout for the entire test run
+    await Promise.race([
+      runTests({
+        vscodeExecutablePath,
+        extensionDevelopmentPath,
+        extensionTestsPath,
+        launchArgs: [
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor',
+          '--no-sandbox',
+          '--disable-gpu',
+          '--disable-dev-shm-usage',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--extensionDevelopmentPath=' + extensionDevelopmentPath,
+        ],
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => {
+          reject(new Error(`Integration tests timed out after ${testTimeout / 1000} seconds`));
+        }, testTimeout)
+      ),
+    ]);
 
     console.log('Integration tests completed successfully');
   } catch (err) {
