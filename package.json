@@ -39,6 +39,16 @@
     "onStartupFinished"
   ],
   "main": "./dist/extension.js",
+  "files": [
+    "dist/**",
+    "media/webview/**",
+    "media/icon.png",
+    "media/workitems-icon.svg",
+    "media/generated-icons/**",
+    "README.md",
+    "LICENSE.txt",
+    "NOTICE.md"
+  ],
   "contributes": {
     "commands": [
       {
@@ -251,7 +261,7 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run build",
     "compile": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "pretest": "npm run compile",
@@ -264,12 +274,10 @@
     "check-format": "npx prettier --check \"**/*.{ts,js,json,md,mjs}\"",
     "prepare": "husky install",
     "postinstall": "npm run prepare",
-    "build:webview": "cd webview-svelte && npm run build",
-    "build:extension": "npm run compile",
-    "build:all": "npm run build:webview && npm run build:extension",
-    "package": "npm run build:all && node scripts/package-vsix.mjs",
+    "build": "npm run format && npm run compile",
+    "package": "vsce.cmd package",
     "screenshots:setup": "npx playwright install",
-    "screenshots:build": "npm run build:webview && npm run screenshots:capture",
+    "screenshots:build": "npm run build && npm run screenshots:capture",
     "screenshots:capture": "node scripts/capture-screenshots.mjs",
     "screenshots:watch": "node scripts/watch-screenshots.mjs"
   },

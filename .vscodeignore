@@ -1,0 +1,27 @@
+# Exclude source, tests, docs, and scripts from the published VSIX
+src/
+**/*.ts
+tests/
+docs/
+.scripts/
+scripts/
+scripts/**
+.mcp-server/
+mcp-server/**
+coverage/
+tmp/
+.vscode/
+.vscode/**
+.github/
+node_modules/
+package-lock.json
+tsconfig.json
+tsconfig.*.json
+**/*.map
+media/screenshots/
+.webview/**
+webview-svelte/
+playwright-report/
+*.log
+.DS_Store
+.vscodeignore
