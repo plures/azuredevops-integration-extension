@@ -7,6 +7,7 @@ The recent PR merge to the `main` branch did not produce a release, despite crea
 ## Root Cause Analysis
 
 ### What Happened
+
 1. A PR was merged to `main` that triggered the CI workflow
 2. The CI workflow's `version-bump-and-tag` job successfully:
    - Determined the version bump type (patch/minor/major)
@@ -17,6 +18,7 @@ The recent PR merge to the `main` branch did not produce a release, despite crea
 4. Without the `v1.3.0` tag, the release workflow was never triggered
 
 ### Evidence
+
 - ✅ `package.json` shows version `1.3.0`
 - ✅ Release commit exists: `chore(release): 1.3.0` (3ca0655)
 - ❌ No `v1.3.0` tag exists in the repository
@@ -24,7 +26,9 @@ The recent PR merge to the `main` branch did not produce a release, despite crea
 - ❌ No VSIX artifact published
 
 ### Why the Tag Push Failed
+
 The most likely causes:
+
 1. **Git authentication issue**: The GitHub Actions token may have lacked sufficient permissions
 2. **Branch protection**: The branch protection rules might have interfered with tag creation
 3. **Network timeout**: The tag push operation may have timed out
@@ -33,6 +37,7 @@ The most likely causes:
 ## The Fix
 
 ### Immediate Solution
+
 The fix is straightforward: create and push the missing `v1.3.0` tag pointing to the existing release commit.
 
 ```bash
@@ -41,6 +46,7 @@ The fix is straightforward: create and push the missing `v1.3.0` tag pointing to
 ```
 
 Or manually:
+
 ```bash
 # Create the tag
 git tag -a v1.3.0 3ca0655d73b0c38d37ce35337af5e8f58bf94e4c -m "Release v1.3.0"
@@ -50,6 +56,7 @@ git push origin v1.3.0
 ```
 
 ### What This Will Trigger
+
 Once the `v1.3.0` tag is pushed:
 
 1. **Release Workflow Activation**: The `.github/workflows/release.yml` workflow will be triggered
@@ -71,6 +78,7 @@ After pushing the tag:
 To prevent this issue in the future:
 
 ### 1. Improve CI Workflow Robustness
+
 Add better error handling and retry logic to the tag creation step:
 
 ```yaml
@@ -89,6 +97,7 @@ Add better error handling and retry logic to the tag creation step:
 ```
 
 ### 2. Add Tag Verification
+
 Add a verification step to ensure the tag was pushed successfully:
 
 ```yaml
@@ -104,6 +113,7 @@ Add a verification step to ensure the tag was pushed successfully:
 ```
 
 ### 3. Enhanced Monitoring
+
 Add notifications for failed tag operations:
 
 ```yaml
@@ -124,12 +134,14 @@ Add notifications for failed tag operations:
 ## Files Modified/Created
 
 This fix includes:
+
 - `scripts/fix-missing-release.sh` - Automated fix script
 - `docs/MISSING_RELEASE_FIX.md` - This documentation
 
 ## Testing Verification
 
 Before implementing the fix, the following was verified:
+
 - ✅ Repository builds successfully (`npm run build`)
 - ✅ All tests pass (44 test cases)
 - ✅ VSIX package creates without errors

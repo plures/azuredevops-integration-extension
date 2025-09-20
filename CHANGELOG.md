@@ -1,8 +1,20 @@
 # Change Log
 
+<!-- markdownlint-disable MD024 -->
+
 All notable changes to the "Azure DevOps Integration" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+
+## [1.6.3] - 2025-09-20
+
+### Improved
+
+- Azure DevOps WIQL capability detection: remember if [System.StateCategory] is unsupported after the first 400 and automatically fallback to legacy state filters for the rest of the session. Reduces log noise and avoids repeat roundtrips.
+
+### Notes
+
+- No breaking changes. If your org supports [System.StateCategory], it will be used by default; otherwise the client will transparently adapt.
 
 ## [1.6.0] - 2025-09-19
 
@@ -11,7 +23,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Automated screenshot generation system using Playwright for consistent documentation
 - Sample data generator with realistic work items for screenshot scenarios
 - File watching support for automatic screenshot regeneration during development
-- New npm scripts: `screenshots:setup`, `screenshots:build`, `screenshots:capture`, `screenshots:watch`
 
 ### Documentation
 

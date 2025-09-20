@@ -1,6 +1,5 @@
 {
-  // Launch configurations updated for pure ESM + Svelte webview workflow.
-  // Use "Extension: Watch" for rapid iteration (keeps esbuild/vite running separately via tasks palette if desired).
+  // Launch configurations for pure ESM extension workflow (no separate webview dev server).
   "version": "0.2.0",
   "configurations": [
     {
@@ -29,29 +28,7 @@
         "NODE_OPTIONS": "--enable-source-maps"
       }
     },
-    {
-      // Starts extension build (no webview build) and a Vite dev server for live-reload webview development.
-      // The extension will still load the built (dist) webview assets if you open the panel without dev injection.
-      // For live replacement you can adjust code to point to the dev server (future enhancement).
-      "name": "Extension + Webview Dev Servers",
-      "type": "extensionHost",
-      "request": "launch",
-      "runtimeExecutable": "${execPath}",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build Extension (No Webview)",
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
-      },
-      "postDebugTask": "Stop Webview Dev Server"
-    }
+    
   ],
-  "compounds": [
-    {
-      "name": "Watch: Extension + Webview",
-      "configurations": ["Extension: Watch (no webview dev)"],
-      "preLaunchTask": "Dev: Webview Build + Watch"
-    }
-  ]
+  "compounds": []
 }

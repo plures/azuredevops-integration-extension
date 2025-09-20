@@ -33,8 +33,7 @@ jobs:
       - name: Lint
         run: npm run lint
         continue-on-error: true
-      - name: Build webview
-        run: npm run webview:build
+        # Webview assets are committed under media/webview; no separate build step required.
       - name: Build
         run: npm run build
       - name: Run selective tests for changed files (PRs)

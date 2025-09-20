@@ -7,6 +7,7 @@ This document outlines the improvements made to address workflow automation issu
 The CI workflow's `version-bump-and-tag` job was successfully creating release commits but sometimes failing to push the corresponding tags to the remote repository. This prevented the release workflow from being triggered, resulting in missing releases.
 
 **Symptoms:**
+
 - Release commits exist (e.g., `chore(release): 1.4.0`)
 - Package.json version is updated correctly
 - No corresponding git tags are pushed to remote
@@ -92,9 +93,11 @@ Created `scripts/fix-missing-tags.sh` to identify and fix missing tags:
 ## Usage
 
 ### For Future Releases
+
 The improved CI workflow will automatically handle tag creation with better reliability.
 
 ### For Missing Releases
+
 1. Run the analysis script: `./scripts/fix-missing-tags.sh`
 2. Follow the instructions to push missing tags
 3. Monitor the triggered release workflows
@@ -102,6 +105,7 @@ The improved CI workflow will automatically handle tag creation with better reli
 ## Monitoring
 
 After pushing tags, monitor:
+
 - **Workflow runs**: https://github.com/plures/azuredevops-integration-extension/actions
 - **Releases**: https://github.com/plures/azuredevops-integration-extension/releases
 - **Marketplace**: VS Code Extension Marketplace for published updates

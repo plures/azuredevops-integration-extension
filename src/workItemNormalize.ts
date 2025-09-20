@@ -61,8 +61,8 @@ export function toNormalized(item: any): NormalizedWorkItem {
     typeof tagsField === 'string'
       ? tagsField.split(';').filter(Boolean)
       : Array.isArray(tagsField)
-      ? tagsField
-      : [];
+        ? tagsField
+        : [];
   const iterationPath = getField(item, 'System.IterationPath');
   const description = getField(item, 'System.Description');
 

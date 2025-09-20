@@ -8,11 +8,11 @@ export function generateSampleWorkItems() {
   const priorities = [1, 2, 3, 4];
   const assignees = [
     'Alice Johnson',
-    'Bob Smith', 
+    'Bob Smith',
     'Carol Davis',
     'David Wilson',
     'Emma Brown',
-    'Unassigned'
+    'Unassigned',
   ];
   const sprints = ['Sprint 24', 'Sprint 25', 'Sprint 26'];
   const tags = ['frontend', 'backend', 'api', 'ui', 'performance', 'security', 'testing'];
@@ -32,7 +32,7 @@ export function generateSampleWorkItems() {
     'Fix broken links in navigation',
     'Add search functionality',
     'Implement data export feature',
-    'Update security headers configuration'
+    'Update security headers configuration',
   ];
 
   const sampleDescriptions = [
@@ -50,11 +50,11 @@ export function generateSampleWorkItems() {
     'Several navigation links are returning 404 errors.',
     'Add global search across all content types.',
     'Allow users to export their data in CSV and JSON formats.',
-    'Update HTTP security headers to meet latest standards.'
+    'Update HTTP security headers to meet latest standards.',
   ];
 
   const workItems = [];
-  
+
   for (let i = 0; i < 15; i++) {
     const id = 1000 + i;
     const type = workItemTypes[Math.floor(Math.random() * workItemTypes.length)];
@@ -64,7 +64,7 @@ export function generateSampleWorkItems() {
     const sprint = sprints[Math.floor(Math.random() * sprints.length)];
     const title = sampleTitles[i] || `Sample work item ${id}`;
     const description = sampleDescriptions[i] || `Description for work item ${id}`;
-    
+
     // Random subset of tags
     const itemTags = [];
     const numTags = Math.floor(Math.random() * 3) + 1;
@@ -97,9 +97,13 @@ export function generateSampleWorkItems() {
         'System.Tags': itemTags.join(';'),
         'System.IterationPath': `\\MyProject\\${sprint}`,
         'System.AreaPath': `\\MyProject\\Team${Math.floor(Math.random() * 3) + 1}`,
-        'System.CreatedDate': new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-        'System.ChangedDate': new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString()
-      }
+        'System.CreatedDate': new Date(
+          Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
+        ).toISOString(),
+        'System.ChangedDate': new Date(
+          Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000
+        ).toISOString(),
+      },
     });
   }
 
@@ -108,15 +112,15 @@ export function generateSampleWorkItems() {
 
 export function generateSampleTimer(workItems, workItemId = null) {
   if (!workItems || workItems.length === 0) return null;
-  
+
   const targetId = workItemId || workItems[0].id;
-  const workItem = workItems.find(item => item.id === targetId) || workItems[0];
-  
+  const workItem = workItems.find((item) => item.id === targetId) || workItems[0];
+
   return {
     workItemId: workItem.id,
     workItemTitle: workItem.title,
     elapsedSeconds: 3847, // 1 hour, 4 minutes, 7 seconds
-    running: true
+    running: true,
   };
 }
 
@@ -126,37 +130,37 @@ export const scenarios = {
     view: 'list',
     workItems: generateSampleWorkItems(),
     timer: null,
-    selectWorkItemId: null
+    selectWorkItemId: null,
   },
-  
+
   listViewWithTimer: {
-    view: 'list', 
+    view: 'list',
     workItems: generateSampleWorkItems(),
     get timer() {
       return generateSampleTimer(this.workItems, 1002);
     },
-    selectWorkItemId: 1002
+    selectWorkItemId: 1002,
   },
-  
+
   kanbanView: {
     view: 'kanban',
     workItems: generateSampleWorkItems(),
     timer: null,
-    selectWorkItemId: null
+    selectWorkItemId: null,
   },
-  
+
   kanbanViewWithTimer: {
     view: 'kanban',
-    workItems: generateSampleWorkItems(), 
+    workItems: generateSampleWorkItems(),
     get timer() {
       return generateSampleTimer(this.workItems, 1004);
     },
-    selectWorkItemId: 1004
-  }
+    selectWorkItemId: 1004,
+  },
 };
 
 export default {
   generateSampleWorkItems,
   generateSampleTimer,
-  scenarios
+  scenarios,
 };

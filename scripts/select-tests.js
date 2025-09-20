@@ -5,7 +5,6 @@ import path from 'path';
 const GLOBAL_TRIGGERS = [
   'package.json',
   'tsconfig.json',
-  'vite.webview.config.ts',
   'esbuild.js',
   '.eslintrc.js',
   '.prettierrc',

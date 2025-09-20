@@ -8,7 +8,7 @@ Integrate Azure DevOps work items, time tracking, branching, and pull requests d
 - Team-aware Current Sprint: respects your selected team's current iteration
 - One‑click work item creation
 - Lightweight time tracking with inactivity auto‑pause
-- Status bar timer with start / pause / resume / stop commands
+- Status bar timer with start/stop and pause/resume commands
 - Branch creation from a selected work item (optional auto‑start timer)
 - Pull request creation & quick access to your active PRs
 - Secure PAT storage (secret store) + automatic migration from legacy keys
@@ -57,7 +57,7 @@ Where to find it in VS Code
 
 ## 🕒 Time Tracking
 
-- Start timer from command palette or by picking a work item
+- Start/Stop timer from the command palette or by picking a work item
 - Auto‑pause after configurable inactivity timeout
 - Auto‑resume on activity (configurable)
 - View summarized time via Show Time Report (Today, Week, Month, All Time)
@@ -72,7 +72,7 @@ Where to find it in VS Code
 | azureDevOpsInt.showWorkItems              | Azure DevOps Integration: Show Work Items              |
 | azureDevOpsInt.createWorkItem             | Azure DevOps Integration: Create Work Item             |
 | azureDevOpsInt.refreshWorkItems           | Azure DevOps Integration: Refresh Work Items           |
-| azureDevOpsInt.startTimer                 | Azure DevOps Integration: Start Timer                  |
+| azureDevOpsInt.startTimer                 | Azure DevOps Integration: Start/Stop Timer             |
 | azureDevOpsInt.pauseTimer                 | Azure DevOps Integration: Pause Timer                  |
 | azureDevOpsInt.resumeTimer                | Azure DevOps Integration: Resume Timer                 |
 | azureDevOpsInt.stopTimer                  | Azure DevOps Integration: Stop Timer                   |
@@ -114,7 +114,7 @@ Namespace: azureDevOpsIntegration
   ],
   "azureDevOpsIntegration.debugLogging": false,
   "azureDevOpsIntegration.apiRatePerSecond": 5, // throttle sustained API calls
-  "azureDevOpsIntegration.apiBurst": 10 // allow short bursts
+  "azureDevOpsIntegration.apiBurst": 10, // allow short bursts
 }
 ```
 
@@ -152,12 +152,12 @@ Rate limiting controls
 
 Scripts:
 
-- build:all – build webview + extension bundle
-- webview:dev – run Vite dev server (webview) during extension development
+- build:all – build the extension bundle
+- webview:dev – (deprecated) legacy Vite dev server; not used in current workflow
 - screenshots:setup – one-time install of Playwright browser (Chromium)
-- screenshots:generate – generate PNGs from the built webview using fixture data
-- screenshots:build – build webview then generate screenshots
-- screenshots:watch – watch `src/webview/**` and rebuild+regenerate screenshots on change
+- screenshots:capture – generate PNGs from the committed webview using fixture data
+- screenshots:build – build extension then capture screenshots
+- screenshots:watch – watch `media/webview/**` and recapture on change
 
 Launch configs (/.vscode) let you run the extension with live reload (watch tasks).
 
@@ -185,19 +185,15 @@ Enjoy the extension! Feedback & feature requests are appreciated.
 
 ## 🖼️ Screenshots
 
-### Work Items – List View
+Compact layout to reduce whitespace on GitHub/Marketplace.
 
-![Work Items List View](media/screenshots/listView.png)
+| Work Items – List View                                | Work Items – Kanban View                                  |
+| ----------------------------------------------------- | --------------------------------------------------------- |
+| ![Work Items – List View](images/work-items-list.png) | ![Work Items – Kanban View](images/work-items-kanban.png) |
 
-### Work Items – Kanban View
+<!-- Timer-specific screenshot removed; the timer is visible inline in the list/kanban views when active. -->
 
-![Work Items Kanban View](media/screenshots/kanbanView.png)
-
-### Timer with Active Work Item
-
-![Timer with Active Work Item](media/screenshots/listViewWithTimer.png)
-
-*Note: Screenshots may not display in VS Code's markdown preview due to security restrictions, but will render correctly on GitHub and in published documentation.*
+_Tip: VS Code's Markdown preview may not match GitHub exactly, but the layout above renders correctly on GitHub and in the Marketplace._
 
 ## More
 

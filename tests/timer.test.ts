@@ -61,7 +61,7 @@ describe('WorkItemTimer (basic)', function () {
   it('timeReport filters to period window using timer.now for week/month', function () {
     // Set "now" to mid-month Wednesday
     const now = new Date('2025-05-14T12:00:00Z').getTime();
-    const timer = new WorkItemTimer({ now: () => now, restorePersisted: () => ({} as any) });
+    const timer = new WorkItemTimer({ now: () => now, restorePersisted: () => ({}) as any });
 
     // Entry entirely last month should not overlap "This Month"
     (timer as any)._timeEntries.push({

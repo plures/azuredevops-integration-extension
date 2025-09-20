@@ -15,7 +15,7 @@ Quick Setup
 Code style & formatting
 
 - Formatting: Prettier (project .prettierrc) — run via npm run format.
-- Linting: ESLint configured for TypeScript and Svelte; run via npm run lint.
+- Linting: ESLint configured for TypeScript; run via npm run lint.
 - EditorConfig: project .editorconfig enforces tabs/spaces and EOL.
 
 Testing
