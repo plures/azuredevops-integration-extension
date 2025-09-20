@@ -1,5 +1,5 @@
 {
-  "src/**/*.{ts,js}": ["npm run lint:fix", "npm run format:staged"],
-  "src/**/*.{html,css}": ["npm run format:staged"],
-  "tests/**/*.ts": ["npm run lint:fix", "npm run format:staged"]
+  "src/**/*.{ts,js}": ["eslint --fix", "prettier --write"],
+  "src/**/*.{html,css}": ["prettier --write"],
+  "tests/**/*.ts": ["eslint --fix", "prettier --write"]
 }
