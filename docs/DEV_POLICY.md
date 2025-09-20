@@ -6,7 +6,7 @@ Purpose
 
 Quick Setup
 
-1. Node: Use Node v22.19.0 (LTS) or greater.
+1. Node: Use Node v20.19.x or later (CI uses Node 20.x; Node 22.x also works). Ensure Vite-compatible Node version (>= 20.19).
 2. Install: npm ci
 3. Bootstrap dev hooks: npm run prepare
 4. Start webview dev: npm run webview:dev
@@ -16,6 +16,7 @@ Code style & formatting
 
 - Formatting: Prettier (project .prettierrc) — run via npm run format.
 - Linting: ESLint configured for TypeScript and Svelte; run via npm run lint.
+  - ESM-only: This repository is ESM-first (package.json sets type: "module"). Do not use CommonJS (require/module.exports). The linter enforces this. Tests and scripts must run under ESM loaders.
 - EditorConfig: project .editorconfig enforces tabs/spaces and EOL.
 
 Testing
@@ -50,3 +51,11 @@ Developer tips
 
 - Use the staged .delete for archival code; do not remove until tests and CI pass.
 - If you need to change message contracts between extension and webview, update tests that assert message shapes first.
+
+ESM-only policy
+
+- The root package.json declares "type": "module". Prefer .ts and .mjs modules and native ESM imports/exports.
+- Avoid CommonJS patterns (require, module.exports). ESLint will flag these with no-restricted-syntax.
+- Test runners and helper scripts use ESM (see scripts/*.mjs and scripts/run-esm-tests-cmd.mjs).
+- The MCP server is also ESM (mcp-server/package.json sets type: "module").
+- Node version guidance: Node >= 20.19 for Vite builds; CI runs Node 20.x; Node 22.x is supported locally.

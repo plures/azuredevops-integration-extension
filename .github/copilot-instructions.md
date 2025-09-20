@@ -1,5 +1,5 @@
 - Prefer functional code style
-- Use memeory to track progress, preferences, and lessons learned
+- Use memory to track progress, preferences, and lessons learned
 
 # AI Agent Quick Start (copilot-instructions)
 
@@ -12,7 +12,7 @@ Purpose: give an AI agent the exact, repository-specific knowledge it needs to b
 - `src/webview/*` — UI, message handlers, and draft persistence (per‑work‑item localStorage). Look for message types like `generateCopilotPrompt` and `stopAndApply`.
 - `src/azureClient.ts` — Azure DevOps REST client patterns, expected PAT scopes (Work Items Read/Write, Code Read/Write, Build Read).
 - `vite.webview.config.ts` & `webview/` — Vite build inputs and where webview assets are emitted (`media/webview`).
-- `mcp-server/` — minimal JSON-RPC server and method surface (see `mcp-server/README.md` for env vars and supported methods).
+- `mcp-server/` — MCP tools protocol server over stdio (initialize → tools/list → tools/call). See `mcp-server/README.md` for env vars, supported tools, and legacy JSON‑RPC compatibility.
 
 2. Developer workflows & exact commands
 
@@ -26,7 +26,7 @@ Purpose: give an AI agent the exact, repository-specific knowledge it needs to b
 
 3. Project-specific conventions & gotchas
 
-- ESM-first project: `package.json` sets `type: "module"`. Scripts, configs and test runners may need ESM-aware invocation (see tests above).
+- ESM-first project: `package.json` sets `type: "module"`. Scripts, configs and test runners use ESM. Avoid CommonJS (`require`, `module.exports`). Use Node >= 20.19 (CI uses Node 20.x; Node 22.x works too).
 - Vite requires Node >= 20.19 for webview builds — CI and dev machines should use Node 20.x.
 - Commitlint is ESM: `commitlint.config.mjs` is used; commit-msg husky hook calls it with `--config ./commitlint.config.mjs`.
 - Webview ↔ Extension message contract is authoritative — update tests when changing shapes.
