@@ -19,6 +19,8 @@ Integrate Azure DevOps work items, time tracking, branching, and pull requests d
 - Reliable queries across process templates with runtime compatibility fallback
 - Tunable API rate limiting (sustained rate and burst) to play nicely with Azure DevOps throttling
 - Optional MCP server for automation and agent/tool integrations (JSON‑RPC)
+- Consistent Start/Stop and Edit actions across list and Kanban
+- Preserved scroll positions (list vertical, Kanban horizontal) for smoother UX
 
 ## 📥 Installation
 
@@ -53,7 +55,7 @@ Optional: set a Team for iteration-aware queries
 
 Where to find it in VS Code
 
-- The extension adds an Activity Bar container named "Azure DevOps Int" with a "Work Items" view. Open it to browse, filter (Sprint, Type, Assigned To), switch Kanban/List, and act on items.
+- The extension adds an Activity Bar container named "Azure DevOps" with a "Work Items" view. Open it to browse, filter (Sprint, Type, Assigned To), switch Kanban/List, and act on items.
 
 ## 🕒 Time Tracking
 
@@ -80,41 +82,45 @@ Where to find it in VS Code
 | azureDevOpsInt.createBranch               | Azure DevOps Integration: Create Branch from Work Item |
 | azureDevOpsInt.createPullRequest          | Azure DevOps Integration: Create Pull Request          |
 | azureDevOpsInt.showPullRequests           | Azure DevOps Integration: Show My Pull Requests        |
+| azureDevOpsInt.toggleKanbanView           | Azure DevOps Integration: Toggle Kanban View           |
 | azureDevOpsInt.selectTeam                 | Azure DevOps Integration: Select Team                  |
 | azureDevOpsInt.resetPreferredRepositories | Azure DevOps Integration: Reset Preferred Repositories |
 
 More helpful commands (selection):
 
-- Toggle Kanban View — `azureDevOpsInt.toggleKanbanView`
 - Set Default Timer Elapsed Cap — `azureDevOpsInt.setDefaultElapsedLimit`
 
 ## 🔧 Configuration (Settings)
 
-Namespace: azureDevOpsIntegration
+Namespace: `azureDevOpsIntegration`
 
 ```jsonc
 {
   "azureDevOpsIntegration.organization": "myorg",
   "azureDevOpsIntegration.project": "myproject",
-  // Optional team context for iteration-aware queries like "Current Sprint"
-  "azureDevOpsIntegration.team": "My Team",
-  "azureDevOpsIntegration.defaultWorkItemType": "Task",
-  "azureDevOpsIntegration.defaultQuery": "My Work Items", // or Current Sprint, All Active, Recently Updated, Custom
-  "azureDevOpsIntegration.timerInactivityTimeout": 300,
-  "azureDevOpsIntegration.defaultElapsedLimitHours": 3.5, // cap long-running timers when stopped
-  "azureDevOpsIntegration.autoStartTimerOnBranch": true,
-  "azureDevOpsIntegration.autoResumeOnActivity": true,
-  "azureDevOpsIntegration.pomodoroEnabled": false,
-  "azureDevOpsIntegration.showBuildNotifications": true,
-  "azureDevOpsIntegration.workItemRefreshInterval": 300,
-  "azureDevOpsIntegration.enableAnalytics": true,
-  // Preferred repo IDs used when creating PRs; you'll be prompted on first use if empty
-  "azureDevOpsIntegration.preferredRepositoryIds": [
-    // "00000000-0000-0000-0000-000000000000"
-  ],
+  "azureDevOpsIntegration.personalAccessToken": "", // PAT is stored in Secret Storage; this key is supported for migration
   "azureDevOpsIntegration.debugLogging": false,
-  "azureDevOpsIntegration.apiRatePerSecond": 5, // throttle sustained API calls
-  "azureDevOpsIntegration.apiBurst": 10, // allow short bursts
+
+  // Work item list behavior
+  "azureDevOpsIntegration.defaultWorkItemType": "Task",
+  "azureDevOpsIntegration.workItemQuery": "<WIQL query>",
+  "azureDevOpsIntegration.showCompletedWorkItems": false,
+  "azureDevOpsIntegration.workItemsPerPage": 50,
+  "azureDevOpsIntegration.enableAutoRefresh": true,
+  "azureDevOpsIntegration.refreshIntervalMinutes": 5,
+
+  // Time tracking
+  "azureDevOpsIntegration.enableTimeTracking": true,
+  "azureDevOpsIntegration.defaultElapsedLimitHours": 3.5,
+
+  // Git integration
+  "azureDevOpsIntegration.enableBranchCreation": true,
+  "azureDevOpsIntegration.enablePullRequestCreation": true,
+  "azureDevOpsIntegration.branchNameTemplate": "feature/{id}-{title}",
+
+  // Azure DevOps API rate limiting
+  "azureDevOpsIntegration.apiRatePerSecond": 2,
+  "azureDevOpsIntegration.apiBurst": 5,
 }
 ```
 
@@ -153,7 +159,6 @@ Rate limiting controls
 Scripts:
 
 - build:all – build the extension bundle
-- webview:dev – (deprecated) legacy Vite dev server; not used in current workflow
 - screenshots:setup – one-time install of Playwright browser (Chromium)
 - screenshots:capture – generate PNGs from the committed webview using fixture data
 - screenshots:build – build extension then capture screenshots
@@ -185,15 +190,17 @@ Enjoy the extension! Feedback & feature requests are appreciated.
 
 ## 🖼️ Screenshots
 
-Compact layout to reduce whitespace on GitHub/Marketplace.
+Below are preview-friendly screenshots captured at a consistent size and tightly cropped to the content so they render cleanly in VS Code preview and on the Marketplace.
 
-| Work Items – List View                                | Work Items – Kanban View                                  |
-| ----------------------------------------------------- | --------------------------------------------------------- |
-| ![Work Items – List View](images/work-items-list.png) | ![Work Items – Kanban View](images/work-items-kanban.png) |
+### Work Items – List View
+
+![Work Items – List View](images/work-items-list.png)
+
+### Work Items – Kanban View
+
+![Work Items – Kanban View](images/work-items-kanban.png)
 
 <!-- Timer-specific screenshot removed; the timer is visible inline in the list/kanban views when active. -->
-
-_Tip: VS Code's Markdown preview may not match GitHub exactly, but the layout above renders correctly on GitHub and in the Marketplace._
 
 ## More
 

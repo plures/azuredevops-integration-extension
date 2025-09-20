@@ -6,6 +6,23 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [Unreleased]
+
+### Changed
+
+- Toggle Kanban toolbar button now uses a codicon at the command level; menu inherits the icon for consistent header styling
+- README screenshots switched to vertical layout for better Marketplace/Preview rendering
+- Screenshot generator now captures tightly-cropped, high-DPI images and stubs VS Code webview APIs during headless runs
+
+### Fixed
+
+- Preserved scroll positions across renders (list vertical, Kanban horizontal)
+- Stabilized pre-commit hooks: removed deprecated Husky shim lines; lint-staged now runs eslint --fix and prettier on staged files
+
+### Notes
+
+- No breaking changes; behavior is backward compatible
+
 ## [1.6.3] - 2025-09-20
 
 ### Improved

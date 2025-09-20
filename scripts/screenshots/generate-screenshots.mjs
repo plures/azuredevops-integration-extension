@@ -51,7 +51,11 @@ async function main() {
   const baseUrl = `http://127.0.0.1:${server.port}/index.html`;
 
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  // Use a viewport that yields images that render nicely in VS Code's Markdown preview
+  const context = await browser.newContext({
+    viewport: { width: 1200, height: 720 },
+    deviceScaleFactor: 2,
+  });
   const page = await context.newPage();
 
   // Pipe webview console logs and errors to our stdout for debugging
@@ -71,10 +75,25 @@ async function main() {
   const fileUrl = baseUrl; // now served over http to satisfy module CORS
 
   // Helper to capture a screenshot with a given fixture
-  async function capture(name, fixture, dumpHtml = false) {
+  async function capture(name, fixture, dumpHtml = false, options = {}) {
+    const { widthPx } = options; // optional target width for the captured element
     // Ensure init script is in place before navigation so fixture is applied before any scripts run
     await page.addInitScript((f) => {
+      // Provide fixture data for the webview bootstrap to pick up
       window.__AZDO_FIXTURE__ = f;
+      // Stub VS Code webview API to avoid runtime errors during static rendering
+      if (typeof window.acquireVsCodeApi !== 'function') {
+        window.acquireVsCodeApi = () => {
+          return {
+            postMessage: () => {},
+            setState: () => {},
+            getState: () => null,
+          };
+        };
+      }
+      if (!window.vscode) {
+        window.vscode = { postMessage: () => {} };
+      }
     }, fixture);
     await page.goto(fileUrl);
     // Wait until bootstrap has fed data and content renders
@@ -108,11 +127,30 @@ async function main() {
     }
     // Allow layout to settle a bit
     await page.waitForTimeout(150);
+    // Minimize whitespace: relax fixed heights so the element shrinks to content
+    if (wantKanban) {
+      await page.addStyleTag({ content: `.kanban-board{min-height:auto !important;}` });
+    } else {
+      await page.addStyleTag({ content: `#workItemsContainer{max-height:none !important;}` });
+    }
     if (dumpHtml) {
       const html = await page.content();
       await fs.writeFile(path.join(outDir, `${name}.html`), html, 'utf8');
     }
-    await page.screenshot({ path: path.join(outDir, `${name}.png`), fullPage: true });
+    // Prefer an element-level screenshot to keep dimensions friendly for previews
+    const selector = wantKanban ? '.kanban-board' : '#workItemsContainer';
+    // If a target width is requested, apply it before selecting/screenshotting
+    if (typeof widthPx === 'number' && widthPx > 0) {
+      const css = `${selector}{width:${widthPx}px !important; max-width:${widthPx}px !important;}`;
+      await page.addStyleTag({ content: css });
+    }
+    const target = await page.$(selector);
+    if (target) {
+      await target.screenshot({ path: path.join(outDir, `${name}.png`) });
+    } else {
+      // Fallback to viewport screenshot
+      await page.screenshot({ path: path.join(outDir, `${name}.png`) });
+    }
     console.log('[screenshots] Wrote', path.join(outDir, `${name}.png`));
   }
 
@@ -125,7 +163,8 @@ async function main() {
       view: 'list',
       selectWorkItemId: 101,
     },
-    true
+    true,
+    { widthPx: 300 }
   );
 
   await capture(
@@ -134,7 +173,8 @@ async function main() {
       workItems: baseItems,
       view: 'kanban',
     },
-    true
+    true,
+    { widthPx: 600 }
   );
 
   // Timer-specific screenshot removed; timer visibility is demonstrated inline when active.
