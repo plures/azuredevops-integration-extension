@@ -17,6 +17,8 @@ Integrate Azure DevOps work items, time tracking, branching, and pull requests d
 - Per‑work‑item draft persistence in the editor (your notes stick to each item locally)
 - Smart stop flow: proposes Completed/Remaining updates and can post a Copilot‑generated summary comment
 - Reliable queries across process templates with runtime compatibility fallback
+- Tunable API rate limiting (sustained rate and burst) to play nicely with Azure DevOps throttling
+- Optional MCP server for automation and agent/tool integrations (JSON‑RPC)
 
 ## 📥 Installation
 
@@ -25,8 +27,10 @@ From VS Code: Extensions view → search "Azure DevOps Integration" → Install.
 Command palette quick install:
 
 1. Press Ctrl+P (Cmd+P on macOS)
-2. Type: ext install PluresLLC.azuredevops-integration-extension
+2. Type: ext install PluresLLC.azure-devops-integration-extension
 3. Press Enter
+
+Marketplace page: [Azure DevOps Integration – VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=PluresLLC.azure-devops-integration-extension)
 
 ## 🔐 Create a Personal Access Token
 
@@ -46,6 +50,10 @@ Provide Organization (short name), Project, and PAT. The extension stores the PA
 Optional: set a Team for iteration-aware queries
 
 - Use the command: Azure DevOps Integration: Select Team to set a team context. When set, the "Current Sprint" query resolves using that team's current iteration. You can clear or change this later by running the command again.
+
+Where to find it in VS Code
+
+- The extension adds an Activity Bar container named "Azure DevOps Int" with a "Work Items" view. Open it to browse, filter (Sprint, Type, Assigned To), switch Kanban/List, and act on items.
 
 ## 🕒 Time Tracking
 
@@ -116,6 +124,10 @@ The Personal Access Token is stored via the VS Code secret storage (not in setti
 
 Enable setting: azureDevOpsIntegration.debugLogging. An output channel "Azure DevOps Integration" appears with verbose lifecycle, webview message, and refresh diagnostics.
 
+Rate limiting controls
+
+- You can tune Azure DevOps REST throughput via `azureDevOpsIntegration.apiRatePerSecond` and `azureDevOpsIntegration.apiBurst` if your org has strict throttling or you're working with very large queries.
+
 ## 🔄 Migration & Backward Compatibility
 
 - Legacy config keys under azureDevOps.\* are auto‑migrated if the new values are empty.
@@ -142,8 +154,16 @@ Scripts:
 
 - build:all – build webview + extension bundle
 - webview:dev – run Vite dev server (webview) during extension development
+- screenshots:setup – one-time install of Playwright browser (Chromium)
+- screenshots:generate – generate PNGs from the built webview using fixture data
+- screenshots:build – build webview then generate screenshots
+- screenshots:watch – watch `src/webview/**` and rebuild+regenerate screenshots on change
 
 Launch configs (/.vscode) let you run the extension with live reload (watch tasks).
+
+Optional: MCP server for automation
+
+- This repo includes a minimal Model Context Protocol (MCP) server that exposes a lean set of Azure DevOps Work Item operations over JSON-RPC. See `mcp-server/README.md` if you want to script or integrate with agent toolchains.
 
 ## 📘 Queries and compatibility
 
@@ -163,7 +183,24 @@ MIT License – see [LICENSE](./LICENSE.txt)
 
 Enjoy the extension! Feedback & feature requests are appreciated.
 
+## 🖼️ Screenshots
+
+### Work Items – List View
+
+![Work Items List View](media/screenshots/listView.png)
+
+### Work Items – Kanban View
+
+![Work Items Kanban View](media/screenshots/kanbanView.png)
+
+### Timer with Active Work Item
+
+![Timer with Active Work Item](media/screenshots/listViewWithTimer.png)
+
+*Note: Screenshots may not display in VS Code's markdown preview due to security restrictions, but will render correctly on GitHub and in published documentation.*
+
 ## More
 
 - Attribution and license details: see [NOTICE](./NOTICE.md) and [LICENSE](./LICENSE.txt).
 - Architecture, security notes, and CI testing details: see [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+- What's new: see [CHANGELOG](./CHANGELOG.md) for the latest features and fixes.
