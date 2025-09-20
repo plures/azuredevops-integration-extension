@@ -1,17 +1,19 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "CommonJS",
-    "moduleResolution": "node",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "outDir": "../../out/integration-tests",
     "rootDir": "./",
     "strict": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "declaration": false,
     "sourceMap": true,
-    "types": ["mocha", "node", "vscode"]
+    "types": ["mocha", "node", "vscode"],
+    "typeRoots": ["../../node_modules/@types"]
   },
   "include": ["./**/*.ts"],
   "exclude": ["node_modules"]
