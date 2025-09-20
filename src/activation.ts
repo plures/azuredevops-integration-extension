@@ -311,7 +311,8 @@ async function handleMessage(msg: any) {
       }
       break;
     }
-    case 'selfTestAck': {
+    case 'selfTestAck':
+    case 'selfTestPong': {
       if (selfTestPending && msg.nonce === selfTestPending.nonce) {
         clearTimeout(selfTestPending.timeout);
         selfTestPending.resolve({ ok: true, details: msg.signature || 'ack' });

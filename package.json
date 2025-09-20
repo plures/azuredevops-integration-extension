@@ -160,6 +160,11 @@
       }
       ,
       {
+        "command": "azureDevOpsInt.selfTestWebview",
+        "title": "Azure DevOps Integration: Self Test Webview",
+        "icon": "$(beaker)"
+      },
+      {
         "command": "azureDevOpsInt.startMcpServer",
         "title": "Azure DevOps Integration: Start MCP Server",
         "icon": "$(run)"
@@ -416,7 +421,7 @@
     "release-check": "node ./scripts/release-check.js",
     "update-changelog": "node ./scripts/update-changelog.js",
     "check-types": "tsc --noEmit",
-    "lint": "eslint src --max-warnings 0"
+  "lint": "eslint src tests mcp-server/src --max-warnings 0"
   },
   "lint-staged": {
     "*.{ts,js,mjs}": [

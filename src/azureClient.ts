@@ -157,8 +157,8 @@ export class AzureDevOpsIntClient {
       const resp = await this.axios.get(url);
       const id = resp.data?.authenticatedUser?.id || resp.data?.authenticatedUser?.descriptor;
       return id || null;
-    } catch (e) {
-      console.error('Error fetching authenticated user identity', e);
+    } catch (_e) {
+      console.error('Error fetching authenticated user identity', _e);
       return null;
     }
   }

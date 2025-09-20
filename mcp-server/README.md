@@ -114,7 +114,7 @@ Response (example):
   "jsonrpc": "2.0",
   "id": 3,
   "result": {
-    "content": [ { "type": "json", "data": [ {"id": 123, "title": "Implement feature", "state": "Active", "type": "Task"} ] } ]
+    "content": [ { "type": "json", "json": [ {"id": 123, "title": "Implement feature", "state": "Active", "type": "Task"} ] } ]
   }
 }
 ```

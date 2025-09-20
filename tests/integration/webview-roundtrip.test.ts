@@ -36,12 +36,13 @@ async function setupVirtualDisplay(): Promise<() => void> {
       return () => {
         try {
           xvfb.kill();
-        } catch (e) {
+        } catch {
           // Ignore cleanup errors
         }
       };
     } catch (error) {
-      console.warn('Failed to setup virtual display:', error);
+      const msg = error instanceof Error ? error.message : String(error);
+      console.warn('Failed to setup virtual display:', msg);
       // Continue without virtual display - fallback mode
     }
   }
@@ -64,7 +65,8 @@ async function canDownloadVSCode(): Promise<boolean> {
     clearTimeout(timeoutId);
     return response.ok;
   } catch (error) {
-    console.warn('Cannot reach VS Code download server:', error.message || error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.warn('Cannot reach VS Code download server:', msg);
     return false;
   }
 }
@@ -88,10 +90,12 @@ async function main() {
     console.log('Downloading VS Code...');
     let vscodeExecutablePath;
     try {
-      vscodeExecutablePath = await downloadAndUnzipVSCode('1.78.0');
+      // Use a VS Code version compatible with this extension's engines range
+      vscodeExecutablePath = await downloadAndUnzipVSCode('1.102.0');
       console.log('VS Code downloaded successfully');
     } catch (downloadError) {
-      console.warn('Failed to download VS Code:', downloadError.message);
+      const msg = downloadError instanceof Error ? downloadError.message : String(downloadError);
+      console.warn('Failed to download VS Code:', msg);
       console.log(
         'Skipping integration tests due to download failure (this is expected in some environments)'
       );
@@ -99,7 +103,8 @@ async function main() {
     }
 
     const extensionDevelopmentPath = path.resolve(__dirname, '../../');
-    const extensionTestsPath = path.resolve(extensionDevelopmentPath, 'out', 'integration-tests');
+    const testsOutDir = path.resolve(extensionDevelopmentPath, 'out', 'integration-tests');
+    const extensionTestsPath = path.resolve(testsOutDir, 'index.js');
 
     // Check if integration tests are compiled and compile if needed
     const fs = await import('fs');
@@ -116,6 +121,14 @@ async function main() {
         console.error('Failed to compile integration tests:', compileError);
         throw compileError;
       }
+    }
+
+    // Ensure compiled integration tests are executed as CommonJS, regardless of root package type
+    try {
+      const pathCjsPkg = path.resolve(testsOutDir, 'package.json');
+      fs.writeFileSync(pathCjsPkg, JSON.stringify({ type: 'commonjs' }, null, 2));
+    } catch (e) {
+      console.warn('Failed to write CommonJS package.json in integration tests output:', e);
     }
 
     console.log('Running integration tests...');
@@ -140,11 +153,11 @@ async function main() {
     console.error('Failed to run tests', err);
 
     // If the error is related to display/graphics, provide helpful information
-    if (
-      err.message?.includes('DISPLAY') ||
-      err.message?.includes('X11') ||
-      err.signal === 'SIGSEGV'
-    ) {
+    const msg =
+      err && typeof err === 'object' && 'message' in err ? String((err as any).message) : '';
+    const sig =
+      err && typeof err === 'object' && 'signal' in err ? String((err as any).signal) : '';
+    if (msg.includes('DISPLAY') || msg.includes('X11') || sig === 'SIGSEGV') {
       console.error('\n=== Integration Test Environment Issue ===');
       console.error('This error suggests VS Code cannot run in the current environment.');
       console.error('Integration tests require a graphical environment or virtual display.');
