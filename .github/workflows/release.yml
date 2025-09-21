@@ -37,16 +37,31 @@ jobs:
           node-version: '20.x'
       - name: Install dependencies
         run: npm ci
-      - name: Build webview
-        run: npm run webview:build
+      # Webview assets are committed under media/webview; no separate build step required.
       - name: Build extension
         run: npm run build
       - name: Create VSIX
-        run: |
-          npm install -g @vscode/vsce
-          vsce package -o extension.vsix
+        run: npm run package:vsix
+      - name: Get version
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            Release ${{ github.ref_name }}
+
+            See [CHANGELOG.md](https://github.com/plures/azuredevops-integration-extension/blob/main/CHANGELOG.md) for details.
+          files: azuredevops-integration-extension-${{ steps.version.outputs.version }}.vsix
+          draft: false
+          prerelease: false
       - name: Publish to Marketplace
         if: ${{ env.VSCE_TOKEN != '' }}
         run: |
           npm install -g @vscode/vsce
-          vsce publish --packagePath extension.vsix --pat ${{ env.VSCE_TOKEN }}
+          vsce publish --packagePath azuredevops-integration-extension-${{ steps.version.outputs.version }}.vsix --pat ${{ env.VSCE_TOKEN }}

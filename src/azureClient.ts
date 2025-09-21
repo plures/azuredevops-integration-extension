@@ -6,6 +6,8 @@ interface ClientOptions {
   ratePerSecond?: number;
   burst?: number;
   team?: string; // Optional team context for iteration APIs and @CurrentIteration resolution
+  // If true (default), attempt to use [System.StateCategory] in WIQL filters until proven unsupported.
+  wiqlPreferStateCategory?: boolean;
 }
 
 export class AzureDevOpsIntClient {
@@ -19,12 +21,15 @@ export class AzureDevOpsIntClient {
   private limiter: RateLimiter;
   public team: string | undefined;
   public encodedTeam: string | undefined;
+  // Capability cache: prefer using [System.StateCategory] unless Azure DevOps rejects it for this org/project
+  private preferStateCategory: boolean;
 
   constructor(organization: string, project: string, pat: string, options: ClientOptions = {}) {
     this.organization = organization;
     this.project = project;
     this.pat = pat;
     this.team = options.team?.trim() ? options.team.trim() : undefined;
+    this.preferStateCategory = options.wiqlPreferStateCategory ?? true;
     this.encodedOrganization = encodeURIComponent(organization);
     this.encodedProject = encodeURIComponent(project);
     this.encodedTeam = this.team ? encodeURIComponent(this.team) : undefined;
@@ -164,7 +169,8 @@ export class AzureDevOpsIntClient {
   }
 
   buildWIQL(queryNameOrText: string) {
-    return this._buildWIQL(queryNameOrText, true);
+    // Use capability cache to decide whether to include [System.StateCategory]
+    return this._buildWIQL(queryNameOrText, this.preferStateCategory);
   }
 
   private _buildWIQL(queryNameOrText: string, useStateCategory: boolean) {
@@ -248,6 +254,8 @@ export class AzureDevOpsIntClient {
           console.warn(
             '[azureDevOpsInt][GETWI] StateCategory unsupported in WIQL. Retrying with legacy state filters.'
           );
+          // Update capability cache so future queries avoid the failing path for this client lifetime
+          this.preferStateCategory = false;
           // Rebuild the WIQL with legacy state filters and retry
           const wiqlLegacy = this._buildWIQL(query, false);
           console.log('[azureDevOpsInt][GETWI] Fallback WIQL:', wiqlLegacy);
@@ -351,7 +359,7 @@ export class AzureDevOpsIntClient {
         `/wit/workitems?ids=${ids}&$expand=all&api-version=7.0`
       );
       const raw = itemsResp.data.value || [];
-      return raw.map((r: any) => ({ id: r.id, fields: r.fields } as WorkItem));
+      return raw.map((r: any) => ({ id: r.id, fields: r.fields }) as WorkItem);
     } catch (err) {
       console.error('runWIQL failed:', err);
       return [];
@@ -429,6 +437,29 @@ export class AzureDevOpsIntClient {
     ];
     await this.updateWorkItem(id, patch);
     if (note) await this.addWorkItemComment(id, `Time tracked: ${hours} hours. ${note}`);
+  }
+
+  async getWorkItemTypes(): Promise<any[]> {
+    try {
+      const resp = await this.axios.get(`/wit/workitemtypes?api-version=7.0`);
+      return resp.data.value || [];
+    } catch (e) {
+      console.error('Error fetching work item types:', e);
+      return [];
+    }
+  }
+
+  async getWorkItemTypeStates(workItemType: string): Promise<string[]> {
+    try {
+      const resp = await this.axios.get(
+        `/wit/workitemtypes/${encodeURIComponent(workItemType)}?api-version=7.0`
+      );
+      const states = resp.data.states || [];
+      return states.map((state: any) => state.name || state);
+    } catch (e) {
+      console.error(`Error fetching states for work item type ${workItemType}:`, e);
+      return [];
+    }
   }
 
   async getIterations() {

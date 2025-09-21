@@ -4,7 +4,7 @@ This document captures implementation details that were trimmed from the main RE
 
 ## Webview architecture
 
-- Plain TypeScript + HTML webview built with Vite. Outputs stable asset names in `media/webview/` (e.g., `main.js`, `index.html`), which keeps extension HTML simple (no runtime manifest lookup).
+- Plain TypeScript + HTML webview with static assets committed under `media/webview/` (e.g., `main.js`, `index.html`). This keeps extension HTML simple (no runtime manifest lookup or separate build step on CI).
 - The webview and extension communicate via the VS Code `postMessage` bridge with a clear message contract (see `src/activation.ts` and `src/webview/main.ts`).
 
 ## ESM-first build

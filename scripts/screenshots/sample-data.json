@@ -1,0 +1,59 @@
+{
+  "workItems": [
+    {
+      "id": 101,
+      "title": "Implement login flow",
+      "state": "Active",
+      "type": "Task",
+      "assignedTo": "Alex Johnson",
+      "priority": 2,
+      "tags": ["auth", "frontend"],
+      "iterationPath": "Project\\Sprint 42",
+      "description": "Build the login form, validation, and API wiring."
+    },
+    {
+      "id": 102,
+      "title": "Fix crash on settings page",
+      "state": "To Do",
+      "type": "Bug",
+      "assignedTo": "Unassigned",
+      "priority": 1,
+      "tags": ["bug", "settings"],
+      "iterationPath": "Project\\Sprint 42",
+      "description": "Null pointer when opening advanced settings without profile."
+    },
+    {
+      "id": 103,
+      "title": "Add team filters to work items",
+      "state": "In Progress",
+      "type": "Feature",
+      "assignedTo": "Sam Patel",
+      "priority": 3,
+      "tags": ["filters", "webview"],
+      "iterationPath": "Project\\Sprint 42",
+      "description": "Extend UI to include team and iteration filters."
+    },
+    {
+      "id": 104,
+      "title": "Write integration tests for timer",
+      "state": "Code Review",
+      "type": "Task",
+      "assignedTo": "Chris Lee",
+      "priority": 2,
+      "tags": ["tests", "timer"],
+      "iterationPath": "Project\\Sprint 42",
+      "description": "Cover stop flow, inactivity, and cap behavior."
+    },
+    {
+      "id": 105,
+      "title": "Polish Kanban card layout",
+      "state": "Done",
+      "type": "Task",
+      "assignedTo": "Taylor Kim",
+      "priority": 2,
+      "tags": ["ui", "kanban"],
+      "iterationPath": "Project\\Sprint 41",
+      "description": "Improve spacing and tag overflow."
+    }
+  ]
+}

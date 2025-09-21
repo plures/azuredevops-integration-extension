@@ -1,8 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Azure DevOps Work Items</title>
     <style>
       :root {
@@ -893,7 +891,7 @@
         border-left: 4px solid #ff6347;
       }
     </style>
-    <script type="module" crossorigin src="./main.js"></script>
+    <script type="module" crossorigin="" src="./main.js"></script>
     <script>
       // Fixture bootstrap for headless screenshot generation:
       // If scripts/screenshots/generate-screenshots.mjs injected window.__AZDO_FIXTURE__,
@@ -966,70 +964,244 @@
         }
       })();
     </script>
-  </head>
+  <style>
+  .work-item.selected {
+    background: var(--vscode-list-activeSelectionBackground, #094771) !important;
+    border-color: var(--vscode-list-activeSelectionForeground, #ffffff);
+  }
+</style><style type="text/css">.kanban-board{min-height:auto !important;}</style></head>
   <body>
     <div class="search-container">
-      <input type="text" id="searchInput" placeholder="Search work items..." class="search-input" />
+      <input type="text" id="searchInput" placeholder="Search work items..." class="search-input">
     </div>
 
     <div class="status-overview" id="statusOverview">
-      <!-- Status badges will be populated by JavaScript -->
-    </div>
+        <div class="status-badge state-active" data-status="Active" title="Active">
+          <span class="status-name">Active</span>
+          <span class="status-count">1</span>
+        </div>
+      
+        <div class="status-badge state-todo" data-status="To Do" title="To Do">
+          <span class="status-name">To Do</span>
+          <span class="status-count">1</span>
+        </div>
+      
+        <div class="status-badge state-inprogress" data-status="In Progress" title="In Progress">
+          <span class="status-name">In Progress</span>
+          <span class="status-count">1</span>
+        </div>
+      
+        <div class="status-badge state-review" data-status="Code Review" title="Code Review">
+          <span class="status-name">Code Review</span>
+          <span class="status-count">1</span>
+        </div>
+      
+        <div class="status-badge state-done" data-status="Done" title="Done">
+          <span class="status-name">Done</span>
+          <span class="status-count">1</span>
+        </div>
+      </div>
 
     <div class="filters-container">
-      <select id="sprintFilter" class="filter-dropdown">
-        <option value="">All Sprints</option>
-      </select>
-      <select id="typeFilter" class="filter-dropdown">
-        <option value="">All Types</option>
-      </select>
-      <select id="assignedToFilter" class="filter-dropdown">
-        <option value="">All Assignees</option>
-      </select>
+      <select id="sprintFilter" class="filter-dropdown"><option value="">All Sprints</option><option value="Sprint 41">Sprint 41</option><option value="Sprint 42">Sprint 42</option></select>
+      <select id="typeFilter" class="filter-dropdown"><option value="">All Types</option><option value="Bug">Bug</option><option value="Feature">Feature</option><option value="Task">Task</option></select>
+      <select id="assignedToFilter" class="filter-dropdown"><option value="">All Assignees</option><option value="Alex Johnson">Alex Johnson</option><option value="Chris Lee">Chris Lee</option><option value="Sam Patel">Sam Patel</option><option value="Taylor Kim">Taylor Kim</option></select>
     </div>
 
     <div class="main">
       <div class="column" id="workItemsColumn">
         <div class="section">
           <div id="workItemsContainer" class="work-items">
-            <div class="loading">Loading work items...</div>
+    <div class="kanban-board">
+      
+          <div class="kanban-column">
+            <div class="kanban-column-header state-todo">
+              <h3>To Do</h3>
+              <span class="item-count">1</span>
+            </div>
+            <div class="kanban-column-content">
+              
+                  <div class="kanban-card  " data-id="102" data-action="selectWorkItem">
+                    <div class="kanban-card-header">
+                      <div class="work-item-type-icon type-bug">🐛</div>
+                      <div class="work-item-id">#102</div>
+                      
+                      <div class="work-item-priority priority-1">🟡 High</div>
+                    </div>
+                    <div class="kanban-card-content">
+                      <div class="work-item-title" title="Fix crash on settings page">Fix crash on settings page</div>
+                      <div class="kanban-card-meta">
+                        <span class="work-item-type">Bug</span>
+                        
+                      </div>
+                      <div class="work-item-tags"><span class="work-item-tag">bug</span><span class="work-item-tag">settings</span></div>
+                    </div>
+                                        <div class="kanban-card-actions">
+                                            <button class="action-btn timer-btn" data-action="startTimer" data-id="102" title="Start/Stop Timer">⏱️</button>
+                      <button class="action-btn comment-btn" data-action="addComment" data-id="102" title="Add Comment">💬</button>
+                      <button class="action-btn edit-btn" data-action="editWorkItem" data-id="102" title="Edit">✏️</button>
+                      <button class="action-btn view-btn" data-action="viewDetails" data-id="102" title="View Details">👁️</button>
+                    </div>
+                  </div>
+            </div>
           </div>
+        
+          <div class="kanban-column">
+            <div class="kanban-column-header state-active">
+              <h3>Active</h3>
+              <span class="item-count">1</span>
+            </div>
+            <div class="kanban-column-content">
+              
+                  <div class="kanban-card  " data-id="101" data-action="selectWorkItem">
+                    <div class="kanban-card-header">
+                      <div class="work-item-type-icon type-task">📋</div>
+                      <div class="work-item-id">#101</div>
+                      
+                      <div class="work-item-priority priority-2">🟢 Medium</div>
+                    </div>
+                    <div class="kanban-card-content">
+                      <div class="work-item-title" title="Implement login flow">Implement login flow</div>
+                      <div class="kanban-card-meta">
+                        <span class="work-item-type">Task</span>
+                        <span class="work-item-assignee"><span class="assignee-icon">👤</span>Alex</span>
+                      </div>
+                      <div class="work-item-tags"><span class="work-item-tag">auth</span><span class="work-item-tag">frontend</span></div>
+                    </div>
+                                        <div class="kanban-card-actions">
+                                            <button class="action-btn timer-btn" data-action="startTimer" data-id="101" title="Start/Stop Timer">⏱️</button>
+                      <button class="action-btn comment-btn" data-action="addComment" data-id="101" title="Add Comment">💬</button>
+                      <button class="action-btn edit-btn" data-action="editWorkItem" data-id="101" title="Edit">✏️</button>
+                      <button class="action-btn view-btn" data-action="viewDetails" data-id="101" title="View Details">👁️</button>
+                    </div>
+                  </div>
+            </div>
+          </div>
+        
+          <div class="kanban-column">
+            <div class="kanban-column-header state-inprogress">
+              <h3>In Progress</h3>
+              <span class="item-count">1</span>
+            </div>
+            <div class="kanban-column-content">
+              
+                  <div class="kanban-card  " data-id="103" data-action="selectWorkItem">
+                    <div class="kanban-card-header">
+                      <div class="work-item-type-icon type-feature">⭐</div>
+                      <div class="work-item-id">#103</div>
+                      
+                      <div class="work-item-priority priority-3">🔵 Low</div>
+                    </div>
+                    <div class="kanban-card-content">
+                      <div class="work-item-title" title="Add team filters to work items">Add team filters to work items</div>
+                      <div class="kanban-card-meta">
+                        <span class="work-item-type">Feature</span>
+                        <span class="work-item-assignee"><span class="assignee-icon">👤</span>Sam</span>
+                      </div>
+                      <div class="work-item-tags"><span class="work-item-tag">filters</span><span class="work-item-tag">webview</span></div>
+                    </div>
+                                        <div class="kanban-card-actions">
+                                            <button class="action-btn timer-btn" data-action="startTimer" data-id="103" title="Start/Stop Timer">⏱️</button>
+                      <button class="action-btn comment-btn" data-action="addComment" data-id="103" title="Add Comment">💬</button>
+                      <button class="action-btn edit-btn" data-action="editWorkItem" data-id="103" title="Edit">✏️</button>
+                      <button class="action-btn view-btn" data-action="viewDetails" data-id="103" title="View Details">👁️</button>
+                    </div>
+                  </div>
+            </div>
+          </div>
+        
+          <div class="kanban-column">
+            <div class="kanban-column-header state-review">
+              <h3>Code Review</h3>
+              <span class="item-count">1</span>
+            </div>
+            <div class="kanban-column-content">
+              
+                  <div class="kanban-card  " data-id="104" data-action="selectWorkItem">
+                    <div class="kanban-card-header">
+                      <div class="work-item-type-icon type-task">📋</div>
+                      <div class="work-item-id">#104</div>
+                      
+                      <div class="work-item-priority priority-2">🟢 Medium</div>
+                    </div>
+                    <div class="kanban-card-content">
+                      <div class="work-item-title" title="Write integration tests for timer">Write integration tests for timer</div>
+                      <div class="kanban-card-meta">
+                        <span class="work-item-type">Task</span>
+                        <span class="work-item-assignee"><span class="assignee-icon">👤</span>Chris</span>
+                      </div>
+                      <div class="work-item-tags"><span class="work-item-tag">tests</span><span class="work-item-tag">timer</span></div>
+                    </div>
+                                        <div class="kanban-card-actions">
+                                            <button class="action-btn timer-btn" data-action="startTimer" data-id="104" title="Start/Stop Timer">⏱️</button>
+                      <button class="action-btn comment-btn" data-action="addComment" data-id="104" title="Add Comment">💬</button>
+                      <button class="action-btn edit-btn" data-action="editWorkItem" data-id="104" title="Edit">✏️</button>
+                      <button class="action-btn view-btn" data-action="viewDetails" data-id="104" title="View Details">👁️</button>
+                    </div>
+                  </div>
+            </div>
+          </div>
+        
+          <div class="kanban-column">
+            <div class="kanban-column-header state-done">
+              <h3>Done</h3>
+              <span class="item-count">1</span>
+            </div>
+            <div class="kanban-column-content">
+              
+                  <div class="kanban-card  " data-id="105" data-action="selectWorkItem">
+                    <div class="kanban-card-header">
+                      <div class="work-item-type-icon type-task">📋</div>
+                      <div class="work-item-id">#105</div>
+                      
+                      <div class="work-item-priority priority-2">🟢 Medium</div>
+                    </div>
+                    <div class="kanban-card-content">
+                      <div class="work-item-title" title="Polish Kanban card layout">Polish Kanban card layout</div>
+                      <div class="kanban-card-meta">
+                        <span class="work-item-type">Task</span>
+                        <span class="work-item-assignee"><span class="assignee-icon">👤</span>Taylor</span>
+                      </div>
+                      <div class="work-item-tags"><span class="work-item-tag">ui</span><span class="work-item-tag">kanban</span></div>
+                    </div>
+                                        <div class="kanban-card-actions">
+                                            <button class="action-btn timer-btn" data-action="startTimer" data-id="105" title="Start/Stop Timer">⏱️</button>
+                      <button class="action-btn comment-btn" data-action="addComment" data-id="105" title="Add Comment">💬</button>
+                      <button class="action-btn edit-btn" data-action="editWorkItem" data-id="105" title="Edit">✏️</button>
+                      <button class="action-btn view-btn" data-action="viewDetails" data-id="105" title="View Details">👁️</button>
+                    </div>
+                  </div>
+            </div>
+          </div>
+        
+    </div>
+  </div>
         </div>
       </div>
 
       <div class="column narrow" id="timerColumn" style="display: none">
         <div class="section">
           <h4 class="section-title">Timer</h4>
-          <div class="timer-section" id="timerContainer">
+          <div class="timer-section" id="timerContainer" hidden="">
             <div id="timerDisplay" class="timer-display">00:00:00</div>
             <div class="timer-controls">
-              <button class="btn" id="startTimerBtn" data-action="startTimer" disabled>
+              <button class="btn" id="startTimerBtn" data-action="startTimer" disabled="">
                 Start
               </button>
-              <button class="btn" id="pauseTimerBtn" data-action="pauseTimer" disabled>
+              <button class="btn" id="pauseTimerBtn" data-action="pauseTimer" disabled="">
                 Pause
               </button>
-              <button class="btn" id="stopTimerBtn" data-action="stopTimer" disabled>Stop</button>
+              <button class="btn" id="stopTimerBtn" data-action="stopTimer" disabled="">Stop</button>
             </div>
             <div id="timerInfo" class="timer-info">No active timer</div>
 
             <!-- Collapsible draft summary editor -->
             <div class="summary-section" style="margin-top: 0.75rem">
-              <button
-                class="btn"
-                id="toggleSummaryBtn"
-                data-action="toggleSummary"
-                aria-expanded="false"
-                style="width: 100%; text-align: left"
-              >
+              <button class="btn" id="toggleSummaryBtn" data-action="toggleSummary" aria-expanded="false" style="width: 100%; text-align: left">
                 Compose Summary ▾
               </button>
-              <div id="summaryContainer" class="summary-container" hidden>
-                <textarea
-                  id="draftSummary"
-                  placeholder="Write or generate a summary to post as a comment when stopping the timer..."
-                  rows="6"
-                  style="
+              <div id="summaryContainer" class="summary-container" hidden="">
+                <textarea id="draftSummary" placeholder="Write or generate a summary to post as a comment when stopping the timer..." rows="6" style="
                     width: 100%;
                     margin-top: 0.5rem;
                     padding: 0.5rem;
@@ -1039,8 +1211,7 @@
                     border: 1px solid var(--vscode-editorWidget-border);
                     background: var(--vscode-input-background);
                     color: var(--vscode-input-foreground);
-                  "
-                ></textarea>
+                  "></textarea>
                 <div class="summary-actions" style="display: flex; gap: 0.5rem; margin-top: 0.5rem">
                   <button class="btn" id="generatePromptBtn" data-action="generateCopilotPrompt">
                     Generate Copilot Prompt
@@ -1049,15 +1220,11 @@
                     Stop &amp; Apply
                   </button>
                 </div>
-                <div
-                  id="summaryStatus"
-                  class="summary-status"
-                  style="
+                <div id="summaryStatus" class="summary-status" style="
                     margin-top: 0.5rem;
                     font-size: 0.85rem;
                     color: var(--vscode-descriptionForeground);
-                  "
-                ></div>
+                  "></div>
               </div>
             </div>
           </div>
@@ -1065,5 +1232,6 @@
       </div>
     </div>
 
-  </body>
-</html>
+  
+
+</body></html>

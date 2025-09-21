@@ -3,7 +3,7 @@
   "name": "azuredevops-integration-extension",
   "displayName": "Azure DevOps Integration for VS Code",
   "description": "Integrate Azure DevOps work items, time tracking, and Git workflows directly in VS Code. Manage tasks, track time, create branches, and submit pull requests without leaving your editor.",
-  "version": "1.0.1",
+  "version": "1.6.0",
   "publisher": "PluresLLC",
   "icon": "media/icon.png",
   "repository": {
@@ -19,426 +19,376 @@
     "color": "#0078D4",
     "theme": "dark"
   },
-  "badges": [
-    {
-      "url": "https://img.shields.io/visual-studio-marketplace/v/PluresLLC.azure-devops-integration-extension.svg",
-      "href": "https://marketplace.visualstudio.com/items?itemName=PluresLLC.azure-devops-integration-extension",
-      "description": "VS Code Marketplace Version"
-    },
-    {
-      "url": "https://img.shields.io/visual-studio-marketplace/d/PluresLLC.azure-devops-integration-extension.svg",
-      "href": "https://marketplace.visualstudio.com/items?itemName=PluresLLC.azure-devops-integration-extension",
-      "description": "VS Code Marketplace Downloads"
-    },
-    {
-      "url": "https://img.shields.io/visual-studio-marketplace/r/PluresLLC.azure-devops-integration-extension.svg",
-      "href": "https://marketplace.visualstudio.com/items?itemName=PluresLLC.azure-devops-integration-extension",
-      "description": "VS Code Marketplace Rating"
-    }
-  ],
-  "sponsor": {
-    "url": "https://www.buymeacoffee.com/plures"
-  },
   "engines": {
     "vscode": "^1.102.0"
   },
   "categories": [
-    "Other",
-    "Programming Languages",
-    "Snippets"
+    "Other"
   ],
   "keywords": [
     "azure",
     "devops",
     "work items",
-    "time tracking"
+    "time tracking",
+    "git",
+    "integration",
+    "productivity",
+    "project management"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onView:azureDevOpsWorkItems",
+    "onCommand:azureDevOpsInt.showWorkItems",
+    "onCommand:azureDevOpsInt.setup"
   ],
   "main": "./dist/extension.js",
   "files": [
     "dist/**",
-    "media/**",
-    "NOTICE.md",
-    "LICENSE.txt",
+    "media/webview/**",
+    "images/**",
+    "media/icon.png",
+    "media/workitems-icon.svg",
+    "media/generated-icons/**",
     "README.md",
-    "CHANGELOG.md"
+    "LICENSE.txt",
+    "CHANGELOG.md",
+    "NOTICE.md"
   ],
   "contributes": {
     "commands": [
       {
-        "command": "azureDevOpsInt.setDefaultElapsedLimit",
-        "title": "Azure DevOps Integration: Set Default Timer Elapsed Cap (hours)",
-        "icon": "$(clock)"
-      },
-      {
         "command": "azureDevOpsInt.setup",
-        "title": "Azure DevOps Integration: Setup Connection",
-        "icon": "$(settings-gear)"
+        "title": "Setup Connection",
+        "category": "Azure DevOps"
       },
       {
         "command": "azureDevOpsInt.showWorkItems",
-        "title": "Azure DevOps Integration: Show Work Items",
-        "icon": "$(checklist)"
+        "title": "Show Work Items",
+        "category": "Azure DevOps"
       },
       {
-        "command": "azureDevOpsInt.createWorkItem",
-        "title": "Azure DevOps Integration: Create Work Item",
-        "icon": "$(add)"
+        "command": "azureDevOpsInt.focusWorkItemsView",
+        "title": "Focus Work Items View",
+        "category": "Azure DevOps"
       },
       {
         "command": "azureDevOpsInt.refreshWorkItems",
-        "title": "Azure DevOps Integration: Refresh Work Items",
-        "icon": "$(refresh)"
+        "title": "Refresh Work Items",
+        "icon": "$(refresh)",
+        "category": "Azure DevOps"
+      },
+      {
+        "command": "azureDevOpsInt.createWorkItem",
+        "title": "Create Work Item",
+        "icon": "$(add)",
+        "category": "Azure DevOps"
+      },
+      {
+        "command": "azureDevOpsInt.editWorkItem",
+        "title": "Edit Work Item",
+        "icon": "$(edit)",
+        "category": "Azure DevOps"
       },
       {
         "command": "azureDevOpsInt.startTimer",
-        "title": "Azure DevOps Integration: Start Timer",
-        "icon": "$(play)"
+        "title": "Start/Stop Timer",
+        "icon": "$(play)",
+        "category": "Azure DevOps"
       },
       {
         "command": "azureDevOpsInt.pauseTimer",
-        "title": "Azure DevOps Integration: Pause Timer",
-        "icon": "$(debug-pause)"
+        "title": "Pause Timer",
+        "icon": "$(debug-pause)",
+        "category": "Azure DevOps"
       },
       {
         "command": "azureDevOpsInt.resumeTimer",
-        "title": "Azure DevOps Integration: Resume Timer",
-        "icon": "$(debug-continue)"
+        "title": "Resume Timer",
+        "icon": "$(debug-continue)",
+        "category": "Azure DevOps"
       },
       {
         "command": "azureDevOpsInt.stopTimer",
-        "title": "Azure DevOps Integration: Stop Timer",
-        "icon": "$(debug-stop)"
+        "title": "Stop Timer",
+        "icon": "$(debug-stop)",
+        "category": "Azure DevOps"
       },
       {
         "command": "azureDevOpsInt.showTimeReport",
-        "title": "Azure DevOps Integration: Show Time Report",
-        "icon": "$(graph)"
+        "title": "Show Time Report",
+        "icon": "$(watch)",
+        "category": "Azure DevOps"
       },
       {
         "command": "azureDevOpsInt.createBranch",
-        "title": "Azure DevOps Integration: Create Branch from Work Item",
-        "icon": "$(git-branch)"
+        "title": "Create Branch from Work Item",
+        "icon": "$(git-branch)",
+        "category": "Azure DevOps"
       },
       {
         "command": "azureDevOpsInt.createPullRequest",
-        "title": "Azure DevOps Integration: Create Pull Request",
-        "icon": "$(git-pull-request)"
+        "title": "Create Pull Request",
+        "icon": "$(git-pull-request)",
+        "category": "Azure DevOps"
       },
       {
         "command": "azureDevOpsInt.showPullRequests",
-        "title": "Azure DevOps Integration: Show My Pull Requests",
-        "icon": "$(git-pull-request)"
+        "title": "Show My Pull Requests",
+        "icon": "$(git-pull-request)",
+        "category": "Azure DevOps"
+      },
+      {
+        "command": "azureDevOpsInt.openWorkItemInBrowser",
+        "title": "Open in Browser",
+        "icon": "$(globe)",
+        "category": "Azure DevOps"
       },
       {
         "command": "azureDevOpsInt.toggleKanbanView",
-        "title": "Azure DevOps Integration: Toggle Kanban View",
-        "icon": "$(layout)"
+        "title": "Toggle Kanban View",
+        "category": "Azure DevOps",
+        "icon": "$(layout-panel)"
       },
       {
         "command": "azureDevOpsInt.selectTeam",
-        "title": "Azure DevOps Integration: Select Team",
-        "icon": "$(organization)"
+        "title": "Select Team",
+        "category": "Azure DevOps"
       },
       {
         "command": "azureDevOpsInt.resetPreferredRepositories",
-        "title": "Azure DevOps Integration: Reset Preferred Repositories",
-        "icon": "$(trash)"
+        "title": "Reset Preferred Repositories",
+        "category": "Azure DevOps"
+      },
+      {
+        "command": "azureDevOpsInt.showBuildStatus",
+        "title": "Show Build Status",
+        "category": "Azure DevOps"
       }
     ],
-    "viewsContainers": {
-      "activitybar": [
+    "views": {
+      "azureDevOpsIntegration": [
         {
-          "id": "azure-devops-int",
-          "title": "Azure DevOps Int",
-          "icon": "media/icon.png"
+          "id": "azureDevOpsWorkItems",
+          "name": "Work Items",
+          "type": "webview",
+          "icon": "$(checklist)",
+          "contextualTitle": "Azure DevOps Work Items"
         }
       ]
     },
-    "views": {
-      "azure-devops-int": [
+    "viewsContainers": {
+      "activitybar": [
         {
-          "type": "webview",
-          "id": "azureDevOpsWorkItems",
-          "name": "Work Items",
-          "contextualTitle": "Azure DevOps Work Items"
+          "id": "azureDevOpsIntegration",
+          "title": "Azure DevOps",
+          "icon": "media/workitems-icon.svg"
         }
       ]
     },
     "viewsWelcome": [
       {
         "view": "azureDevOpsWorkItems",
-        "contents": "Welcome to Azure DevOps Integration!\n\n[Setup Connection](command:azureDevOpsInt.setup)\n\nConnect to your Azure DevOps organization to start managing work items, tracking time, and creating pull requests."
+        "when": "!azureDevOpsInt.connected",
+        "contents": "No Azure DevOps configuration found.\n[Setup Azure DevOps Connection](command:azureDevOpsInt.setup)"
       }
     ],
-    "configuration": {
-      "title": "Azure DevOps Integration",
-      "properties": {
-        "azureDevOpsIntegration.organization": {
-          "type": "string",
-          "default": "",
-          "description": "Your Azure DevOps organization name"
-        },
-        "azureDevOpsIntegration.project": {
-          "type": "string",
-          "default": "",
-          "description": "Your Azure DevOps project name"
-        },
-        "azureDevOpsIntegration.team": {
-          "type": "string",
-          "default": "",
-          "description": "Optional Azure DevOps Team name. When set, iteration queries (e.g., Current Sprint) are resolved within this team context to ensure the correct current iteration."
-        },
-        "azureDevOpsIntegration.defaultWorkItemType": {
-          "type": "string",
-          "default": "Task",
-          "enum": [
-            "Task",
-            "Bug",
-            "User Story",
-            "Feature",
-            "Epic",
-            "Issue"
-          ],
-          "description": "Default work item type for quick creation"
-        },
-        "azureDevOpsIntegration.defaultQuery": {
-          "type": "string",
-          "default": "My Work Items",
-          "enum": [
-            "My Work Items",
-            "Current Sprint",
-            "All Active",
-            "Recently Updated",
-            "Custom"
-          ],
-          "description": "Default query to load work items"
-        },
-        "azureDevOpsIntegration.timerInactivityTimeout": {
-          "type": "number",
-          "default": 300,
-          "description": "Timer auto-pause after inactivity (seconds)"
-        },
-        "azureDevOpsIntegration.defaultElapsedLimitHours": {
-          "type": "number",
-          "default": 3.5,
-          "minimum": 0,
-          "description": "Default elapsed hours cap to apply when a timer has been left running (e.g. if a timer was forgotten overnight). A value of 3.5 corresponds to a typical full dev workday in Azure DevOps."
-        },
-        "azureDevOpsIntegration.autoStartTimerOnBranch": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically start timer when creating a branch from work item"
-        },
-        "azureDevOpsIntegration.autoResumeOnActivity": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically resume timer when activity is detected after inactivity pause"
-        },
-        "azureDevOpsIntegration.pomodoroEnabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable Pomodoro timer (25 min work, 5 min break)"
-        },
-        "azureDevOpsIntegration.showBuildNotifications": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show notifications for build status changes"
-        },
-        "azureDevOpsIntegration.workItemRefreshInterval": {
-          "type": "number",
-          "default": 300,
-          "description": "Auto-refresh work items interval (seconds, 0 to disable)"
-        },
-        "azureDevOpsIntegration.enableAnalytics": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable anonymous usage analytics"
-        },
-        "azureDevOpsIntegration.preferredRepositoryIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [],
-          "description": "Preferred Azure DevOps repository IDs for pull request creation. If empty, you will be prompted to select one or more repositories the first time."
-        },
-        "azureDevOpsIntegration.debugLogging": {
-          "type": "boolean",
-          "default": false,
-          "description": "Write verbose diagnostic logs to the 'Azure DevOps Integration' output channel"
-        },
-        "azureDevOpsIntegration.apiRatePerSecond": {
-          "type": "number",
-          "default": 5,
-          "minimum": 1,
-          "maximum": 50,
-          "description": "Approximate sustained Azure DevOps REST requests per second (token bucket fill rate)."
-        },
-        "azureDevOpsIntegration.apiBurst": {
-          "type": "number",
-          "default": 10,
-          "minimum": 1,
-          "maximum": 100,
-          "description": "Maximum burst size (bucket capacity) for rapid sequential REST requests."
-        }
-      }
-    },
     "menus": {
       "view/title": [
         {
-          "command": "azureDevOpsInt.refreshWorkItems",
+          "command": "azureDevOpsInt.toggleKanbanView",
           "when": "view == azureDevOpsWorkItems",
           "group": "navigation@1"
         },
         {
+          "command": "azureDevOpsInt.refreshWorkItems",
+          "when": "view == azureDevOpsWorkItems",
+          "group": "navigation"
+        },
+        {
           "command": "azureDevOpsInt.createWorkItem",
           "when": "view == azureDevOpsWorkItems",
-          "group": "navigation@2"
-        },
-        {
-          "command": "azureDevOpsInt.toggleKanbanView",
-          "when": "view == azureDevOpsWorkItems",
-          "group": "navigation@3"
+          "group": "navigation"
         }
       ],
-      "commandPalette": [
+      "view/item/context": [
+        {
+          "command": "azureDevOpsInt.editWorkItem",
+          "when": "view == azureDevOpsWorkItems && viewItem == workItem",
+          "group": "inline"
+        },
         {
           "command": "azureDevOpsInt.startTimer",
-          "when": "azureDevOpsInt.connected && !azureDevOpsInt.timerRunning"
+          "when": "view == azureDevOpsWorkItems && viewItem == workItem",
+          "group": "inline"
         },
         {
-          "command": "azureDevOpsInt.pauseTimer",
-          "when": "azureDevOpsInt.connected && azureDevOpsInt.timerRunning"
+          "command": "azureDevOpsInt.createBranch",
+          "when": "view == azureDevOpsWorkItems && viewItem == workItem",
+          "group": "git"
         },
         {
-          "command": "azureDevOpsInt.resumeTimer",
-          "when": "azureDevOpsInt.connected && azureDevOpsInt.timerPaused"
+          "command": "azureDevOpsInt.createPullRequest",
+          "when": "view == azureDevOpsWorkItems && viewItem == workItem",
+          "group": "git"
         },
         {
-          "command": "azureDevOpsInt.stopTimer",
-          "when": "azureDevOpsInt.connected && azureDevOpsInt.timerActive"
-        },
-        {
-          "command": "azureDevOpsInt.setDefaultElapsedLimit",
-          "when": "azureDevOpsInt.connected"
-        },
-        {
-          "command": "azureDevOpsInt.selectTeam",
-          "when": "azureDevOpsInt.connected"
-        },
-        {
-          "command": "azureDevOpsInt.resetPreferredRepositories",
-          "when": "azureDevOpsInt.connected"
+          "command": "azureDevOpsInt.openWorkItemInBrowser",
+          "when": "view == azureDevOpsWorkItems && viewItem == workItem",
+          "group": "browser"
         }
       ]
     },
-    "colors": [
-      {
-        "id": "azureDevOpsInt.timerBackground",
-        "description": "Background color for timer in status bar",
-        "defaults": {
-          "dark": "#007ACC",
-          "light": "#007ACC"
+    "configuration": {
+      "title": "Azure DevOps Integration",
+      "properties": {
+        "azureDevOpsIntegration.debugLogging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable verbose logging to the 'Azure DevOps Integration' output channel"
+        },
+        "azureDevOpsIntegration.organization": {
+          "type": "string",
+          "default": "",
+          "description": "Azure DevOps organization name"
+        },
+        "azureDevOpsIntegration.project": {
+          "type": "string",
+          "default": "",
+          "description": "Azure DevOps project name"
+        },
+        "azureDevOpsIntegration.personalAccessToken": {
+          "type": "string",
+          "default": "",
+          "description": "Personal Access Token for Azure DevOps API"
+        },
+        "azureDevOpsIntegration.defaultElapsedLimitHours": {
+          "type": "number",
+          "default": 3.5,
+          "minimum": 0.1,
+          "maximum": 24,
+          "description": "Default maximum hours for time tracking sessions (0.1-24 hours)"
+        },
+        "azureDevOpsIntegration.apiRatePerSecond": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0.1,
+          "maximum": 10,
+          "description": "API request rate limit (requests per second)"
+        },
+        "azureDevOpsIntegration.apiBurst": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "API burst limit (maximum requests in burst)"
+        },
+        "azureDevOpsIntegration.workItemsPerPage": {
+          "type": "number",
+          "default": 50,
+          "minimum": 10,
+          "maximum": 200,
+          "description": "Number of work items to fetch per page"
+        },
+        "azureDevOpsIntegration.refreshIntervalMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 60,
+          "description": "Auto-refresh interval in minutes"
+        },
+        "azureDevOpsIntegration.enableAutoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic refresh of work items"
+        },
+        "azureDevOpsIntegration.enableTimeTracking": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable time tracking features"
+        },
+        "azureDevOpsIntegration.enableBranchCreation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable branch creation from work items"
+        },
+        "azureDevOpsIntegration.enablePullRequestCreation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable pull request creation features"
+        },
+        "azureDevOpsIntegration.workItemQuery": {
+          "type": "string",
+          "default": "SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.State] <> 'Closed' ORDER BY [System.CreatedDate] DESC",
+          "description": "WIQL query for fetching work items"
+        },
+        "azureDevOpsIntegration.branchNameTemplate": {
+          "type": "string",
+          "default": "feature/{id}-{title}",
+          "description": "Template for branch names created from work items"
+        },
+        "azureDevOpsIntegration.defaultWorkItemType": {
+          "type": "string",
+          "default": "Task",
+          "description": "Default work item type for new items"
+        },
+        "azureDevOpsIntegration.showCompletedWorkItems": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show completed/closed work items in the list"
         }
       }
-    ]
+    }
   },
   "scripts": {
-    "clean": "rimraf dist",
     "vscode:prepublish": "npm run build",
-    "build:ext": "node esbuild.mjs",
-    "build": "npm run check-types && npm run lint && npm run webview:build && npm run build:ext",
-    "compile": "npm run build",
-    "watch": "npm-run-all -p watch:*",
-    "watch:esbuild": "node esbuild.js --watch",
-    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-    "package": "npm run build --production",
-    "compile-tests": "tsc -p . --outDir out",
-    "compile-tests:cjs": "tsc -p tsconfig.tests.json",
-    "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "npm run lint && npm run webview:build && npm run build:ext",
-    "test": "node scripts/run-esm-tests-cmd.mjs",
-    "test:compiled": "npm run compile-tests && node ./node_modules/mocha/bin/mocha \"out/**/*.test.js\"",
-    "test:integration": "node --trace-warnings scripts/run-integration.mjs",
-    "test:changed": "node ./scripts/select-tests.js",
-    "webview:build": "vite build --config vite.webview.config.ts",
-    "webview:dev": "vite --config vite.webview.config.ts",
-    "webview:preview": "vite preview --config vite.webview.config.ts",
     "build:all": "npm run build",
-    "generate:icons": "node scripts/generate-icons.mjs",
-    "prepare": "husky install",
-    "lint:fix": "eslint --fix --no-ignore \"src/**/*.{ts,js}\" \"tests/**/*.ts\"",
-    "format": "prettier --write .",
+    "compile": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "pretest": "npm run compile",
+    "test": "node --loader ts-node/esm scripts/run-esm-tests-cmd.mjs",
+    "test:unit": "npm test",
+    "test:integration": "node --loader ts-node/esm scripts/run-integration.mjs",
+    "test:ci": "npm run test && npm run test:integration",
+    "lint": "npx eslint src --ext ts",
+    "lint:fix": "eslint --fix",
     "format:staged": "prettier --write",
-    "check-format": "prettier --check .",
-    "dev:cli": "node scripts/dev-cli.js",
-    "dev:webview": "npm --prefix src/webview run dev",
-    "coverage": "c8 --reporter=text npm test",
-    "coverage:ci": "c8 --reporter=text --check-coverage --lines 70 --branches 65 --functions 65 npm test",
-    "release-check": "node ./scripts/release-check.js",
-    "check-types": "tsc --noEmit",
-    "lint": "eslint src --max-warnings 0"
-  },
-  "lint-staged": {
-    "*.{ts,js,mjs}": [
-      "eslint --fix",
-      "prettier --write",
-      "git add"
-    ],
-    "*.{tsx,jsx,json,md,css,scss,html}": [
-      "prettier --write",
-      "git add"
-    ]
+    "format": "npx prettier --write \"**/*.{ts,js,json,md,mjs}\"",
+    "check-format": "npx prettier --check \"**/*.{ts,js,json,md,mjs}\"",
+    "prepare": "husky install",
+    "postinstall": "npm run prepare",
+    "build": "npm run format && npm run compile",
+    "package": "vsce.cmd package",
+    "screenshots:setup": "npx playwright install",
+    "screenshots:build": "npm run build && npm run screenshots:capture",
+    "screenshots:capture": "node scripts/screenshots/generate-screenshots.mjs",
+    "screenshots:watch": "node scripts/watch-screenshots.mjs"
   },
   "devDependencies": {
-    "@commitlint/config-conventional": "^17.0.0",
-    "@types/chai": "^4.3.4",
-    "@types/mocha": "^10.0.0",
-    "@types/node": "^20.0.0",
-    "@types/sinon": "^10.0.6",
     "@types/vscode": "^1.102.0",
-    "@typescript-eslint/eslint-plugin": "^8.31.1",
-    "@typescript-eslint/parser": "^8.31.1",
-    "@vscode/test-cli": "^0.0.11",
+    "@types/node": "24.x",
+    "@typescript-eslint/eslint-plugin": "^8.44.0",
+    "@typescript-eslint/parser": "^8.44.0",
+    "eslint": "^9.36.0",
+    "typescript": "^5.9.2",
+    "esbuild": "^0.25.10",
     "@vscode/test-electron": "^2.5.2",
-    "c8": "^8.0.0",
-    "chai": "^5.1.1",
-    "commitlint": "^17.0.0",
-    "esbuild": "^0.25.3",
-    "eslint": "^9.25.1",
-    "husky": "^8.0.0",
-    "lint-staged": "^16.0.0",
-    "mocha": "^10.7.3",
-    "nock": "^13.3.0",
-    "npm-run-all": "^4.1.5",
-    "prettier": "^2.8.0",
-    "rimraf": "^5.0.5",
-    "sharp": "^0.33.5",
-    "sinon": "^16.1.1",
-    "ts-node": "^10.9.1",
-    "typescript": "^5.8.3",
-    "vite": "^7.1.5",
-    "vscode": "file:./vscode-stub"
+    "@vscode/vsce": "^3.6.0",
+    "ts-node": "^10.9.2",
+    "mocha": "^11.7.2",
+    "@types/mocha": "^10.0.10",
+    "prettier": "^3.6.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.6",
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
+    "chokidar": "^4.0.3",
+    "playwright": "^1.55.0"
   },
   "dependencies": {
-    "axios": "^1.12.0"
+    "axios": "^1.12.2"
   },
-  "__metadata": {
-    "installedTimestamp": 1756929815365,
-    "targetPlatform": "undefined",
-    "size": 458058
-  },
-  "types": "src/types.d.ts",
-  "overrides": {
-    "glob": "^9.3.0"
-  },
-  "ts-node": {
-    "compilerOptions": {
-      "module": "NodeNext"
-    },
-    "transpileOnly": true
+  "volta": {
+    "node": "20.19.0",
+    "npm": "10.2.4"
   }
 }

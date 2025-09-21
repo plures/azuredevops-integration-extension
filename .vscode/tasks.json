@@ -25,19 +25,6 @@
       "problemMatcher": ["$tsc"],
       "presentation": { "reveal": "silent" }
     },
-    {
-      "label": "Dev: Webview Build + Watch",
-      "type": "shell",
-      "command": "npm --prefix webview-svelte run dev",
-      "isBackground": true,
-      "problemMatcher": [],
-      "presentation": { "reveal": "silent" }
-    },
-    {
-      "label": "Stop Webview Dev Server",
-      "type": "shell",
-      "command": "powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*webview-svelte*' } | Stop-Process\"",
-      "problemMatcher": []
-    }
+    
   ]
 }

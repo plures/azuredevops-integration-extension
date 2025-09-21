@@ -23,6 +23,7 @@ let viewProviderRegistered = false;
 let initialRefreshed = false; // prevent duplicate initial refresh (silentInit + webview init)
 let outputChannel: vscode.OutputChannel | undefined; // lazy created when debugLogging enabled
 let extensionContextRef: vscode.ExtensionContext | undefined; // keep a reference for later ops
+let cachedExtensionVersion: string | undefined; // cache package.json version for cache-busting
 // Self-test tracking (prove Svelte webview round‑trip works)
 // Self-test pending promise handlers (typed loosely to avoid unused param lint churn)
 let selfTestPending:
@@ -31,6 +32,18 @@ let selfTestPending:
 
 function getConfig() {
   return vscode.workspace.getConfiguration(CONFIG_NS);
+}
+function getExtensionVersion(context: vscode.ExtensionContext): string {
+  if (cachedExtensionVersion) return cachedExtensionVersion;
+  try {
+    const pkgPath = path.join(context.extensionPath, 'package.json');
+    const pkgRaw = fs.readFileSync(pkgPath, 'utf8');
+    const pkg = JSON.parse(pkgRaw);
+    cachedExtensionVersion = String(pkg.version || 'dev');
+  } catch {
+    cachedExtensionVersion = 'dev';
+  }
+  return cachedExtensionVersion;
 }
 async function migrateLegacyConfigIfNeeded() {
   try {
@@ -65,10 +78,12 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Register the work items webview view resolver (guard against duplicate registration)
   if (!viewProviderRegistered) {
+    console.log('[azureDevOpsInt] Registering webview view provider: azureDevOpsWorkItems');
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(
         'azureDevOpsWorkItems',
-        new AzureDevOpsIntViewProvider(context)
+        new AzureDevOpsIntViewProvider(context),
+        { webviewOptions: { retainContextWhenHidden: true } }
       )
     );
     viewProviderRegistered = true;
@@ -77,6 +92,9 @@ export function activate(context: vscode.ExtensionContext) {
   // Core commands
   context.subscriptions.push(
     vscode.commands.registerCommand('azureDevOpsInt.setup', () => setupConnection(context)),
+    vscode.commands.registerCommand('azureDevOpsInt.focusWorkItemsView', () =>
+      revealWorkItemsView()
+    ),
     vscode.commands.registerCommand('azureDevOpsInt.setDefaultElapsedLimit', async () => {
       try {
         const cfg = getConfig();
@@ -153,6 +171,33 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Attempt silent init if settings already present
   migrateLegacyConfigIfNeeded().finally(() => silentInit(context));
+
+  // React to configuration changes (org, project, PAT) to (re)initialize without requiring reload
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(async (e) => {
+      if (
+        e.affectsConfiguration(`${CONFIG_NS}.organization`) ||
+        e.affectsConfiguration(`${CONFIG_NS}.project`) ||
+        e.affectsConfiguration(`${CONFIG_NS}.personalAccessToken`)
+      ) {
+        try {
+          await migrateLegacyPAT(context);
+        } catch {
+          /* ignore */
+        }
+        // Reset client/provider so silentInit can rebuild from new settings
+        client = undefined;
+        provider = undefined;
+        await silentInit(context);
+        // If a view is attached, refresh to reflect new connection via command
+        try {
+          await vscode.commands.executeCommand('azureDevOpsInt.refreshWorkItems');
+        } catch {
+          /* ignore */
+        }
+      }
+    })
+  );
 }
 
 export function deactivate() {
@@ -166,6 +211,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
   }
 
   resolveWebviewView(webviewView: vscode.WebviewView): void | Thenable<void> {
+    console.log('[azureDevOpsInt] resolveWebviewView invoked for view:', webviewView.viewType);
     panel = webviewView;
     const webview = webviewView.webview;
     webview.options = {
@@ -238,14 +284,17 @@ async function initDomainObjects(context: vscode.ExtensionContext, postMessage: 
             }
             pomodoroBreakTimeout = undefined;
           }
-          pomodoroBreakTimeout = setTimeout(() => {
-            try {
-              timer?.resume();
-            } catch {
-              /* ignore resume error */
-            }
-            pomodoroBreakTimeout = undefined;
-          }, 5 * 60 * 1000);
+          pomodoroBreakTimeout = setTimeout(
+            () => {
+              try {
+                timer?.resume();
+              } catch {
+                /* ignore resume error */
+              }
+              pomodoroBreakTimeout = undefined;
+            },
+            5 * 60 * 1000
+          );
         });
     },
     persist: (data: { state?: any; timeEntries?: any[]; updateLastSave?: boolean }) =>
@@ -349,8 +398,8 @@ async function handleMessage(msg: any) {
         typeof msg.workItemId === 'number'
           ? msg.workItemId
           : typeof msg.id === 'number'
-          ? msg.id
-          : undefined;
+            ? msg.id
+            : undefined;
       if (typeof id === 'number') {
         const wi: any = provider
           ?.getWorkItems()
@@ -479,6 +528,41 @@ async function handleMessage(msg: any) {
       updateTimerContext(undefined);
       break;
     }
+    case 'addComment': {
+      const workItemId: number | undefined =
+        typeof msg.workItemId === 'number' ? msg.workItemId : undefined;
+      let comment: string | undefined =
+        typeof msg.comment === 'string' ? msg.comment.trim() : undefined;
+
+      if (!workItemId) {
+        vscode.window.showWarningMessage('No work item specified for comment.');
+        break;
+      }
+
+      // If comment not provided by webview, prompt the user with VS Code input box
+      if (!comment || comment.length === 0) {
+        comment = await vscode.window.showInputBox({
+          prompt: `Enter a comment for work item #${workItemId}`,
+          placeHolder: 'Type your comment…',
+          ignoreFocusOut: true,
+        });
+        if (!comment || comment.trim().length === 0) {
+          // User cancelled or empty input
+          break;
+        }
+        comment = comment.trim();
+      }
+
+      try {
+        if (!client) throw new Error('Client not initialized');
+        await client.addWorkItemComment(workItemId, comment);
+        vscode.window.showInformationMessage(`Comment added to work item #${workItemId}.`);
+      } catch (err: any) {
+        console.error('Failed to add comment', err);
+        vscode.window.showErrorMessage('Failed to add comment: ' + (err?.message || String(err)));
+      }
+      break;
+    }
     default:
       console.warn('Unknown webview message', msg);
       verbose('Unknown message type');
@@ -552,7 +636,7 @@ function buildMinimalWebviewHtml(
   webview: vscode.Webview,
   nonce: string
 ): string {
-  // Read the static HTML file built by Vite instead of generating it
+  // Read the static webview HTML file from media/webview (committed asset)
   const htmlPath = path.join(context.extensionPath, 'media', 'webview', 'index.html');
   let html: string;
 
@@ -566,23 +650,27 @@ function buildMinimalWebviewHtml(
 
   // Get media URIs for replacement
   const mediaRoot = vscode.Uri.joinPath(context.extensionUri, 'media', 'webview');
+  const version = getExtensionVersion(context);
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'main.js'));
+  // Append a cache-busting version query so VS Code doesn’t serve stale cached assets after upgrade
+  const scriptUriWithVersion = scriptUri.with({ query: `v=${encodeURIComponent(version)}` });
+  const scriptUriStr = scriptUriWithVersion.toString();
 
   // Update CSP and script nonces
   const csp = `default-src 'none'; img-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${webview.cspSource}`;
-  const consoleBridge = `(function(){try{var vs=window.vscode||acquireVsCodeApi();['log','warn','error'].forEach(function(m){var orig=console[m];console[m]=function(){try{vs.postMessage({type:'webviewConsole', level:m, args:Array.from(arguments).map(a=>{try{return a&&a.stack?String(a.stack):typeof a==='object'?JSON.stringify(a):String(a);}catch{return String(a);}})});}catch{};return orig.apply(console,arguments);};});}catch(e){/* ignore */}})();`;
+  const consoleBridge = `(function(){try{var vs=window.vscode||acquireVsCodeApi();['log','warn','error'].forEach(function(m){var orig=console[m];console[m]=function(){try{vs.postMessage({type:'webviewConsole', level:m, args:Array.from(arguments).map(a=>{try{return a&&a.stack?String(a.stack):typeof a==='object'?JSON.stringify(a):String(a);}catch{return String(a);}})});}catch{};return orig.apply(console,arguments);};});console.log('[webview] Azure DevOps Integration v${version}');}catch(e){/* ignore */}})();`;
 
   // Replace placeholders in the static HTML
   html = html.replace(
     '<meta charset="UTF-8">',
     `<meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}">`
   );
-  html = html.replace('./main.js', scriptUri.toString());
+  html = html.replace('./main.js', scriptUriStr);
   html = html.replace(
-    '<script type="module" crossorigin src="' + scriptUri.toString() + '"></script>',
+    '<script type="module" crossorigin src="' + scriptUriStr + '"></script>',
     `<script nonce="${nonce}">(function(){try{if(!window.vscode){window.vscode=acquireVsCodeApi();}}catch(e){console.error('[webview] acquireVsCodeApi failed',e);}})();</script>` +
       `<script nonce="${nonce}">${consoleBridge}</script>` +
-      `<script type="module" nonce="${nonce}" src="${scriptUri}"></script>`
+      `<script type="module" nonce="${nonce}" src="${scriptUriStr}"></script>`
   );
 
   return html;
@@ -622,6 +710,11 @@ async function setupConnection(context: vscode.ExtensionContext) {
   client = undefined;
   provider = undefined;
   timer = undefined; // reset
+  try {
+    vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', true);
+  } catch {
+    // ignore context set failure; not fatal
+  }
   if (panel) {
     await initDomainObjects(context, (m: any) => panel?.webview.postMessage(m));
   } else await silentInit(context);
@@ -682,14 +775,17 @@ async function silentInit(context: vscode.ExtensionContext) {
                   }
                   pomodoroBreakTimeout = undefined;
                 }
-                pomodoroBreakTimeout = setTimeout(() => {
-                  try {
-                    timer?.resume();
-                  } catch {
-                    /* ignore resume error */
-                  }
-                  pomodoroBreakTimeout = undefined;
-                }, 5 * 60 * 1000);
+                pomodoroBreakTimeout = setTimeout(
+                  () => {
+                    try {
+                      timer?.resume();
+                    } catch {
+                      /* ignore resume error */
+                    }
+                    pomodoroBreakTimeout = undefined;
+                  },
+                  5 * 60 * 1000
+                );
               });
           },
           persist: (data: { state?: any; timeEntries?: any[]; updateLastSave?: boolean }) =>
@@ -737,13 +833,38 @@ async function migrateLegacyPAT(context: vscode.ExtensionContext) {
       console.error('Failed migrating PAT (old secret key)', e);
     }
   }
+
+  // 3. Migrate from settings if user entered a PAT there (more discoverable), then clear it
+  try {
+    const cfg = getConfig();
+    const patInSettings = String(cfg.get('personalAccessToken') || '').trim();
+    const existingSecret = await context.secrets.get(NEW_KEY);
+    if (patInSettings && !existingSecret) {
+      await context.secrets.store(NEW_KEY, patInSettings);
+      // Clear the setting to avoid storing secrets in settings.json
+      await cfg.update('personalAccessToken', '', vscode.ConfigurationTarget.Global);
+      console.log('[azureDevOpsInt] Migrated PAT from settings to secret store');
+    }
+  } catch (e) {
+    console.warn('[azureDevOpsInt] migrate PAT from settings failed', e);
+  }
 }
 
 function revealWorkItemsView() {
-  vscode.commands.executeCommand('workbench.view.extension.azure-devops-int');
-  // There is only one view in container; focus it
-  vscode.commands.executeCommand('azureDevOpsWorkItems.focus');
-  verbose('Revealed work items view');
+  // Show our custom Activity Bar container. Since it's the only view in the container,
+  // revealing the container is sufficient and avoids potential focus race conditions.
+  vscode.commands.executeCommand('workbench.view.extension.azureDevOpsIntegration');
+  // Also explicitly focus the view to force creation/resolve if VS Code didn't materialize it yet.
+  // VS Code generates a '<viewId>.focus' command for contributed views.
+  setTimeout(() => {
+    try {
+      vscode.commands.executeCommand('azureDevOpsWorkItems.focus');
+      verbose('Focused Work Items view');
+    } catch {
+      // ignore focus error
+    }
+  }, 0);
+  verbose('Revealed Azure DevOps container');
 }
 
 async function quickCreateWorkItem() {
@@ -880,14 +1001,51 @@ async function editWorkItemInEditor(workItemId: number) {
 
     if (newDescription === undefined) return; // User cancelled
 
-    // Get new state - show common states
-    const stateOptions = [
-      { label: 'New', description: 'New work item' },
-      { label: 'Active', description: 'Work in progress' },
-      { label: 'Resolved', description: 'Work completed' },
-      { label: 'Closed', description: 'Work verified and closed' },
-      { label: 'Removed', description: 'Work item removed' },
-    ];
+    // Get valid states for this work item type dynamically
+    let stateOptions: { label: string; description: string }[];
+    try {
+      const validStates = await client.getWorkItemTypeStates(currentType);
+      if (validStates.length > 0) {
+        stateOptions = validStates.map((state) => ({
+          label: state,
+          description: `${state} state`,
+        }));
+        // If current state is not in the valid states, add it to prevent user confusion
+        if (!validStates.includes(currentState) && currentState) {
+          stateOptions.unshift({
+            label: currentState,
+            description: `Current: ${currentState} state`,
+          });
+        }
+      } else {
+        // Fallback to common states if API returns empty
+        stateOptions = [
+          { label: 'New', description: 'New work item' },
+          { label: 'Active', description: 'Work in progress' },
+          { label: 'Resolved', description: 'Work completed' },
+          { label: 'Closed', description: 'Work verified and closed' },
+          { label: 'Removed', description: 'Work item removed' },
+        ];
+      }
+    } catch (e) {
+      console.error('Failed to fetch valid states, using fallback:', e);
+      // Fallback to common states if API fails
+      stateOptions = [
+        { label: 'New', description: 'New work item' },
+        { label: 'Active', description: 'Work in progress' },
+        { label: 'Resolved', description: 'Work completed' },
+        { label: 'Closed', description: 'Work verified and closed' },
+        { label: 'Removed', description: 'Work item removed' },
+      ];
+      // Ensure current state is available if it's not in the fallback list
+      const fallbackStates = stateOptions.map((opt) => opt.label);
+      if (!fallbackStates.includes(currentState) && currentState) {
+        stateOptions.unshift({
+          label: currentState,
+          description: `Current: ${currentState} state`,
+        });
+      }
+    }
 
     const selectedState = await vscode.window.showQuickPick(stateOptions, {
       placeHolder: `Current state: ${currentState}. Select new state:`,
@@ -957,7 +1115,7 @@ async function startTimerInteractive() {
       description: `#${w.id}`,
       wi: w,
     })),
-    { placeHolder: 'Select work item to start timer' }
+    { placeHolder: 'Select work item to start/stop timer' }
   );
   if (!pick) return;
   const wi: any = (pick as any).wi;
@@ -1263,7 +1421,7 @@ async function handleTimerStopAndOfferUpdate(entry: {
   const suggestedCompleted = Number((currCompleted + hours).toFixed(2));
   const suggestedRemaining = Number(Math.max(0, currRemaining - hours).toFixed(2));
 
-  const initialOptions = ['Apply', 'Edit', 'Generate Copilot prompt', 'Cancel'] as const;
+  const initialOptions = ['Apply', 'Edit', 'Generate Copilot prompt'] as const;
   let promptMsg = `Add ${hours.toFixed(
     2
   )}h to Completed (${currCompleted} → ${suggestedCompleted}) and subtract from Remaining (${currRemaining} → ${suggestedRemaining}) for ${title}?`;
@@ -1277,7 +1435,7 @@ async function handleTimerStopAndOfferUpdate(entry: {
     { modal: true },
     ...initialOptions
   );
-  if (!action || action === 'Cancel') return;
+  if (!action) return;
 
   // If user requested a Copilot prompt, generate it, copy to clipboard, and re-prompt
   if (action === 'Generate Copilot prompt') {
@@ -1294,10 +1452,9 @@ async function handleTimerStopAndOfferUpdate(entry: {
       `After generating the summary in Copilot, choose how to proceed for work item #${id}.`,
       { modal: true },
       'Apply',
-      'Edit',
-      'Cancel'
+      'Edit'
     );
-    if (!action || action === 'Cancel') return;
+    if (!action) return;
   }
 
   let finalCompleted = suggestedCompleted;

@@ -8,7 +8,10 @@ export class RateLimiter {
   private lastRefill: number;
   private timer: NodeJS.Timeout | null = null;
 
-  constructor(private ratePerSecond: number, private burst: number) {
+  constructor(
+    private ratePerSecond: number,
+    private burst: number
+  ) {
     // Initialize token bucket at full burst capacity (uses burst param)
     this.tokens = burst;
     this.lastRefill = Date.now();

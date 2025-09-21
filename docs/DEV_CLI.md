@@ -4,8 +4,7 @@ We provide small npm scripts and a lightweight dev CLI to help common tasks:
 
 Usage:
 
-- npm run dev:webview # start webview dev server (Vite)
-- npm run watch # watch TypeScript + esbuild bundling
+- npm run watch # watch TypeScript + esbuild bundling for the extension
 - npm run test # run unit tests
 
-We will add a small dev-cli.js in scripts/ to automate: ensure environment, run webview dev and extension watch concurrently, and open a debug window in VS Code.
+We provide `scripts/dev-cli.js` to automate environment checks and common tasks. Webview assets are static and committed under `media/webview/`.

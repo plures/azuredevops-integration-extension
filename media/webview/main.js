@@ -1,158 +1,1403 @@
-(function(){const e=document.createElement("link").relList;if(e&&e.supports&&e.supports("modulepreload"))return;for(const i of document.querySelectorAll('link[rel="modulepreload"]'))o(i);new MutationObserver(i=>{for(const a of i)if(a.type==="childList")for(const r of a.addedNodes)r.tagName==="LINK"&&r.rel==="modulepreload"&&o(r)}).observe(document,{childList:!0,subtree:!0});function n(i){const a={};return i.integrity&&(a.integrity=i.integrity),i.referrerPolicy&&(a.referrerPolicy=i.referrerPolicy),i.crossOrigin==="use-credentials"?a.credentials="include":i.crossOrigin==="anonymous"?a.credentials="omit":a.credentials="same-origin",a}function o(i){if(i.ep)return;i.ep=!0;const a=n(i);fetch(i.href,a)}})();const D=(()=>{try{return window.vscode||acquireVsCodeApi()}catch(t){return console.error("[webview] Failed to acquire VS Code API",t),null}})();function g(t){try{if(D&&typeof D.postMessage=="function"){D.postMessage(t);return}if(typeof window<"u"&&window.vscode&&typeof window.vscode.postMessage=="function"){window.vscode.postMessage(t);return}console.warn("[webview] vscode.postMessage not available; message not sent",t)}catch(e){console.error("[webview] Error posting message to extension",e,t)}}let T=[],f=null,b=null,E=!1,v="list";const s={searchInput:null,statusOverview:null,sprintFilter:null,typeFilter:null,assignedToFilter:null,excludeDone:null,excludeClosed:null,excludeRemoved:null,excludeInReview:null,workItemsContainer:null,timerContainer:null,timerDisplay:null,timerTask:null,content:null,timerInfo:null,startTimerBtn:null,pauseTimerBtn:null,stopTimerBtn:null,draftSummary:null,summaryContainer:null,toggleSummaryBtn:null,summaryStatus:null};function H(){s.searchInput=document.getElementById("searchInput"),s.statusOverview=document.getElementById("statusOverview"),s.sprintFilter=document.getElementById("sprintFilter"),s.typeFilter=document.getElementById("typeFilter"),s.assignedToFilter=document.getElementById("assignedToFilter"),s.excludeDone=document.getElementById("excludeDone"),s.excludeClosed=document.getElementById("excludeClosed"),s.excludeRemoved=document.getElementById("excludeRemoved"),s.excludeInReview=document.getElementById("excludeInReview"),s.workItemsContainer=document.getElementById("workItemsContainer"),s.timerContainer=document.getElementById("timerContainer"),s.timerDisplay=document.getElementById("timerDisplay"),s.timerInfo=document.getElementById("timerInfo");const t=document.getElementById("startTimerBtn"),e=document.getElementById("pauseTimerBtn"),n=document.getElementById("stopTimerBtn");if(s.startTimerBtn=t,s.pauseTimerBtn=e,s.stopTimerBtn=n,s.content=document.getElementById("content"),s.draftSummary=document.getElementById("draftSummary"),s.summaryContainer=document.getElementById("summaryContainer"),s.toggleSummaryBtn=document.getElementById("toggleSummaryBtn"),s.summaryStatus=document.getElementById("summaryStatus"),!s.workItemsContainer){console.error("[webview] Critical: workItemsContainer element not found");return}console.log("[webview] Initializing webview..."),Y(),se(),console.log("[webview] Setting timer visibility to false during init"),M(!1),g({type:"webviewReady"}),V()}function Y(){document.addEventListener("click",function(t){const e=t.target.closest(".status-badge");if(e){const r=e.getAttribute("data-status");r&&te(r);return}const n=t.target.closest('[data-action="selectWorkItem"]');if(n&&!t.target.closest("button")){const r=parseInt(n.getAttribute("data-id")||"0");Z(r.toString());return}const o=t.target.closest("button[data-action]");if(!o)return;t.stopPropagation();const i=o.getAttribute("data-action"),a=o.getAttribute("data-id")?parseInt(o.getAttribute("data-id")||"0"):null;switch(console.log("[webview] Button clicked:",i,"id:",a),i){case"refresh":V();break;case"toggleSummary":{const r=s.summaryContainer,c=s.toggleSummaryBtn;if(!r)return;r.hasAttribute("hidden")?(r.removeAttribute("hidden"),c&&c.setAttribute("aria-expanded","true"),c&&(c.textContent="Compose Summary ▴")):(r.setAttribute("hidden",""),c&&c.setAttribute("aria-expanded","false"),c&&(c.textContent="Compose Summary ▾"));break}case"generateCopilotPrompt":{const r=a||(f?f.workItemId:void 0),c=s.draftSummary?s.draftSummary.value:"";if(!r){console.warn("[webview] generateCopilotPrompt: no work item id available"),s.summaryStatus&&(s.summaryStatus.textContent="No work item selected to generate prompt.");return}s.summaryStatus&&(s.summaryStatus.textContent="Preparing Copilot prompt and copying to clipboard..."),g({type:"generateCopilotPrompt",workItemId:r,draftSummary:c});break}case"stopAndApply":{const r=s.draftSummary?s.draftSummary.value:"";s.summaryStatus&&(s.summaryStatus.textContent="Stopping timer and applying updates..."),g({type:"stopAndApply",comment:r});break}case"createWorkItem":g({type:"createWorkItem"});break;case"toggleView":{console.log("[webview] toggleView clicked");const c=t.target.dataset.view;console.log("[webview] View button clicked:",c,"Current view:",v),c&&c!==v&&(v=c,R(),console.log("[webview] Switching to view:",v),v==="kanban"?x():B());break}case"toggleKanban":v=v==="list"?"kanban":"list",R(),v==="kanban"?x():B();break;case"search":{const r=s.searchInput?.value;r&&g({type:"search",query:r});break}case"pauseTimer":g({type:"pauseTimer"});break;case"resumeTimer":g({type:"resumeTimer"});break;case"stopTimer":g({type:"stopTimer"});break;case"startTimer":a&&g({type:"startTimer",workItemId:a});break;case"createBranch":a&&g({type:"createBranch",id:a});break;case"openInBrowser":a&&g({type:"openInBrowser",id:a});break;case"copyId":a&&g({type:"copyId",id:a});break;case"viewDetails":a&&g({type:"viewWorkItem",workItemId:a});break;case"editWorkItem":a&&g({type:"editWorkItemInEditor",workItemId:a});break}}),document.addEventListener("change",function(t){const e=t.target,n=e.closest("select[data-action]");if(n){n.getAttribute("data-action")==="applyFilters"&&A();return}const o=e.closest("input[data-action]");o&&o.type==="checkbox"&&o.getAttribute("data-action")==="applyFilters"&&A()}),s.searchInput?.addEventListener("keypress",t=>{if(t.key==="Enter"){const e=s.searchInput?.value;e&&g({type:"search",query:e})}}),s.sprintFilter?.addEventListener("change",A),s.typeFilter?.addEventListener("change",A),s.assignedToFilter?.addEventListener("change",A)}function d(t){return String(t??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}function M(t){const e=s.timerContainer;e&&(t?e.removeAttribute("hidden"):e.setAttribute("hidden",""))}function Z(t){const e=parseInt(t,10);if(Number.isFinite(e)){b=e,document.querySelectorAll('[data-action="selectWorkItem"]').forEach(n=>{const o=n;parseInt(o.getAttribute("data-id")||"0",10)===e?o.classList.add("selected"):o.classList.remove("selected")});try{const n=O(e);n!==null&&s.draftSummary&&(s.draftSummary.value=n)}catch{}}}function q(){const t=s.timerDisplay,e=s.timerInfo;if(!t)return;if(!f){t.textContent="00:00:00",e&&(e.textContent=""),M(!1);return}const n=Number(f.elapsedSeconds||0),o=Math.floor(n/3600).toString().padStart(2,"0"),i=Math.floor(n%3600/60).toString().padStart(2,"0"),a=Math.floor(n%60).toString().padStart(2,"0");t.textContent=`${o}:${i}:${a}`,e&&(e.textContent=f.workItemTitle?`#${f.workItemId} · ${f.workItemTitle}`:`#${f.workItemId}`),M(!0)}function z(){const t=s.startTimerBtn,e=s.pauseTimerBtn,n=s.stopTimerBtn,o=!!f&&f.running!==!1;t&&(t.disabled=o),e&&(e.disabled=!o),n&&(n.disabled=!f)}function _(){v=v==="list"?"kanban":"list",R(),v==="kanban"?x():B()}function ee(t){g({type:"selfTestPong",nonce:t})}function L(t){if(!t)return"Unknown";const e=t.state||t.fields?.["System.State"]||t["System.State"]||t.fields?.["System.State.name"],n=typeof e=="string"&&e.trim()?e.trim():"";if(!n)return"Unknown";const o={todo:"To Do","to do":"To Do",new:"New",active:"Active","in progress":"In Progress",doing:"In Progress","doing ":"In Progress","code review":"Code Review",testing:"Testing",done:"Done",resolved:"Resolved",closed:"Closed",removed:"Removed"},i=n.toLowerCase();return o[i]||n}function te(t){const e=T.filter(n=>L(n)===t);s.searchInput&&(s.searchInput.value=""),s.sprintFilter&&(s.sprintFilter.value=""),s.typeFilter&&(s.typeFilter.value=""),s.assignedToFilter&&(s.assignedToFilter.value=""),s.workItemsContainer.innerHTML=e.map(n=>{const o=n.id,i=n.title||`Work Item #${o}`,a=n.state||"Unknown",r=n.type||"Unknown",c=n.assignedTo||"Unassigned",m=n.priority||2,y=n.description||"",p=n.tags||[],w=n.iterationPath||"",k=b===o,I=U(r),l=j(m),u=W(L(n));return`
-      <div class="work-item-card ${k?"selected":""} ${u}" 
-           data-id="${o}" 
+/* eslint-disable @typescript-eslint/no-unused-vars */
+// Vanilla JavaScript implementation - reliable and framework-free
+// Initialize VS Code API
+const vscode = (() => {
+    try {
+        return window.vscode || acquireVsCodeApi();
+    }
+    catch (e) {
+        console.error('[webview] Failed to acquire VS Code API', e);
+        return null;
+    }
+})();
+// Ensure all outbound messages go to the extension host via vscode.postMessage
+function postMessage(msg) {
+    try {
+        if (vscode && typeof vscode.postMessage === 'function') {
+            vscode.postMessage(msg);
+            return;
+        }
+        if (typeof window !== 'undefined' &&
+            window.vscode &&
+            typeof window.vscode.postMessage === 'function') {
+            window.vscode.postMessage(msg);
+            return;
+        }
+        console.warn('[webview] vscode.postMessage not available; message not sent', msg);
+    }
+    catch (err) {
+        console.error('[webview] Error posting message to extension', err, msg);
+    }
+}
+// State management
+let workItems = [];
+let currentTimer = null;
+let selectedWorkItemId = null;
+let isLoading = false;
+let currentView = 'list';
+// DOM element references
+const elements = {
+    searchInput: null,
+    statusOverview: null,
+    sprintFilter: null,
+    typeFilter: null,
+    assignedToFilter: null,
+    excludeDone: null,
+    excludeClosed: null,
+    excludeRemoved: null,
+    excludeInReview: null,
+    workItemsContainer: null,
+    timerContainer: null,
+    timerDisplay: null,
+    timerTask: null,
+    content: null,
+    timerInfo: null,
+    startTimerBtn: null,
+    pauseTimerBtn: null,
+    stopTimerBtn: null,
+    // New summary editor elements
+    draftSummary: null,
+    summaryContainer: null,
+    toggleSummaryBtn: null,
+    summaryStatus: null,
+};
+// Initialize the application
+function init() {
+    // Get DOM element references for new structure
+    elements.searchInput = document.getElementById('searchInput');
+    elements.statusOverview = document.getElementById('statusOverview');
+    elements.sprintFilter = document.getElementById('sprintFilter');
+    elements.typeFilter = document.getElementById('typeFilter');
+    elements.assignedToFilter = document.getElementById('assignedToFilter');
+    elements.excludeDone = document.getElementById('excludeDone');
+    elements.excludeClosed = document.getElementById('excludeClosed');
+    elements.excludeRemoved = document.getElementById('excludeRemoved');
+    elements.excludeInReview = document.getElementById('excludeInReview');
+    elements.workItemsContainer = document.getElementById('workItemsContainer');
+    elements.timerContainer = document.getElementById('timerContainer');
+    elements.timerDisplay = document.getElementById('timerDisplay');
+    elements.timerInfo = document.getElementById('timerInfo');
+    // Timer button elements
+    const startTimerBtn = document.getElementById('startTimerBtn');
+    const pauseTimerBtn = document.getElementById('pauseTimerBtn');
+    const stopTimerBtn = document.getElementById('stopTimerBtn');
+    elements.startTimerBtn = startTimerBtn;
+    elements.pauseTimerBtn = pauseTimerBtn;
+    elements.stopTimerBtn = stopTimerBtn;
+    // Note: 'content' element is not required in new layout
+    elements.content = document.getElementById('content');
+    // New summary element references
+    elements.draftSummary = document.getElementById('draftSummary');
+    elements.summaryContainer = document.getElementById('summaryContainer');
+    elements.toggleSummaryBtn = document.getElementById('toggleSummaryBtn');
+    elements.summaryStatus = document.getElementById('summaryStatus');
+    if (!elements.workItemsContainer) {
+        console.error('[webview] Critical: workItemsContainer element not found');
+        return;
+    }
+    // Set up event listeners
+    console.log('[webview] Initializing webview...');
+    setupEventListeners();
+    // Set up message handling
+    setupMessageHandling();
+    // Ensure timer is hidden initially
+    console.log('[webview] Setting timer visibility to false during init');
+    updateTimerVisibility(false);
+    // Signal readiness to extension and request work items
+    postMessage({ type: 'webviewReady' });
+    requestWorkItems();
+}
+function setupEventListeners() {
+    // Event delegation for all buttons and clickable elements (from original pattern)
+    document.addEventListener('click', function (e) {
+        // Handle status badge clicks
+        const statusBadge = e.target.closest('.status-badge');
+        if (statusBadge) {
+            const status = statusBadge.getAttribute('data-status');
+            if (status) {
+                filterByStatus(status);
+            }
+            return;
+        }
+        // Handle work item card clicks
+        const workItemCard = e.target.closest('[data-action="selectWorkItem"]');
+        if (workItemCard && !e.target.closest('button')) {
+            const id = parseInt(workItemCard.getAttribute('data-id') || '0');
+            selectWorkItem(id.toString());
+            return;
+        }
+        // Handle button clicks
+        const button = e.target.closest('button[data-action]');
+        if (!button)
+            return;
+        e.stopPropagation(); // Prevent bubbling to work item card
+        const action = button.getAttribute('data-action');
+        const id = button.getAttribute('data-id')
+            ? parseInt(button.getAttribute('data-id') || '0')
+            : null;
+        console.log('[webview] Button clicked:', action, 'id:', id);
+        switch (action) {
+            case 'refresh':
+                requestWorkItems();
+                break;
+            case 'toggleSummary': {
+                const container = elements.summaryContainer;
+                const toggleBtn = elements.toggleSummaryBtn;
+                if (!container)
+                    return;
+                const isHidden = container.hasAttribute('hidden');
+                if (isHidden) {
+                    container.removeAttribute('hidden');
+                    if (toggleBtn)
+                        toggleBtn.setAttribute('aria-expanded', 'true');
+                    if (toggleBtn)
+                        toggleBtn.textContent = 'Compose Summary ▴';
+                }
+                else {
+                    container.setAttribute('hidden', '');
+                    if (toggleBtn)
+                        toggleBtn.setAttribute('aria-expanded', 'false');
+                    if (toggleBtn)
+                        toggleBtn.textContent = 'Compose Summary ▾';
+                }
+                break;
+            }
+            case 'generateCopilotPrompt': {
+                // Use current timer's work item id when available; otherwise try button id
+                const workItemId = id || (currentTimer ? currentTimer.workItemId : undefined);
+                const draft = elements.draftSummary ? elements.draftSummary.value : '';
+                if (!workItemId) {
+                    console.warn('[webview] generateCopilotPrompt: no work item id available');
+                    if (elements.summaryStatus)
+                        elements.summaryStatus.textContent = 'No work item selected to generate prompt.';
+                    return;
+                }
+                // Provide visual feedback
+                if (elements.summaryStatus)
+                    elements.summaryStatus.textContent =
+                        'Preparing Copilot prompt and copying to clipboard...';
+                postMessage({ type: 'generateCopilotPrompt', workItemId, draftSummary: draft });
+                break;
+            }
+            case 'stopAndApply': {
+                const draft = elements.draftSummary ? elements.draftSummary.value : '';
+                if (elements.summaryStatus)
+                    elements.summaryStatus.textContent = 'Stopping timer and applying updates...';
+                postMessage({ type: 'stopAndApply', comment: draft });
+                break;
+            }
+            case 'createWorkItem':
+                postMessage({ type: 'createWorkItem' });
+                break;
+            case 'toggleView': {
+                console.log('[webview] toggleView clicked');
+                const viewBtn = e.target;
+                const view = viewBtn.dataset.view;
+                console.log('[webview] View button clicked:', view, 'Current view:', currentView);
+                if (view && view !== currentView) {
+                    currentView = view;
+                    updateViewToggle();
+                    console.log('[webview] Switching to view:', currentView);
+                    if (currentView === 'kanban') {
+                        renderKanbanView();
+                    }
+                    else {
+                        renderWorkItems();
+                    }
+                }
+                break;
+            }
+            case 'toggleKanban':
+                // Legacy support - toggle between views
+                currentView = currentView === 'list' ? 'kanban' : 'list';
+                updateViewToggle();
+                if (currentView === 'kanban') {
+                    renderKanbanView();
+                }
+                else {
+                    renderWorkItems();
+                }
+                break;
+            case 'search': {
+                const query = elements.searchInput?.value;
+                if (query) {
+                    postMessage({ type: 'search', query });
+                }
+                break;
+            }
+            case 'pauseTimer':
+                postMessage({ type: 'pauseTimer' });
+                break;
+            case 'resumeTimer':
+                postMessage({ type: 'resumeTimer' });
+                break;
+            case 'stopTimer':
+                postMessage({ type: 'stopTimer' });
+                break;
+            case 'startTimer': {
+                // Support toggle behavior everywhere the start button appears.
+                // If an id is provided, use it; otherwise fall back to selected work item or current timer.
+                const targetId = id ?? selectedWorkItemId ?? (currentTimer ? Number(currentTimer.workItemId) : null);
+                if (targetId) {
+                    if (currentTimer && Number(currentTimer.workItemId) === Number(targetId)) {
+                        // Toggle: same item is running -> stop
+                        postMessage({ type: 'stopTimer' });
+                    }
+                    else {
+                        postMessage({ type: 'startTimer', workItemId: Number(targetId) });
+                    }
+                }
+                else {
+                    // No target available; optionally we could surface a hint here.
+                    console.warn('[webview] startTimer requested but no work item is selected and no active timer');
+                }
+                break;
+            }
+            case 'createBranch':
+                if (id)
+                    postMessage({ type: 'createBranch', id });
+                break;
+            case 'openInBrowser':
+                if (id)
+                    postMessage({ type: 'openInBrowser', id });
+                break;
+            case 'copyId':
+                if (id)
+                    postMessage({ type: 'copyId', id });
+                break;
+            case 'viewDetails':
+                if (id)
+                    postMessage({ type: 'viewWorkItem', workItemId: id });
+                break;
+            case 'editWorkItem':
+                if (id)
+                    postMessage({ type: 'editWorkItemInEditor', workItemId: id });
+                break;
+            case 'addComment':
+                if (id)
+                    handleAddComment(id);
+                break;
+        }
+    });
+    // Event delegation for change events (filters)
+    document.addEventListener('change', function (e) {
+        const target = e.target;
+        // Handle select filters
+        const select = target.closest('select[data-action]');
+        if (select) {
+            const action = select.getAttribute('data-action');
+            if (action === 'applyFilters') {
+                applyFilters();
+            }
+            return;
+        }
+        // Handle checkbox filters
+        const checkbox = target.closest('input[data-action]');
+        if (checkbox && checkbox.type === 'checkbox') {
+            const action = checkbox.getAttribute('data-action');
+            if (action === 'applyFilters') {
+                applyFilters();
+            }
+        }
+    });
+    // Search input handler
+    elements.searchInput?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            const query = elements.searchInput?.value;
+            if (query) {
+                postMessage({ type: 'search', query });
+            }
+        }
+    });
+    // Directly wire filter dropdowns to apply filters (no data-action attribute in HTML)
+    elements.sprintFilter?.addEventListener('change', applyFilters);
+    elements.typeFilter?.addEventListener('change', applyFilters);
+    elements.assignedToFilter?.addEventListener('change', applyFilters);
+}
+// Filter and render functions
+function escapeHtml(input) {
+    const str = String(input ?? '');
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+function updateTimerVisibility(visible) {
+    const el = elements.timerContainer;
+    if (!el)
+        return;
+    if (visible) {
+        el.removeAttribute('hidden');
+    }
+    else {
+        el.setAttribute('hidden', '');
+    }
+}
+// Preserve scroll position across full re-renders.
+function preserveScroll(axis, render, container = elements.workItemsContainer) {
+    const el = container;
+    if (!el) {
+        render();
+        return;
+    }
+    const prevLeft = el.scrollLeft;
+    const prevTop = el.scrollTop;
+    render();
+    try {
+        requestAnimationFrame(() => {
+            if (axis === 'x' || axis === 'both')
+                el.scrollLeft = prevLeft;
+            if (axis === 'y' || axis === 'both')
+                el.scrollTop = prevTop;
+        });
+    }
+    catch {
+        if (axis === 'x' || axis === 'both')
+            el.scrollLeft = prevLeft;
+        if (axis === 'y' || axis === 'both')
+            el.scrollTop = prevTop;
+    }
+}
+function selectWorkItem(id) {
+    const num = parseInt(id, 10);
+    if (!Number.isFinite(num))
+        return;
+    selectedWorkItemId = num;
+    // Highlight selection in UI
+    document.querySelectorAll('[data-action="selectWorkItem"]').forEach((node) => {
+        const el = node;
+        const nid = parseInt(el.getAttribute('data-id') || '0', 10);
+        if (nid === num)
+            el.classList.add('selected');
+        else
+            el.classList.remove('selected');
+    });
+    // Load persisted draft for selected work item if present
+    try {
+        const persisted = loadDraftForWorkItem(num);
+        if (persisted !== null && elements.draftSummary) {
+            elements.draftSummary.value = persisted;
+        }
+    }
+    catch {
+        // ignore draft load errors
+    }
+}
+function handleAddComment(workItemId) {
+    // Ask the extension to show an input box (more reliable than window.prompt in VS Code webviews)
+    postMessage({ type: 'addComment', workItemId });
+}
+function formatTimerDuration(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) {
+        return `${h}:${m.toString().padStart(2, '0')}`;
+    }
+    return `${m}:${Math.floor(seconds % 60)
+        .toString()
+        .padStart(2, '0')}`;
+}
+function updateTimerDisplay() {
+    const d = elements.timerDisplay;
+    const info = elements.timerInfo;
+    if (!d)
+        return;
+    if (!currentTimer) {
+        d.textContent = '00:00:00';
+        if (info)
+            info.textContent = '';
+        updateTimerVisibility(false);
+        return;
+    }
+    const secs = Number(currentTimer.elapsedSeconds || 0);
+    const h = Math.floor(secs / 3600)
+        .toString()
+        .padStart(2, '0');
+    const m = Math.floor((secs % 3600) / 60)
+        .toString()
+        .padStart(2, '0');
+    const s = Math.floor(secs % 60)
+        .toString()
+        .padStart(2, '0');
+    d.textContent = `${h}:${m}:${s}`;
+    if (info)
+        info.textContent = currentTimer.workItemTitle
+            ? `#${currentTimer.workItemId} · ${currentTimer.workItemTitle}`
+            : `#${currentTimer.workItemId}`;
+    updateTimerVisibility(true);
+}
+function updateTimerButtonStates() {
+    const startBtn = elements.startTimerBtn;
+    const pauseBtn = elements.pauseTimerBtn;
+    const stopBtn = elements.stopTimerBtn;
+    const active = !!currentTimer && currentTimer.running !== false;
+    if (startBtn)
+        startBtn.disabled = active; // disable start while running
+    if (pauseBtn)
+        pauseBtn.disabled = !active; // enable pause while running
+    if (stopBtn)
+        stopBtn.disabled = !currentTimer; // enable stop when any timer exists
+}
+function handleToggleKanbanView() {
+    currentView = currentView === 'list' ? 'kanban' : 'list';
+    updateViewToggle();
+    if (currentView === 'kanban')
+        renderKanbanView();
+    else
+        renderWorkItems();
+}
+function handleSelfTestPing(nonce) {
+    postMessage({ type: 'selfTestPong', nonce });
+}
+// Normalize state value from different shapes of work item objects
+function getNormalizedState(item) {
+    if (!item)
+        return 'Unknown';
+    const raw = item.state ||
+        item.fields?.['System.State'] ||
+        item['System.State'] ||
+        item.fields?.['System.State.name'];
+    const rawStr = typeof raw === 'string' && raw.trim() ? raw.trim() : '';
+    if (!rawStr)
+        return 'Unknown';
+    // Map common synonyms/variants to canonical state names
+    const map = {
+        todo: 'To Do',
+        'to do': 'To Do',
+        new: 'New',
+        active: 'Active',
+        'in progress': 'In Progress',
+        doing: 'In Progress',
+        'doing ': 'In Progress',
+        'code review': 'Code Review',
+        testing: 'Testing',
+        done: 'Done',
+        resolved: 'Resolved',
+        closed: 'Closed',
+        removed: 'Removed',
+    };
+    const key = rawStr.toLowerCase();
+    return map[key] || rawStr;
+}
+function filterByStatus(status) {
+    // Filter work items by status and re-render
+    const filteredItems = workItems.filter((item) => {
+        const s = getNormalizedState(item);
+        return s === status;
+    });
+    // Clear other filters
+    if (elements.searchInput)
+        elements.searchInput.value = '';
+    if (elements.sprintFilter)
+        elements.sprintFilter.value = '';
+    if (elements.typeFilter)
+        elements.typeFilter.value = '';
+    if (elements.assignedToFilter)
+        elements.assignedToFilter.value = '';
+    // Update the work items display
+    elements.workItemsContainer.innerHTML = filteredItems
+        .map((item) => {
+        const id = item.id;
+        const title = item.title || `Work Item #${id}`;
+        const state = item.state || 'Unknown';
+        const type = item.type || 'Unknown';
+        const assignedTo = item.assignedTo || 'Unassigned';
+        const priority = item.priority || 2;
+        const description = item.description || '';
+        const tags = item.tags || [];
+        const iterationPath = item.iterationPath || '';
+        const isSelected = selectedWorkItemId === id;
+        // Get work item type icon
+        const typeIcon = getWorkItemTypeIcon(type);
+        // Get priority class
+        const priorityClass = getPriorityClass(priority);
+        // Get state class
+        const stateClass = getStateClass(getNormalizedState(item));
+        return `
+      <div class="work-item-card ${isSelected ? 'selected' : ''} ${stateClass}" 
+           data-id="${id}" 
            data-action="selectWorkItem">
         <div class="work-item-header">
-          <div class="work-item-type-icon ${I.class}">
-            ${I.icon}
+          <div class="work-item-type-icon ${typeIcon.class}">
+            ${typeIcon.icon}
           </div>
-          <div class="work-item-id">#${o}</div>
-          <div class="work-item-priority ${l}">
-            ${$(m).icon} ${$(m).label}
+          <div class="work-item-id">#${id}</div>
+          <div class="work-item-priority ${priorityClass}">
+            ${getPriorityIcon(priority).icon} ${getPriorityIcon(priority).label}
           </div>
         </div>
         
         <div class="work-item-content">
-          <div class="work-item-title" title="${d(i)}">
-            ${d(i)}
+          <div class="work-item-title" title="${escapeHtml(title)}">
+            ${escapeHtml(title)}
           </div>
           
-          ${y?`
+          ${description
+            ? `
             <div class="work-item-description">
-              ${d(y.substring(0,120))}${y.length>120?"...":""}
+              ${escapeHtml(description.substring(0, 120))}${description.length > 120 ? '...' : ''}
             </div>
-          `:""}
+          `
+            : ''}
           
           <div class="work-item-details">
             <div class="work-item-meta-row">
-              <span class="work-item-type">${d(r)}</span>
-              <span class="work-item-state state-${a.toLowerCase().replace(/\\s+/g,"-")}">${d(a)}</span>
+              <span class="work-item-type">${escapeHtml(type)}</span>
+              <span class="work-item-state state-${state
+            .toLowerCase()
+            .replace(/\\s+/g, '-')}">${escapeHtml(state)}</span>
             </div>
             
-            ${c!=="Unassigned"?`
+            ${assignedTo !== 'Unassigned'
+            ? `
               <div class="work-item-assignee">
                 <span class="assignee-icon">👤</span>
-                <span>${d(c)}</span>
+                <span>${escapeHtml(assignedTo)}</span>
               </div>
-            `:""}
+            `
+            : ''}
             
-            ${w?`
+            ${iterationPath
+            ? `
               <div class="work-item-iteration">
                 <span class="iteration-icon">🔄</span>
-                <span>${d(w.split("\\\\").pop()||w)}</span>
+                <span>${escapeHtml(iterationPath.split('\\\\').pop() || iterationPath)}</span>
               </div>
-            `:""}
+            `
+            : ''}
             
-            ${p.length>0?`
+            ${tags.length > 0
+            ? `
               <div class="work-item-tags">
-                ${p.slice(0,3).map(S=>`
-                  <span class="tag">${d(S)}</span>
-                `).join("")}
-                ${p.length>3?`<span class="tag-overflow">+${p.length-3}</span>`:""}
+                ${tags
+                .slice(0, 3)
+                .map((tag) => `
+                  <span class="tag">${escapeHtml(tag)}</span>
+                `)
+                .join('')}
+                ${tags.length > 3 ? `<span class="tag-overflow">+${tags.length - 3}</span>` : ''}
               </div>
-            `:""}
+            `
+            : ''}
           </div>
         </div>
         
-        <div class="work-item-actions">
-          <button class="action-btn timer-btn" data-action="startTimer" data-id="${o}" title="Start Timer">
-            ⏱️
-          </button>
-          <button class="action-btn view-btn" data-action="viewDetails" data-id="${o}" title="View Details">
+                <div class="work-item-actions">
+                    ${currentTimer && Number(currentTimer.workItemId) === Number(id)
+                        ? `<button class="action-btn timer-btn" data-action="stopTimer" data-id="${id}" title="Start/Stop Timer">⏹️</button>`
+                        : `<button class="action-btn timer-btn" data-action="startTimer" data-id="${id}" title="Start/Stop Timer">⏱️</button>`}
+          <button class="action-btn view-btn" data-action="viewDetails" data-id="${id}" title="View Details">
             👁️
           </button>
-          <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${o}" title="Edit">
+          <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${id}" title="Edit">
             ✏️
           </button>
         </div>
       </div>
-    `}).join(""),N(e)}function N(t=T){if(!s.statusOverview)return;const e=t.reduce((n,o)=>{const i=L(o);return n[i]=(n[i]||0)+1,n},{});s.statusOverview.innerHTML=Object.entries(e).map(([n,o])=>`
-        <div class="status-badge ${W(String(n))}" data-status="${n}" title="${d(String(n))}">
-          <span class="status-name">${n}</span>
-          <span class="status-count">${o}</span>
+    `;
+    })
+        .join('');
+    // Update status overview to show only the filtered status
+    updateStatusOverview(filteredItems);
+}
+function updateStatusOverview(items = workItems) {
+    if (!elements.statusOverview)
+        return;
+    const statusCounts = items.reduce((acc, item) => {
+        const status = getNormalizedState(item);
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+    }, {});
+    elements.statusOverview.innerHTML = Object.entries(statusCounts)
+        .map(([status, count]) => {
+        const stateClass = getStateClass(String(status));
+        // Show raw value as tooltip so authors can see original state strings
+        const rawTitle = status;
+        return `
+        <div class="status-badge ${stateClass}" data-status="${status}" title="${escapeHtml(String(rawTitle))}">
+          <span class="status-name">${status}</span>
+          <span class="status-count">${count}</span>
         </div>
-      `).join("")}function se(){window.addEventListener("message",t=>{const e=t.data;switch(e.type){case"workItemsLoaded":re(e.workItems||[]);break;case"copilotPromptCopied":{e.workItemId,s.summaryStatus&&(s.summaryStatus.textContent="Copilot prompt copied to clipboard. Paste into Copilot chat to generate a summary."),setTimeout(()=>{s.summaryStatus&&(s.summaryStatus.textContent="")},3500);break}case"stopAndApplyResult":{const n=e.workItemId,o=e.hours;s.summaryStatus&&(s.summaryStatus.textContent=`Applied ${o.toFixed(2)} hours to work item #${n}.`),s.draftSummary&&(s.draftSummary.value="");try{typeof n=="number"&&le(n)}catch(i){console.warn("[webview] Failed to remove persisted draft after apply",i)}setTimeout(()=>{s.summaryStatus&&(s.summaryStatus.textContent="")},4e3);break}case"workItemsError":ie(e.error);break;case"timerUpdate":ae(e.timer);break;case"toggleKanbanView":_();break;case"selfTestPing":ee(e.nonce);break;default:console.log("[webview] Unknown message type:",e.type)}})}function V(){E||(E=!0,ne(),g({type:"getWorkItems"}))}function ne(){s.workItemsContainer&&(s.workItemsContainer.innerHTML=`
+      `;
+    })
+        .join('');
+}
+function setupMessageHandling() {
+    window.addEventListener('message', (event) => {
+        const message = event.data;
+        switch (message.type) {
+            case 'workItemsLoaded':
+                handleWorkItemsLoaded(message.workItems || []);
+                break;
+            case 'copilotPromptCopied': {
+                const id = message.workItemId;
+                if (elements.summaryStatus)
+                    elements.summaryStatus.textContent =
+                        'Copilot prompt copied to clipboard. Paste into Copilot chat to generate a summary.';
+                // Briefly show feedback then clear
+                setTimeout(() => {
+                    if (elements.summaryStatus)
+                        elements.summaryStatus.textContent = '';
+                }, 3500);
+                break;
+            }
+            case 'stopAndApplyResult': {
+                const id = message.workItemId;
+                const hours = message.hours;
+                if (elements.summaryStatus)
+                    elements.summaryStatus.textContent = `Applied ${hours.toFixed(2)} hours to work item #${id}.`;
+                // Reset draft after apply
+                if (elements.draftSummary)
+                    elements.draftSummary.value = '';
+                try {
+                    if (typeof id === 'number')
+                        removeDraftForWorkItem(id);
+                }
+                catch (e) {
+                    console.warn('[webview] Failed to remove persisted draft after apply', e);
+                }
+                setTimeout(() => {
+                    if (elements.summaryStatus)
+                        elements.summaryStatus.textContent = '';
+                }, 4000);
+                break;
+            }
+            case 'workItemsError':
+                handleWorkItemsError(message.error);
+                break;
+            case 'timerUpdate':
+                handleTimerUpdate(message.timer);
+                break;
+            case 'toggleKanbanView':
+                handleToggleKanbanView();
+                break;
+            case 'selfTestPing':
+                handleSelfTestPing(message.nonce);
+                break;
+            default:
+                console.log('[webview] Unknown message type:', message.type);
+        }
+    });
+}
+function requestWorkItems() {
+    if (isLoading)
+        return;
+    isLoading = true;
+    showLoadingState();
+    postMessage({ type: 'getWorkItems' });
+}
+function showLoadingState() {
+    if (!elements.workItemsContainer)
+        return;
+    elements.workItemsContainer.innerHTML = `
     <div class="loading">
       <div>Loading work items...</div>
     </div>
-  `)}function oe(){if(s.sprintFilter){const t=new Set;T.forEach(e=>{const n=(e.iterationPath||e.fields?.["System.IterationPath"]||"").toString();if(!n)return;const o=n.split("\\").pop()||n;t.add(o)}),s.sprintFilter.innerHTML='<option value="">All Sprints</option>'+Array.from(t).sort().map(e=>`<option value="${d(e)}">${d(e)}</option>`).join("")}if(s.typeFilter){const t=new Set;T.forEach(e=>{const n=(e.type||e.fields?.["System.WorkItemType"]||"").toString();n&&t.add(n)}),s.typeFilter.innerHTML='<option value="">All Types</option>'+Array.from(t).sort().map(e=>`<option value="${d(e)}">${d(e)}</option>`).join("")}if(s.assignedToFilter){const t=new Set;T.forEach(e=>{let n=e.assignedTo??e.fields?.["System.AssignedTo"];n&&typeof n=="object"&&(n=(n.displayName||n.uniqueName||n.name||"").toString()),n=(n||"").toString(),n&&n!=="Unassigned"&&t.add(n)}),s.assignedToFilter.innerHTML='<option value="">All Assignees</option>'+Array.from(t).sort().map(e=>`<option value="${d(e)}">${d(e)}</option>`).join("")}}function re(t){console.log("[webview] handleWorkItemsLoaded called with",t.length,"items:",t),E=!1,T=t,console.log("[webview] After assignment, workItems.length:",T.length),oe(),B()}function ie(t){console.error("[webview] Work items error:",t),E=!1,s.workItemsContainer&&(s.workItemsContainer.innerHTML=`
+  `;
+}
+function populateFilterDropdowns() {
+    // Populate sprint filter
+    if (elements.sprintFilter) {
+        const sprints = new Set();
+        workItems.forEach((item) => {
+            const path = (item.iterationPath || item.fields?.['System.IterationPath'] || '').toString();
+            if (!path)
+                return;
+            const sprintName = path.split('\\').pop() || path;
+            sprints.add(sprintName);
+        });
+        elements.sprintFilter.innerHTML =
+            '<option value="">All Sprints</option>' +
+                Array.from(sprints)
+                    .sort()
+                    .map((sprint) => `<option value="${escapeHtml(sprint)}">${escapeHtml(sprint)}</option>`)
+                    .join('');
+    }
+    // Populate type filter
+    if (elements.typeFilter) {
+        const types = new Set();
+        workItems.forEach((item) => {
+            const t = (item.type || item.fields?.['System.WorkItemType'] || '').toString();
+            if (t)
+                types.add(t);
+        });
+        elements.typeFilter.innerHTML =
+            '<option value="">All Types</option>' +
+                Array.from(types)
+                    .sort()
+                    .map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`)
+                    .join('');
+    }
+    // Populate assignee filter
+    if (elements.assignedToFilter) {
+        const assignees = new Set();
+        workItems.forEach((item) => {
+            let a = item.assignedTo ?? item.fields?.['System.AssignedTo'];
+            if (a && typeof a === 'object') {
+                a = (a.displayName || a.uniqueName || a.name || '').toString();
+            }
+            a = (a || '').toString();
+            if (a && a !== 'Unassigned')
+                assignees.add(a);
+        });
+        elements.assignedToFilter.innerHTML =
+            '<option value="">All Assignees</option>' +
+                Array.from(assignees)
+                    .sort()
+                    .map((assignee) => `<option value="${escapeHtml(assignee)}">${escapeHtml(assignee)}</option>`)
+                    .join('');
+    }
+}
+function handleWorkItemsLoaded(items) {
+    console.log('[webview] handleWorkItemsLoaded called with', items.length, 'items:', items);
+    isLoading = false;
+    workItems = items;
+    console.log('[webview] After assignment, workItems.length:', workItems.length);
+    populateFilterDropdowns();
+    renderWorkItems();
+}
+function handleWorkItemsError(error) {
+    console.error('[webview] Work items error:', error);
+    isLoading = false;
+    if (!elements.workItemsContainer)
+        return;
+    elements.workItemsContainer.innerHTML = `
     <div class="error">
       <div><strong>Error loading work items:</strong></div>
-      <div>${d(t)}</div>
+      <div>${escapeHtml(error)}</div>
       <button class="btn" onclick="requestWorkItems()" style="margin-top: 0.5rem;">Retry</button>
     </div>
-  `)}function U(t){return{Bug:{icon:"🐛",class:"type-bug"},Task:{icon:"📋",class:"type-task"},"User Story":{icon:"📖",class:"type-story"},Feature:{icon:"⭐",class:"type-feature"},Epic:{icon:"🎯",class:"type-epic"},Issue:{icon:"❗",class:"type-issue"},"Test Case":{icon:"🧪",class:"type-test"},"Product Backlog Item":{icon:"📄",class:"type-pbi"}}[t]||{icon:"📝",class:"type-default"}}function j(t){return t===1?"priority-1":t===2?"priority-2":t===3?"priority-3":t===4?"priority-4":"priority-default"}function $(t){return t===0?{icon:"🔴",label:"Critical"}:t===1?{icon:"🟡",label:"High"}:t===2?{icon:"🟢",label:"Medium"}:t===3?{icon:"🔵",label:"Low"}:t===4?{icon:"🟣",label:"Lowest"}:{icon:"🟢",label:"Medium"}}function W(t){return{New:"state-new",Active:"state-active",Resolved:"state-resolved",Closed:"state-closed",Removed:"state-removed",Done:"state-done","To Do":"state-todo",Doing:"state-doing","In Progress":"state-inprogress","Code Review":"state-review",Testing:"state-testing"}[t]||"state-default"}function G(){const t=(s.searchInput?.value||"").trim().toLowerCase(),e=s.sprintFilter?.value||"",n=s.typeFilter?.value||"",o=s.assignedToFilter?.value||"",i=!!s.excludeDone?.checked,a=!!s.excludeClosed?.checked,r=!!s.excludeRemoved?.checked,c=!!s.excludeInReview?.checked,m=new Set([...i?["Done"]:[],...a?["Closed"]:[],...r?["Removed"]:[],...c?["Code Review"]:[]]),y=l=>{if(!t)return!0;const u=String(l.id??l.fields?.["System.Id"]??""),S=String(l.title??l.fields?.["System.Title"]??"").toLowerCase(),h=String(l.tags?Array.isArray(l.tags)?l.tags.join(";"):l.tags:l.fields?.["System.Tags"]||"").toLowerCase();return u.includes(t)||S.includes(t)||h.includes(t)},p=l=>{if(!e)return!0;const u=String(l.iterationPath??l.fields?.["System.IterationPath"]??"");return(u.split("\\").pop()||u)===e},w=l=>n?String(l.type??l.fields?.["System.WorkItemType"]??"")===n:!0,k=l=>{if(!o)return!0;let u=l.assignedTo??l.fields?.["System.AssignedTo"];return u&&typeof u=="object"&&(u=u.displayName||u.uniqueName||u.name),String(u||"")===o},I=l=>{const u=L(l);return!m.has(u)};return T.filter(l=>y(l)&&p(l)&&w(l)&&k(l)&&I(l))}function A(){v==="kanban"?x():B()}function B(){const t=G();if(console.log("[webview] renderWorkItems called, itemsToRender.length:",t.length),!s.workItemsContainer)return;if(t.length===0){s.workItemsContainer.innerHTML=`
-      <div class="status-message">
-        <div>No work items found</div>
-        <div style="font-size: 0.9em; color: var(--vscode-descriptionForeground); margin-top: 0.5rem;">Use the refresh button (🔄) in the header to reload work items</div>
-      </div>`;return}const e=(o,i)=>{if(o!=null)switch(i){case"System.Id":return o.id??o.fields?.["System.Id"];case"System.Title":return o.title??o.fields?.["System.Title"];case"System.State":return o.state??o.fields?.["System.State"];case"System.WorkItemType":return o.type??o.fields?.["System.WorkItemType"];case"System.AssignedTo":{const a=o.assignedTo||o.fields?.["System.AssignedTo"];return a&&typeof a=="object"?a.displayName||a.uniqueName||a.name:a}case"System.Tags":return o.tags?Array.isArray(o.tags)?o.tags.join(";"):o.tags:o.fields?.["System.Tags"];case"Microsoft.VSTS.Common.Priority":return o.priority??o.fields?.["Microsoft.VSTS.Common.Priority"];default:return o[i]??o.fields?.[i]}},n=t.map(o=>{const i=e(o,"System.Id"),a=e(o,"System.Title")||`Work Item #${i}`,r=e(o,"System.State")||"Unknown",c=e(o,"System.WorkItemType")||"Unknown",y=e(o,"System.AssignedTo")||"Unassigned",p=e(o,"Microsoft.VSTS.Common.Priority")||2,w=e(o,"System.Tags"),k=typeof w=="string"?w.split(";").filter(Boolean):Array.isArray(w)?w:[],I=e(o,"System.IterationPath")||"",l=o.description||o.fields?.["System.Description"]||"",u=b===i,S=U(String(c)),h=j(Number(p)),P=W(String(r));return`
-      <div class="work-item-card ${u?"selected":""} ${P}" data-id="${i}" data-action="selectWorkItem">
+  `;
+}
+// Helper functions for work item rendering
+function getWorkItemTypeIcon(type) {
+    const typeMap = {
+        Bug: { icon: '🐛', class: 'type-bug' },
+        Task: { icon: '📋', class: 'type-task' },
+        'User Story': { icon: '📖', class: 'type-story' },
+        Feature: { icon: '⭐', class: 'type-feature' },
+        Epic: { icon: '🎯', class: 'type-epic' },
+        Issue: { icon: '❗', class: 'type-issue' },
+        'Test Case': { icon: '🧪', class: 'type-test' },
+        'Product Backlog Item': { icon: '📄', class: 'type-pbi' },
+    };
+    return typeMap[type] || { icon: '📝', class: 'type-default' };
+}
+function getPriorityClass(priority) {
+    if (priority === 1)
+        return 'priority-1';
+    if (priority === 2)
+        return 'priority-2';
+    if (priority === 3)
+        return 'priority-3';
+    if (priority === 4)
+        return 'priority-4';
+    return 'priority-default';
+}
+function getPriorityIcon(priority) {
+    if (priority === 0)
+        return { icon: '🔴', label: 'Critical' }; // Critical
+    if (priority === 1)
+        return { icon: '🟡', label: 'High' }; // High
+    if (priority === 2)
+        return { icon: '🟢', label: 'Medium' }; // Medium
+    if (priority === 3)
+        return { icon: '🔵', label: 'Low' }; // Low
+    if (priority === 4)
+        return { icon: '🟣', label: 'Lowest' }; // Lowest
+    return { icon: '🟢', label: 'Medium' }; // Default
+}
+function getStateClass(state) {
+    const stateClassMap = {
+        New: 'state-new',
+        Active: 'state-active',
+        Resolved: 'state-resolved',
+        Closed: 'state-closed',
+        Removed: 'state-removed',
+        Done: 'state-done',
+        'To Do': 'state-todo',
+        Doing: 'state-doing',
+        'In Progress': 'state-inprogress',
+        'Code Review': 'state-review',
+        Testing: 'state-testing',
+    };
+    return stateClassMap[state] || 'state-default';
+}
+function getVisibleItems() {
+    const q = (elements.searchInput?.value || '').trim().toLowerCase();
+    const sprint = elements.sprintFilter?.value || '';
+    const type = elements.typeFilter?.value || '';
+    const assignee = elements.assignedToFilter?.value || '';
+    const exDone = !!elements.excludeDone?.checked;
+    const exClosed = !!elements.excludeClosed?.checked;
+    const exRemoved = !!elements.excludeRemoved?.checked;
+    const exReview = !!elements.excludeInReview?.checked;
+    const excludedStates = new Set([
+        ...(exDone ? ['Done'] : []),
+        ...(exClosed ? ['Closed'] : []),
+        ...(exRemoved ? ['Removed'] : []),
+        ...(exReview ? ['Code Review'] : []),
+    ]);
+    const byQuery = (item) => {
+        if (!q)
+            return true;
+        const id = String(item.id ?? item.fields?.['System.Id'] ?? '');
+        const title = String(item.title ?? item.fields?.['System.Title'] ?? '').toLowerCase();
+        const tags = String(item.tags
+            ? Array.isArray(item.tags)
+                ? item.tags.join(';')
+                : item.tags
+            : item.fields?.['System.Tags'] || '').toLowerCase();
+        return id.includes(q) || title.includes(q) || tags.includes(q);
+    };
+    const bySprint = (item) => {
+        if (!sprint)
+            return true;
+        const path = String(item.iterationPath ?? item.fields?.['System.IterationPath'] ?? '');
+        const name = path.split('\\').pop() || path;
+        return name === sprint;
+    };
+    const byType = (item) => {
+        if (!type)
+            return true;
+        const t = String(item.type ?? item.fields?.['System.WorkItemType'] ?? '');
+        return t === type;
+    };
+    const byAssignee = (item) => {
+        if (!assignee)
+            return true;
+        let a = item.assignedTo ?? item.fields?.['System.AssignedTo'];
+        if (a && typeof a === 'object')
+            a = a.displayName || a.uniqueName || a.name;
+        return String(a || '') === assignee;
+    };
+    const byState = (item) => {
+        const s = getNormalizedState(item);
+        return !excludedStates.has(s);
+    };
+    return workItems.filter((it) => byQuery(it) && bySprint(it) && byType(it) && byAssignee(it) && byState(it));
+}
+function applyFilters() {
+    if (currentView === 'kanban')
+        renderKanbanView();
+    else
+        renderWorkItems();
+}
+function renderWorkItems() {
+    const itemsToRender = getVisibleItems();
+    console.log('[webview] renderWorkItems called, itemsToRender.length:', itemsToRender.length);
+    if (!elements.workItemsContainer)
+        return;
+        if (itemsToRender.length === 0) {
+                preserveScroll('y', () => {
+                        elements.workItemsContainer.innerHTML = `
+            <div class="status-message">
+                <div>No work items found</div>
+                <div style="font-size: 0.9em; color: var(--vscode-descriptionForeground); margin-top: 0.5rem;">Use the refresh button (🔄) in the header to reload work items</div>
+            </div>`;
+                });
+        return;
+    }
+    // Normalized field accessor reused from kanban logic
+    const getField = (item, field) => {
+        if (item == null)
+            return undefined;
+        switch (field) {
+            case 'System.Id':
+                return item.id ?? item.fields?.['System.Id'];
+            case 'System.Title':
+                return item.title ?? item.fields?.['System.Title'];
+            case 'System.State':
+                return item.state ?? item.fields?.['System.State'];
+            case 'System.WorkItemType':
+                return item.type ?? item.fields?.['System.WorkItemType'];
+            case 'System.AssignedTo': {
+                const a = item.assignedTo || item.fields?.['System.AssignedTo'];
+                if (a && typeof a === 'object')
+                    return a.displayName || a.uniqueName || a.name;
+                return a;
+            }
+            case 'System.Tags':
+                return item.tags
+                    ? Array.isArray(item.tags)
+                        ? item.tags.join(';')
+                        : item.tags
+                    : item.fields?.['System.Tags'];
+            case 'Microsoft.VSTS.Common.Priority':
+                return item.priority ?? item.fields?.['Microsoft.VSTS.Common.Priority'];
+            default:
+                return item[field] ?? item.fields?.[field];
+        }
+    };
+    const html = itemsToRender
+        .map((item) => {
+        const idRaw = getField(item, 'System.Id');
+        const id = typeof idRaw === 'number' ? idRaw : Number(idRaw);
+        const title = getField(item, 'System.Title') || `Work Item #${id}`;
+        const state = getField(item, 'System.State') || 'Unknown';
+        const type = getField(item, 'System.WorkItemType') || 'Unknown';
+        const assignedRaw = getField(item, 'System.AssignedTo');
+        const assignedTo = assignedRaw || 'Unassigned';
+        const priority = getField(item, 'Microsoft.VSTS.Common.Priority') || 2;
+        const tagsField = getField(item, 'System.Tags');
+        const tags = typeof tagsField === 'string'
+            ? tagsField.split(';').filter(Boolean)
+            : Array.isArray(tagsField)
+                ? tagsField
+                : [];
+        const iterationPath = getField(item, 'System.IterationPath') || '';
+        // areaPath not currently displayed
+        const description = item.description || item.fields?.['System.Description'] || '';
+        const isSelected = selectedWorkItemId === id;
+        const typeIcon = getWorkItemTypeIcon(String(type));
+        const priorityClass = getPriorityClass(Number(priority));
+        const stateClass = getStateClass(String(state));
+        // Check if timer is running on this work item
+        const hasActiveTimer = !!currentTimer && Number(currentTimer.workItemId) === Number(id);
+        const timerDisplay = hasActiveTimer
+            ? formatTimerDuration(currentTimer.elapsedSeconds || 0)
+            : '';
+        return `
+      <div class="work-item-card ${isSelected ? 'selected' : ''} ${stateClass} ${hasActiveTimer ? 'has-active-timer' : ''}" data-id="${id}" data-action="selectWorkItem">
         <div class="work-item-header">
-          <div class="work-item-type-icon ${S.class}">${S.icon}</div>
-          <div class="work-item-id">#${i}</div>
-          <div class="work-item-priority ${h}">${$(Number(p)).icon} ${$(Number(p)).label}</div>
+          <div class="work-item-type-icon ${typeIcon.class}">${typeIcon.icon}</div>
+          <div class="work-item-id">#${id}</div>
+          ${hasActiveTimer
+            ? `<div class="timer-indicator" title="Timer running: ${timerDisplay}">⏱️ ${timerDisplay}</div>`
+            : ''}
+          <div class="work-item-priority ${priorityClass}">${getPriorityIcon(Number(priority)).icon} ${getPriorityIcon(Number(priority)).label}</div>
         </div>
         <div class="work-item-content">
-          <div class="work-item-title" title="${d(String(a))}">${d(String(a))}</div>
-          ${l?`<div class="work-item-description">${d(String(l).substring(0,120))}${String(l).length>120?"...":""}</div>`:""}
+          <div class="work-item-title" title="${escapeHtml(String(title))}">${escapeHtml(String(title))}</div>
+          ${description
+            ? `<div class="work-item-description">${escapeHtml(String(description).substring(0, 120))}${String(description).length > 120 ? '...' : ''}</div>`
+            : ''}
           <div class="work-item-details">
             <div class="work-item-meta-row">
-              <span class="work-item-type">${d(String(c))}</span>
-              <span class="work-item-state state-${String(r).toLowerCase().replace(/\s+/g,"-")}">${d(String(r))}</span>
+              <span class="work-item-type">${escapeHtml(String(type))}</span>
+              <span class="work-item-state state-${String(state)
+            .toLowerCase()
+            .replace(/\s+/g, '-')}">${escapeHtml(String(state))}</span>
             </div>
-            ${y!=="Unassigned"?`<div class="work-item-assignee"><span class="assignee-icon">👤</span><span>${d(String(y))}</span></div>`:""}
-            ${I?`<div class="work-item-iteration"><span class="iteration-icon">🔄</span><span>${d(String(I).split("\\").pop()||String(I))}</span></div>`:""}
-            ${k.length?`<div class="work-item-tags">${k.slice(0,3).map(F=>`<span class="work-item-tag">${d(String(F).trim())}</span>`).join("")}${k.length>3?`<span class="tag-overflow">+${k.length-3}</span>`:""}</div>`:""}
+            ${assignedTo && assignedTo !== 'Unassigned'
+            ? `<div class="work-item-assignee"><span class="assignee-icon">👤</span><span>${escapeHtml(String(assignedTo))}</span></div>`
+            : ''}
+            ${iterationPath
+            ? `<div class="work-item-iteration"><span class="iteration-icon">🔄</span><span>${escapeHtml(String(iterationPath).split('\\').pop() || String(iterationPath))}</span></div>`
+            : ''}
+            ${tags.length
+            ? `<div class="work-item-tags">${tags
+                .slice(0, 3)
+                .map((t) => `<span class="work-item-tag">${escapeHtml(String(t).trim())}</span>`)
+                .join('')}${tags.length > 3 ? `<span class="tag-overflow">+${tags.length - 3}</span>` : ''}</div>`
+            : ''}
           </div>
         </div>
-        <div class="work-item-actions">
-          <button class="action-btn timer-btn" data-action="startTimer" data-id="${i}" title="Start Timer">⏱️</button>
-          <button class="action-btn view-btn" data-action="viewDetails" data-id="${i}" title="View Details">👁️</button>
-          <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${i}" title="Edit">✏️</button>
+                <div class="work-item-actions">
+                    ${hasActiveTimer
+                        ? `<button class="action-btn timer-btn" data-action="stopTimer" data-id="${id}" title="Start/Stop Timer">⏹️</button>`
+                        : `<button class="action-btn timer-btn" data-action="startTimer" data-id="${id}" title="Start/Stop Timer">⏱️</button>`}
+          <button class="action-btn comment-btn" data-action="addComment" data-id="${id}" title="Add Comment">💬</button>
+          <button class="action-btn view-btn" data-action="viewDetails" data-id="${id}" title="View Details">👁️</button>
+          <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${id}" title="Edit">✏️</button>
         </div>
-      </div>`}).join("");s.workItemsContainer.innerHTML=n,N(t)}function R(){console.log("[webview] updateViewToggle called, currentView:",v);const t=document.querySelectorAll(".view-toggle-btn");if(console.log("[webview] Found",t.length,"view toggle buttons"),t.length===0){console.log("[webview] No view toggle buttons found, relying on sidebar controls");return}t.forEach(e=>{const n=e.dataset.view;n===v?(e.classList.add("active"),console.log("[webview] Set active:",n)):e.classList.remove("active")})}function x(){const t=G();if(console.log("[webview] renderKanbanView called, itemsToRender.length:",t.length),!s.workItemsContainer)return;if(t.length===0){s.workItemsContainer.innerHTML=`
-      <div class="status-message">
-        <div>No work items found</div>
-        <div style="font-size: 0.9em; color: var(--vscode-descriptionForeground); margin-top: 0.5rem;">
-          Use the refresh button (🔄) in the header to reload work items
-        </div>
-      </div>
-    `;return}const e=(r,c)=>{if(r!=null)switch(c){case"System.Id":return r.id??r.fields?.["System.Id"];case"System.Title":return r.title??r.fields?.["System.Title"];case"System.State":return r.state??r.fields?.["System.State"];case"System.WorkItemType":return r.type??r.fields?.["System.WorkItemType"];case"System.AssignedTo":{const m=r.assignedTo||r.fields?.["System.AssignedTo"];return m&&typeof m=="object"?m.displayName||m.uniqueName||m.name:m}case"System.Tags":return r.tags?Array.isArray(r.tags)?r.tags.join(";"):r.tags:r.fields?.["System.Tags"];case"Microsoft.VSTS.Common.Priority":return r.priority??r.fields?.["Microsoft.VSTS.Common.Priority"];default:return r[c]??r.fields?.[c]}},n=t.reduce((r,c)=>{let m=e(c,"System.State")||"Unknown";return typeof m!="string"&&(m=String(m??"Unknown")),r[m]||(r[m]=[]),r[m].push(c),r},{}),i=["New","To Do","Active","In Progress","Doing","Code Review","Testing","Resolved","Done","Closed"].filter(r=>n[r]);Object.keys(n).forEach(r=>{i.includes(r)||i.push(r)});const a=`
+      </div>`;
+    })
+        .join('');
+    preserveScroll('y', () => {
+        elements.workItemsContainer.innerHTML = html;
+    });
+    updateStatusOverview(itemsToRender);
+}
+function updateViewToggle() {
+    console.log('[webview] updateViewToggle called, currentView:', currentView);
+    const viewToggleBtns = document.querySelectorAll('.view-toggle-btn');
+    console.log('[webview] Found', viewToggleBtns.length, 'view toggle buttons');
+    // Since we removed the header buttons, we'll rely on symbolic sidebar controls
+    if (viewToggleBtns.length === 0) {
+        console.log('[webview] No view toggle buttons found, relying on sidebar controls');
+        return;
+    }
+    viewToggleBtns.forEach((btn) => {
+        const btnView = btn.dataset.view;
+        if (btnView === currentView) {
+            btn.classList.add('active');
+            console.log('[webview] Set active:', btnView);
+        }
+        else {
+            btn.classList.remove('active');
+        }
+    });
+}
+function renderKanbanView() {
+    const itemsToRender = getVisibleItems();
+    console.log('[webview] renderKanbanView called, itemsToRender.length:', itemsToRender.length);
+    if (!elements.workItemsContainer)
+        return;
+        if (itemsToRender.length === 0) {
+                preserveScroll('x', () => {
+                        elements.workItemsContainer.innerHTML = `
+            <div class="status-message">
+                <div>No work items found</div>
+                <div style="font-size: 0.9em; color: var(--vscode-descriptionForeground); margin-top: 0.5rem;">
+                    Use the refresh button (🔄) in the header to reload work items
+                </div>
+            </div>
+        `;
+                });
+        return;
+    }
+    // Helper to normalize field access (supports flattened or original Azure DevOps shape)
+    const getField = (item, field) => {
+        if (item == null)
+            return undefined;
+        // flattened mapping first
+        switch (field) {
+            case 'System.Id':
+                return item.id ?? item.fields?.['System.Id'];
+            case 'System.Title':
+                return item.title ?? item.fields?.['System.Title'];
+            case 'System.State':
+                return item.state ?? item.fields?.['System.State'];
+            case 'System.WorkItemType':
+                return item.type ?? item.fields?.['System.WorkItemType'];
+            case 'System.AssignedTo': {
+                const a = item.assignedTo || item.fields?.['System.AssignedTo'];
+                // flattened assignedTo is already a displayName string
+                if (a && typeof a === 'object')
+                    return a.displayName || a.uniqueName || a.name;
+                return a;
+            }
+            case 'System.Tags':
+                return item.tags
+                    ? Array.isArray(item.tags)
+                        ? item.tags.join(';')
+                        : item.tags
+                    : item.fields?.['System.Tags'];
+            case 'Microsoft.VSTS.Common.Priority':
+                return item.priority ?? item.fields?.['Microsoft.VSTS.Common.Priority'];
+            default:
+                return item[field] ?? item.fields?.[field];
+        }
+    };
+    // Build grouping by normalized state
+    const stateGroups = itemsToRender.reduce((groups, item) => {
+        let state = getField(item, 'System.State') || 'Unknown';
+        if (typeof state !== 'string')
+            state = String(state ?? 'Unknown');
+        if (!groups[state])
+            groups[state] = [];
+        groups[state].push(item);
+        return groups;
+    }, {});
+    // Define common states order
+    const stateOrder = [
+        'New',
+        'To Do',
+        'Active',
+        'In Progress',
+        'Doing',
+        'Code Review',
+        'Testing',
+        'Resolved',
+        'Done',
+        'Closed',
+    ];
+    const orderedStates = stateOrder.filter((state) => stateGroups[state]);
+    // Add any additional states not in the predefined order
+    Object.keys(stateGroups).forEach((state) => {
+        if (!orderedStates.includes(state)) {
+            orderedStates.push(state);
+        }
+    });
+    const kanbanHtml = `
     <div class="kanban-board">
-      ${i.map(r=>{const c=n[r];return`
+      ${orderedStates
+        .map((state) => {
+        const items = stateGroups[state];
+        const stateClass = getStateClass(state);
+        return `
           <div class="kanban-column">
-            <div class="kanban-column-header ${W(r)}">
-              <h3>${r}</h3>
-              <span class="item-count">${c.length}</span>
+            <div class="kanban-column-header ${stateClass}">
+              <h3>${state}</h3>
+              <span class="item-count">${items.length}</span>
             </div>
             <div class="kanban-column-content">
-              ${c.map(y=>{const p=e(y,"System.Id"),w=e(y,"System.Title")||`Work Item #${p}`,k=e(y,"System.WorkItemType")||"Unknown",l=e(y,"System.AssignedTo")||"Unassigned",u=e(y,"Microsoft.VSTS.Common.Priority")||2,S=e(y,"System.Tags"),h=typeof S=="string"?S.split(";").filter(Boolean):Array.isArray(S)?S:[],P=b===p,F=U(k),J=j(Number(u));let C=l;return typeof C=="string"&&C.includes(" ")&&(C=C.split(" ")[0]),`
-                  <div class="kanban-card ${P?"selected":""}" data-id="${p}" data-action="selectWorkItem">
+              ${items
+            .map((item) => {
+            const idRaw = getField(item, 'System.Id');
+            const id = typeof idRaw === 'number' ? idRaw : Number(idRaw);
+            const title = getField(item, 'System.Title') || `Work Item #${id}`;
+            const type = getField(item, 'System.WorkItemType') || 'Unknown';
+            const assignedRaw = getField(item, 'System.AssignedTo');
+            const assignedTo = assignedRaw || 'Unassigned';
+            const priority = getField(item, 'Microsoft.VSTS.Common.Priority') || 2;
+            const tagsField = getField(item, 'System.Tags');
+            const tags = typeof tagsField === 'string'
+                ? tagsField.split(';').filter(Boolean)
+                : Array.isArray(tagsField)
+                    ? tagsField
+                    : [];
+            const isSelected = selectedWorkItemId === id;
+            const typeIcon = getWorkItemTypeIcon(type);
+            const priorityClass = getPriorityClass(Number(priority));
+            // Check if timer is running on this work item
+            const hasActiveTimer = !!currentTimer && Number(currentTimer.workItemId) === Number(id);
+            const timerDisplay = hasActiveTimer
+                ? formatTimerDuration(currentTimer.elapsedSeconds || 0)
+                : '';
+            let shortAssigned = assignedTo;
+            if (typeof shortAssigned === 'string' && shortAssigned.includes(' '))
+                shortAssigned = shortAssigned.split(' ')[0];
+            return `
+                  <div class="kanban-card ${isSelected ? 'selected' : ''} ${hasActiveTimer ? 'has-active-timer' : ''}" data-id="${id}" data-action="selectWorkItem">
                     <div class="kanban-card-header">
-                      <div class="work-item-type-icon ${F.class}">${F.icon}</div>
-                      <div class="work-item-id">#${p}</div>
-                      <div class="work-item-priority ${J}">${$(Number(u)).icon} ${$(Number(u)).label}</div>
+                      <div class="work-item-type-icon ${typeIcon.class}">${typeIcon.icon}</div>
+                      <div class="work-item-id">#${id}</div>
+                      ${hasActiveTimer
+                ? `<div class="timer-indicator" title="Timer running: ${timerDisplay}">⏱️ ${timerDisplay}</div>`
+                : ''}
+                      <div class="work-item-priority ${priorityClass}">${getPriorityIcon(Number(priority)).icon} ${getPriorityIcon(Number(priority)).label}</div>
                     </div>
                     <div class="kanban-card-content">
-                      <div class="work-item-title" title="${d(String(w))}">${d(String(w))}</div>
+                      <div class="work-item-title" title="${escapeHtml(String(title))}">${escapeHtml(String(title))}</div>
                       <div class="kanban-card-meta">
-                        <span class="work-item-type">${d(String(k))}</span>
-                        ${l!=="Unassigned"?`<span class="work-item-assignee"><span class="assignee-icon">👤</span>${d(String(C))}</span>`:""}
+                        <span class="work-item-type">${escapeHtml(String(type))}</span>
+                        ${assignedTo && assignedTo !== 'Unassigned'
+                ? `<span class="work-item-assignee"><span class="assignee-icon">👤</span>${escapeHtml(String(shortAssigned))}</span>`
+                : ''}
                       </div>
-                      ${h.length?`<div class="work-item-tags">${h.slice(0,2).map(X=>`<span class="work-item-tag">${d(String(X).trim())}</span>`).join("")}${h.length>2?`<span class="tag-overflow">+${h.length-2}</span>`:""}</div>`:""}
+                      ${tags.length
+                ? `<div class="work-item-tags">${tags
+                    .slice(0, 2)
+                    .map((t) => `<span class="work-item-tag">${escapeHtml(String(t).trim())}</span>`)
+                    .join('')}${tags.length > 2
+                    ? `<span class="tag-overflow">+${tags.length - 2}</span>`
+                    : ''}</div>`
+                : ''}
                     </div>
-                    <div class="kanban-card-actions">
-                      <button class="action-btn timer-btn" data-action="startTimer" data-id="${p}" title="Start Timer">⏱️</button>
-                      <button class="action-btn view-btn" data-action="viewDetails" data-id="${p}" title="View Details">👁️</button>
+                                        <div class="kanban-card-actions">
+                                            ${hasActiveTimer
+                                ? `<button class="action-btn timer-btn" data-action="stopTimer" data-id="${id}" title="Start/Stop Timer">⏹️</button>`
+                                : `<button class="action-btn timer-btn" data-action="startTimer" data-id="${id}" title="Start/Stop Timer">⏱️</button>`}
+                      <button class="action-btn comment-btn" data-action="addComment" data-id="${id}" title="Add Comment">💬</button>
+                      <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${id}" title="Edit">✏️</button>
+                      <button class="action-btn view-btn" data-action="viewDetails" data-id="${id}" title="View Details">👁️</button>
                     </div>
-                  </div>`}).join("")}
+                  </div>`;
+        })
+            .join('')}
             </div>
           </div>
-        `}).join("")}
+        `;
+    })
+        .join('')}
     </div>
-  `;s.workItemsContainer.innerHTML=a,N(t)}function ae(t){if(f=t,t){q(),z();try{const e=t.workItemId,n=e?O(e):null;if(n&&n.length>0)s.draftSummary&&(s.draftSummary.value=n);else if(s.draftSummary&&s.draftSummary.value.trim()===""){const i=(t.elapsedSeconds||0)/3600||0,a=t.workItemTitle||`#${t.workItemId}`;s.draftSummary.value=`Worked approximately ${i.toFixed(2)} hours on ${a}. Provide a short summary of what you accomplished.`}}catch(e){console.warn("[webview] Failed to prefill summary",e)}}else q(),z()}function K(t,e){try{localStorage.setItem(`azuredevops.draft.${t}`,e||""),console.log("[webview] Saved draft for work item",t)}catch(n){console.warn("[webview] Failed to save draft to localStorage",n)}}function O(t){try{return localStorage.getItem(`azuredevops.draft.${t}`)}catch(e){return console.warn("[webview] Failed to load draft from localStorage",e),null}}function le(t){try{localStorage.removeItem(`azuredevops.draft.${t}`),console.log("[webview] Removed draft for work item",t)}catch(e){console.warn("[webview] Failed to remove draft from localStorage",e)}}(function(){const e=()=>{if(!s.draftSummary)return!1;const n=s.draftSummary;return n.addEventListener("input",()=>{const o=f?f.workItemId:b;o&&K(o,n.value)}),n.addEventListener("blur",()=>{const o=f?f.workItemId:b;o&&K(o,n.value)}),!0};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",()=>setTimeout(e,0)):setTimeout(e,0)})();(function(){let e=null;setInterval(()=>{if(b&&b!==e){e=b;try{const n=O(b);n!==null&&s.draftSummary&&(s.draftSummary.value=n)}catch{}}},500)})();window.requestWorkItems=V;const Q=document.createElement("style");Q.textContent=`
+  `;
+    preserveScroll('x', () => {
+        elements.workItemsContainer.innerHTML = kanbanHtml;
+    });
+    updateStatusOverview(itemsToRender);
+}
+function startTimerForWorkItem(id) {
+    selectWorkItem(id.toString());
+    postMessage({ type: 'startTimer', workItemId: id });
+}
+function viewWorkItemDetails(id) {
+    postMessage({ type: 'viewWorkItem', workItemId: id });
+}
+function handleTimerUpdate(timer) {
+    currentTimer = timer;
+    if (timer) {
+        updateTimerDisplay();
+        updateTimerButtonStates();
+        // Re-render work items to show timer indicators
+        if (currentView === 'kanban') {
+            renderKanbanView();
+        }
+        else {
+            renderWorkItems();
+        }
+        // Prefill draft summary with an editable suggestion when a timer is active
+        try {
+            const workItemId = timer.workItemId;
+            const persisted = workItemId ? loadDraftForWorkItem(workItemId) : null;
+            if (persisted && persisted.length > 0) {
+                // Use persisted draft if present
+                if (elements.draftSummary)
+                    elements.draftSummary.value = persisted;
+            }
+            else if (elements.draftSummary && elements.draftSummary.value.trim() === '') {
+                const seconds = (timer.elapsedSeconds || 0);
+                const hours = seconds / 3600 || 0;
+                const title = timer.workItemTitle || `#${timer.workItemId}`;
+                elements.draftSummary.value = `Worked approximately ${hours.toFixed(2)} hours on ${title}. Provide a short summary of what you accomplished.`;
+            }
+        }
+        catch (e) {
+            console.warn('[webview] Failed to prefill summary', e);
+        }
+    }
+    else {
+        // Timer stopped - just update display and buttons
+        updateTimerDisplay();
+        updateTimerButtonStates();
+        // Re-render work items to remove timer indicators
+        if (currentView === 'kanban') {
+            renderKanbanView();
+        }
+        else {
+            renderWorkItems();
+        }
+    }
+}
+// Save draft to localStorage
+function saveDraftForWorkItem(workItemId, text) {
+    try {
+        localStorage.setItem(`azuredevops.draft.${workItemId}`, text || '');
+        console.log('[webview] Saved draft for work item', workItemId);
+    }
+    catch (e) {
+        console.warn('[webview] Failed to save draft to localStorage', e);
+    }
+}
+// Load draft from localStorage
+function loadDraftForWorkItem(workItemId) {
+    try {
+        const v = localStorage.getItem(`azuredevops.draft.${workItemId}`);
+        return v;
+    }
+    catch (e) {
+        console.warn('[webview] Failed to load draft from localStorage', e);
+        return null;
+    }
+}
+// Remove draft from localStorage
+function removeDraftForWorkItem(workItemId) {
+    try {
+        localStorage.removeItem(`azuredevops.draft.${workItemId}`);
+        console.log('[webview] Removed draft for work item', workItemId);
+    }
+    catch (e) {
+        console.warn('[webview] Failed to remove draft from localStorage', e);
+    }
+}
+// Wire textarea change/input events to persist drafts
+(function wireDraftAutosave() {
+    // Defer until DOM ready
+    const attemptWire = () => {
+        if (!elements.draftSummary)
+            return false;
+        const ta = elements.draftSummary;
+        // Save on input (fast) and on blur (ensure save)
+        ta.addEventListener('input', () => {
+            const workItemId = currentTimer ? currentTimer.workItemId : selectedWorkItemId;
+            if (!workItemId)
+                return;
+            saveDraftForWorkItem(workItemId, ta.value);
+        });
+        ta.addEventListener('blur', () => {
+            const workItemId = currentTimer ? currentTimer.workItemId : selectedWorkItemId;
+            if (!workItemId)
+                return;
+            saveDraftForWorkItem(workItemId, ta.value);
+        });
+        return true;
+    };
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => setTimeout(attemptWire, 0));
+    }
+    else {
+        setTimeout(attemptWire, 0);
+    }
+})();
+// Load persisted draft when the timer updates (or selection changes)
+// Extend existing handleTimerUpdate behavior to load persisted draft for the current work item
+// Also attempt to load a persisted draft when a work item is selected (if selection flow exists)
+// Listen for a custom message or selection; reuse existing selection flow if possible by reacting to selectedWorkItemId changes
+(function watchSelectionLoadDraft() {
+    // Since there's no centralized selection event, poll for changes to selectedWorkItemId and update when it changes
+    let lastSelected = null;
+    setInterval(() => {
+        if (selectedWorkItemId && selectedWorkItemId !== lastSelected) {
+            lastSelected = selectedWorkItemId;
+            try {
+                const persisted = loadDraftForWorkItem(selectedWorkItemId);
+                if (persisted !== null && elements.draftSummary) {
+                    elements.draftSummary.value = persisted;
+                }
+            }
+            catch (e) {
+                // ignore
+            }
+        }
+    }, 500);
+})();
+// When stop and apply succeeds we clear the persisted draft
+// We already handle 'stopAndApplyResult' messages and clear the UI draft; also remove persisted value
+(function hookClearOnApply() {
+    // augment existing message handler behavior by observing messages posted to the window
+    // The setupMessageHandling already handles 'stopAndApplyResult' and clears the UI; ensure persisted draft removed as well
+    const originalHandler = window.addEventListener;
+    // We don't override global listeners; instead ensure removal in the message branch above where we handle 'stopAndApplyResult'
+})();
+// Make functions globally available for onclick handlers
+window.requestWorkItems = requestWorkItems;
+// Add selected state styling
+const style = document.createElement('style');
+style.textContent = `
   .work-item.selected {
     background: var(--vscode-list-activeSelectionBackground, #094771) !important;
     border-color: var(--vscode-list-activeSelectionForeground, #ffffff);
   }
-`;document.head.appendChild(Q);function ce(){document.readyState==="loading"?document.addEventListener("DOMContentLoaded",H):H()}ce();
+`;
+document.head.appendChild(style);
+// Initialize when DOM is ready
+function startApp() {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    }
+    else {
+        init();
+    }
+}
+// Activity detection for timer auto-resume
+(function setupActivityDetection() {
+    let lastActivityTime = Date.now();
+    let activityPingTimer;
+    // Throttle activity pings to avoid spamming the extension
+    function sendActivityPing() {
+        if (activityPingTimer)
+            return; // Already scheduled
+        activityPingTimer = setTimeout(() => {
+            postMessage({ type: 'activity' });
+            activityPingTimer = undefined;
+        }, 500); // Send activity ping at most once every 500ms
+    }
+    // Events that indicate user activity
+    const activityEvents = ['click', 'keydown', 'scroll', 'mousemove', 'touchstart', 'focus'];
+    // Add throttled event listeners
+    activityEvents.forEach((eventType) => {
+        document.addEventListener(eventType, () => {
+            const now = Date.now();
+            // Only send activity ping if enough time has passed since last activity
+            if (now - lastActivityTime > 1000) {
+                // Minimum 1 second between activities
+                lastActivityTime = now;
+                sendActivityPing();
+            }
+        }, { passive: true });
+    });
+    // Also send activity ping when the webview gains focus/visibility
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            sendActivityPing();
+        }
+    });
+    // Send initial activity ping when webview loads
+    sendActivityPing();
+})();
+// Start the app
+startApp();
