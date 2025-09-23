@@ -21,6 +21,9 @@ Integrate Azure DevOps work items, time tracking, branching, and pull requests d
 - Optional MCP server for automation and agent/tool integrations (JSON‑RPC)
 - Consistent Start/Stop and Edit actions across list and Kanban
 - Preserved scroll positions (list vertical, Kanban horizontal) for smoother UX
+- Keyboard Kanban navigation (Ctrl/Cmd + ←/→) with live toast feedback on move
+- Accessible toast notifications (aria-live polite) for move success/errors
+- Codicon-based iconography (replaces legacy emojis) for actions and status
 
 ## 📥 Installation
 
@@ -38,6 +41,8 @@ Marketplace page: [Azure DevOps Integration – VS Code Marketplace](https://mar
 
 Required scopes (minimum recommended):
 
+- User Profile (Read)
+- Team (Read)
 - Work Items (Read & Write)
 - Code (Read & Write) – for PRs & repos
 - Build (Read) – optional, for planned build status features
@@ -130,6 +135,26 @@ The Personal Access Token is stored via the VS Code secret storage (not in setti
 
 Enable setting: azureDevOpsIntegration.debugLogging. An output channel "Azure DevOps Integration" appears with verbose lifecycle, webview message, and refresh diagnostics.
 
+Quick ways to share logs
+
+- Command palette → "Azure DevOps: Open Logs" to open the extension's Output channel. If verbose logging is off, you'll be prompted to enable it. Reproduce the issue, then copy the output and attach it to your issue.
+- Command palette → "Azure DevOps: Copy Logs to Clipboard" to copy the collected logs (including webview forwarding and context header) in one click.
+- Command palette → "Azure DevOps: Open Logs Folder (VS Code)" to open the VS Code logs directory. Zip the folder for the current window (it contains extension host logs like exthost.log) and attach it to your issue if requested.
+- Optional: Developer Tools (Help → Toggle Developer Tools) can surface webview console errors. The extension forwards many webview console messages into the Output channel when logging is enabled.
+
+## 🧪 Experimental Svelte UI
+
+You can try an early Svelte-powered webview.
+
+- Enable setting: `azureDevOpsIntegration.experimentalSvelteUI`
+- Reload the window
+
+Notes
+
+- The Svelte UI now includes Kanban + List parity, keyboard column moves, toasts, and codicon icons.
+- TypeScript in `.svelte` currently limited; we ship plain `<script>` for compatibility with the chosen esbuild plugin.
+- Feedback welcome as we expand dynamic per‑type columns (planned in upcoming release).
+
 Rate limiting controls
 
 - You can tune Azure DevOps REST throughput via `azureDevOpsIntegration.apiRatePerSecond` and `azureDevOpsIntegration.apiBurst` if your org has strict throttling or you're working with very large queries.
@@ -192,11 +217,11 @@ Enjoy the extension! Feedback & feature requests are appreciated.
 
 Below are preview-friendly screenshots captured at a consistent size and tightly cropped to the content so they render cleanly in VS Code preview and on the Marketplace.
 
-### Work Items – List View
+### Work Items – List View (v1.7.0)
 
 ![Work Items – List View](images/work-items-list.png)
 
-### Work Items – Kanban View
+### Work Items – Kanban View (v1.7.0)
 
 ![Work Items – Kanban View](images/work-items-kanban.png)
 

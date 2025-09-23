@@ -25,6 +25,28 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [1.6.3] - 2025-09-20
 
+## [1.7.0] - 2025-09-23
+
+### Added
+
+- Accessible keyboard Kanban navigation (Ctrl/Cmd + Arrow Left/Right moves focused work item between adjacent columns)
+- Toast notification system with optimistic move feedback (success & error toasts, aria-live polite region)
+- Codicon-based action icons replacing legacy emoji set for visual consistency with VS Code UI
+
+### Changed
+
+- Replaced emoji glyphs (play/stop/view/edit/comment/assignee/timer) with codicons and improved accessible labels
+- Minor UI refinements to Kanban card actions and timer indicator styling
+
+### Accessibility
+
+- Added aria-label enhancements describing new keyboard move shortcut
+- Toasts announced via aria-live and dismissible via close button
+
+### Notes
+
+- Dynamic per-type columns and additional tests scheduled for a follow-up release
+
 ### Improved
 
 - Azure DevOps WIQL capability detection: remember if [System.StateCategory] is unsupported after the first 400 and automatically fallback to legacy state filters for the rest of the session. Reduces log noise and avoids repeat roundtrips.

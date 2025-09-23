@@ -1,5 +1,17 @@
 {
   "vscode-nmake-tools.workspaceBuildDirectories": ["."],
   "vscode-nmake-tools.installRazzleSourcesFormatterExtension": false,
-  "vscode-nmake-tools.installOsRepoRustHelperExtension": false
+  "vscode-nmake-tools.installOsRepoRustHelperExtension": false,
+  // Explicitly enable the experimental Svelte UI in this workspace (also defaulted on in this branch)
+  "azureDevOpsIntegration.experimentalSvelteUI": true,
+  // Optional: turn on verbose logs while iterating on the Svelte UI
+  "azureDevOpsIntegration.debugLogging": true,
+  // Svelte editing experience
+  "files.associations": {
+    "*.svelte": "svelte"
+  },
+  "[svelte]": {
+    "editor.defaultFormatter": "svelte.svelte-vscode",
+    "editor.formatOnSave": true
+  }
 }

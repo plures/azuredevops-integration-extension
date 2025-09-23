@@ -36,11 +36,7 @@ export interface RepositoryProvider {
 
 export interface Mutation<TPayload = unknown> {
   id: string; // idempotency key
-  type:
-    | 'workItem.update'
-    | 'workItem.comment.add'
-    | 'timer.add'
-    | 'pullRequest.create';
+  type: 'workItem.update' | 'workItem.comment.add' | 'timer.add' | 'pullRequest.create';
   payload: TPayload;
   expectedRev?: number;
   createdAt: string; // ISO

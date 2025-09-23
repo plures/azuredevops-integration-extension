@@ -37,3 +37,9 @@ export interface AzureDevOpsClientOptions {
   project: string;
   personalAccessToken: string;
 }
+
+// Allow importing Svelte components in TS files used for the webview bundle
+declare module '*.svelte' {
+  const component: any;
+  export default component;
+}

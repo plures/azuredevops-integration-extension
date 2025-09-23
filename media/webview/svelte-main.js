@@ -1,0 +1,3969 @@
+var __defProp = Object.defineProperty;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+
+// node_modules/svelte/src/runtime/internal/utils.js
+function noop() {
+}
+function run(fn) {
+  return fn();
+}
+function blank_object() {
+  return /* @__PURE__ */ Object.create(null);
+}
+function run_all(fns) {
+  fns.forEach(run);
+}
+function is_function(thing) {
+  return typeof thing === "function";
+}
+function safe_not_equal(a, b) {
+  return a != a ? b == b : a !== b || a && typeof a === "object" || typeof a === "function";
+}
+function is_empty(obj) {
+  return Object.keys(obj).length === 0;
+}
+function subscribe(store2, ...callbacks) {
+  if (store2 == null) {
+    for (const callback of callbacks) {
+      callback(void 0);
+    }
+    return noop;
+  }
+  const unsub = store2.subscribe(...callbacks);
+  return unsub.unsubscribe ? () => unsub.unsubscribe() : unsub;
+}
+function component_subscribe(component, store2, callback) {
+  component.$$.on_destroy.push(subscribe(store2, callback));
+}
+
+// node_modules/svelte/src/runtime/internal/globals.js
+var globals = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : (
+  // @ts-ignore Node typings have this
+  global
+);
+
+// node_modules/svelte/src/runtime/internal/ResizeObserverSingleton.js
+var ResizeObserverSingleton = class _ResizeObserverSingleton {
+  /** @param {ResizeObserverOptions} options */
+  constructor(options) {
+    /**
+     * @private
+     * @readonly
+     * @type {WeakMap<Element, import('./private.js').Listener>}
+     */
+    __publicField(this, "_listeners", "WeakMap" in globals ? /* @__PURE__ */ new WeakMap() : void 0);
+    /**
+     * @private
+     * @type {ResizeObserver}
+     */
+    __publicField(this, "_observer");
+    /** @type {ResizeObserverOptions} */
+    __publicField(this, "options");
+    this.options = options;
+  }
+  /**
+   * @param {Element} element
+   * @param {import('./private.js').Listener} listener
+   * @returns {() => void}
+   */
+  observe(element2, listener) {
+    this._listeners.set(element2, listener);
+    this._getObserver().observe(element2, this.options);
+    return () => {
+      this._listeners.delete(element2);
+      this._observer.unobserve(element2);
+    };
+  }
+  /**
+   * @private
+   */
+  _getObserver() {
+    return this._observer ?? (this._observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        _ResizeObserverSingleton.entries.set(entry.target, entry);
+        this._listeners.get(entry.target)?.(entry);
+      }
+    }));
+  }
+};
+ResizeObserverSingleton.entries = "WeakMap" in globals ? /* @__PURE__ */ new WeakMap() : void 0;
+
+// node_modules/svelte/src/runtime/internal/dom.js
+var is_hydrating = false;
+function start_hydrating() {
+  is_hydrating = true;
+}
+function end_hydrating() {
+  is_hydrating = false;
+}
+function append(target, node) {
+  target.appendChild(node);
+}
+function insert(target, node, anchor) {
+  target.insertBefore(node, anchor || null);
+}
+function detach(node) {
+  if (node.parentNode) {
+    node.parentNode.removeChild(node);
+  }
+}
+function destroy_each(iterations, detaching) {
+  for (let i = 0; i < iterations.length; i += 1) {
+    if (iterations[i]) iterations[i].d(detaching);
+  }
+}
+function element(name) {
+  return document.createElement(name);
+}
+function text(data) {
+  return document.createTextNode(data);
+}
+function space() {
+  return text(" ");
+}
+function empty() {
+  return text("");
+}
+function listen(node, event, handler, options) {
+  node.addEventListener(event, handler, options);
+  return () => node.removeEventListener(event, handler, options);
+}
+function stop_propagation(fn) {
+  return function(event) {
+    event.stopPropagation();
+    return fn.call(this, event);
+  };
+}
+function attr(node, attribute, value) {
+  if (value == null) node.removeAttribute(attribute);
+  else if (node.getAttribute(attribute) !== value) node.setAttribute(attribute, value);
+}
+function children(element2) {
+  return Array.from(element2.childNodes);
+}
+function set_data(text2, data) {
+  data = "" + data;
+  if (text2.data === data) return;
+  text2.data = /** @type {string} */
+  data;
+}
+function set_input_value(input, value) {
+  input.value = value == null ? "" : value;
+}
+function set_style(node, key, value, important) {
+  if (value == null) {
+    node.style.removeProperty(key);
+  } else {
+    node.style.setProperty(key, value, important ? "important" : "");
+  }
+}
+function select_option(select, value, mounting) {
+  for (let i = 0; i < select.options.length; i += 1) {
+    const option = select.options[i];
+    if (option.__value === value) {
+      option.selected = true;
+      return;
+    }
+  }
+  if (!mounting || value !== void 0) {
+    select.selectedIndex = -1;
+  }
+}
+function select_value(select) {
+  const selected_option = select.querySelector(":checked");
+  return selected_option && selected_option.__value;
+}
+function custom_event(type, detail, { bubbles = false, cancelable = false } = {}) {
+  return new CustomEvent(type, { detail, bubbles, cancelable });
+}
+function get_custom_elements_slots(element2) {
+  const result = {};
+  element2.childNodes.forEach(
+    /** @param {Element} node */
+    (node) => {
+      result[node.slot || "default"] = true;
+    }
+  );
+  return result;
+}
+
+// node_modules/svelte/src/runtime/internal/lifecycle.js
+var current_component;
+function set_current_component(component) {
+  current_component = component;
+}
+function get_current_component() {
+  if (!current_component) throw new Error("Function called outside component initialization");
+  return current_component;
+}
+function createEventDispatcher() {
+  const component = get_current_component();
+  return (type, detail, { cancelable = false } = {}) => {
+    const callbacks = component.$$.callbacks[type];
+    if (callbacks) {
+      const event = custom_event(
+        /** @type {string} */
+        type,
+        detail,
+        { cancelable }
+      );
+      callbacks.slice().forEach((fn) => {
+        fn.call(component, event);
+      });
+      return !event.defaultPrevented;
+    }
+    return true;
+  };
+}
+
+// node_modules/svelte/src/runtime/internal/scheduler.js
+var dirty_components = [];
+var binding_callbacks = [];
+var render_callbacks = [];
+var flush_callbacks = [];
+var resolved_promise = /* @__PURE__ */ Promise.resolve();
+var update_scheduled = false;
+function schedule_update() {
+  if (!update_scheduled) {
+    update_scheduled = true;
+    resolved_promise.then(flush);
+  }
+}
+function add_render_callback(fn) {
+  render_callbacks.push(fn);
+}
+var seen_callbacks = /* @__PURE__ */ new Set();
+var flushidx = 0;
+function flush() {
+  if (flushidx !== 0) {
+    return;
+  }
+  const saved_component = current_component;
+  do {
+    try {
+      while (flushidx < dirty_components.length) {
+        const component = dirty_components[flushidx];
+        flushidx++;
+        set_current_component(component);
+        update(component.$$);
+      }
+    } catch (e) {
+      dirty_components.length = 0;
+      flushidx = 0;
+      throw e;
+    }
+    set_current_component(null);
+    dirty_components.length = 0;
+    flushidx = 0;
+    while (binding_callbacks.length) binding_callbacks.pop()();
+    for (let i = 0; i < render_callbacks.length; i += 1) {
+      const callback = render_callbacks[i];
+      if (!seen_callbacks.has(callback)) {
+        seen_callbacks.add(callback);
+        callback();
+      }
+    }
+    render_callbacks.length = 0;
+  } while (dirty_components.length);
+  while (flush_callbacks.length) {
+    flush_callbacks.pop()();
+  }
+  update_scheduled = false;
+  seen_callbacks.clear();
+  set_current_component(saved_component);
+}
+function update($$) {
+  if ($$.fragment !== null) {
+    $$.update();
+    run_all($$.before_update);
+    const dirty = $$.dirty;
+    $$.dirty = [-1];
+    $$.fragment && $$.fragment.p($$.ctx, dirty);
+    $$.after_update.forEach(add_render_callback);
+  }
+}
+function flush_render_callbacks(fns) {
+  const filtered = [];
+  const targets = [];
+  render_callbacks.forEach((c) => fns.indexOf(c) === -1 ? filtered.push(c) : targets.push(c));
+  targets.forEach((c) => c());
+  render_callbacks = filtered;
+}
+
+// node_modules/svelte/src/runtime/internal/transitions.js
+var outroing = /* @__PURE__ */ new Set();
+var outros;
+function transition_in(block, local) {
+  if (block && block.i) {
+    outroing.delete(block);
+    block.i(local);
+  }
+}
+function transition_out(block, local, detach2, callback) {
+  if (block && block.o) {
+    if (outroing.has(block)) return;
+    outroing.add(block);
+    outros.c.push(() => {
+      outroing.delete(block);
+      if (callback) {
+        if (detach2) block.d(1);
+        callback();
+      }
+    });
+    block.o(local);
+  } else if (callback) {
+    callback();
+  }
+}
+
+// node_modules/svelte/src/runtime/internal/each.js
+function ensure_array_like(array_like_or_iterator) {
+  return array_like_or_iterator?.length !== void 0 ? array_like_or_iterator : Array.from(array_like_or_iterator);
+}
+function destroy_block(block, lookup) {
+  block.d(1);
+  lookup.delete(block.key);
+}
+function update_keyed_each(old_blocks, dirty, get_key, dynamic, ctx, list, lookup, node, destroy, create_each_block3, next, get_context) {
+  let o = old_blocks.length;
+  let n = list.length;
+  let i = o;
+  const old_indexes = {};
+  while (i--) old_indexes[old_blocks[i].key] = i;
+  const new_blocks = [];
+  const new_lookup = /* @__PURE__ */ new Map();
+  const deltas = /* @__PURE__ */ new Map();
+  const updates = [];
+  i = n;
+  while (i--) {
+    const child_ctx = get_context(ctx, list, i);
+    const key = get_key(child_ctx);
+    let block = lookup.get(key);
+    if (!block) {
+      block = create_each_block3(key, child_ctx);
+      block.c();
+    } else if (dynamic) {
+      updates.push(() => block.p(child_ctx, dirty));
+    }
+    new_lookup.set(key, new_blocks[i] = block);
+    if (key in old_indexes) deltas.set(key, Math.abs(i - old_indexes[key]));
+  }
+  const will_move = /* @__PURE__ */ new Set();
+  const did_move = /* @__PURE__ */ new Set();
+  function insert2(block) {
+    transition_in(block, 1);
+    block.m(node, next);
+    lookup.set(block.key, block);
+    next = block.first;
+    n--;
+  }
+  while (o && n) {
+    const new_block = new_blocks[n - 1];
+    const old_block = old_blocks[o - 1];
+    const new_key = new_block.key;
+    const old_key = old_block.key;
+    if (new_block === old_block) {
+      next = new_block.first;
+      o--;
+      n--;
+    } else if (!new_lookup.has(old_key)) {
+      destroy(old_block, lookup);
+      o--;
+    } else if (!lookup.has(new_key) || will_move.has(new_key)) {
+      insert2(new_block);
+    } else if (did_move.has(old_key)) {
+      o--;
+    } else if (deltas.get(new_key) > deltas.get(old_key)) {
+      did_move.add(new_key);
+      insert2(new_block);
+    } else {
+      will_move.add(old_key);
+      o--;
+    }
+  }
+  while (o--) {
+    const old_block = old_blocks[o];
+    if (!new_lookup.has(old_block.key)) destroy(old_block, lookup);
+  }
+  while (n) insert2(new_blocks[n - 1]);
+  run_all(updates);
+  return new_blocks;
+}
+
+// node_modules/svelte/src/shared/boolean_attributes.js
+var _boolean_attributes = (
+  /** @type {const} */
+  [
+    "allowfullscreen",
+    "allowpaymentrequest",
+    "async",
+    "autofocus",
+    "autoplay",
+    "checked",
+    "controls",
+    "default",
+    "defer",
+    "disabled",
+    "formnovalidate",
+    "hidden",
+    "inert",
+    "ismap",
+    "loop",
+    "multiple",
+    "muted",
+    "nomodule",
+    "novalidate",
+    "open",
+    "playsinline",
+    "readonly",
+    "required",
+    "reversed",
+    "selected"
+  ]
+);
+var boolean_attributes = /* @__PURE__ */ new Set([..._boolean_attributes]);
+
+// node_modules/svelte/src/runtime/internal/Component.js
+function create_component(block) {
+  block && block.c();
+}
+function mount_component(component, target, anchor) {
+  const { fragment, after_update } = component.$$;
+  fragment && fragment.m(target, anchor);
+  add_render_callback(() => {
+    const new_on_destroy = component.$$.on_mount.map(run).filter(is_function);
+    if (component.$$.on_destroy) {
+      component.$$.on_destroy.push(...new_on_destroy);
+    } else {
+      run_all(new_on_destroy);
+    }
+    component.$$.on_mount = [];
+  });
+  after_update.forEach(add_render_callback);
+}
+function destroy_component(component, detaching) {
+  const $$ = component.$$;
+  if ($$.fragment !== null) {
+    flush_render_callbacks($$.after_update);
+    run_all($$.on_destroy);
+    $$.fragment && $$.fragment.d(detaching);
+    $$.on_destroy = $$.fragment = null;
+    $$.ctx = [];
+  }
+}
+function make_dirty(component, i) {
+  if (component.$$.dirty[0] === -1) {
+    dirty_components.push(component);
+    schedule_update();
+    component.$$.dirty.fill(0);
+  }
+  component.$$.dirty[i / 31 | 0] |= 1 << i % 31;
+}
+function init(component, options, instance3, create_fragment3, not_equal, props, append_styles = null, dirty = [-1]) {
+  const parent_component = current_component;
+  set_current_component(component);
+  const $$ = component.$$ = {
+    fragment: null,
+    ctx: [],
+    // state
+    props,
+    update: noop,
+    not_equal,
+    bound: blank_object(),
+    // lifecycle
+    on_mount: [],
+    on_destroy: [],
+    on_disconnect: [],
+    before_update: [],
+    after_update: [],
+    context: new Map(options.context || (parent_component ? parent_component.$$.context : [])),
+    // everything else
+    callbacks: blank_object(),
+    dirty,
+    skip_bound: false,
+    root: options.target || parent_component.$$.root
+  };
+  append_styles && append_styles($$.root);
+  let ready = false;
+  $$.ctx = instance3 ? instance3(component, options.props || {}, (i, ret, ...rest) => {
+    const value = rest.length ? rest[0] : ret;
+    if ($$.ctx && not_equal($$.ctx[i], $$.ctx[i] = value)) {
+      if (!$$.skip_bound && $$.bound[i]) $$.bound[i](value);
+      if (ready) make_dirty(component, i);
+    }
+    return ret;
+  }) : [];
+  $$.update();
+  ready = true;
+  run_all($$.before_update);
+  $$.fragment = create_fragment3 ? create_fragment3($$.ctx) : false;
+  if (options.target) {
+    if (options.hydrate) {
+      start_hydrating();
+      const nodes = children(options.target);
+      $$.fragment && $$.fragment.l(nodes);
+      nodes.forEach(detach);
+    } else {
+      $$.fragment && $$.fragment.c();
+    }
+    if (options.intro) transition_in(component.$$.fragment);
+    mount_component(component, options.target, options.anchor);
+    end_hydrating();
+    flush();
+  }
+  set_current_component(parent_component);
+}
+var SvelteElement;
+if (typeof HTMLElement === "function") {
+  SvelteElement = class extends HTMLElement {
+    constructor($$componentCtor, $$slots, use_shadow_dom) {
+      super();
+      /** The Svelte component constructor */
+      __publicField(this, "$$ctor");
+      /** Slots */
+      __publicField(this, "$$s");
+      /** The Svelte component instance */
+      __publicField(this, "$$c");
+      /** Whether or not the custom element is connected */
+      __publicField(this, "$$cn", false);
+      /** Component props data */
+      __publicField(this, "$$d", {});
+      /** `true` if currently in the process of reflecting component props back to attributes */
+      __publicField(this, "$$r", false);
+      /** @type {Record<string, CustomElementPropDefinition>} Props definition (name, reflected, type etc) */
+      __publicField(this, "$$p_d", {});
+      /** @type {Record<string, Function[]>} Event listeners */
+      __publicField(this, "$$l", {});
+      /** @type {Map<Function, Function>} Event listener unsubscribe functions */
+      __publicField(this, "$$l_u", /* @__PURE__ */ new Map());
+      this.$$ctor = $$componentCtor;
+      this.$$s = $$slots;
+      if (use_shadow_dom) {
+        this.attachShadow({ mode: "open" });
+      }
+    }
+    addEventListener(type, listener, options) {
+      this.$$l[type] = this.$$l[type] || [];
+      this.$$l[type].push(listener);
+      if (this.$$c) {
+        const unsub = this.$$c.$on(type, listener);
+        this.$$l_u.set(listener, unsub);
+      }
+      super.addEventListener(type, listener, options);
+    }
+    removeEventListener(type, listener, options) {
+      super.removeEventListener(type, listener, options);
+      if (this.$$c) {
+        const unsub = this.$$l_u.get(listener);
+        if (unsub) {
+          unsub();
+          this.$$l_u.delete(listener);
+        }
+      }
+      if (this.$$l[type]) {
+        const idx = this.$$l[type].indexOf(listener);
+        if (idx >= 0) {
+          this.$$l[type].splice(idx, 1);
+        }
+      }
+    }
+    async connectedCallback() {
+      this.$$cn = true;
+      if (!this.$$c) {
+        let create_slot = function(name) {
+          return () => {
+            let node;
+            const obj = {
+              c: function create() {
+                node = element("slot");
+                if (name !== "default") {
+                  attr(node, "name", name);
+                }
+              },
+              /**
+               * @param {HTMLElement} target
+               * @param {HTMLElement} [anchor]
+               */
+              m: function mount(target, anchor) {
+                insert(target, node, anchor);
+              },
+              d: function destroy(detaching) {
+                if (detaching) {
+                  detach(node);
+                }
+              }
+            };
+            return obj;
+          };
+        };
+        await Promise.resolve();
+        if (!this.$$cn || this.$$c) {
+          return;
+        }
+        const $$slots = {};
+        const existing_slots = get_custom_elements_slots(this);
+        for (const name of this.$$s) {
+          if (name in existing_slots) {
+            $$slots[name] = [create_slot(name)];
+          }
+        }
+        for (const attribute of this.attributes) {
+          const name = this.$$g_p(attribute.name);
+          if (!(name in this.$$d)) {
+            this.$$d[name] = get_custom_element_value(name, attribute.value, this.$$p_d, "toProp");
+          }
+        }
+        for (const key in this.$$p_d) {
+          if (!(key in this.$$d) && this[key] !== void 0) {
+            this.$$d[key] = this[key];
+            delete this[key];
+          }
+        }
+        this.$$c = new this.$$ctor({
+          target: this.shadowRoot || this,
+          props: {
+            ...this.$$d,
+            $$slots,
+            $$scope: {
+              ctx: []
+            }
+          }
+        });
+        const reflect_attributes = () => {
+          this.$$r = true;
+          for (const key in this.$$p_d) {
+            this.$$d[key] = this.$$c.$$.ctx[this.$$c.$$.props[key]];
+            if (this.$$p_d[key].reflect) {
+              const attribute_value = get_custom_element_value(
+                key,
+                this.$$d[key],
+                this.$$p_d,
+                "toAttribute"
+              );
+              if (attribute_value == null) {
+                this.removeAttribute(this.$$p_d[key].attribute || key);
+              } else {
+                this.setAttribute(this.$$p_d[key].attribute || key, attribute_value);
+              }
+            }
+          }
+          this.$$r = false;
+        };
+        this.$$c.$$.after_update.push(reflect_attributes);
+        reflect_attributes();
+        for (const type in this.$$l) {
+          for (const listener of this.$$l[type]) {
+            const unsub = this.$$c.$on(type, listener);
+            this.$$l_u.set(listener, unsub);
+          }
+        }
+        this.$$l = {};
+      }
+    }
+    // We don't need this when working within Svelte code, but for compatibility of people using this outside of Svelte
+    // and setting attributes through setAttribute etc, this is helpful
+    attributeChangedCallback(attr2, _oldValue, newValue) {
+      if (this.$$r) return;
+      attr2 = this.$$g_p(attr2);
+      this.$$d[attr2] = get_custom_element_value(attr2, newValue, this.$$p_d, "toProp");
+      this.$$c?.$set({ [attr2]: this.$$d[attr2] });
+    }
+    disconnectedCallback() {
+      this.$$cn = false;
+      Promise.resolve().then(() => {
+        if (!this.$$cn && this.$$c) {
+          this.$$c.$destroy();
+          this.$$c = void 0;
+        }
+      });
+    }
+    $$g_p(attribute_name) {
+      return Object.keys(this.$$p_d).find(
+        (key) => this.$$p_d[key].attribute === attribute_name || !this.$$p_d[key].attribute && key.toLowerCase() === attribute_name
+      ) || attribute_name;
+    }
+  };
+}
+function get_custom_element_value(prop, value, props_definition, transform) {
+  const type = props_definition[prop]?.type;
+  value = type === "Boolean" && typeof value !== "boolean" ? value != null : value;
+  if (!transform || !props_definition[prop]) {
+    return value;
+  } else if (transform === "toAttribute") {
+    switch (type) {
+      case "Object":
+      case "Array":
+        return value == null ? null : JSON.stringify(value);
+      case "Boolean":
+        return value ? "" : null;
+      case "Number":
+        return value == null ? null : value;
+      default:
+        return value;
+    }
+  } else {
+    switch (type) {
+      case "Object":
+      case "Array":
+        return value && JSON.parse(value);
+      case "Boolean":
+        return value;
+      // conversion already handled above
+      case "Number":
+        return value != null ? +value : value;
+      default:
+        return value;
+    }
+  }
+}
+var SvelteComponent = class {
+  constructor() {
+    /**
+     * ### PRIVATE API
+     *
+     * Do not use, may change at any time
+     *
+     * @type {any}
+     */
+    __publicField(this, "$$");
+    /**
+     * ### PRIVATE API
+     *
+     * Do not use, may change at any time
+     *
+     * @type {any}
+     */
+    __publicField(this, "$$set");
+  }
+  /** @returns {void} */
+  $destroy() {
+    destroy_component(this, 1);
+    this.$destroy = noop;
+  }
+  /**
+   * @template {Extract<keyof Events, string>} K
+   * @param {K} type
+   * @param {((e: Events[K]) => void) | null | undefined} callback
+   * @returns {() => void}
+   */
+  $on(type, callback) {
+    if (!is_function(callback)) {
+      return noop;
+    }
+    const callbacks = this.$$.callbacks[type] || (this.$$.callbacks[type] = []);
+    callbacks.push(callback);
+    return () => {
+      const index = callbacks.indexOf(callback);
+      if (index !== -1) callbacks.splice(index, 1);
+    };
+  }
+  /**
+   * @param {Partial<Props>} props
+   * @returns {void}
+   */
+  $set(props) {
+    if (this.$$set && !is_empty(props)) {
+      this.$$.skip_bound = true;
+      this.$$set(props);
+      this.$$.skip_bound = false;
+    }
+  }
+};
+
+// node_modules/svelte/src/shared/version.js
+var PUBLIC_VERSION = "4";
+
+// node_modules/svelte/src/runtime/internal/disclose-version/index.js
+if (typeof window !== "undefined")
+  (window.__svelte || (window.__svelte = { v: /* @__PURE__ */ new Set() })).v.add(PUBLIC_VERSION);
+
+// node_modules/svelte/src/runtime/store/index.js
+var subscriber_queue = [];
+function writable(value, start = noop) {
+  let stop;
+  const subscribers = /* @__PURE__ */ new Set();
+  function set(new_value) {
+    if (safe_not_equal(value, new_value)) {
+      value = new_value;
+      if (stop) {
+        const run_queue = !subscriber_queue.length;
+        for (const subscriber of subscribers) {
+          subscriber[1]();
+          subscriber_queue.push(subscriber, value);
+        }
+        if (run_queue) {
+          for (let i = 0; i < subscriber_queue.length; i += 2) {
+            subscriber_queue[i][0](subscriber_queue[i + 1]);
+          }
+          subscriber_queue.length = 0;
+        }
+      }
+    }
+  }
+  function update2(fn) {
+    set(fn(value));
+  }
+  function subscribe2(run2, invalidate = noop) {
+    const subscriber = [run2, invalidate];
+    subscribers.add(subscriber);
+    if (subscribers.size === 1) {
+      stop = start(set, update2) || noop;
+    }
+    run2(value);
+    return () => {
+      subscribers.delete(subscriber);
+      if (subscribers.size === 0 && stop) {
+        stop();
+        stop = null;
+      }
+    };
+  }
+  return { set, update: update2, subscribe: subscribe2 };
+}
+
+// src/webview/toastStore.ts
+var counter = 0;
+var store = writable([]);
+var toasts = store;
+function addToast(message, opts = {}) {
+  const id = ++counter;
+  const toast = {
+    id,
+    message,
+    type: opts.type || "info",
+    timeout: typeof opts.timeout === "number" ? opts.timeout : opts.type === "error" ? 8e3 : 4e3
+  };
+  store.update((list) => [...list, toast]);
+  if (toast.timeout > 0) {
+    setTimeout(() => removeToast(id), toast.timeout);
+  }
+  return id;
+}
+function removeToast(id) {
+  store.update((list) => list.filter((t) => t.id !== id));
+}
+
+// src/webview/Toasts.svelte
+function get_each_context(ctx, list, i) {
+  const child_ctx = ctx.slice();
+  child_ctx[3] = list[i];
+  return child_ctx;
+}
+function create_each_block(key_1, ctx) {
+  let div1;
+  let div0;
+  let t0_value = (
+    /*t*/
+    ctx[3].message + ""
+  );
+  let t0;
+  let t1;
+  let button;
+  let t3;
+  let div1_class_value;
+  let mounted;
+  let dispose;
+  function click_handler() {
+    return (
+      /*click_handler*/
+      ctx[2](
+        /*t*/
+        ctx[3]
+      )
+    );
+  }
+  return {
+    key: key_1,
+    first: null,
+    c() {
+      div1 = element("div");
+      div0 = element("div");
+      t0 = text(t0_value);
+      t1 = space();
+      button = element("button");
+      button.textContent = "\xD7";
+      t3 = space();
+      attr(div0, "class", "msg svelte-cy4nnu");
+      attr(button, "class", "close svelte-cy4nnu");
+      attr(button, "title", "Dismiss");
+      attr(button, "aria-label", "Dismiss notification");
+      attr(div1, "class", div1_class_value = "toast " + /*t*/
+      ctx[3].type + " svelte-cy4nnu");
+      attr(div1, "role", "status");
+      this.first = div1;
+    },
+    m(target, anchor) {
+      insert(target, div1, anchor);
+      append(div1, div0);
+      append(div0, t0);
+      append(div1, t1);
+      append(div1, button);
+      append(div1, t3);
+      if (!mounted) {
+        dispose = listen(button, "click", click_handler);
+        mounted = true;
+      }
+    },
+    p(new_ctx, dirty) {
+      ctx = new_ctx;
+      if (dirty & /*$toasts*/
+      2 && t0_value !== (t0_value = /*t*/
+      ctx[3].message + "")) set_data(t0, t0_value);
+      if (dirty & /*$toasts*/
+      2 && div1_class_value !== (div1_class_value = "toast " + /*t*/
+      ctx[3].type + " svelte-cy4nnu")) {
+        attr(div1, "class", div1_class_value);
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div1);
+      }
+      mounted = false;
+      dispose();
+    }
+  };
+}
+function create_fragment(ctx) {
+  let div;
+  let each_blocks = [];
+  let each_1_lookup = /* @__PURE__ */ new Map();
+  let each_value = ensure_array_like(
+    /*$toasts*/
+    ctx[1]
+  );
+  const get_key = (ctx2) => (
+    /*t*/
+    ctx2[3].id
+  );
+  for (let i = 0; i < each_value.length; i += 1) {
+    let child_ctx = get_each_context(ctx, each_value, i);
+    let key = get_key(child_ctx);
+    each_1_lookup.set(key, each_blocks[i] = create_each_block(key, child_ctx));
+  }
+  return {
+    c() {
+      div = element("div");
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        each_blocks[i].c();
+      }
+      attr(div, "class", "toast-region svelte-cy4nnu");
+      attr(div, "role", "region");
+      attr(div, "aria-live", "polite");
+      attr(
+        div,
+        "aria-label",
+        /*ariaLabel*/
+        ctx[0]
+      );
+    },
+    m(target, anchor) {
+      insert(target, div, anchor);
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        if (each_blocks[i]) {
+          each_blocks[i].m(div, null);
+        }
+      }
+    },
+    p(ctx2, [dirty]) {
+      if (dirty & /*$toasts*/
+      2) {
+        each_value = ensure_array_like(
+          /*$toasts*/
+          ctx2[1]
+        );
+        each_blocks = update_keyed_each(each_blocks, dirty, get_key, 1, ctx2, each_value, each_1_lookup, div, destroy_block, create_each_block, null, get_each_context);
+      }
+      if (dirty & /*ariaLabel*/
+      1) {
+        attr(
+          div,
+          "aria-label",
+          /*ariaLabel*/
+          ctx2[0]
+        );
+      }
+    },
+    i: noop,
+    o: noop,
+    d(detaching) {
+      if (detaching) {
+        detach(div);
+      }
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        each_blocks[i].d();
+      }
+    }
+  };
+}
+function instance($$self, $$props, $$invalidate) {
+  let $toasts;
+  component_subscribe($$self, toasts, ($$value) => $$invalidate(1, $toasts = $$value));
+  let { ariaLabel = "Notifications" } = $$props;
+  const click_handler = (t) => removeToast(t.id);
+  $$self.$$set = ($$props2) => {
+    if ("ariaLabel" in $$props2) $$invalidate(0, ariaLabel = $$props2.ariaLabel);
+  };
+  return [ariaLabel, $toasts, click_handler];
+}
+var Toasts = class extends SvelteComponent {
+  constructor(options) {
+    super();
+    init(this, options, instance, create_fragment, safe_not_equal, { ariaLabel: 0 });
+  }
+};
+var Toasts_default = Toasts;
+
+// src/webview/App.svelte
+function get_each_context_2(ctx, list, i) {
+  const child_ctx = ctx.slice();
+  child_ctx[54] = list[i];
+  return child_ctx;
+}
+function get_each_context2(ctx, list, i) {
+  const child_ctx = ctx.slice();
+  child_ctx[51] = list[i];
+  return child_ctx;
+}
+function get_each_context_1(ctx, list, i) {
+  const child_ctx = ctx.slice();
+  child_ctx[54] = list[i];
+  return child_ctx;
+}
+function get_each_context_3(ctx, list, i) {
+  const child_ctx = ctx.slice();
+  child_ctx[59] = list[i];
+  return child_ctx;
+}
+function create_if_block_14(ctx) {
+  let span;
+  return {
+    c() {
+      span = element("span");
+      attr(span, "class", "spinner svelte-1rfczd4");
+      attr(span, "role", "status");
+      attr(span, "aria-label", "Loading");
+      attr(span, "title", "Loading");
+    },
+    m(target, anchor) {
+      insert(target, span, anchor);
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(span);
+      }
+    }
+  };
+}
+function create_if_block_11(ctx) {
+  let span;
+  let t0;
+  let t1_value = (
+    /*timerRunning*/
+    ctx[5] ? "Running" : "Paused"
+  );
+  let t1;
+  let t2;
+  let t3;
+  let if_block1_anchor;
+  let if_block0 = (
+    /*timerElapsedLabel*/
+    ctx[6] && create_if_block_13(ctx)
+  );
+  let if_block1 = (
+    /*activeId*/
+    ctx[7] && create_if_block_12(ctx)
+  );
+  return {
+    c() {
+      span = element("span");
+      t0 = text("\u2022 ");
+      t1 = text(t1_value);
+      t2 = space();
+      if (if_block0) if_block0.c();
+      t3 = space();
+      if (if_block1) if_block1.c();
+      if_block1_anchor = empty();
+      attr(span, "class", "muted svelte-1rfczd4");
+    },
+    m(target, anchor) {
+      insert(target, span, anchor);
+      append(span, t0);
+      append(span, t1);
+      append(span, t2);
+      if (if_block0) if_block0.m(span, null);
+      insert(target, t3, anchor);
+      if (if_block1) if_block1.m(target, anchor);
+      insert(target, if_block1_anchor, anchor);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*timerRunning*/
+      32 && t1_value !== (t1_value = /*timerRunning*/
+      ctx2[5] ? "Running" : "Paused")) set_data(t1, t1_value);
+      if (
+        /*timerElapsedLabel*/
+        ctx2[6]
+      ) {
+        if (if_block0) {
+          if_block0.p(ctx2, dirty);
+        } else {
+          if_block0 = create_if_block_13(ctx2);
+          if_block0.c();
+          if_block0.m(span, null);
+        }
+      } else if (if_block0) {
+        if_block0.d(1);
+        if_block0 = null;
+      }
+      if (
+        /*activeId*/
+        ctx2[7]
+      ) {
+        if (if_block1) {
+          if_block1.p(ctx2, dirty);
+        } else {
+          if_block1 = create_if_block_12(ctx2);
+          if_block1.c();
+          if_block1.m(if_block1_anchor.parentNode, if_block1_anchor);
+        }
+      } else if (if_block1) {
+        if_block1.d(1);
+        if_block1 = null;
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(span);
+        detach(t3);
+        detach(if_block1_anchor);
+      }
+      if (if_block0) if_block0.d();
+      if (if_block1) if_block1.d(detaching);
+    }
+  };
+}
+function create_if_block_13(ctx) {
+  let t0;
+  let t1;
+  let t2;
+  return {
+    c() {
+      t0 = text("(");
+      t1 = text(
+        /*timerElapsedLabel*/
+        ctx[6]
+      );
+      t2 = text(")");
+    },
+    m(target, anchor) {
+      insert(target, t0, anchor);
+      insert(target, t1, anchor);
+      insert(target, t2, anchor);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*timerElapsedLabel*/
+      64) set_data(
+        t1,
+        /*timerElapsedLabel*/
+        ctx2[6]
+      );
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(t0);
+        detach(t1);
+        detach(t2);
+      }
+    }
+  };
+}
+function create_if_block_12(ctx) {
+  let button;
+  let t0;
+  let t1;
+  let button_title_value;
+  let button_aria_label_value;
+  let mounted;
+  let dispose;
+  return {
+    c() {
+      button = element("button");
+      t0 = text("#");
+      t1 = text(
+        /*activeId*/
+        ctx[7]
+      );
+      attr(button, "title", button_title_value = /*activeTitle*/
+      ctx[8] || "Open active work item");
+      attr(button, "aria-label", button_aria_label_value = `Open active work item #${/*activeId*/
+      ctx[7]}`);
+      attr(button, "class", "svelte-1rfczd4");
+    },
+    m(target, anchor) {
+      insert(target, button, anchor);
+      append(button, t0);
+      append(button, t1);
+      if (!mounted) {
+        dispose = listen(
+          button,
+          "click",
+          /*onOpenActive*/
+          ctx[17]
+        );
+        mounted = true;
+      }
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*activeId*/
+      128) set_data(
+        t1,
+        /*activeId*/
+        ctx2[7]
+      );
+      if (dirty[0] & /*activeTitle*/
+      256 && button_title_value !== (button_title_value = /*activeTitle*/
+      ctx2[8] || "Open active work item")) {
+        attr(button, "title", button_title_value);
+      }
+      if (dirty[0] & /*activeId*/
+      128 && button_aria_label_value !== (button_aria_label_value = `Open active work item #${/*activeId*/
+      ctx2[7]}`)) {
+        attr(button, "aria-label", button_aria_label_value);
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(button);
+      }
+      mounted = false;
+      dispose();
+    }
+  };
+}
+function create_each_block_3(ctx) {
+  let option;
+  let t_value = (
+    /*c*/
+    ctx[59].label + ""
+  );
+  let t;
+  let option_value_value;
+  return {
+    c() {
+      option = element("option");
+      t = text(t_value);
+      option.__value = option_value_value = /*c*/
+      ctx[59].key;
+      set_input_value(option, option.__value);
+    },
+    m(target, anchor) {
+      insert(target, option, anchor);
+      append(option, t);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*columnDefs*/
+      32768 && t_value !== (t_value = /*c*/
+      ctx2[59].label + "")) set_data(t, t_value);
+      if (dirty[0] & /*columnDefs*/
+      32768 && option_value_value !== (option_value_value = /*c*/
+      ctx2[59].key)) {
+        option.__value = option_value_value;
+        set_input_value(option, option.__value);
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(option);
+      }
+    }
+  };
+}
+function create_if_block_10(ctx) {
+  let div;
+  let t;
+  return {
+    c() {
+      div = element("div");
+      t = text(
+        /*errorMsg*/
+        ctx[12]
+      );
+      attr(div, "class", "error-banner svelte-1rfczd4");
+      attr(div, "role", "alert");
+    },
+    m(target, anchor) {
+      insert(target, div, anchor);
+      append(div, t);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*errorMsg*/
+      4096) set_data(
+        t,
+        /*errorMsg*/
+        ctx2[12]
+      );
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div);
+      }
+    }
+  };
+}
+function create_else_block_4(ctx) {
+  let div;
+  return {
+    c() {
+      div = element("div");
+      div.textContent = "No work items to display.";
+      attr(div, "class", "empty svelte-1rfczd4");
+    },
+    m(target, anchor) {
+      insert(target, div, anchor);
+    },
+    p: noop,
+    d(detaching) {
+      if (detaching) {
+        detach(div);
+      }
+    }
+  };
+}
+function create_if_block_6(ctx) {
+  let div;
+  let each_value_2 = ensure_array_like(
+    /*items*/
+    ctx[9].slice(0, 50)
+  );
+  let each_blocks = [];
+  for (let i = 0; i < each_value_2.length; i += 1) {
+    each_blocks[i] = create_each_block_2(get_each_context_2(ctx, each_value_2, i));
+  }
+  return {
+    c() {
+      div = element("div");
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        each_blocks[i].c();
+      }
+      attr(div, "class", "items svelte-1rfczd4");
+      attr(div, "aria-label", "Work items");
+    },
+    m(target, anchor) {
+      insert(target, div, anchor);
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        if (each_blocks[i]) {
+          each_blocks[i].m(div, null);
+        }
+      }
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*timerActive, activeId, items, dispatch, timerElapsedLabel*/
+      66256) {
+        each_value_2 = ensure_array_like(
+          /*items*/
+          ctx2[9].slice(0, 50)
+        );
+        let i;
+        for (i = 0; i < each_value_2.length; i += 1) {
+          const child_ctx = get_each_context_2(ctx2, each_value_2, i);
+          if (each_blocks[i]) {
+            each_blocks[i].p(child_ctx, dirty);
+          } else {
+            each_blocks[i] = create_each_block_2(child_ctx);
+            each_blocks[i].c();
+            each_blocks[i].m(div, null);
+          }
+        }
+        for (; i < each_blocks.length; i += 1) {
+          each_blocks[i].d(1);
+        }
+        each_blocks.length = each_value_2.length;
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div);
+      }
+      destroy_each(each_blocks, detaching);
+    }
+  };
+}
+function create_if_block_1(ctx) {
+  let div;
+  let each_value = ensure_array_like(
+    /*columnDefs*/
+    ctx[15]
+  );
+  let each_blocks = [];
+  for (let i = 0; i < each_value.length; i += 1) {
+    each_blocks[i] = create_each_block2(get_each_context2(ctx, each_value, i));
+  }
+  return {
+    c() {
+      div = element("div");
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        each_blocks[i].c();
+      }
+      attr(div, "class", "kanban-board svelte-1rfczd4");
+      attr(div, "aria-label", "Kanban board");
+    },
+    m(target, anchor) {
+      insert(target, div, anchor);
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        if (each_blocks[i]) {
+          each_blocks[i].m(div, null);
+        }
+      }
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*columnDefs, handleDrop, kanbanGroups, timerActive, activeId, handleDragStart, dispatch, kanbanView, timerElapsedLabel*/
+      6407376) {
+        each_value = ensure_array_like(
+          /*columnDefs*/
+          ctx2[15]
+        );
+        let i;
+        for (i = 0; i < each_value.length; i += 1) {
+          const child_ctx = get_each_context2(ctx2, each_value, i);
+          if (each_blocks[i]) {
+            each_blocks[i].p(child_ctx, dirty);
+          } else {
+            each_blocks[i] = create_each_block2(child_ctx);
+            each_blocks[i].c();
+            each_blocks[i].m(div, null);
+          }
+        }
+        for (; i < each_blocks.length; i += 1) {
+          each_blocks[i].d(1);
+        }
+        each_blocks.length = each_value.length;
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div);
+      }
+      destroy_each(each_blocks, detaching);
+    }
+  };
+}
+function create_if_block(ctx) {
+  let div;
+  return {
+    c() {
+      div = element("div");
+      div.innerHTML = `<span class="spinner svelte-1rfczd4" role="status" aria-label="Loading"></span> Loading work items\u2026`;
+      attr(div, "class", "loading svelte-1rfczd4");
+    },
+    m(target, anchor) {
+      insert(target, div, anchor);
+    },
+    p: noop,
+    d(detaching) {
+      if (detaching) {
+        detach(div);
+      }
+    }
+  };
+}
+function create_if_block_9(ctx) {
+  let span1;
+  let span0;
+  let t0;
+  let t1;
+  return {
+    c() {
+      span1 = element("span");
+      span0 = element("span");
+      t0 = space();
+      t1 = text(
+        /*timerElapsedLabel*/
+        ctx[6]
+      );
+      attr(span0, "class", "codicon codicon-clock");
+      attr(span0, "aria-hidden", "true");
+      attr(span1, "class", "timer-indicator svelte-1rfczd4");
+    },
+    m(target, anchor) {
+      insert(target, span1, anchor);
+      append(span1, span0);
+      append(span1, t0);
+      append(span1, t1);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*timerElapsedLabel*/
+      64) set_data(
+        t1,
+        /*timerElapsedLabel*/
+        ctx2[6]
+      );
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(span1);
+      }
+    }
+  };
+}
+function create_else_block_3(ctx) {
+  let span;
+  let t;
+  return {
+    c() {
+      span = element("span");
+      t = text(" Unassigned");
+      attr(span, "class", "codicon codicon-account");
+      attr(span, "aria-hidden", "true");
+    },
+    m(target, anchor) {
+      insert(target, span, anchor);
+      insert(target, t, anchor);
+    },
+    p: noop,
+    d(detaching) {
+      if (detaching) {
+        detach(span);
+        detach(t);
+      }
+    }
+  };
+}
+function create_if_block_8(ctx) {
+  let span;
+  let t0;
+  let t1_value = (
+    /*it*/
+    (ctx[54].fields["System.AssignedTo"].displayName || /*it*/
+    ctx[54].fields["System.AssignedTo"]) + ""
+  );
+  let t1;
+  return {
+    c() {
+      span = element("span");
+      t0 = space();
+      t1 = text(t1_value);
+      attr(span, "class", "codicon codicon-account");
+      attr(span, "aria-hidden", "true");
+    },
+    m(target, anchor) {
+      insert(target, span, anchor);
+      insert(target, t0, anchor);
+      insert(target, t1, anchor);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*items*/
+      512 && t1_value !== (t1_value = /*it*/
+      (ctx2[54].fields["System.AssignedTo"].displayName || /*it*/
+      ctx2[54].fields["System.AssignedTo"]) + "")) set_data(t1, t1_value);
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(span);
+        detach(t0);
+        detach(t1);
+      }
+    }
+  };
+}
+function create_else_block_2(ctx) {
+  let button;
+  let span;
+  let t;
+  let button_aria_label_value;
+  let mounted;
+  let dispose;
+  function click_handler_7() {
+    return (
+      /*click_handler_7*/
+      ctx[36](
+        /*it*/
+        ctx[54]
+      )
+    );
+  }
+  return {
+    c() {
+      button = element("button");
+      span = element("span");
+      t = text(" Start");
+      attr(span, "class", "codicon codicon-play");
+      attr(span, "aria-hidden", "true");
+      attr(button, "class", "action-btn start svelte-1rfczd4");
+      attr(button, "title", "Start timer");
+      attr(button, "aria-label", button_aria_label_value = `Start timer for #${/*it*/
+      ctx[54].id}`);
+      button.disabled = /*timerActive*/
+      ctx[4];
+    },
+    m(target, anchor) {
+      insert(target, button, anchor);
+      append(button, span);
+      append(button, t);
+      if (!mounted) {
+        dispose = listen(button, "click", stop_propagation(click_handler_7));
+        mounted = true;
+      }
+    },
+    p(new_ctx, dirty) {
+      ctx = new_ctx;
+      if (dirty[0] & /*items*/
+      512 && button_aria_label_value !== (button_aria_label_value = `Start timer for #${/*it*/
+      ctx[54].id}`)) {
+        attr(button, "aria-label", button_aria_label_value);
+      }
+      if (dirty[0] & /*timerActive*/
+      16) {
+        button.disabled = /*timerActive*/
+        ctx[4];
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(button);
+      }
+      mounted = false;
+      dispose();
+    }
+  };
+}
+function create_if_block_7(ctx) {
+  let button;
+  let span;
+  let t;
+  let button_aria_label_value;
+  let mounted;
+  let dispose;
+  return {
+    c() {
+      button = element("button");
+      span = element("span");
+      t = text(" Stop");
+      attr(span, "class", "codicon codicon-debug-stop");
+      attr(span, "aria-hidden", "true");
+      attr(button, "class", "action-btn stop svelte-1rfczd4");
+      attr(button, "title", "Stop timer");
+      attr(button, "aria-label", button_aria_label_value = `Stop timer for #${/*it*/
+      ctx[54].id}`);
+    },
+    m(target, anchor) {
+      insert(target, button, anchor);
+      append(button, span);
+      append(button, t);
+      if (!mounted) {
+        dispose = listen(button, "click", stop_propagation(
+          /*click_handler_6*/
+          ctx[35]
+        ));
+        mounted = true;
+      }
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*items*/
+      512 && button_aria_label_value !== (button_aria_label_value = `Stop timer for #${/*it*/
+      ctx2[54].id}`)) {
+        attr(button, "aria-label", button_aria_label_value);
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(button);
+      }
+      mounted = false;
+      dispose();
+    }
+  };
+}
+function create_each_block_2(ctx) {
+  let div5;
+  let div0;
+  let span0;
+  let t0_value = getWorkItemTypeIcon(
+    /*it*/
+    ctx[54].fields?.["System.WorkItemType"]
+  ) + "";
+  let t0;
+  let t1;
+  let span1;
+  let t2;
+  let t3_value = (
+    /*it*/
+    ctx[54].id + ""
+  );
+  let t3;
+  let t4;
+  let show_if_1 = (
+    /*timerActive*/
+    ctx[4] && /*activeId*/
+    ctx[7] === Number(
+      /*it*/
+      ctx[54].id
+    )
+  );
+  let t5;
+  let span2;
+  let t6_value = (
+    /*it*/
+    (ctx[54].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + ""
+  );
+  let t6;
+  let span2_class_value;
+  let t7;
+  let div3;
+  let div1;
+  let t8_value = (
+    /*it*/
+    (ctx[54].fields?.["System.Title"] || `Work Item #${/*it*/
+    ctx[54].id}`) + ""
+  );
+  let t8;
+  let t9;
+  let div2;
+  let span3;
+  let t10_value = (
+    /*it*/
+    (ctx[54].fields?.["System.WorkItemType"] || "Task") + ""
+  );
+  let t10;
+  let t11;
+  let span4;
+  let t12_value = (
+    /*it*/
+    (ctx[54].fields?.["System.State"] || "New") + ""
+  );
+  let t12;
+  let span4_class_value;
+  let t13;
+  let span5;
+  let t14;
+  let div4;
+  let show_if;
+  let t15;
+  let button0;
+  let span6;
+  let t16;
+  let button0_aria_label_value;
+  let t17;
+  let button1;
+  let span7;
+  let t18;
+  let button1_aria_label_value;
+  let t19;
+  let button2;
+  let span8;
+  let t20;
+  let button2_aria_label_value;
+  let t21;
+  let div5_class_value;
+  let div5_aria_label_value;
+  let mounted;
+  let dispose;
+  let if_block0 = show_if_1 && create_if_block_9(ctx);
+  function select_block_type_3(ctx2, dirty) {
+    if (
+      /*it*/
+      ctx2[54].fields?.["System.AssignedTo"]
+    ) return create_if_block_8;
+    return create_else_block_3;
+  }
+  let current_block_type = select_block_type_3(ctx, [-1, -1]);
+  let if_block1 = current_block_type(ctx);
+  function select_block_type_4(ctx2, dirty) {
+    if (dirty[0] & /*timerActive, activeId, items*/
+    656) show_if = null;
+    if (show_if == null) show_if = !!/*timerActive*/
+    (ctx2[4] && /*activeId*/
+    ctx2[7] === Number(
+      /*it*/
+      ctx2[54].id
+    ));
+    if (show_if) return create_if_block_7;
+    return create_else_block_2;
+  }
+  let current_block_type_1 = select_block_type_4(ctx, [-1, -1]);
+  let if_block2 = current_block_type_1(ctx);
+  function click_handler_8() {
+    return (
+      /*click_handler_8*/
+      ctx[37](
+        /*it*/
+        ctx[54]
+      )
+    );
+  }
+  function click_handler_9() {
+    return (
+      /*click_handler_9*/
+      ctx[38](
+        /*it*/
+        ctx[54]
+      )
+    );
+  }
+  function click_handler_10() {
+    return (
+      /*click_handler_10*/
+      ctx[39](
+        /*it*/
+        ctx[54]
+      )
+    );
+  }
+  function keydown_handler_1(...args) {
+    return (
+      /*keydown_handler_1*/
+      ctx[40](
+        /*it*/
+        ctx[54],
+        ...args
+      )
+    );
+  }
+  function click_handler_11() {
+    return (
+      /*click_handler_11*/
+      ctx[41](
+        /*it*/
+        ctx[54]
+      )
+    );
+  }
+  return {
+    c() {
+      div5 = element("div");
+      div0 = element("div");
+      span0 = element("span");
+      t0 = text(t0_value);
+      t1 = space();
+      span1 = element("span");
+      t2 = text("#");
+      t3 = text(t3_value);
+      t4 = space();
+      if (if_block0) if_block0.c();
+      t5 = space();
+      span2 = element("span");
+      t6 = text(t6_value);
+      t7 = space();
+      div3 = element("div");
+      div1 = element("div");
+      t8 = text(t8_value);
+      t9 = space();
+      div2 = element("div");
+      span3 = element("span");
+      t10 = text(t10_value);
+      t11 = space();
+      span4 = element("span");
+      t12 = text(t12_value);
+      t13 = space();
+      span5 = element("span");
+      if_block1.c();
+      t14 = space();
+      div4 = element("div");
+      if_block2.c();
+      t15 = space();
+      button0 = element("button");
+      span6 = element("span");
+      t16 = text(" View");
+      t17 = space();
+      button1 = element("button");
+      span7 = element("span");
+      t18 = text(" Edit");
+      t19 = space();
+      button2 = element("button");
+      span8 = element("span");
+      t20 = text(" Comment");
+      t21 = space();
+      attr(span0, "class", "work-item-type-icon svelte-1rfczd4");
+      attr(span1, "class", "work-item-id svelte-1rfczd4");
+      attr(span2, "class", span2_class_value = "work-item-priority " + getPriorityClass(
+        /*it*/
+        ctx[54].fields?.["Microsoft.VSTS.Common.Priority"]
+      ) + " svelte-1rfczd4");
+      attr(div0, "class", "work-item-header svelte-1rfczd4");
+      attr(div1, "class", "work-item-title svelte-1rfczd4");
+      attr(span3, "class", "work-item-type svelte-1rfczd4");
+      attr(span4, "class", span4_class_value = "work-item-state state-" + normalizeState(
+        /*it*/
+        ctx[54].fields?.["System.State"]
+      ) + " svelte-1rfczd4");
+      attr(span5, "class", "work-item-assignee");
+      attr(div2, "class", "work-item-meta svelte-1rfczd4");
+      attr(div3, "class", "work-item-content svelte-1rfczd4");
+      attr(span6, "class", "codicon codicon-eye");
+      attr(span6, "aria-hidden", "true");
+      attr(button0, "class", "action-btn view svelte-1rfczd4");
+      attr(button0, "title", "View in browser");
+      attr(button0, "aria-label", button0_aria_label_value = `View work item #${/*it*/
+      ctx[54].id}`);
+      attr(span7, "class", "codicon codicon-edit");
+      attr(span7, "aria-hidden", "true");
+      attr(button1, "class", "action-btn edit svelte-1rfczd4");
+      attr(button1, "title", "Edit work item");
+      attr(button1, "aria-label", button1_aria_label_value = `Edit work item #${/*it*/
+      ctx[54].id}`);
+      attr(span8, "class", "codicon codicon-comment");
+      attr(span8, "aria-hidden", "true");
+      attr(button2, "class", "action-btn comment svelte-1rfczd4");
+      attr(button2, "title", "Add comment");
+      attr(button2, "aria-label", button2_aria_label_value = `Add comment to #${/*it*/
+      ctx[54].id}`);
+      attr(div4, "class", "work-item-actions svelte-1rfczd4");
+      attr(div5, "class", div5_class_value = "work-item-card " + /*timerActive*/
+      (ctx[4] && /*activeId*/
+      ctx[7] === Number(
+        /*it*/
+        ctx[54].id
+      ) ? "has-active-timer" : "") + " svelte-1rfczd4");
+      attr(div5, "tabindex", "0");
+      attr(div5, "role", "button");
+      attr(div5, "aria-label", div5_aria_label_value = `Work item #${/*it*/
+      ctx[54].id}: ${/*it*/
+      ctx[54].fields?.["System.Title"]} - press Enter to open`);
+    },
+    m(target, anchor) {
+      insert(target, div5, anchor);
+      append(div5, div0);
+      append(div0, span0);
+      append(span0, t0);
+      append(div0, t1);
+      append(div0, span1);
+      append(span1, t2);
+      append(span1, t3);
+      append(div0, t4);
+      if (if_block0) if_block0.m(div0, null);
+      append(div0, t5);
+      append(div0, span2);
+      append(span2, t6);
+      append(div5, t7);
+      append(div5, div3);
+      append(div3, div1);
+      append(div1, t8);
+      append(div3, t9);
+      append(div3, div2);
+      append(div2, span3);
+      append(span3, t10);
+      append(div2, t11);
+      append(div2, span4);
+      append(span4, t12);
+      append(div2, t13);
+      append(div2, span5);
+      if_block1.m(span5, null);
+      append(div5, t14);
+      append(div5, div4);
+      if_block2.m(div4, null);
+      append(div4, t15);
+      append(div4, button0);
+      append(button0, span6);
+      append(button0, t16);
+      append(div4, t17);
+      append(div4, button1);
+      append(button1, span7);
+      append(button1, t18);
+      append(div4, t19);
+      append(div4, button2);
+      append(button2, span8);
+      append(button2, t20);
+      append(div5, t21);
+      if (!mounted) {
+        dispose = [
+          listen(button0, "click", stop_propagation(click_handler_8)),
+          listen(button1, "click", stop_propagation(click_handler_9)),
+          listen(button2, "click", stop_propagation(click_handler_10)),
+          listen(div5, "keydown", keydown_handler_1),
+          listen(div5, "click", click_handler_11)
+        ];
+        mounted = true;
+      }
+    },
+    p(new_ctx, dirty) {
+      ctx = new_ctx;
+      if (dirty[0] & /*items*/
+      512 && t0_value !== (t0_value = getWorkItemTypeIcon(
+        /*it*/
+        ctx[54].fields?.["System.WorkItemType"]
+      ) + "")) set_data(t0, t0_value);
+      if (dirty[0] & /*items*/
+      512 && t3_value !== (t3_value = /*it*/
+      ctx[54].id + "")) set_data(t3, t3_value);
+      if (dirty[0] & /*timerActive, activeId, items*/
+      656) show_if_1 = /*timerActive*/
+      ctx[4] && /*activeId*/
+      ctx[7] === Number(
+        /*it*/
+        ctx[54].id
+      );
+      if (show_if_1) {
+        if (if_block0) {
+          if_block0.p(ctx, dirty);
+        } else {
+          if_block0 = create_if_block_9(ctx);
+          if_block0.c();
+          if_block0.m(div0, t5);
+        }
+      } else if (if_block0) {
+        if_block0.d(1);
+        if_block0 = null;
+      }
+      if (dirty[0] & /*items*/
+      512 && t6_value !== (t6_value = /*it*/
+      (ctx[54].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + "")) set_data(t6, t6_value);
+      if (dirty[0] & /*items*/
+      512 && span2_class_value !== (span2_class_value = "work-item-priority " + getPriorityClass(
+        /*it*/
+        ctx[54].fields?.["Microsoft.VSTS.Common.Priority"]
+      ) + " svelte-1rfczd4")) {
+        attr(span2, "class", span2_class_value);
+      }
+      if (dirty[0] & /*items*/
+      512 && t8_value !== (t8_value = /*it*/
+      (ctx[54].fields?.["System.Title"] || `Work Item #${/*it*/
+      ctx[54].id}`) + "")) set_data(t8, t8_value);
+      if (dirty[0] & /*items*/
+      512 && t10_value !== (t10_value = /*it*/
+      (ctx[54].fields?.["System.WorkItemType"] || "Task") + "")) set_data(t10, t10_value);
+      if (dirty[0] & /*items*/
+      512 && t12_value !== (t12_value = /*it*/
+      (ctx[54].fields?.["System.State"] || "New") + "")) set_data(t12, t12_value);
+      if (dirty[0] & /*items*/
+      512 && span4_class_value !== (span4_class_value = "work-item-state state-" + normalizeState(
+        /*it*/
+        ctx[54].fields?.["System.State"]
+      ) + " svelte-1rfczd4")) {
+        attr(span4, "class", span4_class_value);
+      }
+      if (current_block_type === (current_block_type = select_block_type_3(ctx, dirty)) && if_block1) {
+        if_block1.p(ctx, dirty);
+      } else {
+        if_block1.d(1);
+        if_block1 = current_block_type(ctx);
+        if (if_block1) {
+          if_block1.c();
+          if_block1.m(span5, null);
+        }
+      }
+      if (current_block_type_1 === (current_block_type_1 = select_block_type_4(ctx, dirty)) && if_block2) {
+        if_block2.p(ctx, dirty);
+      } else {
+        if_block2.d(1);
+        if_block2 = current_block_type_1(ctx);
+        if (if_block2) {
+          if_block2.c();
+          if_block2.m(div4, t15);
+        }
+      }
+      if (dirty[0] & /*items*/
+      512 && button0_aria_label_value !== (button0_aria_label_value = `View work item #${/*it*/
+      ctx[54].id}`)) {
+        attr(button0, "aria-label", button0_aria_label_value);
+      }
+      if (dirty[0] & /*items*/
+      512 && button1_aria_label_value !== (button1_aria_label_value = `Edit work item #${/*it*/
+      ctx[54].id}`)) {
+        attr(button1, "aria-label", button1_aria_label_value);
+      }
+      if (dirty[0] & /*items*/
+      512 && button2_aria_label_value !== (button2_aria_label_value = `Add comment to #${/*it*/
+      ctx[54].id}`)) {
+        attr(button2, "aria-label", button2_aria_label_value);
+      }
+      if (dirty[0] & /*timerActive, activeId, items*/
+      656 && div5_class_value !== (div5_class_value = "work-item-card " + /*timerActive*/
+      (ctx[4] && /*activeId*/
+      ctx[7] === Number(
+        /*it*/
+        ctx[54].id
+      ) ? "has-active-timer" : "") + " svelte-1rfczd4")) {
+        attr(div5, "class", div5_class_value);
+      }
+      if (dirty[0] & /*items*/
+      512 && div5_aria_label_value !== (div5_aria_label_value = `Work item #${/*it*/
+      ctx[54].id}: ${/*it*/
+      ctx[54].fields?.["System.Title"]} - press Enter to open`)) {
+        attr(div5, "aria-label", div5_aria_label_value);
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div5);
+      }
+      if (if_block0) if_block0.d();
+      if_block1.d();
+      if_block2.d();
+      mounted = false;
+      run_all(dispose);
+    }
+  };
+}
+function create_else_block_1(ctx) {
+  let div;
+  return {
+    c() {
+      div = element("div");
+      div.textContent = "No items";
+      attr(div, "class", "empty svelte-1rfczd4");
+    },
+    m(target, anchor) {
+      insert(target, div, anchor);
+    },
+    p: noop,
+    d(detaching) {
+      if (detaching) {
+        detach(div);
+      }
+    }
+  };
+}
+function create_if_block_2(ctx) {
+  let each_1_anchor;
+  let each_value_1 = ensure_array_like(
+    /*kanbanGroups*/
+    ctx[14][
+      /*col*/
+      ctx[51].key
+    ]
+  );
+  let each_blocks = [];
+  for (let i = 0; i < each_value_1.length; i += 1) {
+    each_blocks[i] = create_each_block_1(get_each_context_1(ctx, each_value_1, i));
+  }
+  return {
+    c() {
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        each_blocks[i].c();
+      }
+      each_1_anchor = empty();
+    },
+    m(target, anchor) {
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        if (each_blocks[i]) {
+          each_blocks[i].m(target, anchor);
+        }
+      }
+      insert(target, each_1_anchor, anchor);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*kanbanGroups, columnDefs, timerActive, activeId, handleDragStart, dispatch, kanbanView, timerElapsedLabel*/
+      2213072) {
+        each_value_1 = ensure_array_like(
+          /*kanbanGroups*/
+          ctx2[14][
+            /*col*/
+            ctx2[51].key
+          ]
+        );
+        let i;
+        for (i = 0; i < each_value_1.length; i += 1) {
+          const child_ctx = get_each_context_1(ctx2, each_value_1, i);
+          if (each_blocks[i]) {
+            each_blocks[i].p(child_ctx, dirty);
+          } else {
+            each_blocks[i] = create_each_block_1(child_ctx);
+            each_blocks[i].c();
+            each_blocks[i].m(each_1_anchor.parentNode, each_1_anchor);
+          }
+        }
+        for (; i < each_blocks.length; i += 1) {
+          each_blocks[i].d(1);
+        }
+        each_blocks.length = each_value_1.length;
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(each_1_anchor);
+      }
+      destroy_each(each_blocks, detaching);
+    }
+  };
+}
+function create_if_block_5(ctx) {
+  let span1;
+  let span0;
+  let t0;
+  let t1;
+  return {
+    c() {
+      span1 = element("span");
+      span0 = element("span");
+      t0 = space();
+      t1 = text(
+        /*timerElapsedLabel*/
+        ctx[6]
+      );
+      attr(span0, "class", "codicon codicon-clock");
+      attr(span0, "aria-hidden", "true");
+      attr(span1, "class", "timer-indicator svelte-1rfczd4");
+    },
+    m(target, anchor) {
+      insert(target, span1, anchor);
+      append(span1, span0);
+      append(span1, t0);
+      append(span1, t1);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*timerElapsedLabel*/
+      64) set_data(
+        t1,
+        /*timerElapsedLabel*/
+        ctx2[6]
+      );
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(span1);
+      }
+    }
+  };
+}
+function create_if_block_4(ctx) {
+  let span1;
+  let span0;
+  let t0;
+  let t1_value = (
+    /*it*/
+    (ctx[54].fields["System.AssignedTo"].displayName || /*it*/
+    ctx[54].fields["System.AssignedTo"]) + ""
+  );
+  let t1;
+  return {
+    c() {
+      span1 = element("span");
+      span0 = element("span");
+      t0 = space();
+      t1 = text(t1_value);
+      attr(span0, "class", "codicon codicon-account");
+      attr(span0, "aria-hidden", "true");
+      attr(span1, "class", "work-item-assignee");
+    },
+    m(target, anchor) {
+      insert(target, span1, anchor);
+      append(span1, span0);
+      append(span1, t0);
+      append(span1, t1);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      49152 && t1_value !== (t1_value = /*it*/
+      (ctx2[54].fields["System.AssignedTo"].displayName || /*it*/
+      ctx2[54].fields["System.AssignedTo"]) + "")) set_data(t1, t1_value);
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(span1);
+      }
+    }
+  };
+}
+function create_else_block(ctx) {
+  let button;
+  let span;
+  let button_aria_label_value;
+  let mounted;
+  let dispose;
+  function click_handler_1() {
+    return (
+      /*click_handler_1*/
+      ctx[27](
+        /*it*/
+        ctx[54]
+      )
+    );
+  }
+  return {
+    c() {
+      button = element("button");
+      span = element("span");
+      attr(span, "class", "codicon codicon-play");
+      attr(span, "aria-hidden", "true");
+      attr(button, "class", "action-btn start compact svelte-1rfczd4");
+      attr(button, "title", "Start timer");
+      attr(button, "aria-label", button_aria_label_value = `Start timer for #${/*it*/
+      ctx[54].id}`);
+      button.disabled = /*timerActive*/
+      ctx[4];
+    },
+    m(target, anchor) {
+      insert(target, button, anchor);
+      append(button, span);
+      if (!mounted) {
+        dispose = listen(button, "click", stop_propagation(click_handler_1));
+        mounted = true;
+      }
+    },
+    p(new_ctx, dirty) {
+      ctx = new_ctx;
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      49152 && button_aria_label_value !== (button_aria_label_value = `Start timer for #${/*it*/
+      ctx[54].id}`)) {
+        attr(button, "aria-label", button_aria_label_value);
+      }
+      if (dirty[0] & /*timerActive*/
+      16) {
+        button.disabled = /*timerActive*/
+        ctx[4];
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(button);
+      }
+      mounted = false;
+      dispose();
+    }
+  };
+}
+function create_if_block_3(ctx) {
+  let button;
+  let span;
+  let button_aria_label_value;
+  let mounted;
+  let dispose;
+  return {
+    c() {
+      button = element("button");
+      span = element("span");
+      attr(span, "class", "codicon codicon-debug-stop");
+      attr(span, "aria-hidden", "true");
+      attr(button, "class", "action-btn stop compact svelte-1rfczd4");
+      attr(button, "title", "Stop timer");
+      attr(button, "aria-label", button_aria_label_value = `Stop timer for #${/*it*/
+      ctx[54].id}`);
+    },
+    m(target, anchor) {
+      insert(target, button, anchor);
+      append(button, span);
+      if (!mounted) {
+        dispose = listen(button, "click", stop_propagation(
+          /*click_handler*/
+          ctx[26]
+        ));
+        mounted = true;
+      }
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      49152 && button_aria_label_value !== (button_aria_label_value = `Stop timer for #${/*it*/
+      ctx2[54].id}`)) {
+        attr(button, "aria-label", button_aria_label_value);
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(button);
+      }
+      mounted = false;
+      dispose();
+    }
+  };
+}
+function create_each_block_1(ctx) {
+  let div5;
+  let div0;
+  let span0;
+  let t0_value = getWorkItemTypeIcon(
+    /*it*/
+    ctx[54].fields?.["System.WorkItemType"]
+  ) + "";
+  let t0;
+  let t1;
+  let span1;
+  let t2;
+  let t3_value = (
+    /*it*/
+    ctx[54].id + ""
+  );
+  let t3;
+  let t4;
+  let show_if_1 = (
+    /*timerActive*/
+    ctx[4] && /*activeId*/
+    ctx[7] === Number(
+      /*it*/
+      ctx[54].id
+    )
+  );
+  let t5;
+  let span2;
+  let t6_value = (
+    /*it*/
+    (ctx[54].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + ""
+  );
+  let t6;
+  let span2_class_value;
+  let t7;
+  let div3;
+  let div1;
+  let t8_value = (
+    /*it*/
+    (ctx[54].fields?.["System.Title"] || `Work Item #${/*it*/
+    ctx[54].id}`) + ""
+  );
+  let t8;
+  let t9;
+  let div2;
+  let span3;
+  let t10_value = (
+    /*it*/
+    (ctx[54].fields?.["System.WorkItemType"] || "Task") + ""
+  );
+  let t10;
+  let t11;
+  let t12;
+  let div4;
+  let show_if;
+  let t13;
+  let button0;
+  let span4;
+  let button0_aria_label_value;
+  let t14;
+  let button1;
+  let span5;
+  let button1_aria_label_value;
+  let t15;
+  let button2;
+  let span6;
+  let button2_aria_label_value;
+  let t16;
+  let div5_class_value;
+  let div5_aria_label_value;
+  let mounted;
+  let dispose;
+  let if_block0 = show_if_1 && create_if_block_5(ctx);
+  let if_block1 = (
+    /*it*/
+    ctx[54].fields?.["System.AssignedTo"] && create_if_block_4(ctx)
+  );
+  function select_block_type_2(ctx2, dirty) {
+    if (dirty[0] & /*timerActive, activeId, kanbanGroups, columnDefs*/
+    49296) show_if = null;
+    if (show_if == null) show_if = !!/*timerActive*/
+    (ctx2[4] && /*activeId*/
+    ctx2[7] === Number(
+      /*it*/
+      ctx2[54].id
+    ));
+    if (show_if) return create_if_block_3;
+    return create_else_block;
+  }
+  let current_block_type = select_block_type_2(ctx, [-1, -1]);
+  let if_block2 = current_block_type(ctx);
+  function click_handler_2() {
+    return (
+      /*click_handler_2*/
+      ctx[28](
+        /*it*/
+        ctx[54]
+      )
+    );
+  }
+  function click_handler_3() {
+    return (
+      /*click_handler_3*/
+      ctx[29](
+        /*it*/
+        ctx[54]
+      )
+    );
+  }
+  function click_handler_4() {
+    return (
+      /*click_handler_4*/
+      ctx[30](
+        /*it*/
+        ctx[54]
+      )
+    );
+  }
+  function dragstart_handler(...args) {
+    return (
+      /*dragstart_handler*/
+      ctx[31](
+        /*it*/
+        ctx[54],
+        ...args
+      )
+    );
+  }
+  function keydown_handler(...args) {
+    return (
+      /*keydown_handler*/
+      ctx[32](
+        /*it*/
+        ctx[54],
+        ...args
+      )
+    );
+  }
+  function click_handler_5() {
+    return (
+      /*click_handler_5*/
+      ctx[33](
+        /*it*/
+        ctx[54]
+      )
+    );
+  }
+  return {
+    c() {
+      div5 = element("div");
+      div0 = element("div");
+      span0 = element("span");
+      t0 = text(t0_value);
+      t1 = space();
+      span1 = element("span");
+      t2 = text("#");
+      t3 = text(t3_value);
+      t4 = space();
+      if (if_block0) if_block0.c();
+      t5 = space();
+      span2 = element("span");
+      t6 = text(t6_value);
+      t7 = space();
+      div3 = element("div");
+      div1 = element("div");
+      t8 = text(t8_value);
+      t9 = space();
+      div2 = element("div");
+      span3 = element("span");
+      t10 = text(t10_value);
+      t11 = space();
+      if (if_block1) if_block1.c();
+      t12 = space();
+      div4 = element("div");
+      if_block2.c();
+      t13 = space();
+      button0 = element("button");
+      span4 = element("span");
+      t14 = space();
+      button1 = element("button");
+      span5 = element("span");
+      t15 = space();
+      button2 = element("button");
+      span6 = element("span");
+      t16 = space();
+      attr(span0, "class", "work-item-type-icon svelte-1rfczd4");
+      attr(span1, "class", "work-item-id svelte-1rfczd4");
+      attr(span2, "class", span2_class_value = "work-item-priority " + getPriorityClass(
+        /*it*/
+        ctx[54].fields?.["Microsoft.VSTS.Common.Priority"]
+      ) + " svelte-1rfczd4");
+      attr(div0, "class", "work-item-header svelte-1rfczd4");
+      attr(div1, "class", "work-item-title svelte-1rfczd4");
+      attr(span3, "class", "work-item-type svelte-1rfczd4");
+      attr(div2, "class", "work-item-meta svelte-1rfczd4");
+      attr(div3, "class", "work-item-content svelte-1rfczd4");
+      attr(span4, "class", "codicon codicon-eye");
+      attr(span4, "aria-hidden", "true");
+      attr(button0, "class", "action-btn view compact svelte-1rfczd4");
+      attr(button0, "title", "View");
+      attr(button0, "aria-label", button0_aria_label_value = `View work item #${/*it*/
+      ctx[54].id}`);
+      attr(span5, "class", "codicon codicon-edit");
+      attr(span5, "aria-hidden", "true");
+      attr(button1, "class", "action-btn edit compact svelte-1rfczd4");
+      attr(button1, "title", "Edit");
+      attr(button1, "aria-label", button1_aria_label_value = `Edit work item #${/*it*/
+      ctx[54].id}`);
+      attr(span6, "class", "codicon codicon-comment");
+      attr(span6, "aria-hidden", "true");
+      attr(button2, "class", "action-btn comment compact svelte-1rfczd4");
+      attr(button2, "title", "Comment");
+      attr(button2, "aria-label", button2_aria_label_value = `Add comment to #${/*it*/
+      ctx[54].id}`);
+      attr(div4, "class", "work-item-actions svelte-1rfczd4");
+      attr(div5, "class", div5_class_value = "work-item-card kanban-card state-" + normalizeState(
+        /*it*/
+        ctx[54].fields?.["System.State"]
+      ) + " " + /*timerActive*/
+      (ctx[4] && /*activeId*/
+      ctx[7] === Number(
+        /*it*/
+        ctx[54].id
+      ) ? "has-active-timer" : "") + " svelte-1rfczd4");
+      attr(div5, "tabindex", "0");
+      attr(div5, "draggable", "true");
+      attr(div5, "role", "button");
+      attr(div5, "aria-label", div5_aria_label_value = `Work item #${/*it*/
+      ctx[54].id}: ${/*it*/
+      ctx[54].fields?.["System.Title"]} - press Enter to open; Ctrl+Arrow to move`);
+    },
+    m(target, anchor) {
+      insert(target, div5, anchor);
+      append(div5, div0);
+      append(div0, span0);
+      append(span0, t0);
+      append(div0, t1);
+      append(div0, span1);
+      append(span1, t2);
+      append(span1, t3);
+      append(div0, t4);
+      if (if_block0) if_block0.m(div0, null);
+      append(div0, t5);
+      append(div0, span2);
+      append(span2, t6);
+      append(div5, t7);
+      append(div5, div3);
+      append(div3, div1);
+      append(div1, t8);
+      append(div3, t9);
+      append(div3, div2);
+      append(div2, span3);
+      append(span3, t10);
+      append(div2, t11);
+      if (if_block1) if_block1.m(div2, null);
+      append(div5, t12);
+      append(div5, div4);
+      if_block2.m(div4, null);
+      append(div4, t13);
+      append(div4, button0);
+      append(button0, span4);
+      append(div4, t14);
+      append(div4, button1);
+      append(button1, span5);
+      append(div4, t15);
+      append(div4, button2);
+      append(button2, span6);
+      append(div5, t16);
+      if (!mounted) {
+        dispose = [
+          listen(button0, "click", stop_propagation(click_handler_2)),
+          listen(button1, "click", stop_propagation(click_handler_3)),
+          listen(button2, "click", stop_propagation(click_handler_4)),
+          listen(div5, "dragstart", dragstart_handler),
+          listen(div5, "keydown", keydown_handler),
+          listen(div5, "click", click_handler_5)
+        ];
+        mounted = true;
+      }
+    },
+    p(new_ctx, dirty) {
+      ctx = new_ctx;
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      49152 && t0_value !== (t0_value = getWorkItemTypeIcon(
+        /*it*/
+        ctx[54].fields?.["System.WorkItemType"]
+      ) + "")) set_data(t0, t0_value);
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      49152 && t3_value !== (t3_value = /*it*/
+      ctx[54].id + "")) set_data(t3, t3_value);
+      if (dirty[0] & /*timerActive, activeId, kanbanGroups, columnDefs*/
+      49296) show_if_1 = /*timerActive*/
+      ctx[4] && /*activeId*/
+      ctx[7] === Number(
+        /*it*/
+        ctx[54].id
+      );
+      if (show_if_1) {
+        if (if_block0) {
+          if_block0.p(ctx, dirty);
+        } else {
+          if_block0 = create_if_block_5(ctx);
+          if_block0.c();
+          if_block0.m(div0, t5);
+        }
+      } else if (if_block0) {
+        if_block0.d(1);
+        if_block0 = null;
+      }
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      49152 && t6_value !== (t6_value = /*it*/
+      (ctx[54].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + "")) set_data(t6, t6_value);
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      49152 && span2_class_value !== (span2_class_value = "work-item-priority " + getPriorityClass(
+        /*it*/
+        ctx[54].fields?.["Microsoft.VSTS.Common.Priority"]
+      ) + " svelte-1rfczd4")) {
+        attr(span2, "class", span2_class_value);
+      }
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      49152 && t8_value !== (t8_value = /*it*/
+      (ctx[54].fields?.["System.Title"] || `Work Item #${/*it*/
+      ctx[54].id}`) + "")) set_data(t8, t8_value);
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      49152 && t10_value !== (t10_value = /*it*/
+      (ctx[54].fields?.["System.WorkItemType"] || "Task") + "")) set_data(t10, t10_value);
+      if (
+        /*it*/
+        ctx[54].fields?.["System.AssignedTo"]
+      ) {
+        if (if_block1) {
+          if_block1.p(ctx, dirty);
+        } else {
+          if_block1 = create_if_block_4(ctx);
+          if_block1.c();
+          if_block1.m(div2, null);
+        }
+      } else if (if_block1) {
+        if_block1.d(1);
+        if_block1 = null;
+      }
+      if (current_block_type === (current_block_type = select_block_type_2(ctx, dirty)) && if_block2) {
+        if_block2.p(ctx, dirty);
+      } else {
+        if_block2.d(1);
+        if_block2 = current_block_type(ctx);
+        if (if_block2) {
+          if_block2.c();
+          if_block2.m(div4, t13);
+        }
+      }
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      49152 && button0_aria_label_value !== (button0_aria_label_value = `View work item #${/*it*/
+      ctx[54].id}`)) {
+        attr(button0, "aria-label", button0_aria_label_value);
+      }
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      49152 && button1_aria_label_value !== (button1_aria_label_value = `Edit work item #${/*it*/
+      ctx[54].id}`)) {
+        attr(button1, "aria-label", button1_aria_label_value);
+      }
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      49152 && button2_aria_label_value !== (button2_aria_label_value = `Add comment to #${/*it*/
+      ctx[54].id}`)) {
+        attr(button2, "aria-label", button2_aria_label_value);
+      }
+      if (dirty[0] & /*kanbanGroups, columnDefs, timerActive, activeId*/
+      49296 && div5_class_value !== (div5_class_value = "work-item-card kanban-card state-" + normalizeState(
+        /*it*/
+        ctx[54].fields?.["System.State"]
+      ) + " " + /*timerActive*/
+      (ctx[4] && /*activeId*/
+      ctx[7] === Number(
+        /*it*/
+        ctx[54].id
+      ) ? "has-active-timer" : "") + " svelte-1rfczd4")) {
+        attr(div5, "class", div5_class_value);
+      }
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      49152 && div5_aria_label_value !== (div5_aria_label_value = `Work item #${/*it*/
+      ctx[54].id}: ${/*it*/
+      ctx[54].fields?.["System.Title"]} - press Enter to open; Ctrl+Arrow to move`)) {
+        attr(div5, "aria-label", div5_aria_label_value);
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div5);
+      }
+      if (if_block0) if_block0.d();
+      if (if_block1) if_block1.d();
+      if_block2.d();
+      mounted = false;
+      run_all(dispose);
+    }
+  };
+}
+function create_each_block2(ctx) {
+  let div2;
+  let div0;
+  let h3;
+  let t0_value = (
+    /*col*/
+    ctx[51].label + ""
+  );
+  let t0;
+  let t1;
+  let span;
+  let t2_value = (
+    /*kanbanGroups*/
+    (ctx[14][
+      /*col*/
+      ctx[51].key
+    ]?.length || 0) + ""
+  );
+  let t2;
+  let t3;
+  let div1;
+  let t4;
+  let div2_class_value;
+  let div2_aria_label_value;
+  let mounted;
+  let dispose;
+  function select_block_type_1(ctx2, dirty) {
+    if (
+      /*kanbanGroups*/
+      ctx2[14][
+        /*col*/
+        ctx2[51].key
+      ]?.length
+    ) return create_if_block_2;
+    return create_else_block_1;
+  }
+  let current_block_type = select_block_type_1(ctx, [-1, -1]);
+  let if_block = current_block_type(ctx);
+  function drop_handler(...args) {
+    return (
+      /*drop_handler*/
+      ctx[34](
+        /*col*/
+        ctx[51],
+        ...args
+      )
+    );
+  }
+  return {
+    c() {
+      div2 = element("div");
+      div0 = element("div");
+      h3 = element("h3");
+      t0 = text(t0_value);
+      t1 = space();
+      span = element("span");
+      t2 = text(t2_value);
+      t3 = space();
+      div1 = element("div");
+      if_block.c();
+      t4 = space();
+      attr(h3, "class", "svelte-1rfczd4");
+      attr(span, "class", "item-count svelte-1rfczd4");
+      attr(div0, "class", "kanban-column-header svelte-1rfczd4");
+      attr(div1, "class", "kanban-column-content svelte-1rfczd4");
+      attr(div2, "class", div2_class_value = "kanban-column state-" + /*col*/
+      ctx[51].key + " svelte-1rfczd4");
+      attr(div2, "role", "listbox");
+      attr(div2, "tabindex", "0");
+      attr(div2, "aria-label", div2_aria_label_value = `${/*col*/
+      ctx[51].label} column - drop items here`);
+    },
+    m(target, anchor) {
+      insert(target, div2, anchor);
+      append(div2, div0);
+      append(div0, h3);
+      append(h3, t0);
+      append(div0, t1);
+      append(div0, span);
+      append(span, t2);
+      append(div2, t3);
+      append(div2, div1);
+      if_block.m(div1, null);
+      append(div2, t4);
+      if (!mounted) {
+        dispose = [listen(div2, "dragover", allowDrop), listen(div2, "drop", drop_handler)];
+        mounted = true;
+      }
+    },
+    p(new_ctx, dirty) {
+      ctx = new_ctx;
+      if (dirty[0] & /*columnDefs*/
+      32768 && t0_value !== (t0_value = /*col*/
+      ctx[51].label + "")) set_data(t0, t0_value);
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      49152 && t2_value !== (t2_value = /*kanbanGroups*/
+      (ctx[14][
+        /*col*/
+        ctx[51].key
+      ]?.length || 0) + "")) set_data(t2, t2_value);
+      if (current_block_type === (current_block_type = select_block_type_1(ctx, dirty)) && if_block) {
+        if_block.p(ctx, dirty);
+      } else {
+        if_block.d(1);
+        if_block = current_block_type(ctx);
+        if (if_block) {
+          if_block.c();
+          if_block.m(div1, null);
+        }
+      }
+      if (dirty[0] & /*columnDefs*/
+      32768 && div2_class_value !== (div2_class_value = "kanban-column state-" + /*col*/
+      ctx[51].key + " svelte-1rfczd4")) {
+        attr(div2, "class", div2_class_value);
+      }
+      if (dirty[0] & /*columnDefs*/
+      32768 && div2_aria_label_value !== (div2_aria_label_value = `${/*col*/
+      ctx[51].label} column - drop items here`)) {
+        attr(div2, "aria-label", div2_aria_label_value);
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div2);
+      }
+      if_block.d();
+      mounted = false;
+      run_all(dispose);
+    }
+  };
+}
+function create_fragment2(ctx) {
+  let div2;
+  let div0;
+  let span0;
+  let t1;
+  let span1;
+  let t2;
+  let t3;
+  let t4;
+  let t5;
+  let t6;
+  let span2;
+  let t7;
+  let t8;
+  let t9;
+  let span4;
+  let span3;
+  let input;
+  let t10;
+  let select0;
+  let option0;
+  let t12;
+  let select1;
+  let option1;
+  let option2;
+  let option3;
+  let option4;
+  let t17;
+  let div1;
+  let t18;
+  let t19;
+  let toasts2;
+  let current;
+  let mounted;
+  let dispose;
+  let if_block0 = (
+    /*loading*/
+    ctx[11] && create_if_block_14(ctx)
+  );
+  let if_block1 = (
+    /*timerActive*/
+    ctx[4] && create_if_block_11(ctx)
+  );
+  let each_value_3 = ensure_array_like(
+    /*columnDefs*/
+    ctx[15]
+  );
+  let each_blocks = [];
+  for (let i = 0; i < each_value_3.length; i += 1) {
+    each_blocks[i] = create_each_block_3(get_each_context_3(ctx, each_value_3, i));
+  }
+  let if_block2 = (
+    /*errorMsg*/
+    ctx[12] && create_if_block_10(ctx)
+  );
+  function select_block_type(ctx2, dirty) {
+    if (
+      /*loading*/
+      ctx2[11]
+    ) return create_if_block;
+    if (
+      /*kanbanView*/
+      ctx2[10]
+    ) return create_if_block_1;
+    if (
+      /*items*/
+      ctx2[9] && /*items*/
+      ctx2[9].length
+    ) return create_if_block_6;
+    return create_else_block_4;
+  }
+  let current_block_type = select_block_type(ctx, [-1, -1]);
+  let if_block3 = current_block_type(ctx);
+  toasts2 = new Toasts_default({
+    props: { ariaLabel: "Work item notifications" }
+  });
+  return {
+    c() {
+      div2 = element("div");
+      div0 = element("div");
+      span0 = element("span");
+      span0.textContent = "Work Items";
+      t1 = space();
+      span1 = element("span");
+      t2 = text("(");
+      t3 = text(
+        /*subtitle*/
+        ctx[3]
+      );
+      t4 = text(")");
+      t5 = space();
+      if (if_block0) if_block0.c();
+      t6 = space();
+      span2 = element("span");
+      t7 = text(
+        /*workItemCount*/
+        ctx[2]
+      );
+      t8 = space();
+      if (if_block1) if_block1.c();
+      t9 = space();
+      span4 = element("span");
+      span3 = element("span");
+      input = element("input");
+      t10 = space();
+      select0 = element("select");
+      option0 = element("option");
+      option0.textContent = "All";
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        each_blocks[i].c();
+      }
+      t12 = space();
+      select1 = element("select");
+      option1 = element("option");
+      option1.textContent = "Updated \u2193";
+      option2 = element("option");
+      option2.textContent = "ID \u2193";
+      option3 = element("option");
+      option3.textContent = "ID \u2191";
+      option4 = element("option");
+      option4.textContent = "Title A\u2192Z";
+      t17 = space();
+      div1 = element("div");
+      if (if_block2) if_block2.c();
+      t18 = space();
+      if_block3.c();
+      t19 = space();
+      create_component(toasts2.$$.fragment);
+      set_style(span0, "font-weight", "600");
+      attr(span1, "class", "muted svelte-1rfczd4");
+      attr(span2, "class", "count svelte-1rfczd4");
+      attr(input, "placeholder", "Filter...");
+      input.value = /*filterText*/
+      ctx[13];
+      attr(input, "aria-label", "Filter by title");
+      attr(input, "class", "svelte-1rfczd4");
+      option0.__value = "all";
+      set_input_value(option0, option0.__value);
+      attr(select0, "aria-label", "Filter by state");
+      attr(select0, "class", "svelte-1rfczd4");
+      if (
+        /*stateFilter*/
+        ctx[0] === void 0
+      ) add_render_callback(() => (
+        /*select0_change_handler*/
+        ctx[24].call(select0)
+      ));
+      option1.__value = "updated-desc";
+      set_input_value(option1, option1.__value);
+      option2.__value = "id-desc";
+      set_input_value(option2, option2.__value);
+      option3.__value = "id-asc";
+      set_input_value(option3, option3.__value);
+      option4.__value = "title-asc";
+      set_input_value(option4, option4.__value);
+      attr(select1, "aria-label", "Sort items");
+      attr(select1, "class", "svelte-1rfczd4");
+      if (
+        /*sortKey*/
+        ctx[1] === void 0
+      ) add_render_callback(() => (
+        /*select1_change_handler*/
+        ctx[25].call(select1)
+      ));
+      attr(span3, "class", "filters svelte-1rfczd4");
+      attr(span3, "aria-label", "Filters and sort");
+      attr(span4, "class", "actions svelte-1rfczd4");
+      set_style(span4, "margin-left", "auto");
+      attr(div0, "class", "pane-header svelte-1rfczd4");
+      attr(div0, "role", "toolbar");
+      attr(div0, "aria-label", "Work Items actions");
+      attr(div1, "class", "pane-body svelte-1rfczd4");
+      attr(div2, "class", "pane svelte-1rfczd4");
+    },
+    m(target, anchor) {
+      insert(target, div2, anchor);
+      append(div2, div0);
+      append(div0, span0);
+      append(div0, t1);
+      append(div0, span1);
+      append(span1, t2);
+      append(span1, t3);
+      append(span1, t4);
+      append(div0, t5);
+      if (if_block0) if_block0.m(div0, null);
+      append(div0, t6);
+      append(div0, span2);
+      append(span2, t7);
+      append(div0, t8);
+      if (if_block1) if_block1.m(div0, null);
+      append(div0, t9);
+      append(div0, span4);
+      append(span4, span3);
+      append(span3, input);
+      append(span3, t10);
+      append(span3, select0);
+      append(select0, option0);
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        if (each_blocks[i]) {
+          each_blocks[i].m(select0, null);
+        }
+      }
+      select_option(
+        select0,
+        /*stateFilter*/
+        ctx[0],
+        true
+      );
+      append(span3, t12);
+      append(span3, select1);
+      append(select1, option1);
+      append(select1, option2);
+      append(select1, option3);
+      append(select1, option4);
+      select_option(
+        select1,
+        /*sortKey*/
+        ctx[1],
+        true
+      );
+      append(div2, t17);
+      append(div2, div1);
+      if (if_block2) if_block2.m(div1, null);
+      append(div1, t18);
+      if_block3.m(div1, null);
+      append(div2, t19);
+      mount_component(toasts2, div2, null);
+      current = true;
+      if (!mounted) {
+        dispose = [
+          listen(
+            input,
+            "input",
+            /*onFilterInput*/
+            ctx[18]
+          ),
+          listen(
+            select0,
+            "change",
+            /*onStateFilterChange*/
+            ctx[19]
+          ),
+          listen(
+            select0,
+            "change",
+            /*select0_change_handler*/
+            ctx[24]
+          ),
+          listen(
+            select1,
+            "change",
+            /*onSortChange*/
+            ctx[20]
+          ),
+          listen(
+            select1,
+            "change",
+            /*select1_change_handler*/
+            ctx[25]
+          )
+        ];
+        mounted = true;
+      }
+    },
+    p(ctx2, dirty) {
+      if (!current || dirty[0] & /*subtitle*/
+      8) set_data(
+        t3,
+        /*subtitle*/
+        ctx2[3]
+      );
+      if (
+        /*loading*/
+        ctx2[11]
+      ) {
+        if (if_block0) {
+        } else {
+          if_block0 = create_if_block_14(ctx2);
+          if_block0.c();
+          if_block0.m(div0, t6);
+        }
+      } else if (if_block0) {
+        if_block0.d(1);
+        if_block0 = null;
+      }
+      if (!current || dirty[0] & /*workItemCount*/
+      4) set_data(
+        t7,
+        /*workItemCount*/
+        ctx2[2]
+      );
+      if (
+        /*timerActive*/
+        ctx2[4]
+      ) {
+        if (if_block1) {
+          if_block1.p(ctx2, dirty);
+        } else {
+          if_block1 = create_if_block_11(ctx2);
+          if_block1.c();
+          if_block1.m(div0, t9);
+        }
+      } else if (if_block1) {
+        if_block1.d(1);
+        if_block1 = null;
+      }
+      if (!current || dirty[0] & /*filterText*/
+      8192 && input.value !== /*filterText*/
+      ctx2[13]) {
+        input.value = /*filterText*/
+        ctx2[13];
+      }
+      if (dirty[0] & /*columnDefs*/
+      32768) {
+        each_value_3 = ensure_array_like(
+          /*columnDefs*/
+          ctx2[15]
+        );
+        let i;
+        for (i = 0; i < each_value_3.length; i += 1) {
+          const child_ctx = get_each_context_3(ctx2, each_value_3, i);
+          if (each_blocks[i]) {
+            each_blocks[i].p(child_ctx, dirty);
+          } else {
+            each_blocks[i] = create_each_block_3(child_ctx);
+            each_blocks[i].c();
+            each_blocks[i].m(select0, null);
+          }
+        }
+        for (; i < each_blocks.length; i += 1) {
+          each_blocks[i].d(1);
+        }
+        each_blocks.length = each_value_3.length;
+      }
+      if (dirty[0] & /*stateFilter, columnDefs*/
+      32769) {
+        select_option(
+          select0,
+          /*stateFilter*/
+          ctx2[0]
+        );
+      }
+      if (dirty[0] & /*sortKey*/
+      2) {
+        select_option(
+          select1,
+          /*sortKey*/
+          ctx2[1]
+        );
+      }
+      if (
+        /*errorMsg*/
+        ctx2[12]
+      ) {
+        if (if_block2) {
+          if_block2.p(ctx2, dirty);
+        } else {
+          if_block2 = create_if_block_10(ctx2);
+          if_block2.c();
+          if_block2.m(div1, t18);
+        }
+      } else if (if_block2) {
+        if_block2.d(1);
+        if_block2 = null;
+      }
+      if (current_block_type === (current_block_type = select_block_type(ctx2, dirty)) && if_block3) {
+        if_block3.p(ctx2, dirty);
+      } else {
+        if_block3.d(1);
+        if_block3 = current_block_type(ctx2);
+        if (if_block3) {
+          if_block3.c();
+          if_block3.m(div1, null);
+        }
+      }
+    },
+    i(local) {
+      if (current) return;
+      transition_in(toasts2.$$.fragment, local);
+      current = true;
+    },
+    o(local) {
+      transition_out(toasts2.$$.fragment, local);
+      current = false;
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div2);
+      }
+      if (if_block0) if_block0.d();
+      if (if_block1) if_block1.d();
+      destroy_each(each_blocks, detaching);
+      if (if_block2) if_block2.d();
+      if_block3.d();
+      destroy_component(toasts2);
+      mounted = false;
+      run_all(dispose);
+    }
+  };
+}
+function allowDrop(ev) {
+  ev.preventDefault();
+}
+function normalizeState(raw) {
+  if (!raw) return "todo";
+  const s = String(raw).toLowerCase().trim().replace(/\s+/g, "-");
+  if (s === "new" || s === "to-do" || s === "todo" || s === "proposed") return "new";
+  if (s === "approved") return "approved";
+  if (s === "committed") return "committed";
+  if (s === "active") return "active";
+  if (s === "in-progress" || s === "inprogress" || s === "doing") return "inprogress";
+  if (s === "review" || s === "code-review" || s === "testing") return "review";
+  if (s === "resolved") return "resolved";
+  if (s === "done") return "done";
+  if (s === "closed" || s === "completed") return "closed";
+  if (s === "removed") return "removed";
+  return "new";
+}
+function getWorkItemTypeIcon(type) {
+  const t = String(type || "").toLowerCase();
+  if (t.includes("bug")) return "\uF41D";
+  if (t.includes("task")) return "\uF0F7";
+  if (t.includes("story") || t.includes("user story")) return "\uF413";
+  if (t.includes("feature")) return "\uF0E7";
+  if (t.includes("epic")) return "\uF0F2";
+  return "\uF0C5";
+}
+function getPriorityClass(priority) {
+  const p = Number(priority) || 3;
+  if (p === 1) return "priority-1";
+  if (p === 2) return "priority-2";
+  if (p === 3) return "priority-3";
+  if (p === 4) return "priority-4";
+  return "priority-3";
+}
+function instance2($$self, $$props, $$invalidate) {
+  let kanbanGroups;
+  let columnDefs;
+  const dispatch = createEventDispatcher();
+  let { workItemCount: workItemCount2 = 0 } = $$props;
+  let { subtitle = "Svelte flag on" } = $$props;
+  let { hasItems = false } = $$props;
+  let { timerActive: timerActive2 = false } = $$props;
+  let { timerRunning: timerRunning2 = false } = $$props;
+  let { timerElapsedLabel: timerElapsedLabel2 = "" } = $$props;
+  let { activeId: activeId2 = 0 } = $$props;
+  let { activeTitle: activeTitle2 = "" } = $$props;
+  let { items = [] } = $$props;
+  let { kanbanView: kanbanView2 = false } = $$props;
+  let { loading: loading2 = false } = $$props;
+  let { errorMsg: errorMsg2 = "" } = $$props;
+  let { filterText: filterText2 = "" } = $$props;
+  let { stateFilter: stateFilter2 = "all" } = $$props;
+  let { sortKey: sortKey2 = "updated-desc" } = $$props;
+  function onRefresh() {
+    dispatch("refresh");
+  }
+  function onOpenFirst() {
+    if (hasItems) dispatch("openFirst");
+  }
+  function onStartTimer() {
+    if (hasItems && !timerActive2) dispatch("startTimer");
+  }
+  function onStopTimer() {
+    if (timerActive2) dispatch("stopTimer");
+  }
+  function onOpenActive() {
+    if (timerActive2 && activeId2) dispatch("openActive", { id: activeId2 });
+  }
+  function onCreate() {
+    dispatch("createWorkItem");
+  }
+  function onToggleKanban() {
+    dispatch("toggleKanban");
+  }
+  function onFilterInput(e) {
+    dispatch("filtersChanged", {
+      filterText: e.target.value,
+      stateFilter: stateFilter2,
+      sortKey: sortKey2
+    });
+  }
+  function onStateFilterChange(e) {
+    dispatch("filtersChanged", {
+      filterText: filterText2,
+      stateFilter: e.target.value,
+      sortKey: sortKey2
+    });
+  }
+  function onSortChange(e) {
+    dispatch("filtersChanged", {
+      filterText: filterText2,
+      stateFilter: stateFilter2,
+      sortKey: e.target.value
+    });
+  }
+  let draggingId = null;
+  function handleDragStart(ev, it) {
+    draggingId = it.id;
+    try {
+      ev.dataTransfer?.setData("text/plain", String(it.id));
+    } catch {
+    }
+    ev.dataTransfer && (ev.dataTransfer.effectAllowed = "move");
+  }
+  function handleDrop(ev, colKey) {
+    ev.preventDefault();
+    const txt = ev.dataTransfer?.getData("text/plain");
+    const id = Number(txt || draggingId);
+    draggingId = null;
+    if (!id) return;
+    const label = bucketLabels[colKey] || colKey;
+    dispatch("moveItem", { id, target: colKey, targetState: label });
+  }
+  const bucketOrder = [
+    "new",
+    "approved",
+    "committed",
+    "active",
+    "inprogress",
+    "review",
+    "resolved",
+    "done",
+    "closed",
+    "removed"
+  ];
+  const bucketLabels = {
+    new: "New",
+    approved: "Approved",
+    committed: "Committed",
+    active: "Active",
+    inprogress: "In Progress",
+    review: "Review/Testing",
+    resolved: "Resolved",
+    done: "Done",
+    closed: "Closed",
+    removed: "Removed"
+  };
+  function select0_change_handler() {
+    stateFilter2 = select_value(this);
+    $$invalidate(0, stateFilter2);
+    $$invalidate(15, columnDefs), $$invalidate(14, kanbanGroups), $$invalidate(9, items);
+  }
+  function select1_change_handler() {
+    sortKey2 = select_value(this);
+    $$invalidate(1, sortKey2);
+  }
+  const click_handler = () => dispatch("stopTimer");
+  const click_handler_1 = (it) => dispatch("startItem", { id: it.id });
+  const click_handler_2 = (it) => dispatch("openItem", { id: it.id });
+  const click_handler_3 = (it) => dispatch("editItem", { id: it.id });
+  const click_handler_4 = (it) => dispatch("commentItem", { id: it.id });
+  const dragstart_handler = (it, e) => handleDragStart(e, it);
+  const keydown_handler = (it, e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      dispatch("openItem", { id: it.id });
+      return;
+    }
+    if (kanbanView2 && (e.ctrlKey || e.metaKey) && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+      e.preventDefault();
+      const currentKey = normalizeState(it.fields?.["System.State"]);
+      const idx = columnDefs.findIndex((c) => c.key === currentKey);
+      if (idx !== -1) {
+        const nextIdx = e.key === "ArrowLeft" ? idx - 1 : idx + 1;
+        const target = columnDefs[nextIdx];
+        if (target) {
+          const label = target.label || target.key;
+          dispatch("moveItem", {
+            id: it.id,
+            target: target.key,
+            targetState: label
+          });
+        }
+      }
+    }
+  };
+  const click_handler_5 = (it) => dispatch("openItem", { id: it.id });
+  const drop_handler = (col, e) => handleDrop(e, col.key);
+  const click_handler_6 = () => dispatch("stopTimer");
+  const click_handler_7 = (it) => dispatch("startItem", { id: it.id });
+  const click_handler_8 = (it) => dispatch("openItem", { id: it.id });
+  const click_handler_9 = (it) => dispatch("editItem", { id: it.id });
+  const click_handler_10 = (it) => dispatch("commentItem", { id: it.id });
+  const keydown_handler_1 = (it, e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      dispatch("openItem", { id: it.id });
+    }
+  };
+  const click_handler_11 = (it) => dispatch("openItem", { id: it.id });
+  $$self.$$set = ($$props2) => {
+    if ("workItemCount" in $$props2) $$invalidate(2, workItemCount2 = $$props2.workItemCount);
+    if ("subtitle" in $$props2) $$invalidate(3, subtitle = $$props2.subtitle);
+    if ("hasItems" in $$props2) $$invalidate(23, hasItems = $$props2.hasItems);
+    if ("timerActive" in $$props2) $$invalidate(4, timerActive2 = $$props2.timerActive);
+    if ("timerRunning" in $$props2) $$invalidate(5, timerRunning2 = $$props2.timerRunning);
+    if ("timerElapsedLabel" in $$props2) $$invalidate(6, timerElapsedLabel2 = $$props2.timerElapsedLabel);
+    if ("activeId" in $$props2) $$invalidate(7, activeId2 = $$props2.activeId);
+    if ("activeTitle" in $$props2) $$invalidate(8, activeTitle2 = $$props2.activeTitle);
+    if ("items" in $$props2) $$invalidate(9, items = $$props2.items);
+    if ("kanbanView" in $$props2) $$invalidate(10, kanbanView2 = $$props2.kanbanView);
+    if ("loading" in $$props2) $$invalidate(11, loading2 = $$props2.loading);
+    if ("errorMsg" in $$props2) $$invalidate(12, errorMsg2 = $$props2.errorMsg);
+    if ("filterText" in $$props2) $$invalidate(13, filterText2 = $$props2.filterText);
+    if ("stateFilter" in $$props2) $$invalidate(0, stateFilter2 = $$props2.stateFilter);
+    if ("sortKey" in $$props2) $$invalidate(1, sortKey2 = $$props2.sortKey);
+  };
+  $$self.$$.update = () => {
+    if ($$self.$$.dirty[0] & /*items*/
+    512) {
+      $: $$invalidate(14, kanbanGroups = (() => {
+        const present = new Set(bucketOrder);
+        const groups = Object.fromEntries(bucketOrder.map((k) => [k, []]));
+        (items || []).forEach((it) => {
+          const norm = normalizeState(it?.fields?.["System.State"]);
+          if (!present.has(norm)) present.add(norm);
+          (groups[norm] || groups["new"]).push(it);
+        });
+        return groups;
+      })());
+    }
+    if ($$self.$$.dirty[0] & /*kanbanGroups*/
+    16384) {
+      $: $$invalidate(15, columnDefs = bucketOrder.filter((k) => (kanbanGroups[k] || []).length > 0 || ["new", "active", "inprogress", "review", "done"].includes(k)).map((k) => ({ key: k, label: bucketLabels[k] || k })));
+    }
+  };
+  return [
+    stateFilter2,
+    sortKey2,
+    workItemCount2,
+    subtitle,
+    timerActive2,
+    timerRunning2,
+    timerElapsedLabel2,
+    activeId2,
+    activeTitle2,
+    items,
+    kanbanView2,
+    loading2,
+    errorMsg2,
+    filterText2,
+    kanbanGroups,
+    columnDefs,
+    dispatch,
+    onOpenActive,
+    onFilterInput,
+    onStateFilterChange,
+    onSortChange,
+    handleDragStart,
+    handleDrop,
+    hasItems,
+    select0_change_handler,
+    select1_change_handler,
+    click_handler,
+    click_handler_1,
+    click_handler_2,
+    click_handler_3,
+    click_handler_4,
+    dragstart_handler,
+    keydown_handler,
+    click_handler_5,
+    drop_handler,
+    click_handler_6,
+    click_handler_7,
+    click_handler_8,
+    click_handler_9,
+    click_handler_10,
+    keydown_handler_1,
+    click_handler_11
+  ];
+}
+var App = class extends SvelteComponent {
+  constructor(options) {
+    super();
+    init(
+      this,
+      options,
+      instance2,
+      create_fragment2,
+      safe_not_equal,
+      {
+        workItemCount: 2,
+        subtitle: 3,
+        hasItems: 23,
+        timerActive: 4,
+        timerRunning: 5,
+        timerElapsedLabel: 6,
+        activeId: 7,
+        activeTitle: 8,
+        items: 9,
+        kanbanView: 10,
+        loading: 11,
+        errorMsg: 12,
+        filterText: 13,
+        stateFilter: 0,
+        sortKey: 1
+      },
+      null,
+      [-1, -1]
+    );
+  }
+};
+var App_default = App;
+
+// src/webview/svelte-main.ts
+var vscode = (() => {
+  try {
+    return window.vscode || acquireVsCodeApi();
+  } catch (e) {
+    console.error("[svelte-main] Failed to acquire VS Code API", e);
+    return null;
+  }
+})();
+function postMessage(msg) {
+  try {
+    if (vscode && typeof vscode.postMessage === "function") {
+      vscode.postMessage(msg);
+      return;
+    }
+    if (window.vscode && typeof window.vscode.postMessage === "function") {
+      window.vscode.postMessage(msg);
+      return;
+    }
+  } catch (err) {
+    console.error("[svelte-main] postMessage error", err, msg);
+  }
+}
+var app = null;
+var workItemCount = 0;
+var lastWorkItems = [];
+var timerActive = false;
+var timerRunning = false;
+var activeId = 0;
+var activeTitle = "";
+var elapsedSeconds = 0;
+var timerElapsedLabel = "";
+var itemsForView = [];
+var kanbanView = false;
+var loading = true;
+var errorMsg = "";
+var filterText = "";
+var stateFilter = "all";
+var sortKey = "updated-desc";
+var pendingMoves = /* @__PURE__ */ new Map();
+try {
+  const st = vscode && typeof vscode.getState === "function" ? vscode.getState() : null;
+  if (st && typeof st.kanbanView === "boolean") kanbanView = !!st.kanbanView;
+} catch (e) {
+  console.warn("[svelte-main] Unable to read persisted state", e);
+}
+function ensureApp() {
+  if (app) return app;
+  const root = document.createElement("div");
+  root.id = "svelte-root";
+  const container = document.body || document.documentElement;
+  container.insertBefore(root, container.firstChild);
+  app = new App_default({
+    target: root,
+    props: {
+      workItemCount,
+      subtitle: "Svelte flag on",
+      hasItems: (lastWorkItems || []).length > 0,
+      timerActive,
+      timerRunning,
+      timerElapsedLabel,
+      activeId,
+      activeTitle,
+      items: itemsForView,
+      kanbanView,
+      loading,
+      errorMsg,
+      filterText,
+      stateFilter,
+      sortKey
+    }
+  });
+  app.$on("refresh", () => {
+    loading = true;
+    errorMsg = "";
+    app.$set({ loading, errorMsg });
+    postMessage({ type: "refresh" });
+  });
+  app.$on("openFirst", () => {
+    const first = (lastWorkItems || [])[0];
+    if (first)
+      postMessage({
+        type: "viewWorkItem",
+        workItemId: Number(first.id || first.fields?.["System.Id"])
+      });
+  });
+  app.$on("startTimer", () => {
+    const first = (lastWorkItems || [])[0];
+    if (first)
+      postMessage({
+        type: "startTimer",
+        workItemId: Number(first.id || first.fields?.["System.Id"])
+      });
+  });
+  app.$on("stopTimer", () => postMessage({ type: "stopTimer" }));
+  app.$on("openActive", (ev) => {
+    const id = ev?.detail?.id ?? activeId;
+    if (id != null) postMessage({ type: "viewWorkItem", workItemId: Number(id) });
+  });
+  app.$on("openItem", (ev) => {
+    const id = Number(ev?.detail?.id);
+    if (id) postMessage({ type: "viewWorkItem", workItemId: id });
+  });
+  app.$on("startItem", (ev) => {
+    const id = Number(ev?.detail?.id);
+    if (id) postMessage({ type: "startTimer", workItemId: id });
+  });
+  app.$on("editItem", (ev) => {
+    const id = Number(ev?.detail?.id);
+    if (id) postMessage({ type: "editWorkItemInEditor", workItemId: id });
+  });
+  app.$on("commentItem", (ev) => {
+    const id = Number(ev?.detail?.id);
+    if (id) postMessage({ type: "addComment", workItemId: id });
+  });
+  app.$on("createWorkItem", () => postMessage({ type: "createWorkItem" }));
+  app.$on("toggleKanban", () => {
+    kanbanView = !kanbanView;
+    app.$set({ kanbanView });
+    const prefs = { kanbanView, filterText, stateFilter, sortKey };
+    try {
+      if (vscode && typeof vscode.setState === "function") {
+        const prev = typeof vscode.getState === "function" && vscode.getState() || {};
+        vscode.setState({ ...prev, ...prefs });
+      }
+    } catch (e) {
+      console.warn("[svelte-main] Unable to persist state", e);
+    }
+    postMessage({ type: "uiPreferenceChanged", preferences: prefs });
+  });
+  app.$on("filtersChanged", (ev) => {
+    filterText = String(ev?.detail?.filterText ?? filterText);
+    stateFilter = String(ev?.detail?.stateFilter ?? stateFilter);
+    sortKey = String(ev?.detail?.sortKey ?? sortKey);
+    recomputeItemsForView();
+    app.$set({
+      filterText,
+      stateFilter,
+      sortKey,
+      items: itemsForView,
+      workItemCount: itemsForView.length,
+      hasItems: itemsForView.length > 0
+    });
+    const prefs = { kanbanView, filterText, stateFilter, sortKey };
+    try {
+      if (vscode && typeof vscode.setState === "function") {
+        const prev = typeof vscode.getState === "function" && vscode.getState() || {};
+        vscode.setState({ ...prev, ...prefs });
+      }
+    } catch (e) {
+      console.warn("[svelte-main] Unable to persist filters", e);
+    }
+    postMessage({ type: "uiPreferenceChanged", preferences: prefs });
+  });
+  app.$on("moveItem", (ev) => {
+    const id = Number(ev?.detail?.id);
+    const target = String(ev?.detail?.target || "");
+    if (!id || !target) return;
+    const found = (lastWorkItems || []).find((w) => Number(w.id) === id);
+    if (found) {
+      if (!found.fields) found.fields = {};
+      const mapping = {
+        todo: "To Do",
+        active: "Active",
+        inprogress: "In Progress",
+        review: "Review",
+        resolved: "Resolved",
+        done: "Done",
+        removed: "Removed"
+      };
+      const prevState = String(found.fields["System.State"] || "");
+      pendingMoves.set(id, { prevState });
+      found.fields["System.State"] = mapping[target] || "Active";
+      recomputeItemsForView();
+      app.$set({ items: itemsForView });
+    }
+    postMessage({ type: "moveWorkItem", id, target });
+  });
+  return app;
+}
+function passesFilters(it) {
+  const title = String(it?.fields?.["System.Title"] || "").toLowerCase();
+  const stateRaw = String(it?.fields?.["System.State"] || "");
+  const norm = normalizeState2(stateRaw);
+  if (filterText && !title.includes(String(filterText).toLowerCase())) return false;
+  if (stateFilter && stateFilter !== "all" && norm !== stateFilter) return false;
+  return true;
+}
+function normalizeState2(raw) {
+  if (!raw) return "todo";
+  const s = String(raw).toLowerCase().trim().replace(/\s+/g, "-");
+  if (s === "new" || s === "to-do" || s === "todo") return "todo";
+  if (s === "active") return "active";
+  if (s === "in-progress" || s === "inprogress" || s === "doing") return "inprogress";
+  if (s === "review" || s === "code-review" || s === "testing") return "review";
+  if (s === "resolved") return "resolved";
+  if (s === "done" || s === "closed") return "done";
+  if (s === "removed") return "removed";
+  return "todo";
+}
+function recomputeItemsForView() {
+  const items = Array.isArray(lastWorkItems) ? lastWorkItems : [];
+  const filtered = items.filter(passesFilters);
+  const sorted = [...filtered].sort((a, b) => {
+    switch (sortKey) {
+      case "id-asc":
+        return Number(a.id) - Number(b.id);
+      case "id-desc":
+        return Number(b.id) - Number(a.id);
+      case "title-asc": {
+        const at = String(a.fields?.["System.Title"] || "").toLowerCase();
+        const bt = String(b.fields?.["System.Title"] || "").toLowerCase();
+        return at.localeCompare(bt);
+      }
+      case "updated-desc":
+      default: {
+        const ad = Date.parse(
+          a.fields?.["System.ChangedDate"] || a.fields?.["System.UpdatedDate"] || ""
+        );
+        const bd = Date.parse(
+          b.fields?.["System.ChangedDate"] || b.fields?.["System.UpdatedDate"] || ""
+        );
+        return (isNaN(bd) ? 0 : bd) - (isNaN(ad) ? 0 : ad);
+      }
+    }
+  });
+  itemsForView = sorted;
+}
+function formatElapsedHHMM(sec) {
+  const s = Math.max(0, Math.floor(Number(sec) || 0));
+  const h = Math.floor(s / 3600).toString().padStart(2, "0");
+  const m = Math.floor(s % 3600 / 60).toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
+function onMessage(message) {
+  switch (message?.type) {
+    case "workItemsLoaded": {
+      const items = Array.isArray(message.workItems) ? message.workItems : [];
+      lastWorkItems = items;
+      recomputeItemsForView();
+      workItemCount = itemsForView.length;
+      loading = false;
+      errorMsg = "";
+      if (activeId != null) {
+        const match = items.find(
+          (w) => Number(w.id || w.fields?.["System.Id"]) === Number(activeId)
+        );
+        if (match) activeTitle = String(match.fields?.["System.Title"] || `#${activeId}`);
+      }
+      ensureApp();
+      app.$set({
+        workItemCount,
+        hasItems: itemsForView.length > 0,
+        activeId,
+        activeTitle,
+        timerElapsedLabel,
+        items: itemsForView,
+        kanbanView,
+        loading,
+        errorMsg,
+        filterText,
+        stateFilter,
+        sortKey
+      });
+      break;
+    }
+    case "workItemsError": {
+      loading = false;
+      errorMsg = String(message?.error || "Failed to load work items.");
+      ensureApp();
+      app.$set({ loading, errorMsg });
+      break;
+    }
+    case "toggleKanbanView": {
+      kanbanView = !kanbanView;
+      ensureApp();
+      app.$set({ kanbanView });
+      try {
+        if (vscode && typeof vscode.setState === "function") {
+          const prev = typeof vscode.getState === "function" && vscode.getState() || {};
+          vscode.setState({ ...prev, kanbanView });
+        }
+      } catch (e) {
+        console.warn("[svelte-main] Unable to persist state", e);
+      }
+      break;
+    }
+    case "timerUpdate": {
+      const snap = message?.timer || {};
+      timerActive = !!snap && typeof snap.workItemId !== "undefined";
+      timerRunning = !!snap && !snap.isPaused;
+      elapsedSeconds = Number(snap?.elapsedSeconds || 0);
+      timerElapsedLabel = formatElapsedHHMM(elapsedSeconds);
+      if (timerActive) {
+        activeId = Number(snap.workItemId) || 0;
+        const match = (lastWorkItems || []).find(
+          (w) => Number(w.id || w.fields?.["System.Id"]) === Number(activeId)
+        );
+        activeTitle = match ? String(match.fields?.["System.Title"] || `#${activeId}`) : "";
+      } else {
+        activeId = 0;
+        activeTitle = "";
+        elapsedSeconds = 0;
+        timerElapsedLabel = "";
+      }
+      ensureApp();
+      app.$set({ timerActive, timerRunning, timerElapsedLabel, activeId, activeTitle });
+      break;
+    }
+    case "moveWorkItemResult": {
+      const id = Number(message.id);
+      if (!id || !pendingMoves.has(id)) break;
+      const pending = pendingMoves.get(id);
+      pendingMoves.delete(id);
+      if (!message.success) {
+        const found = (lastWorkItems || []).find((w) => Number(w.id) === id);
+        if (found && found.fields && pending) {
+          found.fields["System.State"] = pending.prevState;
+          recomputeItemsForView();
+          ensureApp();
+          app.$set({ items: itemsForView });
+        }
+        addToast(`Move failed: ${message.error || "Unknown error"}`, { type: "error" });
+      } else if (message.newState) {
+        const found = (lastWorkItems || []).find((w) => Number(w.id) === id);
+        if (found && found.fields) {
+          found.fields["System.State"] = message.newState;
+          recomputeItemsForView();
+          ensureApp();
+          app.$set({ items: itemsForView });
+        }
+        if (pending && pending.prevState !== message.newState) {
+          addToast(`Moved #${id} \u2192 ${message.newState}`, { type: "success", timeout: 2500 });
+        }
+      }
+      break;
+    }
+    case "uiPreferences": {
+      const prefs = message?.preferences || {};
+      if (typeof prefs.kanbanView === "boolean") kanbanView = prefs.kanbanView;
+      if (typeof prefs.filterText === "string") filterText = prefs.filterText;
+      if (typeof prefs.stateFilter === "string") stateFilter = prefs.stateFilter;
+      if (typeof prefs.sortKey === "string") sortKey = prefs.sortKey;
+      recomputeItemsForView();
+      ensureApp();
+      app.$set({
+        kanbanView,
+        filterText,
+        stateFilter,
+        sortKey,
+        items: itemsForView,
+        workItemCount: itemsForView.length,
+        hasItems: itemsForView.length > 0
+      });
+      break;
+    }
+    case "selfTestPing": {
+      postMessage({ type: "selfTestPong", nonce: message.nonce, signature: "svelte-entry" });
+      break;
+    }
+    default:
+      break;
+  }
+}
+function boot() {
+  window.addEventListener("message", (ev) => onMessage(ev.data));
+  loading = true;
+  errorMsg = "";
+  postMessage({ type: "webviewReady" });
+  postMessage({ type: "getWorkItems" });
+  ensureApp();
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => boot());
+} else {
+  boot();
+}
+//# sourceMappingURL=svelte-main.js.map

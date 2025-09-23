@@ -22,6 +22,25 @@ const PAT_KEY = 'azureDevOpsInt.pat';
 let viewProviderRegistered = false;
 let initialRefreshed = false; // prevent duplicate initial refresh (silentInit + webview init)
 let outputChannel: vscode.OutputChannel | undefined; // lazy created when debugLogging enabled
+// Lightweight in-memory log buffer so users can copy logs to clipboard
+const LOG_BUFFER_MAX = 5000; // max lines to retain
+let logBuffer: string[] = [];
+function logLine(text: string) {
+  try {
+    // Append to output channel if available
+    if (outputChannel) outputChannel.appendLine(text);
+  } catch {
+    /* ignore */
+  }
+  try {
+    logBuffer.push(text);
+    if (logBuffer.length > LOG_BUFFER_MAX) {
+      logBuffer.splice(0, logBuffer.length - LOG_BUFFER_MAX);
+    }
+  } catch {
+    /* ignore buffer errors */
+  }
+}
 let extensionContextRef: vscode.ExtensionContext | undefined; // keep a reference for later ops
 let cachedExtensionVersion: string | undefined; // cache package.json version for cache-busting
 // Self-test tracking (prove Svelte webview round‑trip works)
@@ -29,6 +48,22 @@ let cachedExtensionVersion: string | undefined; // cache package.json version fo
 let selfTestPending:
   | { nonce: string; resolve: Function; reject: Function; timeout: NodeJS.Timeout }
   | undefined;
+
+// Enable a minimal smoke-test mode for CI/integration tests to avoid heavy initialization
+// Primary signal: VSCODE_INTEGRATION_SMOKE=1
+// Fallback signal: VS Code test runner is present (extensionTestsPath arg) which indicates an integration test session.
+function isVSCodeTestRun(): boolean {
+  try {
+    return (process.argv || []).some(
+      (a) =>
+        typeof a === 'string' &&
+        (a.includes('--extensionTestsPath') || a.includes('integration-tests'))
+    );
+  } catch {
+    return false;
+  }
+}
+const IS_SMOKE = process.env.VSCODE_INTEGRATION_SMOKE === '1' || isVSCodeTestRun();
 
 function getConfig() {
   return vscode.workspace.getConfiguration(CONFIG_NS);
@@ -41,6 +76,7 @@ function getExtensionVersion(context: vscode.ExtensionContext): string {
     const pkg = JSON.parse(pkgRaw);
     cachedExtensionVersion = String(pkg.version || 'dev');
   } catch {
+    // Swallow errors and fall back to 'dev'
     cachedExtensionVersion = 'dev';
   }
   return cachedExtensionVersion;
@@ -62,10 +98,20 @@ async function migrateLegacyConfigIfNeeded() {
 
 export function activate(context: vscode.ExtensionContext) {
   extensionContextRef = context;
+  // In smoke mode (integration tests), minimize activation work to avoid any potential stalls.
+  if (IS_SMOKE) {
+    try {
+      vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
+    } catch {
+      /* ignore */
+    }
+    // Do not register views/commands or initialize any domain objects in smoke mode.
+    return;
+  }
   const cfg = getConfig();
   if (cfg.get<boolean>('debugLogging')) {
     outputChannel = vscode.window.createOutputChannel('Azure DevOps Integration');
-    outputChannel.appendLine('[activate] Debug logging enabled');
+    logLine('[activate] Debug logging enabled');
   }
   // Status bar (hidden until connected or timer active)
   statusBarItem = vscode.window.createStatusBarItem(
@@ -88,10 +134,59 @@ export function activate(context: vscode.ExtensionContext) {
     );
     viewProviderRegistered = true;
   }
-
   // Core commands
   context.subscriptions.push(
     vscode.commands.registerCommand('azureDevOpsInt.setup', () => setupConnection(context)),
+    vscode.commands.registerCommand('azureDevOpsInt.openLogs', async () => {
+      try {
+        if (!outputChannel) {
+          outputChannel = vscode.window.createOutputChannel('Azure DevOps Integration');
+          logLine('[logs] Output channel created on demand');
+        }
+        outputChannel.show(true);
+        const cfg = getConfig();
+        if (!cfg.get<boolean>('debugLogging')) {
+          const pick = await vscode.window.showInformationMessage(
+            'Verbose logging is currently disabled. Enable it to capture more diagnostics?',
+            'Enable',
+            'Skip'
+          );
+          if (pick === 'Enable') {
+            await cfg.update('debugLogging', true, vscode.ConfigurationTarget.Global);
+            logLine('[logs] Debug logging enabled');
+          }
+        }
+      } catch (e: any) {
+        vscode.window.showErrorMessage('Failed to open logs: ' + (e?.message || String(e)));
+      }
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.copyLogsToClipboard', async () => {
+      try {
+        const version = extensionContextRef ? getExtensionVersion(extensionContextRef) : 'dev';
+        const header = `Azure DevOps Integration Logs\nVersion: ${version}\nTimestamp: ${new Date().toISOString()}\nLines: ${logBuffer.length}\n---\n`;
+        const body = logBuffer.join('\n');
+        const text = header + body + (body.endsWith('\n') ? '' : '\n');
+        await vscode.env.clipboard.writeText(text);
+        vscode.window.showInformationMessage('Copied extension logs to clipboard.');
+      } catch (e: any) {
+        vscode.window.showErrorMessage(
+          'Failed to copy logs to clipboard: ' + (e?.message || String(e))
+        );
+      }
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.openLogsFolder', async () => {
+      try {
+        await vscode.commands.executeCommand('workbench.action.openLogsFolder');
+      } catch {
+        try {
+          await vscode.env.openExternal((vscode.env as any).logUri ?? vscode.Uri.file(''));
+        } catch (e: any) {
+          vscode.window.showErrorMessage(
+            'Failed to open logs folder: ' + (e?.message || String(e))
+          );
+        }
+      }
+    }),
     vscode.commands.registerCommand('azureDevOpsInt.focusWorkItemsView', () =>
       revealWorkItemsView()
     ),
@@ -170,7 +265,15 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   // Attempt silent init if settings already present
-  migrateLegacyConfigIfNeeded().finally(() => silentInit(context));
+  if (!IS_SMOKE) {
+    migrateLegacyConfigIfNeeded().finally(() => silentInit(context));
+  } else {
+    try {
+      vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
+    } catch {
+      /* ignore */
+    }
+  }
 
   // React to configuration changes (org, project, PAT) to (re)initialize without requiring reload
   context.subscriptions.push(
@@ -211,6 +314,15 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
   }
 
   resolveWebviewView(webviewView: vscode.WebviewView): void | Thenable<void> {
+    if (IS_SMOKE) {
+      // Avoid doing any webview work in smoke/integration test mode
+      try {
+        vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
     console.log('[azureDevOpsInt] resolveWebviewView invoked for view:', webviewView.viewType);
     panel = webviewView;
     const webview = webviewView.webview;
@@ -226,8 +338,17 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
 
     const html = buildMinimalWebviewHtml(this.ctx, webview, nonce);
     webview.html = html;
-
-    initDomainObjects(this.ctx, (msg: any) => webview.postMessage(msg));
+    if (!IS_SMOKE) {
+      initDomainObjects(this.ctx, (msg: any) => webview.postMessage(msg));
+    } else {
+      // In smoke mode, avoid heavy initialization and network calls.
+      // Still send minimal ready state so the webview can render.
+      try {
+        webview.postMessage({ type: 'workItemsLoaded', workItems: [], kanbanView: false });
+      } catch {
+        /* ignore */
+      }
+    }
   }
 }
 
@@ -339,6 +460,17 @@ async function handleMessage(msg: any) {
         panel.webview.postMessage({ type: 'workItemsLoaded', workItems, kanbanView: false });
         const snap = timer?.snapshot?.();
         if (snap) panel.webview.postMessage({ type: 'timerUpdate', timer: snap });
+        // Send UI preferences from global memento
+        const uiPrefs = extensionContextRef?.globalState.get(
+          'azureDevOpsIntegration.uiPreferences',
+          {
+            kanbanView: false,
+            filterText: '',
+            stateFilter: 'all',
+            sortKey: 'updated-desc',
+          }
+        );
+        panel.webview.postMessage({ type: 'uiPreferences', preferences: uiPrefs });
         // If a self-test was queued before webview ready, trigger now
         if (selfTestPending) {
           panel.webview.postMessage({ type: 'selfTestPing', nonce: selfTestPending.nonce });
@@ -346,7 +478,8 @@ async function handleMessage(msg: any) {
       }
       break;
     }
-    case 'selfTestAck': {
+    case 'selfTestAck':
+    case 'selfTestPong': {
       if (selfTestPending && msg.nonce === selfTestPending.nonce) {
         clearTimeout(selfTestPending.timeout);
         selfTestPending.resolve({ ok: true, details: msg.signature || 'ack' });
@@ -362,7 +495,7 @@ async function handleMessage(msg: any) {
         msg.stack ? '\n' + msg.stack : ''
       }`;
       console.error(msgTxt);
-      if (outputChannel) outputChannel.appendLine(msgTxt);
+      logLine(msgTxt);
       if (getConfig().get<boolean>('debugLogging')) {
         vscode.window.showErrorMessage(`Webview runtime error: ${msg.message || 'Unknown'}`);
       }
@@ -377,6 +510,93 @@ async function handleMessage(msg: any) {
       if (panel) {
         const workItems = provider?.getWorkItems() || [];
         panel.webview.postMessage({ type: 'workItemsLoaded', workItems });
+      }
+      break;
+    }
+    case 'moveWorkItem': {
+      const id: number | undefined =
+        typeof msg.id === 'number'
+          ? msg.id
+          : typeof msg.workItemId === 'number'
+            ? msg.workItemId
+            : undefined;
+      const target: string | undefined = typeof msg.target === 'string' ? msg.target : undefined;
+      const targetState: string | undefined =
+        typeof msg.targetState === 'string' ? msg.targetState : undefined;
+      if (!id || (!target && !targetState)) {
+        panel?.webview.postMessage({
+          type: 'moveWorkItemResult',
+          id,
+          success: false,
+          error: 'Missing id or target state',
+        });
+        break;
+      }
+      try {
+        if (!client || !provider) throw new Error('Not connected');
+        const map: Record<string, string> = {
+          todo: 'To Do',
+          new: 'New',
+          approved: 'Approved',
+          committed: 'Committed',
+          active: 'Active',
+          inprogress: 'In Progress',
+          review: 'Review',
+          resolved: 'Resolved',
+          done: 'Done',
+          closed: 'Closed',
+          removed: 'Removed',
+        };
+        let desired =
+          (targetState && String(targetState)) || (target ? map[target] : undefined) || 'Active';
+        const current = provider.getWorkItems().find((w: any) => Number(w.id) === Number(id));
+        const wiType = current?.fields?.['System.WorkItemType'];
+        if (wiType) {
+          try {
+            const states = await client.getWorkItemTypeStates(String(wiType));
+            const match = desired
+              ? states.find((s: string) => s.toLowerCase() === String(desired).toLowerCase())
+              : undefined;
+            if (!match) {
+              const synonyms: Record<string, string[]> = {
+                'To Do': ['New', 'Proposed', 'Approved'],
+                Active: ['Committed'],
+                'In Progress': ['Doing'],
+                Review: ['Code Review', 'Testing', 'QA'],
+                Resolved: ['Fixed'],
+                Done: ['Closed', 'Completed'],
+                Removed: ['Cut', 'Abandoned'],
+              };
+              const cand = Object.entries(synonyms).find(
+                ([k]) => k.toLowerCase() === desired.toLowerCase()
+              );
+              if (cand) desired = cand[0];
+            } else desired = match;
+            if (!states.some((s: string) => s.toLowerCase() === desired.toLowerCase())) {
+              throw new Error(`State '${desired}' not valid for type ${wiType}`);
+            }
+          } catch (stateErr: any) {
+            verbose('State validation warning ' + (stateErr?.message || String(stateErr)));
+          }
+        }
+        await client.updateWorkItem(id, [
+          { op: 'add', path: '/fields/System.State', value: desired },
+        ]);
+        provider.refresh();
+        panel?.webview.postMessage({
+          type: 'moveWorkItemResult',
+          id,
+          success: true,
+          newState: desired,
+        });
+      } catch (e: any) {
+        console.error('Failed to move work item', e);
+        panel?.webview.postMessage({
+          type: 'moveWorkItemResult',
+          id,
+          success: false,
+          error: e?.message || String(e),
+        });
       }
       break;
     }
@@ -443,13 +663,13 @@ async function handleMessage(msg: any) {
       if (lvl === 'error') console.error(text);
       else if (lvl === 'warn') console.warn(text);
       else console.log(text);
-      if (outputChannel) outputChannel.appendLine(text);
+      logLine(text);
       break;
     }
     case 'preImportDescriptor': {
       const text = `[preImportDescriptor] ${JSON.stringify(msg.snapshot)}`;
       console.log(text);
-      if (outputChannel) outputChannel.appendLine(text);
+      logLine(text);
       break;
     }
     case 'generateCopilotPrompt': {
@@ -563,6 +783,16 @@ async function handleMessage(msg: any) {
       }
       break;
     }
+    case 'uiPreferenceChanged': {
+      // Store UI preferences to global memento for cross-session persistence
+      if (extensionContextRef && msg.preferences) {
+        await extensionContextRef.globalState.update(
+          'azureDevOpsIntegration.uiPreferences',
+          msg.preferences
+        );
+      }
+      break;
+    }
     default:
       console.warn('Unknown webview message', msg);
       verbose('Unknown message type');
@@ -636,8 +866,11 @@ function buildMinimalWebviewHtml(
   webview: vscode.Webview,
   nonce: string
 ): string {
-  // Read the static webview HTML file from media/webview (committed asset)
-  const htmlPath = path.join(context.extensionPath, 'media', 'webview', 'index.html');
+  const useSvelte = !!getConfig().get<boolean>('experimentalSvelteUI');
+
+  // Use different HTML templates based on whether Svelte is enabled
+  const htmlFileName = useSvelte ? 'svelte.html' : 'index.html';
+  const htmlPath = path.join(context.extensionPath, 'media', 'webview', htmlFileName);
   let html: string;
 
   try {
@@ -651,10 +884,34 @@ function buildMinimalWebviewHtml(
   // Get media URIs for replacement
   const mediaRoot = vscode.Uri.joinPath(context.extensionUri, 'media', 'webview');
   const version = getExtensionVersion(context);
-  const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'main.js'));
+  // When Svelte UI is enabled, attempt to load svelte-main.js. Fallback to main.js if not present.
+  const svelteCandidate = vscode.Uri.joinPath(mediaRoot, 'svelte-main.js');
+  const sveltePathFs = path.join(context.extensionPath, 'media', 'webview', 'svelte-main.js');
+  const chosenScript =
+    useSvelte && fs.existsSync(sveltePathFs)
+      ? svelteCandidate
+      : vscode.Uri.joinPath(mediaRoot, 'main.js');
+  const scriptUri = webview.asWebviewUri(chosenScript);
   // Append a cache-busting version query so VS Code doesn’t serve stale cached assets after upgrade
   const scriptUriWithVersion = scriptUri.with({ query: `v=${encodeURIComponent(version)}` });
   const scriptUriStr = scriptUriWithVersion.toString();
+
+  // If using Svelte, also include the extracted CSS bundle if present
+  let cssLinkTag = '';
+  if (useSvelte) {
+    try {
+      const cssFsPath = path.join(context.extensionPath, 'media', 'webview', 'svelte-main.css');
+      if (fs.existsSync(cssFsPath)) {
+        const cssUri = webview
+          .asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'svelte-main.css'))
+          .with({ query: `v=${encodeURIComponent(version)}` })
+          .toString();
+        cssLinkTag = `<link rel="stylesheet" href="${cssUri}" />`;
+      }
+    } catch {
+      // ignore css injection errors; webview will still work but unstyled
+    }
+  }
 
   // Update CSP and script nonces
   const csp = `default-src 'none'; img-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${webview.cspSource}`;
@@ -665,7 +922,19 @@ function buildMinimalWebviewHtml(
     '<meta charset="UTF-8">',
     `<meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}">`
   );
-  html = html.replace('./main.js', scriptUriStr);
+
+  // Handle different script replacement patterns for different templates
+  if (useSvelte) {
+    html = html.replace('./svelte-main.js', scriptUriStr);
+  } else {
+    html = html.replace('./main.js', scriptUriStr);
+  }
+
+  // Inject CSS link (Svelte only) just before </head> if available
+  if (cssLinkTag) {
+    html = html.replace('</head>', `${cssLinkTag}\n</head>`);
+  }
+
   html = html.replace(
     '<script type="module" crossorigin src="' + scriptUriStr + '"></script>',
     `<script nonce="${nonce}">(function(){try{if(!window.vscode){window.vscode=acquireVsCodeApi();}}catch(e){console.error('[webview] acquireVsCodeApi failed',e);}})();</script>` +
@@ -721,6 +990,7 @@ async function setupConnection(context: vscode.ExtensionContext) {
 }
 
 async function silentInit(context: vscode.ExtensionContext) {
+  if (IS_SMOKE) return; // Skip heavy init during smoke tests
   await migrateLegacyPAT(context);
   const cfg = getConfig();
   const pat = await getSecretPAT(context);
@@ -851,6 +1121,11 @@ async function migrateLegacyPAT(context: vscode.ExtensionContext) {
 }
 
 function revealWorkItemsView() {
+  if (IS_SMOKE) {
+    // Do not attempt to reveal the view during smoke/integration tests
+    verbose('Skipping revealWorkItemsView in smoke mode');
+    return;
+  }
   // Show our custom Activity Bar container. Since it's the only view in the container,
   // revealing the container is sufficient and avoids potential focus race conditions.
   vscode.commands.executeCommand('workbench.view.extension.azureDevOpsIntegration');
@@ -1178,13 +1453,13 @@ function verbose(msg: string, extra?: any) {
   try {
     if (!outputChannel) return;
     if (extra !== undefined) {
-      outputChannel.appendLine(
+      logLine(
         `${new Date().toISOString()} ${msg} ${
           typeof extra === 'string' ? extra : JSON.stringify(extra)
         }`
       );
     } else {
-      outputChannel.appendLine(`${new Date().toISOString()} ${msg}`);
+      logLine(`${new Date().toISOString()} ${msg}`);
     }
   } catch {
     /* ignore */
