@@ -41,10 +41,10 @@ Marketplace page: [Azure DevOps Integration – VS Code Marketplace](https://mar
 
 Required scopes (minimum recommended):
 
+- Work Items (Read & Write)
 - User Profile (Read)
 - Team (Read)
-- Work Items (Read & Write)
-- Code (Read & Write) – for PRs & repos
+- Code (Read & Write) – optional, for PRs & repos
 - Build (Read) – optional, for planned build status features
 
 Generate at: Azure DevOps → User Settings → Security → Personal Access Tokens.
@@ -103,7 +103,6 @@ Namespace: `azureDevOpsIntegration`
 {
   "azureDevOpsIntegration.organization": "myorg",
   "azureDevOpsIntegration.project": "myproject",
-  "azureDevOpsIntegration.personalAccessToken": "", // PAT is stored in Secret Storage; this key is supported for migration
   "azureDevOpsIntegration.debugLogging": false,
 
   // Work item list behavior
@@ -141,19 +140,6 @@ Quick ways to share logs
 - Command palette → "Azure DevOps: Copy Logs to Clipboard" to copy the collected logs (including webview forwarding and context header) in one click.
 - Command palette → "Azure DevOps: Open Logs Folder (VS Code)" to open the VS Code logs directory. Zip the folder for the current window (it contains extension host logs like exthost.log) and attach it to your issue if requested.
 - Optional: Developer Tools (Help → Toggle Developer Tools) can surface webview console errors. The extension forwards many webview console messages into the Output channel when logging is enabled.
-
-## 🧪 Experimental Svelte UI
-
-You can try an early Svelte-powered webview.
-
-- Enable setting: `azureDevOpsIntegration.experimentalSvelteUI`
-- Reload the window
-
-Notes
-
-- The Svelte UI now includes Kanban + List parity, keyboard column moves, toasts, and codicon icons.
-- TypeScript in `.svelte` currently limited; we ship plain `<script>` for compatibility with the chosen esbuild plugin.
-- Feedback welcome as we expand dynamic per‑type columns (planned in upcoming release).
 
 Rate limiting controls
 

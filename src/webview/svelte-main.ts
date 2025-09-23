@@ -60,6 +60,8 @@ let stateFilter: string = 'all';
 let sortKey: string = 'updated-desc';
 // Track optimistic moves so we can revert on failure
 const pendingMoves = new Map<number, { prevState: string }>();
+// Available normalized states (for filter dropdown)
+let stateOptions: string[] = [];
 // Initialize kanbanView from persisted webview state if available
 try {
   const st =
@@ -78,7 +80,7 @@ function ensureApp() {
     target: root,
     props: {
       workItemCount,
-      subtitle: 'Svelte flag on',
+      subtitle: '',
       hasItems: (lastWorkItems || []).length > 0,
       timerActive,
       timerRunning,
@@ -191,7 +193,7 @@ function ensureApp() {
       if (!found.fields) found.fields = {};
       // map target column key back to a friendly label for immediate UI; server will apply real state
       const mapping: any = {
-        todo: 'To Do',
+        new: 'To Do',
         active: 'Active',
         inprogress: 'In Progress',
         review: 'Review',
@@ -221,16 +223,19 @@ function passesFilters(it: any): boolean {
 }
 
 function normalizeState(raw: any): string {
-  if (!raw) return 'todo';
+  if (!raw) return 'new';
   const s = String(raw).toLowerCase().trim().replace(/\s+/g, '-');
-  if (s === 'new' || s === 'to-do' || s === 'todo') return 'todo';
+  if (s === 'new' || s === 'to-do' || s === 'todo' || s === 'proposed') return 'new';
+  if (s === 'approved') return 'approved';
+  if (s === 'committed') return 'committed';
   if (s === 'active') return 'active';
   if (s === 'in-progress' || s === 'inprogress' || s === 'doing') return 'inprogress';
   if (s === 'review' || s === 'code-review' || s === 'testing') return 'review';
   if (s === 'resolved') return 'resolved';
-  if (s === 'done' || s === 'closed') return 'done';
+  if (s === 'done') return 'done';
+  if (s === 'closed' || s === 'completed') return 'closed';
   if (s === 'removed') return 'removed';
-  return 'todo';
+  return 'new';
 }
 
 function recomputeItemsForView() {
@@ -260,6 +265,26 @@ function recomputeItemsForView() {
     }
   });
   itemsForView = sorted;
+  // Recompute state options (distinct normalized states actually present in ALL items, not just filtered)
+  const allStatesSet = new Set<string>();
+  (Array.isArray(lastWorkItems) ? lastWorkItems : []).forEach((w: any) => {
+    const norm = normalizeState(w?.fields?.['System.State']);
+    allStatesSet.add(norm);
+  });
+  // Desired ordering reflects bucket order used in App.svelte
+  const order = [
+    'new',
+    'approved',
+    'committed',
+    'active',
+    'inprogress',
+    'review',
+    'resolved',
+    'done',
+    'closed',
+    'removed',
+  ];
+  stateOptions = order.filter((s) => allStatesSet.has(s));
 }
 
 function formatElapsedHHMM(sec: number): string {
@@ -303,6 +328,7 @@ function onMessage(message: any) {
         filterText,
         stateFilter,
         sortKey,
+        availableStates: stateOptions,
       });
       break;
     }
@@ -399,6 +425,7 @@ function onMessage(message: any) {
         items: itemsForView,
         workItemCount: itemsForView.length,
         hasItems: itemsForView.length > 0,
+        availableStates: stateOptions,
       });
       break;
     }

@@ -866,7 +866,9 @@ function buildMinimalWebviewHtml(
   webview: vscode.Webview,
   nonce: string
 ): string {
-  const useSvelte = !!getConfig().get<boolean>('experimentalSvelteUI');
+  // Svelte is now the default. Fallback to legacy only if svelte assets are missing.
+  const svelteAssetsPath = path.join(context.extensionPath, 'media', 'webview', 'svelte-main.js');
+  const useSvelte = fs.existsSync(svelteAssetsPath);
 
   // Use different HTML templates based on whether Svelte is enabled
   const htmlFileName = useSvelte ? 'svelte.html' : 'index.html';
@@ -975,7 +977,7 @@ async function setupConnection(context: vscode.ExtensionContext) {
   await config.update('organization', org, vscode.ConfigurationTarget.Global);
   await config.update('project', project, vscode.ConfigurationTarget.Global);
   await context.secrets.store(PAT_KEY, pat.trim());
-  vscode.window.showInformationMessage('Azure DevOps connection saved. Initializing...');
+  vscode.window.showInformationMessage('Azure DevOps connection saved. Re-initializing...');
   client = undefined;
   provider = undefined;
   timer = undefined; // reset
@@ -984,9 +986,8 @@ async function setupConnection(context: vscode.ExtensionContext) {
   } catch {
     // ignore context set failure; not fatal
   }
-  if (panel) {
-    await initDomainObjects(context, (m: any) => panel?.webview.postMessage(m));
-  } else await silentInit(context);
+  // Force re-init with new PAT
+  await silentInit(context);
 }
 
 async function silentInit(context: vscode.ExtensionContext) {

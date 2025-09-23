@@ -3,7 +3,8 @@
   import Toasts from './Toasts.svelte';
   const dispatch = createEventDispatcher();
   export let workItemCount = 0;
-  export let subtitle = 'Svelte flag on';
+  // Optional subtitle (removed legacy 'Svelte flag on' marker)
+  export let subtitle = '';
   export let hasItems = false;
   export let timerActive = false;
   export let timerRunning = false;
@@ -18,6 +19,7 @@
   export let filterText = '';
   export let stateFilter = 'all'; // one of 'all', columnDefs keys
   export let sortKey = 'updated-desc'; // 'updated-desc' | 'id-desc' | 'id-asc' | 'title-asc'
+  export let availableStates = []; // dynamic list of normalized state keys
 
   function onRefresh() {
     dispatch('refresh');
@@ -135,6 +137,27 @@
     return 'priority-3';
   }
 
+  function extractDescription(it) {
+    const raw = it?.fields?.['System.Description'];
+    if (!raw || typeof raw !== 'string') return '';
+    // Strip HTML tags & collapse whitespace
+    const text = raw
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/\s+/g, ' ') // collapse
+      .trim();
+    const max = 120;
+    if (text.length <= max) return text;
+    return text.slice(0, max).trimEnd() + '…';
+  }
+
   $: kanbanGroups = (() => {
     // Derive buckets present from items
     const present = new Set(bucketOrder);
@@ -159,7 +182,9 @@
 <div class="pane">
   <div class="pane-header" role="toolbar" aria-label="Work Items actions">
     <span style="font-weight:600;">Work Items</span>
-    <span class="muted">({subtitle})</span>
+    {#if subtitle}
+      <span class="muted">({subtitle})</span>
+    {/if}
     {#if loading}
       <span class="spinner" role="status" aria-label="Loading" title="Loading"></span>
     {/if}
@@ -191,9 +216,15 @@
           aria-label="Filter by state"
         >
           <option value="all">All</option>
-          {#each columnDefs as c}
-            <option value={c.key}>{c.label}</option>
-          {/each}
+          {#if availableStates && availableStates.length}
+            {#each availableStates as s}
+              <option value={s}>{bucketLabels[s] || s}</option>
+            {/each}
+          {:else}
+            {#each columnDefs as c}
+              <option value={c.key}>{c.label}</option>
+            {/each}
+          {/if}
         </select>
         <select on:change={onSortChange} bind:value={sortKey} aria-label="Sort items">
           <option value="updated-desc">Updated ↓</option>
@@ -294,6 +325,11 @@
                       <div class="work-item-title">
                         {it.fields?.['System.Title'] || `Work Item #${it.id}`}
                       </div>
+                      {#if extractDescription(it)}
+                        <div class="work-item-desc" title={extractDescription(it)}>
+                          {extractDescription(it)}
+                        </div>
+                      {/if}
 
                       <div class="work-item-meta">
                         <span class="work-item-type"
@@ -406,6 +442,11 @@
               <div class="work-item-title">
                 {it.fields?.['System.Title'] || `Work Item #${it.id}`}
               </div>
+                    {#if extractDescription(it)}
+                      <div class="work-item-desc" title={extractDescription(it)}>
+                        {extractDescription(it)}
+                      </div>
+                    {/if}
 
               <div class="work-item-meta">
                 <span class="work-item-type">{it.fields?.['System.WorkItemType'] || 'Task'}</span>
@@ -696,6 +737,20 @@
     line-height: 1.3;
     margin-bottom: 6px;
     color: var(--vscode-editor-foreground);
+  }
+
+  .work-item-desc {
+    font-size: 11px;
+    line-height: 1.3;
+    margin-bottom: 6px;
+    opacity: 0.75;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+  line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
   }
 
   .work-item-meta {

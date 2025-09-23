@@ -1018,30 +1018,72 @@ var Toasts_default = Toasts;
 // src/webview/App.svelte
 function get_each_context_2(ctx, list, i) {
   const child_ctx = ctx.slice();
-  child_ctx[54] = list[i];
+  child_ctx[55] = list[i];
   return child_ctx;
 }
 function get_each_context2(ctx, list, i) {
   const child_ctx = ctx.slice();
-  child_ctx[51] = list[i];
+  child_ctx[52] = list[i];
   return child_ctx;
 }
 function get_each_context_1(ctx, list, i) {
   const child_ctx = ctx.slice();
-  child_ctx[54] = list[i];
+  child_ctx[55] = list[i];
+  return child_ctx;
+}
+function get_each_context_4(ctx, list, i) {
+  const child_ctx = ctx.slice();
+  child_ctx[63] = list[i];
   return child_ctx;
 }
 function get_each_context_3(ctx, list, i) {
   const child_ctx = ctx.slice();
-  child_ctx[59] = list[i];
+  child_ctx[60] = list[i];
   return child_ctx;
 }
-function create_if_block_14(ctx) {
+function create_if_block_18(ctx) {
+  let span;
+  let t0;
+  let t1;
+  let t2;
+  return {
+    c() {
+      span = element("span");
+      t0 = text("(");
+      t1 = text(
+        /*subtitle*/
+        ctx[3]
+      );
+      t2 = text(")");
+      attr(span, "class", "muted svelte-188no3t");
+    },
+    m(target, anchor) {
+      insert(target, span, anchor);
+      append(span, t0);
+      append(span, t1);
+      append(span, t2);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*subtitle*/
+      8) set_data(
+        t1,
+        /*subtitle*/
+        ctx2[3]
+      );
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(span);
+      }
+    }
+  };
+}
+function create_if_block_17(ctx) {
   let span;
   return {
     c() {
       span = element("span");
-      attr(span, "class", "spinner svelte-1rfczd4");
+      attr(span, "class", "spinner svelte-188no3t");
       attr(span, "role", "status");
       attr(span, "aria-label", "Loading");
       attr(span, "title", "Loading");
@@ -1056,7 +1098,7 @@ function create_if_block_14(ctx) {
     }
   };
 }
-function create_if_block_11(ctx) {
+function create_if_block_14(ctx) {
   let span;
   let t0;
   let t1_value = (
@@ -1069,11 +1111,11 @@ function create_if_block_11(ctx) {
   let if_block1_anchor;
   let if_block0 = (
     /*timerElapsedLabel*/
-    ctx[6] && create_if_block_13(ctx)
+    ctx[6] && create_if_block_16(ctx)
   );
   let if_block1 = (
     /*activeId*/
-    ctx[7] && create_if_block_12(ctx)
+    ctx[7] && create_if_block_15(ctx)
   );
   return {
     c() {
@@ -1085,7 +1127,7 @@ function create_if_block_11(ctx) {
       t3 = space();
       if (if_block1) if_block1.c();
       if_block1_anchor = empty();
-      attr(span, "class", "muted svelte-1rfczd4");
+      attr(span, "class", "muted svelte-188no3t");
     },
     m(target, anchor) {
       insert(target, span, anchor);
@@ -1108,7 +1150,7 @@ function create_if_block_11(ctx) {
         if (if_block0) {
           if_block0.p(ctx2, dirty);
         } else {
-          if_block0 = create_if_block_13(ctx2);
+          if_block0 = create_if_block_16(ctx2);
           if_block0.c();
           if_block0.m(span, null);
         }
@@ -1123,7 +1165,7 @@ function create_if_block_11(ctx) {
         if (if_block1) {
           if_block1.p(ctx2, dirty);
         } else {
-          if_block1 = create_if_block_12(ctx2);
+          if_block1 = create_if_block_15(ctx2);
           if_block1.c();
           if_block1.m(if_block1_anchor.parentNode, if_block1_anchor);
         }
@@ -1143,7 +1185,7 @@ function create_if_block_11(ctx) {
     }
   };
 }
-function create_if_block_13(ctx) {
+function create_if_block_16(ctx) {
   let t0;
   let t1;
   let t2;
@@ -1178,7 +1220,7 @@ function create_if_block_13(ctx) {
     }
   };
 }
-function create_if_block_12(ctx) {
+function create_if_block_15(ctx) {
   let button;
   let t0;
   let t1;
@@ -1198,7 +1240,7 @@ function create_if_block_12(ctx) {
       ctx[8] || "Open active work item");
       attr(button, "aria-label", button_aria_label_value = `Open active work item #${/*activeId*/
       ctx[7]}`);
-      attr(button, "class", "svelte-1rfczd4");
+      attr(button, "class", "svelte-188no3t");
     },
     m(target, anchor) {
       insert(target, button, anchor);
@@ -1209,7 +1251,7 @@ function create_if_block_12(ctx) {
           button,
           "click",
           /*onOpenActive*/
-          ctx[17]
+          ctx[18]
         );
         mounted = true;
       }
@@ -1241,11 +1283,125 @@ function create_if_block_12(ctx) {
     }
   };
 }
-function create_each_block_3(ctx) {
+function create_else_block_5(ctx) {
+  let each_1_anchor;
+  let each_value_4 = ensure_array_like(
+    /*columnDefs*/
+    ctx[16]
+  );
+  let each_blocks = [];
+  for (let i = 0; i < each_value_4.length; i += 1) {
+    each_blocks[i] = create_each_block_4(get_each_context_4(ctx, each_value_4, i));
+  }
+  return {
+    c() {
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        each_blocks[i].c();
+      }
+      each_1_anchor = empty();
+    },
+    m(target, anchor) {
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        if (each_blocks[i]) {
+          each_blocks[i].m(target, anchor);
+        }
+      }
+      insert(target, each_1_anchor, anchor);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*columnDefs*/
+      65536) {
+        each_value_4 = ensure_array_like(
+          /*columnDefs*/
+          ctx2[16]
+        );
+        let i;
+        for (i = 0; i < each_value_4.length; i += 1) {
+          const child_ctx = get_each_context_4(ctx2, each_value_4, i);
+          if (each_blocks[i]) {
+            each_blocks[i].p(child_ctx, dirty);
+          } else {
+            each_blocks[i] = create_each_block_4(child_ctx);
+            each_blocks[i].c();
+            each_blocks[i].m(each_1_anchor.parentNode, each_1_anchor);
+          }
+        }
+        for (; i < each_blocks.length; i += 1) {
+          each_blocks[i].d(1);
+        }
+        each_blocks.length = each_value_4.length;
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(each_1_anchor);
+      }
+      destroy_each(each_blocks, detaching);
+    }
+  };
+}
+function create_if_block_13(ctx) {
+  let each_1_anchor;
+  let each_value_3 = ensure_array_like(
+    /*availableStates*/
+    ctx[14]
+  );
+  let each_blocks = [];
+  for (let i = 0; i < each_value_3.length; i += 1) {
+    each_blocks[i] = create_each_block_3(get_each_context_3(ctx, each_value_3, i));
+  }
+  return {
+    c() {
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        each_blocks[i].c();
+      }
+      each_1_anchor = empty();
+    },
+    m(target, anchor) {
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        if (each_blocks[i]) {
+          each_blocks[i].m(target, anchor);
+        }
+      }
+      insert(target, each_1_anchor, anchor);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*availableStates, bucketLabels*/
+      16793600) {
+        each_value_3 = ensure_array_like(
+          /*availableStates*/
+          ctx2[14]
+        );
+        let i;
+        for (i = 0; i < each_value_3.length; i += 1) {
+          const child_ctx = get_each_context_3(ctx2, each_value_3, i);
+          if (each_blocks[i]) {
+            each_blocks[i].p(child_ctx, dirty);
+          } else {
+            each_blocks[i] = create_each_block_3(child_ctx);
+            each_blocks[i].c();
+            each_blocks[i].m(each_1_anchor.parentNode, each_1_anchor);
+          }
+        }
+        for (; i < each_blocks.length; i += 1) {
+          each_blocks[i].d(1);
+        }
+        each_blocks.length = each_value_3.length;
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(each_1_anchor);
+      }
+      destroy_each(each_blocks, detaching);
+    }
+  };
+}
+function create_each_block_4(ctx) {
   let option;
   let t_value = (
     /*c*/
-    ctx[59].label + ""
+    ctx[63].label + ""
   );
   let t;
   let option_value_value;
@@ -1254,7 +1410,7 @@ function create_each_block_3(ctx) {
       option = element("option");
       t = text(t_value);
       option.__value = option_value_value = /*c*/
-      ctx[59].key;
+      ctx[63].key;
       set_input_value(option, option.__value);
     },
     m(target, anchor) {
@@ -1263,11 +1419,11 @@ function create_each_block_3(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*columnDefs*/
-      32768 && t_value !== (t_value = /*c*/
-      ctx2[59].label + "")) set_data(t, t_value);
+      65536 && t_value !== (t_value = /*c*/
+      ctx2[63].label + "")) set_data(t, t_value);
       if (dirty[0] & /*columnDefs*/
-      32768 && option_value_value !== (option_value_value = /*c*/
-      ctx2[59].key)) {
+      65536 && option_value_value !== (option_value_value = /*c*/
+      ctx2[63].key)) {
         option.__value = option_value_value;
         set_input_value(option, option.__value);
       }
@@ -1279,7 +1435,53 @@ function create_each_block_3(ctx) {
     }
   };
 }
-function create_if_block_10(ctx) {
+function create_each_block_3(ctx) {
+  let option;
+  let t_value = (
+    /*bucketLabels*/
+    (ctx[24][
+      /*s*/
+      ctx[60]
+    ] || /*s*/
+    ctx[60]) + ""
+  );
+  let t;
+  let option_value_value;
+  return {
+    c() {
+      option = element("option");
+      t = text(t_value);
+      option.__value = option_value_value = /*s*/
+      ctx[60];
+      set_input_value(option, option.__value);
+    },
+    m(target, anchor) {
+      insert(target, option, anchor);
+      append(option, t);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*availableStates*/
+      16384 && t_value !== (t_value = /*bucketLabels*/
+      (ctx2[24][
+        /*s*/
+        ctx2[60]
+      ] || /*s*/
+      ctx2[60]) + "")) set_data(t, t_value);
+      if (dirty[0] & /*availableStates*/
+      16384 && option_value_value !== (option_value_value = /*s*/
+      ctx2[60])) {
+        option.__value = option_value_value;
+        set_input_value(option, option.__value);
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(option);
+      }
+    }
+  };
+}
+function create_if_block_12(ctx) {
   let div;
   let t;
   return {
@@ -1289,7 +1491,7 @@ function create_if_block_10(ctx) {
         /*errorMsg*/
         ctx[12]
       );
-      attr(div, "class", "error-banner svelte-1rfczd4");
+      attr(div, "class", "error-banner svelte-188no3t");
       attr(div, "role", "alert");
     },
     m(target, anchor) {
@@ -1317,7 +1519,7 @@ function create_else_block_4(ctx) {
     c() {
       div = element("div");
       div.textContent = "No work items to display.";
-      attr(div, "class", "empty svelte-1rfczd4");
+      attr(div, "class", "empty svelte-188no3t");
     },
     m(target, anchor) {
       insert(target, div, anchor);
@@ -1330,7 +1532,7 @@ function create_else_block_4(ctx) {
     }
   };
 }
-function create_if_block_6(ctx) {
+function create_if_block_7(ctx) {
   let div;
   let each_value_2 = ensure_array_like(
     /*items*/
@@ -1346,7 +1548,7 @@ function create_if_block_6(ctx) {
       for (let i = 0; i < each_blocks.length; i += 1) {
         each_blocks[i].c();
       }
-      attr(div, "class", "items svelte-1rfczd4");
+      attr(div, "class", "items svelte-188no3t");
       attr(div, "aria-label", "Work items");
     },
     m(target, anchor) {
@@ -1359,7 +1561,7 @@ function create_if_block_6(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*timerActive, activeId, items, dispatch, timerElapsedLabel*/
-      66256) {
+      131792) {
         each_value_2 = ensure_array_like(
           /*items*/
           ctx2[9].slice(0, 50)
@@ -1393,7 +1595,7 @@ function create_if_block_1(ctx) {
   let div;
   let each_value = ensure_array_like(
     /*columnDefs*/
-    ctx[15]
+    ctx[16]
   );
   let each_blocks = [];
   for (let i = 0; i < each_value.length; i += 1) {
@@ -1405,7 +1607,7 @@ function create_if_block_1(ctx) {
       for (let i = 0; i < each_blocks.length; i += 1) {
         each_blocks[i].c();
       }
-      attr(div, "class", "kanban-board svelte-1rfczd4");
+      attr(div, "class", "kanban-board svelte-188no3t");
       attr(div, "aria-label", "Kanban board");
     },
     m(target, anchor) {
@@ -1418,10 +1620,10 @@ function create_if_block_1(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*columnDefs, handleDrop, kanbanGroups, timerActive, activeId, handleDragStart, dispatch, kanbanView, timerElapsedLabel*/
-      6407376) {
+      12813520) {
         each_value = ensure_array_like(
           /*columnDefs*/
-          ctx2[15]
+          ctx2[16]
         );
         let i;
         for (i = 0; i < each_value.length; i += 1) {
@@ -1453,8 +1655,8 @@ function create_if_block(ctx) {
   return {
     c() {
       div = element("div");
-      div.innerHTML = `<span class="spinner svelte-1rfczd4" role="status" aria-label="Loading"></span> Loading work items\u2026`;
-      attr(div, "class", "loading svelte-1rfczd4");
+      div.innerHTML = `<span class="spinner svelte-188no3t" role="status" aria-label="Loading"></span> Loading work items\u2026`;
+      attr(div, "class", "loading svelte-188no3t");
     },
     m(target, anchor) {
       insert(target, div, anchor);
@@ -1467,7 +1669,7 @@ function create_if_block(ctx) {
     }
   };
 }
-function create_if_block_9(ctx) {
+function create_if_block_11(ctx) {
   let span1;
   let span0;
   let t0;
@@ -1483,7 +1685,7 @@ function create_if_block_9(ctx) {
       );
       attr(span0, "class", "codicon codicon-clock");
       attr(span0, "aria-hidden", "true");
-      attr(span1, "class", "timer-indicator svelte-1rfczd4");
+      attr(span1, "class", "timer-indicator svelte-188no3t");
     },
     m(target, anchor) {
       insert(target, span1, anchor);
@@ -1502,6 +1704,49 @@ function create_if_block_9(ctx) {
     d(detaching) {
       if (detaching) {
         detach(span1);
+      }
+    }
+  };
+}
+function create_if_block_10(ctx) {
+  let div;
+  let t_value = extractDescription(
+    /*it*/
+    ctx[55]
+  ) + "";
+  let t;
+  let div_title_value;
+  return {
+    c() {
+      div = element("div");
+      t = text(t_value);
+      attr(div, "class", "work-item-desc svelte-188no3t");
+      attr(div, "title", div_title_value = extractDescription(
+        /*it*/
+        ctx[55]
+      ));
+    },
+    m(target, anchor) {
+      insert(target, div, anchor);
+      append(div, t);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*items*/
+      512 && t_value !== (t_value = extractDescription(
+        /*it*/
+        ctx2[55]
+      ) + "")) set_data(t, t_value);
+      if (dirty[0] & /*items*/
+      512 && div_title_value !== (div_title_value = extractDescription(
+        /*it*/
+        ctx2[55]
+      ))) {
+        attr(div, "title", div_title_value);
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div);
       }
     }
   };
@@ -1529,13 +1774,13 @@ function create_else_block_3(ctx) {
     }
   };
 }
-function create_if_block_8(ctx) {
+function create_if_block_9(ctx) {
   let span;
   let t0;
   let t1_value = (
     /*it*/
-    (ctx[54].fields["System.AssignedTo"].displayName || /*it*/
-    ctx[54].fields["System.AssignedTo"]) + ""
+    (ctx[55].fields["System.AssignedTo"].displayName || /*it*/
+    ctx[55].fields["System.AssignedTo"]) + ""
   );
   let t1;
   return {
@@ -1554,8 +1799,8 @@ function create_if_block_8(ctx) {
     p(ctx2, dirty) {
       if (dirty[0] & /*items*/
       512 && t1_value !== (t1_value = /*it*/
-      (ctx2[54].fields["System.AssignedTo"].displayName || /*it*/
-      ctx2[54].fields["System.AssignedTo"]) + "")) set_data(t1, t1_value);
+      (ctx2[55].fields["System.AssignedTo"].displayName || /*it*/
+      ctx2[55].fields["System.AssignedTo"]) + "")) set_data(t1, t1_value);
     },
     d(detaching) {
       if (detaching) {
@@ -1576,9 +1821,9 @@ function create_else_block_2(ctx) {
   function click_handler_7() {
     return (
       /*click_handler_7*/
-      ctx[36](
+      ctx[38](
         /*it*/
-        ctx[54]
+        ctx[55]
       )
     );
   }
@@ -1589,10 +1834,10 @@ function create_else_block_2(ctx) {
       t = text(" Start");
       attr(span, "class", "codicon codicon-play");
       attr(span, "aria-hidden", "true");
-      attr(button, "class", "action-btn start svelte-1rfczd4");
+      attr(button, "class", "action-btn start svelte-188no3t");
       attr(button, "title", "Start timer");
       attr(button, "aria-label", button_aria_label_value = `Start timer for #${/*it*/
-      ctx[54].id}`);
+      ctx[55].id}`);
       button.disabled = /*timerActive*/
       ctx[4];
     },
@@ -1609,7 +1854,7 @@ function create_else_block_2(ctx) {
       ctx = new_ctx;
       if (dirty[0] & /*items*/
       512 && button_aria_label_value !== (button_aria_label_value = `Start timer for #${/*it*/
-      ctx[54].id}`)) {
+      ctx[55].id}`)) {
         attr(button, "aria-label", button_aria_label_value);
       }
       if (dirty[0] & /*timerActive*/
@@ -1627,7 +1872,7 @@ function create_else_block_2(ctx) {
     }
   };
 }
-function create_if_block_7(ctx) {
+function create_if_block_8(ctx) {
   let button;
   let span;
   let t;
@@ -1641,10 +1886,10 @@ function create_if_block_7(ctx) {
       t = text(" Stop");
       attr(span, "class", "codicon codicon-debug-stop");
       attr(span, "aria-hidden", "true");
-      attr(button, "class", "action-btn stop svelte-1rfczd4");
+      attr(button, "class", "action-btn stop svelte-188no3t");
       attr(button, "title", "Stop timer");
       attr(button, "aria-label", button_aria_label_value = `Stop timer for #${/*it*/
-      ctx[54].id}`);
+      ctx[55].id}`);
     },
     m(target, anchor) {
       insert(target, button, anchor);
@@ -1653,7 +1898,7 @@ function create_if_block_7(ctx) {
       if (!mounted) {
         dispose = listen(button, "click", stop_propagation(
           /*click_handler_6*/
-          ctx[35]
+          ctx[37]
         ));
         mounted = true;
       }
@@ -1661,7 +1906,7 @@ function create_if_block_7(ctx) {
     p(ctx2, dirty) {
       if (dirty[0] & /*items*/
       512 && button_aria_label_value !== (button_aria_label_value = `Stop timer for #${/*it*/
-      ctx2[54].id}`)) {
+      ctx2[55].id}`)) {
         attr(button, "aria-label", button_aria_label_value);
       }
     },
@@ -1680,7 +1925,7 @@ function create_each_block_2(ctx) {
   let span0;
   let t0_value = getWorkItemTypeIcon(
     /*it*/
-    ctx[54].fields?.["System.WorkItemType"]
+    ctx[55].fields?.["System.WorkItemType"]
   ) + "";
   let t0;
   let t1;
@@ -1688,23 +1933,23 @@ function create_each_block_2(ctx) {
   let t2;
   let t3_value = (
     /*it*/
-    ctx[54].id + ""
+    ctx[55].id + ""
   );
   let t3;
   let t4;
-  let show_if_1 = (
+  let show_if_2 = (
     /*timerActive*/
     ctx[4] && /*activeId*/
     ctx[7] === Number(
       /*it*/
-      ctx[54].id
+      ctx[55].id
     )
   );
   let t5;
   let span2;
   let t6_value = (
     /*it*/
-    (ctx[54].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + ""
+    (ctx[55].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + ""
   );
   let t6;
   let span2_class_value;
@@ -1713,108 +1958,114 @@ function create_each_block_2(ctx) {
   let div1;
   let t8_value = (
     /*it*/
-    (ctx[54].fields?.["System.Title"] || `Work Item #${/*it*/
-    ctx[54].id}`) + ""
+    (ctx[55].fields?.["System.Title"] || `Work Item #${/*it*/
+    ctx[55].id}`) + ""
   );
   let t8;
   let t9;
-  let div2;
-  let span3;
-  let t10_value = (
+  let show_if_1 = extractDescription(
     /*it*/
-    (ctx[54].fields?.["System.WorkItemType"] || "Task") + ""
+    ctx[55]
   );
   let t10;
-  let t11;
-  let span4;
-  let t12_value = (
+  let div2;
+  let span3;
+  let t11_value = (
     /*it*/
-    (ctx[54].fields?.["System.State"] || "New") + ""
+    (ctx[55].fields?.["System.WorkItemType"] || "Task") + ""
   );
+  let t11;
   let t12;
-  let span4_class_value;
+  let span4;
+  let t13_value = (
+    /*it*/
+    (ctx[55].fields?.["System.State"] || "New") + ""
+  );
   let t13;
-  let span5;
+  let span4_class_value;
   let t14;
+  let span5;
+  let t15;
   let div4;
   let show_if;
-  let t15;
+  let t16;
   let button0;
   let span6;
-  let t16;
-  let button0_aria_label_value;
   let t17;
+  let button0_aria_label_value;
+  let t18;
   let button1;
   let span7;
-  let t18;
-  let button1_aria_label_value;
   let t19;
+  let button1_aria_label_value;
+  let t20;
   let button2;
   let span8;
-  let t20;
-  let button2_aria_label_value;
   let t21;
+  let button2_aria_label_value;
+  let t22;
   let div5_class_value;
   let div5_aria_label_value;
   let mounted;
   let dispose;
-  let if_block0 = show_if_1 && create_if_block_9(ctx);
-  function select_block_type_3(ctx2, dirty) {
+  let if_block0 = show_if_2 && create_if_block_11(ctx);
+  let if_block1 = show_if_1 && create_if_block_10(ctx);
+  function select_block_type_4(ctx2, dirty) {
     if (
       /*it*/
-      ctx2[54].fields?.["System.AssignedTo"]
-    ) return create_if_block_8;
+      ctx2[55].fields?.["System.AssignedTo"]
+    ) return create_if_block_9;
     return create_else_block_3;
   }
-  let current_block_type = select_block_type_3(ctx, [-1, -1]);
-  let if_block1 = current_block_type(ctx);
-  function select_block_type_4(ctx2, dirty) {
+  let current_block_type = select_block_type_4(ctx, [-1, -1, -1]);
+  let if_block2 = current_block_type(ctx);
+  function select_block_type_5(ctx2, dirty) {
     if (dirty[0] & /*timerActive, activeId, items*/
     656) show_if = null;
     if (show_if == null) show_if = !!/*timerActive*/
     (ctx2[4] && /*activeId*/
     ctx2[7] === Number(
       /*it*/
-      ctx2[54].id
+      ctx2[55].id
     ));
-    if (show_if) return create_if_block_7;
+    if (show_if) return create_if_block_8;
     return create_else_block_2;
   }
-  let current_block_type_1 = select_block_type_4(ctx, [-1, -1]);
-  let if_block2 = current_block_type_1(ctx);
+  let current_block_type_1 = select_block_type_5(ctx, [-1, -1, -1]);
+  let if_block3 = current_block_type_1(ctx);
   function click_handler_8() {
     return (
       /*click_handler_8*/
-      ctx[37](
+      ctx[39](
         /*it*/
-        ctx[54]
+        ctx[55]
       )
     );
   }
   function click_handler_9() {
     return (
       /*click_handler_9*/
-      ctx[38](
+      ctx[40](
         /*it*/
-        ctx[54]
+        ctx[55]
       )
     );
   }
   function click_handler_10() {
     return (
       /*click_handler_10*/
-      ctx[39](
+      ctx[41](
         /*it*/
-        ctx[54]
+        ctx[55]
       )
     );
   }
   function keydown_handler_1(...args) {
     return (
       /*keydown_handler_1*/
-      ctx[40](
+      ctx[42](
         /*it*/
-        ctx[54],
+        ctx[55],
         ...args
       )
     );
@@ -1822,9 +2073,9 @@ function create_each_block_2(ctx) {
   function click_handler_11() {
     return (
       /*click_handler_11*/
-      ctx[41](
+      ctx[43](
         /*it*/
-        ctx[54]
+        ctx[55]
       )
     );
   }
@@ -1848,77 +2099,79 @@ function create_each_block_2(ctx) {
       div1 = element("div");
       t8 = text(t8_value);
       t9 = space();
+      if (if_block1) if_block1.c();
+      t10 = space();
       div2 = element("div");
       span3 = element("span");
-      t10 = text(t10_value);
-      t11 = space();
+      t11 = text(t11_value);
+      t12 = space();
       span4 = element("span");
-      t12 = text(t12_value);
-      t13 = space();
-      span5 = element("span");
-      if_block1.c();
+      t13 = text(t13_value);
       t14 = space();
-      div4 = element("div");
+      span5 = element("span");
       if_block2.c();
       t15 = space();
+      div4 = element("div");
+      if_block3.c();
+      t16 = space();
       button0 = element("button");
       span6 = element("span");
-      t16 = text(" View");
-      t17 = space();
+      t17 = text(" View");
+      t18 = space();
       button1 = element("button");
       span7 = element("span");
-      t18 = text(" Edit");
-      t19 = space();
+      t19 = text(" Edit");
+      t20 = space();
       button2 = element("button");
       span8 = element("span");
-      t20 = text(" Comment");
-      t21 = space();
-      attr(span0, "class", "work-item-type-icon svelte-1rfczd4");
-      attr(span1, "class", "work-item-id svelte-1rfczd4");
+      t21 = text(" Comment");
+      t22 = space();
+      attr(span0, "class", "work-item-type-icon svelte-188no3t");
+      attr(span1, "class", "work-item-id svelte-188no3t");
       attr(span2, "class", span2_class_value = "work-item-priority " + getPriorityClass(
         /*it*/
-        ctx[54].fields?.["Microsoft.VSTS.Common.Priority"]
-      ) + " svelte-1rfczd4");
-      attr(div0, "class", "work-item-header svelte-1rfczd4");
-      attr(div1, "class", "work-item-title svelte-1rfczd4");
-      attr(span3, "class", "work-item-type svelte-1rfczd4");
+        ctx[55].fields?.["Microsoft.VSTS.Common.Priority"]
+      ) + " svelte-188no3t");
+      attr(div0, "class", "work-item-header svelte-188no3t");
+      attr(div1, "class", "work-item-title svelte-188no3t");
+      attr(span3, "class", "work-item-type svelte-188no3t");
       attr(span4, "class", span4_class_value = "work-item-state state-" + normalizeState(
         /*it*/
-        ctx[54].fields?.["System.State"]
-      ) + " svelte-1rfczd4");
+        ctx[55].fields?.["System.State"]
+      ) + " svelte-188no3t");
       attr(span5, "class", "work-item-assignee");
-      attr(div2, "class", "work-item-meta svelte-1rfczd4");
-      attr(div3, "class", "work-item-content svelte-1rfczd4");
+      attr(div2, "class", "work-item-meta svelte-188no3t");
+      attr(div3, "class", "work-item-content svelte-188no3t");
       attr(span6, "class", "codicon codicon-eye");
       attr(span6, "aria-hidden", "true");
-      attr(button0, "class", "action-btn view svelte-1rfczd4");
+      attr(button0, "class", "action-btn view svelte-188no3t");
       attr(button0, "title", "View in browser");
       attr(button0, "aria-label", button0_aria_label_value = `View work item #${/*it*/
-      ctx[54].id}`);
+      ctx[55].id}`);
       attr(span7, "class", "codicon codicon-edit");
       attr(span7, "aria-hidden", "true");
-      attr(button1, "class", "action-btn edit svelte-1rfczd4");
+      attr(button1, "class", "action-btn edit svelte-188no3t");
       attr(button1, "title", "Edit work item");
       attr(button1, "aria-label", button1_aria_label_value = `Edit work item #${/*it*/
-      ctx[54].id}`);
+      ctx[55].id}`);
       attr(span8, "class", "codicon codicon-comment");
       attr(span8, "aria-hidden", "true");
-      attr(button2, "class", "action-btn comment svelte-1rfczd4");
+      attr(button2, "class", "action-btn comment svelte-188no3t");
       attr(button2, "title", "Add comment");
       attr(button2, "aria-label", button2_aria_label_value = `Add comment to #${/*it*/
-      ctx[54].id}`);
-      attr(div4, "class", "work-item-actions svelte-1rfczd4");
+      ctx[55].id}`);
+      attr(div4, "class", "work-item-actions svelte-188no3t");
       attr(div5, "class", div5_class_value = "work-item-card " + /*timerActive*/
       (ctx[4] && /*activeId*/
       ctx[7] === Number(
         /*it*/
-        ctx[54].id
-      ) ? "has-active-timer" : "") + " svelte-1rfczd4");
+        ctx[55].id
+      ) ? "has-active-timer" : "") + " svelte-188no3t");
       attr(div5, "tabindex", "0");
       attr(div5, "role", "button");
       attr(div5, "aria-label", div5_aria_label_value = `Work item #${/*it*/
-      ctx[54].id}: ${/*it*/
-      ctx[54].fields?.["System.Title"]} - press Enter to open`);
+      ctx[55].id}: ${/*it*/
+      ctx[55].fields?.["System.Title"]} - press Enter to open`);
     },
     m(target, anchor) {
       insert(target, div5, anchor);
@@ -1939,31 +2192,33 @@ function create_each_block_2(ctx) {
       append(div3, div1);
       append(div1, t8);
       append(div3, t9);
+      if (if_block1) if_block1.m(div3, null);
+      append(div3, t10);
       append(div3, div2);
       append(div2, span3);
-      append(span3, t10);
-      append(div2, t11);
+      append(span3, t11);
+      append(div2, t12);
       append(div2, span4);
-      append(span4, t12);
-      append(div2, t13);
+      append(span4, t13);
+      append(div2, t14);
       append(div2, span5);
-      if_block1.m(span5, null);
-      append(div5, t14);
+      if_block2.m(span5, null);
+      append(div5, t15);
       append(div5, div4);
-      if_block2.m(div4, null);
-      append(div4, t15);
+      if_block3.m(div4, null);
+      append(div4, t16);
       append(div4, button0);
       append(button0, span6);
-      append(button0, t16);
-      append(div4, t17);
+      append(button0, t17);
+      append(div4, t18);
       append(div4, button1);
       append(button1, span7);
-      append(button1, t18);
-      append(div4, t19);
+      append(button1, t19);
+      append(div4, t20);
       append(div4, button2);
       append(button2, span8);
-      append(button2, t20);
-      append(div5, t21);
+      append(button2, t21);
+      append(div5, t22);
       if (!mounted) {
         dispose = [
           listen(button0, "click", stop_propagation(click_handler_8)),
@@ -1980,23 +2235,23 @@ function create_each_block_2(ctx) {
       if (dirty[0] & /*items*/
       512 && t0_value !== (t0_value = getWorkItemTypeIcon(
         /*it*/
-        ctx[54].fields?.["System.WorkItemType"]
+        ctx[55].fields?.["System.WorkItemType"]
       ) + "")) set_data(t0, t0_value);
       if (dirty[0] & /*items*/
       512 && t3_value !== (t3_value = /*it*/
-      ctx[54].id + "")) set_data(t3, t3_value);
+      ctx[55].id + "")) set_data(t3, t3_value);
       if (dirty[0] & /*timerActive, activeId, items*/
-      656) show_if_1 = /*timerActive*/
+      656) show_if_2 = /*timerActive*/
       ctx[4] && /*activeId*/
       ctx[7] === Number(
         /*it*/
-        ctx[54].id
+        ctx[55].id
       );
-      if (show_if_1) {
+      if (show_if_2) {
         if (if_block0) {
           if_block0.p(ctx, dirty);
         } else {
-          if_block0 = create_if_block_9(ctx);
+          if_block0 = create_if_block_11(ctx);
           if_block0.c();
           if_block0.m(div0, t5);
         }
@@ -2006,64 +2261,81 @@ function create_each_block_2(ctx) {
       }
       if (dirty[0] & /*items*/
       512 && t6_value !== (t6_value = /*it*/
-      (ctx[54].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + "")) set_data(t6, t6_value);
+      (ctx[55].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + "")) set_data(t6, t6_value);
       if (dirty[0] & /*items*/
       512 && span2_class_value !== (span2_class_value = "work-item-priority " + getPriorityClass(
         /*it*/
-        ctx[54].fields?.["Microsoft.VSTS.Common.Priority"]
-      ) + " svelte-1rfczd4")) {
+        ctx[55].fields?.["Microsoft.VSTS.Common.Priority"]
+      ) + " svelte-188no3t")) {
         attr(span2, "class", span2_class_value);
       }
       if (dirty[0] & /*items*/
       512 && t8_value !== (t8_value = /*it*/
-      (ctx[54].fields?.["System.Title"] || `Work Item #${/*it*/
-      ctx[54].id}`) + "")) set_data(t8, t8_value);
+      (ctx[55].fields?.["System.Title"] || `Work Item #${/*it*/
+      ctx[55].id}`) + "")) set_data(t8, t8_value);
       if (dirty[0] & /*items*/
-      512 && t10_value !== (t10_value = /*it*/
-      (ctx[54].fields?.["System.WorkItemType"] || "Task") + "")) set_data(t10, t10_value);
+      512) show_if_1 = extractDescription(
+        /*it*/
+        ctx[55]
+      );
+      if (show_if_1) {
+        if (if_block1) {
+          if_block1.p(ctx, dirty);
+        } else {
+          if_block1 = create_if_block_10(ctx);
+          if_block1.c();
+          if_block1.m(div3, t10);
+        }
+      } else if (if_block1) {
+        if_block1.d(1);
+        if_block1 = null;
+      }
       if (dirty[0] & /*items*/
-      512 && t12_value !== (t12_value = /*it*/
-      (ctx[54].fields?.["System.State"] || "New") + "")) set_data(t12, t12_value);
+      512 && t11_value !== (t11_value = /*it*/
+      (ctx[55].fields?.["System.WorkItemType"] || "Task") + "")) set_data(t11, t11_value);
+      if (dirty[0] & /*items*/
+      512 && t13_value !== (t13_value = /*it*/
+      (ctx[55].fields?.["System.State"] || "New") + "")) set_data(t13, t13_value);
       if (dirty[0] & /*items*/
       512 && span4_class_value !== (span4_class_value = "work-item-state state-" + normalizeState(
         /*it*/
-        ctx[54].fields?.["System.State"]
-      ) + " svelte-1rfczd4")) {
+        ctx[55].fields?.["System.State"]
+      ) + " svelte-188no3t")) {
         attr(span4, "class", span4_class_value);
       }
-      if (current_block_type === (current_block_type = select_block_type_3(ctx, dirty)) && if_block1) {
-        if_block1.p(ctx, dirty);
-      } else {
-        if_block1.d(1);
-        if_block1 = current_block_type(ctx);
-        if (if_block1) {
-          if_block1.c();
-          if_block1.m(span5, null);
-        }
-      }
-      if (current_block_type_1 === (current_block_type_1 = select_block_type_4(ctx, dirty)) && if_block2) {
+      if (current_block_type === (current_block_type = select_block_type_4(ctx, dirty)) && if_block2) {
         if_block2.p(ctx, dirty);
       } else {
         if_block2.d(1);
-        if_block2 = current_block_type_1(ctx);
+        if_block2 = current_block_type(ctx);
         if (if_block2) {
           if_block2.c();
-          if_block2.m(div4, t15);
+          if_block2.m(span5, null);
+        }
+      }
+      if (current_block_type_1 === (current_block_type_1 = select_block_type_5(ctx, dirty)) && if_block3) {
+        if_block3.p(ctx, dirty);
+      } else {
+        if_block3.d(1);
+        if_block3 = current_block_type_1(ctx);
+        if (if_block3) {
+          if_block3.c();
+          if_block3.m(div4, t16);
         }
       }
       if (dirty[0] & /*items*/
       512 && button0_aria_label_value !== (button0_aria_label_value = `View work item #${/*it*/
-      ctx[54].id}`)) {
+      ctx[55].id}`)) {
         attr(button0, "aria-label", button0_aria_label_value);
       }
       if (dirty[0] & /*items*/
       512 && button1_aria_label_value !== (button1_aria_label_value = `Edit work item #${/*it*/
-      ctx[54].id}`)) {
+      ctx[55].id}`)) {
         attr(button1, "aria-label", button1_aria_label_value);
       }
       if (dirty[0] & /*items*/
       512 && button2_aria_label_value !== (button2_aria_label_value = `Add comment to #${/*it*/
-      ctx[54].id}`)) {
+      ctx[55].id}`)) {
         attr(button2, "aria-label", button2_aria_label_value);
       }
       if (dirty[0] & /*timerActive, activeId, items*/
@@ -2071,14 +2343,14 @@ function create_each_block_2(ctx) {
       (ctx[4] && /*activeId*/
       ctx[7] === Number(
         /*it*/
-        ctx[54].id
-      ) ? "has-active-timer" : "") + " svelte-1rfczd4")) {
+        ctx[55].id
+      ) ? "has-active-timer" : "") + " svelte-188no3t")) {
         attr(div5, "class", div5_class_value);
       }
       if (dirty[0] & /*items*/
       512 && div5_aria_label_value !== (div5_aria_label_value = `Work item #${/*it*/
-      ctx[54].id}: ${/*it*/
-      ctx[54].fields?.["System.Title"]} - press Enter to open`)) {
+      ctx[55].id}: ${/*it*/
+      ctx[55].fields?.["System.Title"]} - press Enter to open`)) {
         attr(div5, "aria-label", div5_aria_label_value);
       }
     },
@@ -2087,8 +2359,9 @@ function create_each_block_2(ctx) {
         detach(div5);
       }
       if (if_block0) if_block0.d();
-      if_block1.d();
+      if (if_block1) if_block1.d();
       if_block2.d();
+      if_block3.d();
       mounted = false;
       run_all(dispose);
     }
@@ -2100,7 +2373,7 @@ function create_else_block_1(ctx) {
     c() {
       div = element("div");
       div.textContent = "No items";
-      attr(div, "class", "empty svelte-1rfczd4");
+      attr(div, "class", "empty svelte-188no3t");
     },
     m(target, anchor) {
       insert(target, div, anchor);
@@ -2117,9 +2390,9 @@ function create_if_block_2(ctx) {
   let each_1_anchor;
   let each_value_1 = ensure_array_like(
     /*kanbanGroups*/
-    ctx[14][
+    ctx[15][
       /*col*/
-      ctx[51].key
+      ctx[52].key
     ]
   );
   let each_blocks = [];
@@ -2143,12 +2416,12 @@ function create_if_block_2(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*kanbanGroups, columnDefs, timerActive, activeId, handleDragStart, dispatch, kanbanView, timerElapsedLabel*/
-      2213072) {
+      4424912) {
         each_value_1 = ensure_array_like(
           /*kanbanGroups*/
-          ctx2[14][
+          ctx2[15][
             /*col*/
-            ctx2[51].key
+            ctx2[52].key
           ]
         );
         let i;
@@ -2176,7 +2449,7 @@ function create_if_block_2(ctx) {
     }
   };
 }
-function create_if_block_5(ctx) {
+function create_if_block_6(ctx) {
   let span1;
   let span0;
   let t0;
@@ -2192,7 +2465,7 @@ function create_if_block_5(ctx) {
       );
       attr(span0, "class", "codicon codicon-clock");
       attr(span0, "aria-hidden", "true");
-      attr(span1, "class", "timer-indicator svelte-1rfczd4");
+      attr(span1, "class", "timer-indicator svelte-188no3t");
     },
     m(target, anchor) {
       insert(target, span1, anchor);
@@ -2215,14 +2488,57 @@ function create_if_block_5(ctx) {
     }
   };
 }
+function create_if_block_5(ctx) {
+  let div;
+  let t_value = extractDescription(
+    /*it*/
+    ctx[55]
+  ) + "";
+  let t;
+  let div_title_value;
+  return {
+    c() {
+      div = element("div");
+      t = text(t_value);
+      attr(div, "class", "work-item-desc svelte-188no3t");
+      attr(div, "title", div_title_value = extractDescription(
+        /*it*/
+        ctx[55]
+      ));
+    },
+    m(target, anchor) {
+      insert(target, div, anchor);
+      append(div, t);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      98304 && t_value !== (t_value = extractDescription(
+        /*it*/
+        ctx2[55]
+      ) + "")) set_data(t, t_value);
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      98304 && div_title_value !== (div_title_value = extractDescription(
+        /*it*/
+        ctx2[55]
+      ))) {
+        attr(div, "title", div_title_value);
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div);
+      }
+    }
+  };
+}
 function create_if_block_4(ctx) {
   let span1;
   let span0;
   let t0;
   let t1_value = (
     /*it*/
-    (ctx[54].fields["System.AssignedTo"].displayName || /*it*/
-    ctx[54].fields["System.AssignedTo"]) + ""
+    (ctx[55].fields["System.AssignedTo"].displayName || /*it*/
+    ctx[55].fields["System.AssignedTo"]) + ""
   );
   let t1;
   return {
@@ -2243,9 +2559,9 @@ function create_if_block_4(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      49152 && t1_value !== (t1_value = /*it*/
-      (ctx2[54].fields["System.AssignedTo"].displayName || /*it*/
-      ctx2[54].fields["System.AssignedTo"]) + "")) set_data(t1, t1_value);
+      98304 && t1_value !== (t1_value = /*it*/
+      (ctx2[55].fields["System.AssignedTo"].displayName || /*it*/
+      ctx2[55].fields["System.AssignedTo"]) + "")) set_data(t1, t1_value);
     },
     d(detaching) {
       if (detaching) {
@@ -2263,9 +2579,9 @@ function create_else_block(ctx) {
   function click_handler_1() {
     return (
       /*click_handler_1*/
-      ctx[27](
+      ctx[29](
         /*it*/
-        ctx[54]
+        ctx[55]
       )
     );
   }
@@ -2275,10 +2591,10 @@ function create_else_block(ctx) {
       span = element("span");
       attr(span, "class", "codicon codicon-play");
       attr(span, "aria-hidden", "true");
-      attr(button, "class", "action-btn start compact svelte-1rfczd4");
+      attr(button, "class", "action-btn start compact svelte-188no3t");
       attr(button, "title", "Start timer");
       attr(button, "aria-label", button_aria_label_value = `Start timer for #${/*it*/
-      ctx[54].id}`);
+      ctx[55].id}`);
       button.disabled = /*timerActive*/
       ctx[4];
     },
@@ -2293,8 +2609,8 @@ function create_else_block(ctx) {
     p(new_ctx, dirty) {
       ctx = new_ctx;
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      49152 && button_aria_label_value !== (button_aria_label_value = `Start timer for #${/*it*/
-      ctx[54].id}`)) {
+      98304 && button_aria_label_value !== (button_aria_label_value = `Start timer for #${/*it*/
+      ctx[55].id}`)) {
         attr(button, "aria-label", button_aria_label_value);
       }
       if (dirty[0] & /*timerActive*/
@@ -2324,10 +2640,10 @@ function create_if_block_3(ctx) {
       span = element("span");
       attr(span, "class", "codicon codicon-debug-stop");
       attr(span, "aria-hidden", "true");
-      attr(button, "class", "action-btn stop compact svelte-1rfczd4");
+      attr(button, "class", "action-btn stop compact svelte-188no3t");
       attr(button, "title", "Stop timer");
       attr(button, "aria-label", button_aria_label_value = `Stop timer for #${/*it*/
-      ctx[54].id}`);
+      ctx[55].id}`);
     },
     m(target, anchor) {
       insert(target, button, anchor);
@@ -2335,15 +2651,15 @@ function create_if_block_3(ctx) {
       if (!mounted) {
         dispose = listen(button, "click", stop_propagation(
           /*click_handler*/
-          ctx[26]
+          ctx[28]
         ));
         mounted = true;
       }
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      49152 && button_aria_label_value !== (button_aria_label_value = `Stop timer for #${/*it*/
-      ctx2[54].id}`)) {
+      98304 && button_aria_label_value !== (button_aria_label_value = `Stop timer for #${/*it*/
+      ctx2[55].id}`)) {
         attr(button, "aria-label", button_aria_label_value);
       }
     },
@@ -2362,7 +2678,7 @@ function create_each_block_1(ctx) {
   let span0;
   let t0_value = getWorkItemTypeIcon(
     /*it*/
-    ctx[54].fields?.["System.WorkItemType"]
+    ctx[55].fields?.["System.WorkItemType"]
   ) + "";
   let t0;
   let t1;
@@ -2370,23 +2686,23 @@ function create_each_block_1(ctx) {
   let t2;
   let t3_value = (
     /*it*/
-    ctx[54].id + ""
+    ctx[55].id + ""
   );
   let t3;
   let t4;
-  let show_if_1 = (
+  let show_if_2 = (
     /*timerActive*/
     ctx[4] && /*activeId*/
     ctx[7] === Number(
       /*it*/
-      ctx[54].id
+      ctx[55].id
     )
   );
   let t5;
   let span2;
   let t6_value = (
     /*it*/
-    (ctx[54].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + ""
+    (ctx[55].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + ""
   );
   let t6;
   let span2_class_value;
@@ -2395,91 +2711,97 @@ function create_each_block_1(ctx) {
   let div1;
   let t8_value = (
     /*it*/
-    (ctx[54].fields?.["System.Title"] || `Work Item #${/*it*/
-    ctx[54].id}`) + ""
+    (ctx[55].fields?.["System.Title"] || `Work Item #${/*it*/
+    ctx[55].id}`) + ""
   );
   let t8;
   let t9;
-  let div2;
-  let span3;
-  let t10_value = (
+  let show_if_1 = extractDescription(
     /*it*/
-    (ctx[54].fields?.["System.WorkItemType"] || "Task") + ""
+    ctx[55]
   );
   let t10;
+  let div2;
+  let span3;
+  let t11_value = (
+    /*it*/
+    (ctx[55].fields?.["System.WorkItemType"] || "Task") + ""
+  );
   let t11;
   let t12;
+  let t13;
   let div4;
   let show_if;
-  let t13;
+  let t14;
   let button0;
   let span4;
   let button0_aria_label_value;
-  let t14;
+  let t15;
   let button1;
   let span5;
   let button1_aria_label_value;
-  let t15;
+  let t16;
   let button2;
   let span6;
   let button2_aria_label_value;
-  let t16;
+  let t17;
   let div5_class_value;
   let div5_aria_label_value;
   let mounted;
   let dispose;
-  let if_block0 = show_if_1 && create_if_block_5(ctx);
-  let if_block1 = (
+  let if_block0 = show_if_2 && create_if_block_6(ctx);
+  let if_block1 = show_if_1 && create_if_block_5(ctx);
+  let if_block2 = (
     /*it*/
-    ctx[54].fields?.["System.AssignedTo"] && create_if_block_4(ctx)
+    ctx[55].fields?.["System.AssignedTo"] && create_if_block_4(ctx)
   );
-  function select_block_type_2(ctx2, dirty) {
+  function select_block_type_3(ctx2, dirty) {
     if (dirty[0] & /*timerActive, activeId, kanbanGroups, columnDefs*/
-    49296) show_if = null;
+    98448) show_if = null;
     if (show_if == null) show_if = !!/*timerActive*/
     (ctx2[4] && /*activeId*/
     ctx2[7] === Number(
       /*it*/
-      ctx2[54].id
+      ctx2[55].id
     ));
     if (show_if) return create_if_block_3;
     return create_else_block;
   }
-  let current_block_type = select_block_type_2(ctx, [-1, -1]);
-  let if_block2 = current_block_type(ctx);
+  let current_block_type = select_block_type_3(ctx, [-1, -1, -1]);
+  let if_block3 = current_block_type(ctx);
   function click_handler_2() {
     return (
       /*click_handler_2*/
-      ctx[28](
+      ctx[30](
         /*it*/
-        ctx[54]
+        ctx[55]
       )
     );
   }
   function click_handler_3() {
     return (
       /*click_handler_3*/
-      ctx[29](
+      ctx[31](
         /*it*/
-        ctx[54]
+        ctx[55]
       )
     );
   }
   function click_handler_4() {
     return (
       /*click_handler_4*/
-      ctx[30](
+      ctx[32](
         /*it*/
-        ctx[54]
+        ctx[55]
       )
     );
   }
   function dragstart_handler(...args) {
     return (
       /*dragstart_handler*/
-      ctx[31](
+      ctx[33](
         /*it*/
-        ctx[54],
+        ctx[55],
         ...args
       )
     );
@@ -2487,9 +2809,9 @@ function create_each_block_1(ctx) {
   function keydown_handler(...args) {
     return (
       /*keydown_handler*/
-      ctx[32](
+      ctx[34](
         /*it*/
-        ctx[54],
+        ctx[55],
         ...args
       )
     );
@@ -2497,9 +2819,9 @@ function create_each_block_1(ctx) {
   function click_handler_5() {
     return (
       /*click_handler_5*/
-      ctx[33](
+      ctx[35](
         /*it*/
-        ctx[54]
+        ctx[55]
       )
     );
   }
@@ -2523,69 +2845,71 @@ function create_each_block_1(ctx) {
       div1 = element("div");
       t8 = text(t8_value);
       t9 = space();
+      if (if_block1) if_block1.c();
+      t10 = space();
       div2 = element("div");
       span3 = element("span");
-      t10 = text(t10_value);
-      t11 = space();
-      if (if_block1) if_block1.c();
+      t11 = text(t11_value);
       t12 = space();
-      div4 = element("div");
-      if_block2.c();
+      if (if_block2) if_block2.c();
       t13 = space();
+      div4 = element("div");
+      if_block3.c();
+      t14 = space();
       button0 = element("button");
       span4 = element("span");
-      t14 = space();
+      t15 = space();
       button1 = element("button");
       span5 = element("span");
-      t15 = space();
+      t16 = space();
       button2 = element("button");
       span6 = element("span");
-      t16 = space();
-      attr(span0, "class", "work-item-type-icon svelte-1rfczd4");
-      attr(span1, "class", "work-item-id svelte-1rfczd4");
+      t17 = space();
+      attr(span0, "class", "work-item-type-icon svelte-188no3t");
+      attr(span1, "class", "work-item-id svelte-188no3t");
       attr(span2, "class", span2_class_value = "work-item-priority " + getPriorityClass(
         /*it*/
-        ctx[54].fields?.["Microsoft.VSTS.Common.Priority"]
-      ) + " svelte-1rfczd4");
-      attr(div0, "class", "work-item-header svelte-1rfczd4");
-      attr(div1, "class", "work-item-title svelte-1rfczd4");
-      attr(span3, "class", "work-item-type svelte-1rfczd4");
-      attr(div2, "class", "work-item-meta svelte-1rfczd4");
-      attr(div3, "class", "work-item-content svelte-1rfczd4");
+        ctx[55].fields?.["Microsoft.VSTS.Common.Priority"]
+      ) + " svelte-188no3t");
+      attr(div0, "class", "work-item-header svelte-188no3t");
+      attr(div1, "class", "work-item-title svelte-188no3t");
+      attr(span3, "class", "work-item-type svelte-188no3t");
+      attr(div2, "class", "work-item-meta svelte-188no3t");
+      attr(div3, "class", "work-item-content svelte-188no3t");
       attr(span4, "class", "codicon codicon-eye");
       attr(span4, "aria-hidden", "true");
-      attr(button0, "class", "action-btn view compact svelte-1rfczd4");
+      attr(button0, "class", "action-btn view compact svelte-188no3t");
       attr(button0, "title", "View");
       attr(button0, "aria-label", button0_aria_label_value = `View work item #${/*it*/
-      ctx[54].id}`);
+      ctx[55].id}`);
       attr(span5, "class", "codicon codicon-edit");
       attr(span5, "aria-hidden", "true");
-      attr(button1, "class", "action-btn edit compact svelte-1rfczd4");
+      attr(button1, "class", "action-btn edit compact svelte-188no3t");
       attr(button1, "title", "Edit");
       attr(button1, "aria-label", button1_aria_label_value = `Edit work item #${/*it*/
-      ctx[54].id}`);
+      ctx[55].id}`);
       attr(span6, "class", "codicon codicon-comment");
       attr(span6, "aria-hidden", "true");
-      attr(button2, "class", "action-btn comment compact svelte-1rfczd4");
+      attr(button2, "class", "action-btn comment compact svelte-188no3t");
       attr(button2, "title", "Comment");
       attr(button2, "aria-label", button2_aria_label_value = `Add comment to #${/*it*/
-      ctx[54].id}`);
-      attr(div4, "class", "work-item-actions svelte-1rfczd4");
+      ctx[55].id}`);
+      attr(div4, "class", "work-item-actions svelte-188no3t");
       attr(div5, "class", div5_class_value = "work-item-card kanban-card state-" + normalizeState(
         /*it*/
-        ctx[54].fields?.["System.State"]
+        ctx[55].fields?.["System.State"]
       ) + " " + /*timerActive*/
       (ctx[4] && /*activeId*/
       ctx[7] === Number(
         /*it*/
-        ctx[54].id
-      ) ? "has-active-timer" : "") + " svelte-1rfczd4");
+        ctx[55].id
+      ) ? "has-active-timer" : "") + " svelte-188no3t");
       attr(div5, "tabindex", "0");
       attr(div5, "draggable", "true");
       attr(div5, "role", "button");
       attr(div5, "aria-label", div5_aria_label_value = `Work item #${/*it*/
-      ctx[54].id}: ${/*it*/
-      ctx[54].fields?.["System.Title"]} - press Enter to open; Ctrl+Arrow to move`);
+      ctx[55].id}: ${/*it*/
+      ctx[55].fields?.["System.Title"]} - press Enter to open; Ctrl+Arrow to move`);
     },
     m(target, anchor) {
       insert(target, div5, anchor);
@@ -2606,24 +2930,26 @@ function create_each_block_1(ctx) {
       append(div3, div1);
       append(div1, t8);
       append(div3, t9);
+      if (if_block1) if_block1.m(div3, null);
+      append(div3, t10);
       append(div3, div2);
       append(div2, span3);
-      append(span3, t10);
-      append(div2, t11);
-      if (if_block1) if_block1.m(div2, null);
-      append(div5, t12);
+      append(span3, t11);
+      append(div2, t12);
+      if (if_block2) if_block2.m(div2, null);
+      append(div5, t13);
       append(div5, div4);
-      if_block2.m(div4, null);
-      append(div4, t13);
+      if_block3.m(div4, null);
+      append(div4, t14);
       append(div4, button0);
       append(button0, span4);
-      append(div4, t14);
+      append(div4, t15);
       append(div4, button1);
       append(button1, span5);
-      append(div4, t15);
+      append(div4, t16);
       append(div4, button2);
       append(button2, span6);
-      append(div5, t16);
+      append(div5, t17);
       if (!mounted) {
         dispose = [
           listen(button0, "click", stop_propagation(click_handler_2)),
@@ -2639,25 +2965,25 @@ function create_each_block_1(ctx) {
     p(new_ctx, dirty) {
       ctx = new_ctx;
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      49152 && t0_value !== (t0_value = getWorkItemTypeIcon(
+      98304 && t0_value !== (t0_value = getWorkItemTypeIcon(
         /*it*/
-        ctx[54].fields?.["System.WorkItemType"]
+        ctx[55].fields?.["System.WorkItemType"]
       ) + "")) set_data(t0, t0_value);
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      49152 && t3_value !== (t3_value = /*it*/
-      ctx[54].id + "")) set_data(t3, t3_value);
+      98304 && t3_value !== (t3_value = /*it*/
+      ctx[55].id + "")) set_data(t3, t3_value);
       if (dirty[0] & /*timerActive, activeId, kanbanGroups, columnDefs*/
-      49296) show_if_1 = /*timerActive*/
+      98448) show_if_2 = /*timerActive*/
       ctx[4] && /*activeId*/
       ctx[7] === Number(
         /*it*/
-        ctx[54].id
+        ctx[55].id
       );
-      if (show_if_1) {
+      if (show_if_2) {
         if (if_block0) {
           if_block0.p(ctx, dirty);
         } else {
-          if_block0 = create_if_block_5(ctx);
+          if_block0 = create_if_block_6(ctx);
           if_block0.c();
           if_block0.m(div0, t5);
         }
@@ -2666,78 +2992,95 @@ function create_each_block_1(ctx) {
         if_block0 = null;
       }
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      49152 && t6_value !== (t6_value = /*it*/
-      (ctx[54].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + "")) set_data(t6, t6_value);
+      98304 && t6_value !== (t6_value = /*it*/
+      (ctx[55].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + "")) set_data(t6, t6_value);
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      49152 && span2_class_value !== (span2_class_value = "work-item-priority " + getPriorityClass(
+      98304 && span2_class_value !== (span2_class_value = "work-item-priority " + getPriorityClass(
         /*it*/
-        ctx[54].fields?.["Microsoft.VSTS.Common.Priority"]
-      ) + " svelte-1rfczd4")) {
+        ctx[55].fields?.["Microsoft.VSTS.Common.Priority"]
+      ) + " svelte-188no3t")) {
         attr(span2, "class", span2_class_value);
       }
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      49152 && t8_value !== (t8_value = /*it*/
-      (ctx[54].fields?.["System.Title"] || `Work Item #${/*it*/
-      ctx[54].id}`) + "")) set_data(t8, t8_value);
+      98304 && t8_value !== (t8_value = /*it*/
+      (ctx[55].fields?.["System.Title"] || `Work Item #${/*it*/
+      ctx[55].id}`) + "")) set_data(t8, t8_value);
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      49152 && t10_value !== (t10_value = /*it*/
-      (ctx[54].fields?.["System.WorkItemType"] || "Task") + "")) set_data(t10, t10_value);
-      if (
+      98304) show_if_1 = extractDescription(
         /*it*/
-        ctx[54].fields?.["System.AssignedTo"]
-      ) {
+        ctx[55]
+      );
+      if (show_if_1) {
         if (if_block1) {
           if_block1.p(ctx, dirty);
         } else {
-          if_block1 = create_if_block_4(ctx);
+          if_block1 = create_if_block_5(ctx);
           if_block1.c();
-          if_block1.m(div2, null);
+          if_block1.m(div3, t10);
         }
       } else if (if_block1) {
         if_block1.d(1);
         if_block1 = null;
       }
-      if (current_block_type === (current_block_type = select_block_type_2(ctx, dirty)) && if_block2) {
-        if_block2.p(ctx, dirty);
-      } else {
-        if_block2.d(1);
-        if_block2 = current_block_type(ctx);
+      if (dirty[0] & /*kanbanGroups, columnDefs*/
+      98304 && t11_value !== (t11_value = /*it*/
+      (ctx[55].fields?.["System.WorkItemType"] || "Task") + "")) set_data(t11, t11_value);
+      if (
+        /*it*/
+        ctx[55].fields?.["System.AssignedTo"]
+      ) {
         if (if_block2) {
+          if_block2.p(ctx, dirty);
+        } else {
+          if_block2 = create_if_block_4(ctx);
           if_block2.c();
-          if_block2.m(div4, t13);
+          if_block2.m(div2, null);
+        }
+      } else if (if_block2) {
+        if_block2.d(1);
+        if_block2 = null;
+      }
+      if (current_block_type === (current_block_type = select_block_type_3(ctx, dirty)) && if_block3) {
+        if_block3.p(ctx, dirty);
+      } else {
+        if_block3.d(1);
+        if_block3 = current_block_type(ctx);
+        if (if_block3) {
+          if_block3.c();
+          if_block3.m(div4, t14);
         }
       }
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      49152 && button0_aria_label_value !== (button0_aria_label_value = `View work item #${/*it*/
-      ctx[54].id}`)) {
+      98304 && button0_aria_label_value !== (button0_aria_label_value = `View work item #${/*it*/
+      ctx[55].id}`)) {
         attr(button0, "aria-label", button0_aria_label_value);
       }
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      49152 && button1_aria_label_value !== (button1_aria_label_value = `Edit work item #${/*it*/
-      ctx[54].id}`)) {
+      98304 && button1_aria_label_value !== (button1_aria_label_value = `Edit work item #${/*it*/
+      ctx[55].id}`)) {
         attr(button1, "aria-label", button1_aria_label_value);
       }
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      49152 && button2_aria_label_value !== (button2_aria_label_value = `Add comment to #${/*it*/
-      ctx[54].id}`)) {
+      98304 && button2_aria_label_value !== (button2_aria_label_value = `Add comment to #${/*it*/
+      ctx[55].id}`)) {
         attr(button2, "aria-label", button2_aria_label_value);
       }
       if (dirty[0] & /*kanbanGroups, columnDefs, timerActive, activeId*/
-      49296 && div5_class_value !== (div5_class_value = "work-item-card kanban-card state-" + normalizeState(
+      98448 && div5_class_value !== (div5_class_value = "work-item-card kanban-card state-" + normalizeState(
         /*it*/
-        ctx[54].fields?.["System.State"]
+        ctx[55].fields?.["System.State"]
       ) + " " + /*timerActive*/
       (ctx[4] && /*activeId*/
       ctx[7] === Number(
         /*it*/
-        ctx[54].id
-      ) ? "has-active-timer" : "") + " svelte-1rfczd4")) {
+        ctx[55].id
+      ) ? "has-active-timer" : "") + " svelte-188no3t")) {
         attr(div5, "class", div5_class_value);
       }
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      49152 && div5_aria_label_value !== (div5_aria_label_value = `Work item #${/*it*/
-      ctx[54].id}: ${/*it*/
-      ctx[54].fields?.["System.Title"]} - press Enter to open; Ctrl+Arrow to move`)) {
+      98304 && div5_aria_label_value !== (div5_aria_label_value = `Work item #${/*it*/
+      ctx[55].id}: ${/*it*/
+      ctx[55].fields?.["System.Title"]} - press Enter to open; Ctrl+Arrow to move`)) {
         attr(div5, "aria-label", div5_aria_label_value);
       }
     },
@@ -2747,7 +3090,8 @@ function create_each_block_1(ctx) {
       }
       if (if_block0) if_block0.d();
       if (if_block1) if_block1.d();
-      if_block2.d();
+      if (if_block2) if_block2.d();
+      if_block3.d();
       mounted = false;
       run_all(dispose);
     }
@@ -2759,16 +3103,16 @@ function create_each_block2(ctx) {
   let h3;
   let t0_value = (
     /*col*/
-    ctx[51].label + ""
+    ctx[52].label + ""
   );
   let t0;
   let t1;
   let span;
   let t2_value = (
     /*kanbanGroups*/
-    (ctx[14][
+    (ctx[15][
       /*col*/
-      ctx[51].key
+      ctx[52].key
     ]?.length || 0) + ""
   );
   let t2;
@@ -2779,24 +3123,24 @@ function create_each_block2(ctx) {
   let div2_aria_label_value;
   let mounted;
   let dispose;
-  function select_block_type_1(ctx2, dirty) {
+  function select_block_type_2(ctx2, dirty) {
     if (
       /*kanbanGroups*/
-      ctx2[14][
+      ctx2[15][
         /*col*/
-        ctx2[51].key
+        ctx2[52].key
       ]?.length
     ) return create_if_block_2;
     return create_else_block_1;
   }
-  let current_block_type = select_block_type_1(ctx, [-1, -1]);
+  let current_block_type = select_block_type_2(ctx, [-1, -1, -1]);
   let if_block = current_block_type(ctx);
   function drop_handler(...args) {
     return (
       /*drop_handler*/
-      ctx[34](
+      ctx[36](
         /*col*/
-        ctx[51],
+        ctx[52],
         ...args
       )
     );
@@ -2814,16 +3158,16 @@ function create_each_block2(ctx) {
       div1 = element("div");
       if_block.c();
       t4 = space();
-      attr(h3, "class", "svelte-1rfczd4");
-      attr(span, "class", "item-count svelte-1rfczd4");
-      attr(div0, "class", "kanban-column-header svelte-1rfczd4");
-      attr(div1, "class", "kanban-column-content svelte-1rfczd4");
+      attr(h3, "class", "svelte-188no3t");
+      attr(span, "class", "item-count svelte-188no3t");
+      attr(div0, "class", "kanban-column-header svelte-188no3t");
+      attr(div1, "class", "kanban-column-content svelte-188no3t");
       attr(div2, "class", div2_class_value = "kanban-column state-" + /*col*/
-      ctx[51].key + " svelte-1rfczd4");
+      ctx[52].key + " svelte-188no3t");
       attr(div2, "role", "listbox");
       attr(div2, "tabindex", "0");
       attr(div2, "aria-label", div2_aria_label_value = `${/*col*/
-      ctx[51].label} column - drop items here`);
+      ctx[52].label} column - drop items here`);
     },
     m(target, anchor) {
       insert(target, div2, anchor);
@@ -2845,15 +3189,15 @@ function create_each_block2(ctx) {
     p(new_ctx, dirty) {
       ctx = new_ctx;
       if (dirty[0] & /*columnDefs*/
-      32768 && t0_value !== (t0_value = /*col*/
-      ctx[51].label + "")) set_data(t0, t0_value);
+      65536 && t0_value !== (t0_value = /*col*/
+      ctx[52].label + "")) set_data(t0, t0_value);
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      49152 && t2_value !== (t2_value = /*kanbanGroups*/
-      (ctx[14][
+      98304 && t2_value !== (t2_value = /*kanbanGroups*/
+      (ctx[15][
         /*col*/
-        ctx[51].key
+        ctx[52].key
       ]?.length || 0) + "")) set_data(t2, t2_value);
-      if (current_block_type === (current_block_type = select_block_type_1(ctx, dirty)) && if_block) {
+      if (current_block_type === (current_block_type = select_block_type_2(ctx, dirty)) && if_block) {
         if_block.p(ctx, dirty);
       } else {
         if_block.d(1);
@@ -2864,13 +3208,13 @@ function create_each_block2(ctx) {
         }
       }
       if (dirty[0] & /*columnDefs*/
-      32768 && div2_class_value !== (div2_class_value = "kanban-column state-" + /*col*/
-      ctx[51].key + " svelte-1rfczd4")) {
+      65536 && div2_class_value !== (div2_class_value = "kanban-column state-" + /*col*/
+      ctx[52].key + " svelte-188no3t")) {
         attr(div2, "class", div2_class_value);
       }
       if (dirty[0] & /*columnDefs*/
-      32768 && div2_aria_label_value !== (div2_aria_label_value = `${/*col*/
-      ctx[51].label} column - drop items here`)) {
+      65536 && div2_aria_label_value !== (div2_aria_label_value = `${/*col*/
+      ctx[52].label} column - drop items here`)) {
         attr(div2, "aria-label", div2_aria_label_value);
       }
     },
@@ -2889,57 +3233,59 @@ function create_fragment2(ctx) {
   let div0;
   let span0;
   let t1;
-  let span1;
   let t2;
   let t3;
+  let span1;
   let t4;
   let t5;
   let t6;
-  let span2;
-  let t7;
-  let t8;
-  let t9;
-  let span4;
   let span3;
+  let span2;
   let input;
-  let t10;
+  let t7;
   let select0;
   let option0;
-  let t12;
+  let t9;
   let select1;
   let option1;
   let option2;
   let option3;
   let option4;
-  let t17;
+  let t14;
   let div1;
-  let t18;
-  let t19;
+  let t15;
+  let t16;
   let toasts2;
   let current;
   let mounted;
   let dispose;
   let if_block0 = (
-    /*loading*/
-    ctx[11] && create_if_block_14(ctx)
+    /*subtitle*/
+    ctx[3] && create_if_block_18(ctx)
   );
   let if_block1 = (
-    /*timerActive*/
-    ctx[4] && create_if_block_11(ctx)
+    /*loading*/
+    ctx[11] && create_if_block_17(ctx)
   );
-  let each_value_3 = ensure_array_like(
-    /*columnDefs*/
-    ctx[15]
-  );
-  let each_blocks = [];
-  for (let i = 0; i < each_value_3.length; i += 1) {
-    each_blocks[i] = create_each_block_3(get_each_context_3(ctx, each_value_3, i));
-  }
   let if_block2 = (
-    /*errorMsg*/
-    ctx[12] && create_if_block_10(ctx)
+    /*timerActive*/
+    ctx[4] && create_if_block_14(ctx)
   );
   function select_block_type(ctx2, dirty) {
+    if (
+      /*availableStates*/
+      ctx2[14] && /*availableStates*/
+      ctx2[14].length
+    ) return create_if_block_13;
+    return create_else_block_5;
+  }
+  let current_block_type = select_block_type(ctx, [-1, -1, -1]);
+  let if_block3 = current_block_type(ctx);
+  let if_block4 = (
+    /*errorMsg*/
+    ctx[12] && create_if_block_12(ctx)
+  );
+  function select_block_type_1(ctx2, dirty) {
     if (
       /*loading*/
       ctx2[11]
@@ -2952,11 +3298,11 @@ function create_fragment2(ctx) {
       /*items*/
       ctx2[9] && /*items*/
       ctx2[9].length
-    ) return create_if_block_6;
+    ) return create_if_block_7;
     return create_else_block_4;
   }
-  let current_block_type = select_block_type(ctx, [-1, -1]);
-  let if_block3 = current_block_type(ctx);
+  let current_block_type_1 = select_block_type_1(ctx, [-1, -1, -1]);
+  let if_block5 = current_block_type_1(ctx);
   toasts2 = new Toasts_default({
     props: { ariaLabel: "Work item notifications" }
   });
@@ -2967,35 +3313,27 @@ function create_fragment2(ctx) {
       span0 = element("span");
       span0.textContent = "Work Items";
       t1 = space();
-      span1 = element("span");
-      t2 = text("(");
-      t3 = text(
-        /*subtitle*/
-        ctx[3]
-      );
-      t4 = text(")");
-      t5 = space();
       if (if_block0) if_block0.c();
-      t6 = space();
-      span2 = element("span");
-      t7 = text(
+      t2 = space();
+      if (if_block1) if_block1.c();
+      t3 = space();
+      span1 = element("span");
+      t4 = text(
         /*workItemCount*/
         ctx[2]
       );
-      t8 = space();
-      if (if_block1) if_block1.c();
-      t9 = space();
-      span4 = element("span");
+      t5 = space();
+      if (if_block2) if_block2.c();
+      t6 = space();
       span3 = element("span");
+      span2 = element("span");
       input = element("input");
-      t10 = space();
+      t7 = space();
       select0 = element("select");
       option0 = element("option");
       option0.textContent = "All";
-      for (let i = 0; i < each_blocks.length; i += 1) {
-        each_blocks[i].c();
-      }
-      t12 = space();
+      if_block3.c();
+      t9 = space();
       select1 = element("select");
       option1 = element("option");
       option1.textContent = "Updated \u2193";
@@ -3005,31 +3343,30 @@ function create_fragment2(ctx) {
       option3.textContent = "ID \u2191";
       option4 = element("option");
       option4.textContent = "Title A\u2192Z";
-      t17 = space();
+      t14 = space();
       div1 = element("div");
-      if (if_block2) if_block2.c();
-      t18 = space();
-      if_block3.c();
-      t19 = space();
+      if (if_block4) if_block4.c();
+      t15 = space();
+      if_block5.c();
+      t16 = space();
       create_component(toasts2.$$.fragment);
       set_style(span0, "font-weight", "600");
-      attr(span1, "class", "muted svelte-1rfczd4");
-      attr(span2, "class", "count svelte-1rfczd4");
+      attr(span1, "class", "count svelte-188no3t");
       attr(input, "placeholder", "Filter...");
       input.value = /*filterText*/
       ctx[13];
       attr(input, "aria-label", "Filter by title");
-      attr(input, "class", "svelte-1rfczd4");
+      attr(input, "class", "svelte-188no3t");
       option0.__value = "all";
       set_input_value(option0, option0.__value);
       attr(select0, "aria-label", "Filter by state");
-      attr(select0, "class", "svelte-1rfczd4");
+      attr(select0, "class", "svelte-188no3t");
       if (
         /*stateFilter*/
         ctx[0] === void 0
       ) add_render_callback(() => (
         /*select0_change_handler*/
-        ctx[24].call(select0)
+        ctx[26].call(select0)
       ));
       option1.__value = "updated-desc";
       set_input_value(option1, option1.__value);
@@ -3040,60 +3377,53 @@ function create_fragment2(ctx) {
       option4.__value = "title-asc";
       set_input_value(option4, option4.__value);
       attr(select1, "aria-label", "Sort items");
-      attr(select1, "class", "svelte-1rfczd4");
+      attr(select1, "class", "svelte-188no3t");
       if (
         /*sortKey*/
         ctx[1] === void 0
       ) add_render_callback(() => (
         /*select1_change_handler*/
-        ctx[25].call(select1)
+        ctx[27].call(select1)
       ));
-      attr(span3, "class", "filters svelte-1rfczd4");
-      attr(span3, "aria-label", "Filters and sort");
-      attr(span4, "class", "actions svelte-1rfczd4");
-      set_style(span4, "margin-left", "auto");
-      attr(div0, "class", "pane-header svelte-1rfczd4");
+      attr(span2, "class", "filters svelte-188no3t");
+      attr(span2, "aria-label", "Filters and sort");
+      attr(span3, "class", "actions svelte-188no3t");
+      set_style(span3, "margin-left", "auto");
+      attr(div0, "class", "pane-header svelte-188no3t");
       attr(div0, "role", "toolbar");
       attr(div0, "aria-label", "Work Items actions");
-      attr(div1, "class", "pane-body svelte-1rfczd4");
-      attr(div2, "class", "pane svelte-1rfczd4");
+      attr(div1, "class", "pane-body svelte-188no3t");
+      attr(div2, "class", "pane svelte-188no3t");
     },
     m(target, anchor) {
       insert(target, div2, anchor);
       append(div2, div0);
       append(div0, span0);
       append(div0, t1);
+      if (if_block0) if_block0.m(div0, null);
+      append(div0, t2);
+      if (if_block1) if_block1.m(div0, null);
+      append(div0, t3);
       append(div0, span1);
-      append(span1, t2);
-      append(span1, t3);
       append(span1, t4);
       append(div0, t5);
-      if (if_block0) if_block0.m(div0, null);
+      if (if_block2) if_block2.m(div0, null);
       append(div0, t6);
-      append(div0, span2);
+      append(div0, span3);
+      append(span3, span2);
+      append(span2, input);
       append(span2, t7);
-      append(div0, t8);
-      if (if_block1) if_block1.m(div0, null);
-      append(div0, t9);
-      append(div0, span4);
-      append(span4, span3);
-      append(span3, input);
-      append(span3, t10);
-      append(span3, select0);
+      append(span2, select0);
       append(select0, option0);
-      for (let i = 0; i < each_blocks.length; i += 1) {
-        if (each_blocks[i]) {
-          each_blocks[i].m(select0, null);
-        }
-      }
+      if_block3.m(select0, null);
       select_option(
         select0,
         /*stateFilter*/
         ctx[0],
         true
       );
-      append(span3, t12);
-      append(span3, select1);
+      append(span2, t9);
+      append(span2, select1);
       append(select1, option1);
       append(select1, option2);
       append(select1, option3);
@@ -3104,12 +3434,12 @@ function create_fragment2(ctx) {
         ctx[1],
         true
       );
-      append(div2, t17);
+      append(div2, t14);
       append(div2, div1);
-      if (if_block2) if_block2.m(div1, null);
-      append(div1, t18);
-      if_block3.m(div1, null);
-      append(div2, t19);
+      if (if_block4) if_block4.m(div1, null);
+      append(div1, t15);
+      if_block5.m(div1, null);
+      append(div2, t16);
       mount_component(toasts2, div2, null);
       current = true;
       if (!mounted) {
@@ -3118,60 +3448,69 @@ function create_fragment2(ctx) {
             input,
             "input",
             /*onFilterInput*/
-            ctx[18]
-          ),
-          listen(
-            select0,
-            "change",
-            /*onStateFilterChange*/
             ctx[19]
           ),
           listen(
             select0,
             "change",
+            /*onStateFilterChange*/
+            ctx[20]
+          ),
+          listen(
+            select0,
+            "change",
             /*select0_change_handler*/
-            ctx[24]
+            ctx[26]
           ),
           listen(
             select1,
             "change",
             /*onSortChange*/
-            ctx[20]
+            ctx[21]
           ),
           listen(
             select1,
             "change",
             /*select1_change_handler*/
-            ctx[25]
+            ctx[27]
           )
         ];
         mounted = true;
       }
     },
     p(ctx2, dirty) {
-      if (!current || dirty[0] & /*subtitle*/
-      8) set_data(
-        t3,
+      if (
         /*subtitle*/
         ctx2[3]
-      );
-      if (
-        /*loading*/
-        ctx2[11]
       ) {
         if (if_block0) {
+          if_block0.p(ctx2, dirty);
         } else {
-          if_block0 = create_if_block_14(ctx2);
+          if_block0 = create_if_block_18(ctx2);
           if_block0.c();
-          if_block0.m(div0, t6);
+          if_block0.m(div0, t2);
         }
       } else if (if_block0) {
         if_block0.d(1);
         if_block0 = null;
       }
+      if (
+        /*loading*/
+        ctx2[11]
+      ) {
+        if (if_block1) {
+        } else {
+          if_block1 = create_if_block_17(ctx2);
+          if_block1.c();
+          if_block1.m(div0, t3);
+        }
+      } else if (if_block1) {
+        if_block1.d(1);
+        if_block1 = null;
+      }
       if (!current || dirty[0] & /*workItemCount*/
       4) set_data(
-        t7,
+        t4,
         /*workItemCount*/
         ctx2[2]
       );
@@ -3179,16 +3518,16 @@ function create_fragment2(ctx) {
         /*timerActive*/
         ctx2[4]
       ) {
-        if (if_block1) {
-          if_block1.p(ctx2, dirty);
+        if (if_block2) {
+          if_block2.p(ctx2, dirty);
         } else {
-          if_block1 = create_if_block_11(ctx2);
-          if_block1.c();
-          if_block1.m(div0, t9);
+          if_block2 = create_if_block_14(ctx2);
+          if_block2.c();
+          if_block2.m(div0, t6);
         }
-      } else if (if_block1) {
-        if_block1.d(1);
-        if_block1 = null;
+      } else if (if_block2) {
+        if_block2.d(1);
+        if_block2 = null;
       }
       if (!current || dirty[0] & /*filterText*/
       8192 && input.value !== /*filterText*/
@@ -3196,30 +3535,18 @@ function create_fragment2(ctx) {
         input.value = /*filterText*/
         ctx2[13];
       }
-      if (dirty[0] & /*columnDefs*/
-      32768) {
-        each_value_3 = ensure_array_like(
-          /*columnDefs*/
-          ctx2[15]
-        );
-        let i;
-        for (i = 0; i < each_value_3.length; i += 1) {
-          const child_ctx = get_each_context_3(ctx2, each_value_3, i);
-          if (each_blocks[i]) {
-            each_blocks[i].p(child_ctx, dirty);
-          } else {
-            each_blocks[i] = create_each_block_3(child_ctx);
-            each_blocks[i].c();
-            each_blocks[i].m(select0, null);
-          }
+      if (current_block_type === (current_block_type = select_block_type(ctx2, dirty)) && if_block3) {
+        if_block3.p(ctx2, dirty);
+      } else {
+        if_block3.d(1);
+        if_block3 = current_block_type(ctx2);
+        if (if_block3) {
+          if_block3.c();
+          if_block3.m(select0, null);
         }
-        for (; i < each_blocks.length; i += 1) {
-          each_blocks[i].d(1);
-        }
-        each_blocks.length = each_value_3.length;
       }
-      if (dirty[0] & /*stateFilter, columnDefs*/
-      32769) {
+      if (dirty[0] & /*stateFilter, availableStates, columnDefs*/
+      81921) {
         select_option(
           select0,
           /*stateFilter*/
@@ -3238,25 +3565,25 @@ function create_fragment2(ctx) {
         /*errorMsg*/
         ctx2[12]
       ) {
-        if (if_block2) {
-          if_block2.p(ctx2, dirty);
+        if (if_block4) {
+          if_block4.p(ctx2, dirty);
         } else {
-          if_block2 = create_if_block_10(ctx2);
-          if_block2.c();
-          if_block2.m(div1, t18);
+          if_block4 = create_if_block_12(ctx2);
+          if_block4.c();
+          if_block4.m(div1, t15);
         }
-      } else if (if_block2) {
-        if_block2.d(1);
-        if_block2 = null;
+      } else if (if_block4) {
+        if_block4.d(1);
+        if_block4 = null;
       }
-      if (current_block_type === (current_block_type = select_block_type(ctx2, dirty)) && if_block3) {
-        if_block3.p(ctx2, dirty);
+      if (current_block_type_1 === (current_block_type_1 = select_block_type_1(ctx2, dirty)) && if_block5) {
+        if_block5.p(ctx2, dirty);
       } else {
-        if_block3.d(1);
-        if_block3 = current_block_type(ctx2);
-        if (if_block3) {
-          if_block3.c();
-          if_block3.m(div1, null);
+        if_block5.d(1);
+        if_block5 = current_block_type_1(ctx2);
+        if (if_block5) {
+          if_block5.c();
+          if_block5.m(div1, null);
         }
       }
     },
@@ -3275,9 +3602,10 @@ function create_fragment2(ctx) {
       }
       if (if_block0) if_block0.d();
       if (if_block1) if_block1.d();
-      destroy_each(each_blocks, detaching);
       if (if_block2) if_block2.d();
       if_block3.d();
+      if (if_block4) if_block4.d();
+      if_block5.d();
       destroy_component(toasts2);
       mounted = false;
       run_all(dispose);
@@ -3319,12 +3647,20 @@ function getPriorityClass(priority) {
   if (p === 4) return "priority-4";
   return "priority-3";
 }
+function extractDescription(it) {
+  const raw = it?.fields?.["System.Description"];
+  if (!raw || typeof raw !== "string") return "";
+  const text2 = raw.replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#39;/gi, "'").replace(/\s+/g, " ").trim();
+  const max = 120;
+  if (text2.length <= max) return text2;
+  return text2.slice(0, max).trimEnd() + "\u2026";
+}
 function instance2($$self, $$props, $$invalidate) {
   let kanbanGroups;
   let columnDefs;
   const dispatch = createEventDispatcher();
   let { workItemCount: workItemCount2 = 0 } = $$props;
-  let { subtitle = "Svelte flag on" } = $$props;
+  let { subtitle = "" } = $$props;
   let { hasItems = false } = $$props;
   let { timerActive: timerActive2 = false } = $$props;
   let { timerRunning: timerRunning2 = false } = $$props;
@@ -3338,6 +3674,7 @@ function instance2($$self, $$props, $$invalidate) {
   let { filterText: filterText2 = "" } = $$props;
   let { stateFilter: stateFilter2 = "all" } = $$props;
   let { sortKey: sortKey2 = "updated-desc" } = $$props;
+  let { availableStates = [] } = $$props;
   function onRefresh() {
     dispatch("refresh");
   }
@@ -3425,7 +3762,8 @@ function instance2($$self, $$props, $$invalidate) {
   function select0_change_handler() {
     stateFilter2 = select_value(this);
     $$invalidate(0, stateFilter2);
-    $$invalidate(15, columnDefs), $$invalidate(14, kanbanGroups), $$invalidate(9, items);
+    $$invalidate(14, availableStates);
+    $$invalidate(16, columnDefs), $$invalidate(15, kanbanGroups), $$invalidate(9, items);
   }
   function select1_change_handler() {
     sortKey2 = select_value(this);
@@ -3478,7 +3816,7 @@ function instance2($$self, $$props, $$invalidate) {
   $$self.$$set = ($$props2) => {
     if ("workItemCount" in $$props2) $$invalidate(2, workItemCount2 = $$props2.workItemCount);
     if ("subtitle" in $$props2) $$invalidate(3, subtitle = $$props2.subtitle);
-    if ("hasItems" in $$props2) $$invalidate(23, hasItems = $$props2.hasItems);
+    if ("hasItems" in $$props2) $$invalidate(25, hasItems = $$props2.hasItems);
     if ("timerActive" in $$props2) $$invalidate(4, timerActive2 = $$props2.timerActive);
     if ("timerRunning" in $$props2) $$invalidate(5, timerRunning2 = $$props2.timerRunning);
     if ("timerElapsedLabel" in $$props2) $$invalidate(6, timerElapsedLabel2 = $$props2.timerElapsedLabel);
@@ -3491,11 +3829,12 @@ function instance2($$self, $$props, $$invalidate) {
     if ("filterText" in $$props2) $$invalidate(13, filterText2 = $$props2.filterText);
     if ("stateFilter" in $$props2) $$invalidate(0, stateFilter2 = $$props2.stateFilter);
     if ("sortKey" in $$props2) $$invalidate(1, sortKey2 = $$props2.sortKey);
+    if ("availableStates" in $$props2) $$invalidate(14, availableStates = $$props2.availableStates);
   };
   $$self.$$.update = () => {
     if ($$self.$$.dirty[0] & /*items*/
     512) {
-      $: $$invalidate(14, kanbanGroups = (() => {
+      $: $$invalidate(15, kanbanGroups = (() => {
         const present = new Set(bucketOrder);
         const groups = Object.fromEntries(bucketOrder.map((k) => [k, []]));
         (items || []).forEach((it) => {
@@ -3507,8 +3846,8 @@ function instance2($$self, $$props, $$invalidate) {
       })());
     }
     if ($$self.$$.dirty[0] & /*kanbanGroups*/
-    16384) {
-      $: $$invalidate(15, columnDefs = bucketOrder.filter((k) => (kanbanGroups[k] || []).length > 0 || ["new", "active", "inprogress", "review", "done"].includes(k)).map((k) => ({ key: k, label: bucketLabels[k] || k })));
+    32768) {
+      $: $$invalidate(16, columnDefs = bucketOrder.filter((k) => (kanbanGroups[k] || []).length > 0 || ["new", "active", "inprogress", "review", "done"].includes(k)).map((k) => ({ key: k, label: bucketLabels[k] || k })));
     }
   };
   return [
@@ -3526,6 +3865,7 @@ function instance2($$self, $$props, $$invalidate) {
     loading2,
     errorMsg2,
     filterText2,
+    availableStates,
     kanbanGroups,
     columnDefs,
     dispatch,
@@ -3535,6 +3875,7 @@ function instance2($$self, $$props, $$invalidate) {
     onSortChange,
     handleDragStart,
     handleDrop,
+    bucketLabels,
     hasItems,
     select0_change_handler,
     select1_change_handler,
@@ -3568,7 +3909,7 @@ var App = class extends SvelteComponent {
       {
         workItemCount: 2,
         subtitle: 3,
-        hasItems: 23,
+        hasItems: 25,
         timerActive: 4,
         timerRunning: 5,
         timerElapsedLabel: 6,
@@ -3580,10 +3921,11 @@ var App = class extends SvelteComponent {
         errorMsg: 12,
         filterText: 13,
         stateFilter: 0,
-        sortKey: 1
+        sortKey: 1,
+        availableStates: 14
       },
       null,
-      [-1, -1]
+      [-1, -1, -1]
     );
   }
 };
@@ -3629,6 +3971,7 @@ var filterText = "";
 var stateFilter = "all";
 var sortKey = "updated-desc";
 var pendingMoves = /* @__PURE__ */ new Map();
+var stateOptions = [];
 try {
   const st = vscode && typeof vscode.getState === "function" ? vscode.getState() : null;
   if (st && typeof st.kanbanView === "boolean") kanbanView = !!st.kanbanView;
@@ -3645,7 +3988,7 @@ function ensureApp() {
     target: root,
     props: {
       workItemCount,
-      subtitle: "Svelte flag on",
+      subtitle: "",
       hasItems: (lastWorkItems || []).length > 0,
       timerActive,
       timerRunning,
@@ -3751,7 +4094,7 @@ function ensureApp() {
     if (found) {
       if (!found.fields) found.fields = {};
       const mapping = {
-        todo: "To Do",
+        new: "To Do",
         active: "Active",
         inprogress: "In Progress",
         review: "Review",
@@ -3778,16 +4121,19 @@ function passesFilters(it) {
   return true;
 }
 function normalizeState2(raw) {
-  if (!raw) return "todo";
+  if (!raw) return "new";
   const s = String(raw).toLowerCase().trim().replace(/\s+/g, "-");
-  if (s === "new" || s === "to-do" || s === "todo") return "todo";
+  if (s === "new" || s === "to-do" || s === "todo" || s === "proposed") return "new";
+  if (s === "approved") return "approved";
+  if (s === "committed") return "committed";
   if (s === "active") return "active";
   if (s === "in-progress" || s === "inprogress" || s === "doing") return "inprogress";
   if (s === "review" || s === "code-review" || s === "testing") return "review";
   if (s === "resolved") return "resolved";
-  if (s === "done" || s === "closed") return "done";
+  if (s === "done") return "done";
+  if (s === "closed" || s === "completed") return "closed";
   if (s === "removed") return "removed";
-  return "todo";
+  return "new";
 }
 function recomputeItemsForView() {
   const items = Array.isArray(lastWorkItems) ? lastWorkItems : [];
@@ -3816,6 +4162,24 @@ function recomputeItemsForView() {
     }
   });
   itemsForView = sorted;
+  const allStatesSet = /* @__PURE__ */ new Set();
+  (Array.isArray(lastWorkItems) ? lastWorkItems : []).forEach((w) => {
+    const norm = normalizeState2(w?.fields?.["System.State"]);
+    allStatesSet.add(norm);
+  });
+  const order = [
+    "new",
+    "approved",
+    "committed",
+    "active",
+    "inprogress",
+    "review",
+    "resolved",
+    "done",
+    "closed",
+    "removed"
+  ];
+  stateOptions = order.filter((s) => allStatesSet.has(s));
 }
 function formatElapsedHHMM(sec) {
   const s = Math.max(0, Math.floor(Number(sec) || 0));
@@ -3851,7 +4215,8 @@ function onMessage(message) {
         errorMsg,
         filterText,
         stateFilter,
-        sortKey
+        sortKey,
+        availableStates: stateOptions
       });
       break;
     }
@@ -3941,7 +4306,8 @@ function onMessage(message) {
         sortKey,
         items: itemsForView,
         workItemCount: itemsForView.length,
-        hasItems: itemsForView.length > 0
+        hasItems: itemsForView.length > 0,
+        availableStates: stateOptions
       });
       break;
     }

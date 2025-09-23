@@ -59,125 +59,125 @@
       {
         "command": "azureDevOpsInt.setup",
         "title": "Setup Connection",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.openLogs",
         "title": "Open Logs",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.copyLogsToClipboard",
         "title": "Copy Logs to Clipboard",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.openLogsFolder",
         "title": "Open Logs Folder (VS Code)",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.showWorkItems",
         "title": "Show Work Items",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.focusWorkItemsView",
         "title": "Focus Work Items View",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.refreshWorkItems",
         "title": "Refresh Work Items",
         "icon": "$(refresh)",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.createWorkItem",
         "title": "Create Work Item",
         "icon": "$(add)",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.editWorkItem",
         "title": "Edit Work Item",
         "icon": "$(edit)",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.startTimer",
         "title": "Start/Stop Timer",
         "icon": "$(play)",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.pauseTimer",
         "title": "Pause Timer",
         "icon": "$(debug-pause)",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.resumeTimer",
         "title": "Resume Timer",
         "icon": "$(debug-continue)",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.stopTimer",
         "title": "Stop Timer",
         "icon": "$(debug-stop)",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.showTimeReport",
         "title": "Show Time Report",
         "icon": "$(watch)",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.createBranch",
         "title": "Create Branch from Work Item",
         "icon": "$(git-branch)",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.createPullRequest",
         "title": "Create Pull Request",
         "icon": "$(git-pull-request)",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.showPullRequests",
         "title": "Show My Pull Requests",
         "icon": "$(git-pull-request)",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.openWorkItemInBrowser",
         "title": "Open in Browser",
         "icon": "$(globe)",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.toggleKanbanView",
         "title": "Toggle Kanban View",
-        "category": "Azure DevOps",
+        "category": "Azure DevOps Int",
         "icon": "$(layout-panel)"
       },
       {
         "command": "azureDevOpsInt.selectTeam",
         "title": "Select Team",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.resetPreferredRepositories",
         "title": "Reset Preferred Repositories",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       },
       {
         "command": "azureDevOpsInt.showBuildStatus",
         "title": "Show Build Status",
-        "category": "Azure DevOps"
+        "category": "Azure DevOps Int"
       }
     ],
     "views": {
@@ -256,11 +256,6 @@
     "configuration": {
       "title": "Azure DevOps Integration",
       "properties": {
-        "azureDevOpsIntegration.experimentalSvelteUI": {
-          "type": "boolean",
-          "default": true,
-          "description": "Experimental: Enable Svelte-based webview UI (on in this branch). Restart is required."
-        },
         "azureDevOpsIntegration.debugLogging": {
           "type": "boolean",
           "default": false,
@@ -275,11 +270,6 @@
           "type": "string",
           "default": "",
           "description": "Azure DevOps project name"
-        },
-        "azureDevOpsIntegration.personalAccessToken": {
-          "type": "string",
-          "default": "",
-          "description": "Personal Access Token for Azure DevOps API"
         },
         "azureDevOpsIntegration.defaultElapsedLimitHours": {
           "type": "number",
