@@ -6,6 +6,16 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.7.1] - 2025-09-23
+
+### Changed
+
+- **Svelte UI by Default**: The Svelte-based webview is now the default experience, removing the need for the `experimentalSvelteUI` feature flag. The legacy UI remains as a fallback if Svelte assets are missing.
+
+### Fixed
+
+- **PAT Storage**: Corrected an issue where the Personal Access Token (PAT) was not being consistently stored in the VS Code secret store after being updated via the setup command. The extension now reliably uses the secret store for PAT management.
+
 ## [Unreleased]
 
 ### Changed
