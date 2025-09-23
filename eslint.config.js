@@ -8,7 +8,7 @@ export default [
   js.configs.recommended,
   {
     plugins: { '@typescript-eslint': tsPlugin },
-    files: ['src/**/*.ts', 'tests/**/*.ts'],
+    files: ['src/**/*.ts', 'tests/**/*.ts', 'packages/**/src/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },

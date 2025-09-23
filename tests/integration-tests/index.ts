@@ -24,7 +24,11 @@ export async function run(): Promise<void> {
 
   // Find all test files
   const testRoot = __dirname;
-  const files = glob.globSync('**/*.test.js', { cwd: testRoot });
+  let files = glob.globSync('**/*.test.js', { cwd: testRoot });
+  if (process.env.VSCODE_INTEGRATION_SMOKE === '1') {
+    // Limit to activation-only smoke in smoke mode to avoid heavier flows
+    files = files.filter((f) => /activate-only\.test\.js$/.test(f));
+  }
 
   // Add files to the test suite
   files.forEach((f) => mocha.addFile(path.resolve(testRoot, f)));

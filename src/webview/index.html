@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -844,6 +844,7 @@
       </div>
     </div>
 
-    <script type="module" src="/main.ts"></script>
+    <!-- The extension replaces this path at runtime to either main.js or svelte-main.js with CSP and nonces -->
+    <script type="module" crossorigin src="./main.js"></script>
   </body>
 </html>

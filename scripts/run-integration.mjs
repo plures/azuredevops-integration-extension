@@ -28,6 +28,12 @@ try {
   process.exit(2);
 }
 
+// Allow opting into smoke-only mode for faster CI by setting VSCODE_INTEGRATION_SMOKE=1.
+if (!process.env.VSCODE_INTEGRATION_SMOKE && process.env.CI === 'true') {
+  // Default to smoke in CI unless explicitly disabled
+  process.env.VSCODE_INTEGRATION_SMOKE = '1';
+}
+
 // Import the integration test entrypoint and catch any errors during import.
 try {
   await import('../tests/integration/webview-roundtrip.test.ts');

@@ -6,6 +6,16 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.7.1] - 2025-09-23
+
+### Changed
+
+- **Svelte UI by Default**: The Svelte-based webview is now the default experience, removing the need for the `experimentalSvelteUI` feature flag. The legacy UI remains as a fallback if Svelte assets are missing.
+
+### Fixed
+
+- **PAT Storage**: Corrected an issue where the Personal Access Token (PAT) was not being consistently stored in the VS Code secret store after being updated via the setup command. The extension now reliably uses the secret store for PAT management.
+
 ## [Unreleased]
 
 ### Changed
@@ -24,6 +34,28 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - No breaking changes; behavior is backward compatible
 
 ## [1.6.3] - 2025-09-20
+
+## [1.7.0] - 2025-09-23
+
+### Added
+
+- Accessible keyboard Kanban navigation (Ctrl/Cmd + Arrow Left/Right moves focused work item between adjacent columns)
+- Toast notification system with optimistic move feedback (success & error toasts, aria-live polite region)
+- Codicon-based action icons replacing legacy emoji set for visual consistency with VS Code UI
+
+### Changed
+
+- Replaced emoji glyphs (play/stop/view/edit/comment/assignee/timer) with codicons and improved accessible labels
+- Minor UI refinements to Kanban card actions and timer indicator styling
+
+### Accessibility
+
+- Added aria-label enhancements describing new keyboard move shortcut
+- Toasts announced via aria-live and dismissible via close button
+
+### Notes
+
+- Dynamic per-type columns and additional tests scheduled for a follow-up release
 
 ### Improved
 

@@ -7,7 +7,11 @@
       "type": "extensionHost",
       "request": "launch",
       "runtimeExecutable": "${execPath}",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        // Open devtools to debug Svelte webview
+        "--open-devtools"
+      ],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Build Extension",
       "outFiles": ["${workspaceFolder}/dist/**/*.js"],
@@ -20,7 +24,10 @@
       "type": "extensionHost",
       "request": "launch",
       "runtimeExecutable": "${execPath}",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--open-devtools"
+      ],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Watch Extension",
       "outFiles": ["${workspaceFolder}/dist/**/*.js"],
@@ -28,7 +35,26 @@
         "NODE_OPTIONS": "--enable-source-maps"
       }
     },
-    
+    {
+      "name": "Extension: Quick Run (no build)",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--open-devtools"
+      ],
+      "cwd": "${workspaceFolder}",
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "env": {
+        "NODE_OPTIONS": "--enable-source-maps"
+      }
+    }
   ],
-  "compounds": []
+  "compounds": [
+    {
+      "name": "Dev: Build → Run with DevTools",
+      "configurations": ["Extension: Build & Run"]
+    }
+  ]
 }

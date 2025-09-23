@@ -26,7 +26,15 @@ async function ensureDir(dir) {
 
 async function main() {
   const repoRoot = path.resolve(__dirname, '..', '..');
-  const builtIndex = path.resolve(repoRoot, 'media', 'webview', 'index.html');
+  // Prefer the Svelte entrypoint; fall back to legacy index.html if missing.
+  const svelteEntry = path.resolve(repoRoot, 'media', 'webview', 'svelte.html');
+  const legacyIndex = path.resolve(repoRoot, 'media', 'webview', 'index.html');
+  let builtIndex = svelteEntry;
+  try {
+    await fs.access(svelteEntry);
+  } catch {
+    builtIndex = legacyIndex;
+  }
   const outDir = path.resolve(repoRoot, 'images');
   const samplePath = path.resolve(__dirname, 'sample-data.json');
   const staticRoot = path.resolve(repoRoot, 'media', 'webview');
@@ -48,7 +56,7 @@ async function main() {
 
   // Start a tiny static server to avoid file:// CORS issues with module scripts
   const server = await startStaticServer(staticRoot);
-  const baseUrl = `http://127.0.0.1:${server.port}/index.html`;
+  const baseUrl = `http://127.0.0.1:${server.port}/${path.basename(builtIndex)}`;
 
   const browser = await chromium.launch({ headless: true });
   // Use a viewport that yields images that render nicely in VS Code's Markdown preview
@@ -81,49 +89,65 @@ async function main() {
     await page.addInitScript((f) => {
       // Provide fixture data for the webview bootstrap to pick up
       window.__AZDO_FIXTURE__ = f;
-      // Stub VS Code webview API to avoid runtime errors during static rendering
-      if (typeof window.acquireVsCodeApi !== 'function') {
-        window.acquireVsCodeApi = () => {
-          return {
-            postMessage: () => {},
-            setState: () => {},
-            getState: () => null,
-          };
+      const isSvelte = /svelte\.html$/i.test(location.pathname);
+      // Basic VS Code API stub
+      function makeApi() {
+        return {
+          postMessage: (msg) => {
+            try {
+              // When Svelte entry sends getWorkItems, respond with transformed sample data.
+              if (isSvelte && msg && msg.type === 'getWorkItems') {
+                const raw = (window.__AZDO_FIXTURE__ || {}).workItems || [];
+                const mapped = raw.map((w) => ({
+                  id: w.id,
+                  fields: {
+                    'System.Id': w.id,
+                    'System.Title': w.title,
+                    'System.State': w.state,
+                    'System.WorkItemType': w.type,
+                    'System.AssignedTo':
+                      !w.assignedTo || w.assignedTo === 'Unassigned'
+                        ? undefined
+                        : { displayName: w.assignedTo },
+                    'Microsoft.VSTS.Common.Priority': w.priority,
+                    'System.ChangedDate': new Date().toISOString(),
+                  },
+                }));
+                setTimeout(() => {
+                  window.postMessage({ type: 'workItemsLoaded', workItems: mapped }, '*');
+                  // If kanban requested, persisted state already returns kanbanView true via getState().
+                  // No toggle message needed; sending it would flip back to list view.
+                }, 10);
+              }
+            } catch (e) {
+              console.error('[screenshots] stub postMessage error', e);
+            }
+          },
+          setState: () => {},
+          getState: () => ({ kanbanView: (window.__AZDO_FIXTURE__ || {}).view === 'kanban' }),
         };
       }
+      if (typeof window.acquireVsCodeApi !== 'function') {
+        window.acquireVsCodeApi = makeApi;
+      }
       if (!window.vscode) {
-        window.vscode = { postMessage: () => {} };
+        window.vscode = makeApi();
       }
     }, fixture);
     await page.goto(fileUrl);
     // Wait until bootstrap has fed data and content renders
     const wantKanban = fixture.view === 'kanban';
-    // First, container present
-    await page.waitForSelector('#workItemsContainer');
+    // Wait for Svelte root or legacy container
+    try {
+      await page.waitForSelector('#svelte-root, #workItemsContainer', { timeout: 10000 });
+    } catch {
+      // continue; more specific waits below will throw if truly broken
+    }
     // Then, wait for a concrete UI signal of rendering
     if (wantKanban) {
       await page.waitForSelector('.kanban-board .kanban-column', { timeout: 30000 });
     } else {
       await page.waitForSelector('.work-item-card', { timeout: 30000 });
-    }
-    // If timer is part of the fixture, ensure timer sidebar is visible before capture
-    if (fixture.timer) {
-      try {
-        await page.waitForSelector('#timerContainer:not([hidden])', { timeout: 10000 });
-        await page.waitForFunction(
-          () => {
-            const col = document.getElementById('timerColumn');
-            if (!col) return false;
-            const style = getComputedStyle(col);
-            return style.display !== 'none';
-          },
-          null,
-          { timeout: 10000 }
-        );
-        // eslint-disable-next-line no-unused-vars
-      } catch (e) {
-        // ignore timer wait errors; proceed with capture
-      }
     }
     // Allow layout to settle a bit
     await page.waitForTimeout(150);
@@ -138,13 +162,18 @@ async function main() {
       await fs.writeFile(path.join(outDir, `${name}.html`), html, 'utf8');
     }
     // Prefer an element-level screenshot to keep dimensions friendly for previews
-    const selector = wantKanban ? '.kanban-board' : '#workItemsContainer';
+    // Prefer Svelte containers when present
+    const selector = wantKanban ? '.kanban-board' : '.items, #workItemsContainer';
     // If a target width is requested, apply it before selecting/screenshotting
     if (typeof widthPx === 'number' && widthPx > 0) {
       const css = `${selector}{width:${widthPx}px !important; max-width:${widthPx}px !important;}`;
       await page.addStyleTag({ content: css });
     }
-    const target = await page.$(selector);
+    // Query the first matching element among selector parts
+    let target = await page.$(selector);
+    if (!target && !wantKanban) {
+      target = await page.$('.work-item-card');
+    }
     if (target) {
       await target.screenshot({ path: path.join(outDir, `${name}.png`) });
     } else {
