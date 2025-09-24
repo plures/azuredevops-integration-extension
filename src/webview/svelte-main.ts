@@ -119,7 +119,7 @@ function ensureApp() {
         workItemId: Number(first.id || first.fields?.['System.Id']),
       });
   });
-  (app as any).$on('stopTimer', () => postMessage({ type: 'stopTimer' }));
+  (app as any).$on('stopTimer', () => postMessage({ type: 'showStopTimerOptions' }));
   (app as any).$on('openActive', (ev: any) => {
     const id = ev?.detail?.id ?? activeId;
     if (id != null) postMessage({ type: 'viewWorkItem', workItemId: Number(id) });

@@ -163,7 +163,7 @@ async function main() {
     }
     // Prefer an element-level screenshot to keep dimensions friendly for previews
     // Prefer Svelte containers when present
-    const selector = wantKanban ? '.kanban-board' : '.items, #workItemsContainer';
+    const selector = '#svelte-root, body';
     // If a target width is requested, apply it before selecting/screenshotting
     if (typeof widthPx === 'number' && widthPx > 0) {
       const css = `${selector}{width:${widthPx}px !important; max-width:${widthPx}px !important;}`;

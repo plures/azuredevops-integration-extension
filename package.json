@@ -58,13 +58,18 @@
     "commands": [
       {
         "command": "azureDevOpsInt.setup",
-        "title": "Setup Connection",
-        "category": "Azure DevOps Int"
+        "title": "Azure DevOps: Setup Connection",
+        "category": "Azure DevOps"
+      },
+      {
+        "command": "azureDevOpsInt.setOpenAIApiKey",
+        "title": "Azure DevOps: Set OpenAI API Key",
+        "category": "Azure DevOps"
       },
       {
         "command": "azureDevOpsInt.openLogs",
-        "title": "Open Logs",
-        "category": "Azure DevOps Int"
+        "title": "Azure DevOps: Open Logs",
+        "category": "Azure DevOps"
       },
       {
         "command": "azureDevOpsInt.copyLogsToClipboard",
@@ -256,20 +261,34 @@
     "configuration": {
       "title": "Azure DevOps Integration",
       "properties": {
-        "azureDevOpsIntegration.debugLogging": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable verbose logging to the 'Azure DevOps Integration' output channel"
-        },
         "azureDevOpsIntegration.organization": {
           "type": "string",
           "default": "",
-          "description": "Azure DevOps organization name"
+          "description": "The Azure DevOps organization name (e.g., 'myorg' for myorg.visualstudio.com)."
         },
         "azureDevOpsIntegration.project": {
           "type": "string",
           "default": "",
-          "description": "Azure DevOps project name"
+          "description": "The Azure DevOps project name."
+        },
+        "azureDevOpsIntegration.summaryProvider": {
+          "type": "string",
+          "default": "copilot-prompt",
+          "enum": [
+            "copilot-prompt",
+            "openai"
+          ],
+          "description": "The provider to use for generating work item summaries."
+        },
+        "azureDevOpsIntegration.openAIModel": {
+          "type": "string",
+          "default": "gpt-4o-mini",
+          "description": "The OpenAI model to use for generating summaries (e.g., gpt-4o-mini, gpt-4-turbo)."
+        },
+        "azureDevOpsIntegration.team": {
+          "type": "string",
+          "default": "",
+          "description": "The default team for 'Current Sprint' queries."
         },
         "azureDevOpsIntegration.defaultElapsedLimitHours": {
           "type": "number",
@@ -388,6 +407,7 @@
     "chai": "^6.0.1",
     "chokidar": "^4.0.3",
     "esbuild": "^0.25.10",
+    "esbuild-svelte": "^0.9.0",
     "eslint": "^9.36.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.6",
@@ -395,13 +415,13 @@
     "nock": "^14.0.10",
     "playwright": "^1.55.0",
     "prettier": "^3.6.2",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.2",
     "svelte": "^4.2.18",
-    "esbuild-svelte": "^0.9.0"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
   },
   "dependencies": {
-    "axios": "^1.12.2"
+    "axios": "^1.12.2",
+    "openai": "^5.23.0"
   },
   "volta": {
     "node": "20.19.0",

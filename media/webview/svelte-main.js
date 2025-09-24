@@ -4026,7 +4026,7 @@ function ensureApp() {
         workItemId: Number(first.id || first.fields?.["System.Id"])
       });
   });
-  app.$on("stopTimer", () => postMessage({ type: "stopTimer" }));
+  app.$on("stopTimer", () => postMessage({ type: "showStopTimerOptions" }));
   app.$on("openActive", (ev) => {
     const id = ev?.detail?.id ?? activeId;
     if (id != null) postMessage({ type: "viewWorkItem", workItemId: Number(id) });
