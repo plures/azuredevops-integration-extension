@@ -653,6 +653,39 @@ async function handleMessage(msg: any) {
       }
       break;
     }
+    case 'showStopTimerOptions': {
+      const choice = await vscode.window.showQuickPick(
+        [
+          { label: 'Stop Timer & Apply Time', action: 'stop' },
+          { label: 'Generate Copilot Summary & Continue', action: 'copilot' },
+        ],
+        {
+          placeHolder: 'What would you like to do?',
+          ignoreFocusOut: true,
+        }
+      );
+
+      if (!choice) return; // User cancelled
+
+      if (choice.action === 'stop') {
+        const stopped = timer?.stop();
+        updateTimerContext(undefined);
+        if (stopped) {
+          try {
+            // The `false` here is to prevent offering the copilot prompt again.
+            await handleTimerStopAndOfferUpdate(stopped, { offerCopilot: false });
+          } catch (e: any) {
+            console.error('Error applying timer updates', e);
+            vscode.window.showErrorMessage(
+              'Failed to process timer update: ' + (e?.message || String(e))
+            );
+          }
+        }
+      } else if (choice.action === 'copilot') {
+        await generateCopilotPromptWithoutStopping();
+      }
+      break;
+    }
     case 'activity':
       verbose('Activity ping received');
       timer?.activityPing();
@@ -1667,15 +1700,18 @@ export { migrateLegacyPAT, persistTimer, restoreTimer, getSecretPAT, migrateLega
 // Export buildMinimalWebviewHtml for testing the webview HTML generation without changing runtime behavior.
 export { buildMinimalWebviewHtml };
 
-async function handleTimerStopAndOfferUpdate(entry: {
-  workItemId: number;
-  startTime: number;
-  endTime: number;
-  duration: number;
-  hoursDecimal: number;
-  capApplied?: boolean;
-  capLimitHours?: number;
-}) {
+async function handleTimerStopAndOfferUpdate(
+  entry: {
+    workItemId: number;
+    startTime: number;
+    endTime: number;
+    duration: number;
+    hoursDecimal: number;
+    capApplied?: boolean;
+    capLimitHours?: number;
+  },
+  options?: { offerCopilot?: boolean }
+) {
   if (!entry) return;
   if (!client) {
     vscode.window.showWarningMessage(
@@ -1697,7 +1733,10 @@ async function handleTimerStopAndOfferUpdate(entry: {
   const suggestedCompleted = Number((currCompleted + hours).toFixed(2));
   const suggestedRemaining = Number(Math.max(0, currRemaining - hours).toFixed(2));
 
-  const initialOptions = ['Apply', 'Edit', 'Generate Copilot prompt'] as const;
+  const initialOptions: string[] = ['Apply', 'Edit'];
+  if (options?.offerCopilot !== false) {
+    initialOptions.push('Generate Copilot prompt');
+  }
   let promptMsg = `Add ${hours.toFixed(
     2
   )}h to Completed (${currCompleted} → ${suggestedCompleted}) and subtract from Remaining (${currRemaining} → ${suggestedRemaining}) for ${title}?`;
@@ -1781,6 +1820,45 @@ async function handleTimerStopAndOfferUpdate(entry: {
   } catch (err: any) {
     console.error('Failed to update work item', err);
     vscode.window.showErrorMessage('Failed to update work item: ' + (err?.message || String(err)));
+  }
+}
+
+async function generateCopilotPromptWithoutStopping() {
+  const snap = timer?.snapshot();
+  if (!snap) {
+    vscode.window.showWarningMessage('No active timer to generate a prompt for.');
+    return;
+  }
+
+  try {
+    const id = snap.workItemId;
+    const wi = await client?.getWorkItemById(id);
+    if (!wi) {
+      vscode.window.showErrorMessage(`Work item #${id} not found.`);
+      return;
+    }
+
+    // We need to simulate a "stopped" entry for the prompt builder
+    const simulatedEntry = {
+      ...snap,
+      endTime: Date.now(),
+      duration: snap.elapsedSeconds * 1000,
+      hoursDecimal: snap.elapsedSeconds / 3600,
+    };
+
+    const prompt = buildCopilotPrompt(simulatedEntry, wi);
+    await vscode.env.clipboard.writeText(prompt);
+
+    // Use a toast notification via the webview
+    panel?.webview.postMessage({ type: 'copilotPromptCopied', workItemId: id });
+    vscode.window.showInformationMessage(
+      'Copilot prompt copied to clipboard. The timer is still running.'
+    );
+  } catch (e: any) {
+    console.error('Failed to create Copilot prompt', e);
+    vscode.window.showErrorMessage(
+      'Failed to generate Copilot prompt: ' + (e?.message || String(e))
+    );
   }
 }
 

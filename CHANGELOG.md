@@ -6,6 +6,16 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.7.2] - 2025-09-24
+
+### Added
+
+- When stopping a timer, users can now choose to generate a Copilot prompt and copy it to the clipboard without stopping the timer. This allows for generating summaries of ongoing work.
+
+### Changed
+
+- The "Stop Timer" action now presents a quick pick menu with options to either stop the timer and apply time, or to generate a Copilot summary while the timer continues to run.
+
 ## [1.7.1] - 2025-09-23
 
 ### Changed
