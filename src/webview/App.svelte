@@ -18,8 +18,10 @@
   // Filters / sort
   export let filterText = '';
   export let stateFilter = 'all'; // one of 'all', columnDefs keys
+  export let workItemTypeFilter = 'all';
   export let sortKey = 'updated-desc'; // 'updated-desc' | 'id-desc' | 'id-asc' | 'title-asc'
   export let availableStates = []; // dynamic list of normalized state keys
+  export let availableWorkItemTypes = [];
 
   function onRefresh() {
     dispatch('refresh');
@@ -43,13 +45,36 @@
     dispatch('toggleKanban');
   }
   function onFilterInput(e) {
-    dispatch('filtersChanged', { filterText: e.target.value, stateFilter, sortKey });
+    dispatch('filtersChanged', {
+      filterText: e.target.value,
+      stateFilter,
+      workItemTypeFilter,
+      sortKey,
+    });
   }
   function onStateFilterChange(e) {
-    dispatch('filtersChanged', { filterText, stateFilter: e.target.value, sortKey });
+    dispatch('filtersChanged', {
+      filterText,
+      stateFilter: e.target.value,
+      workItemTypeFilter,
+      sortKey,
+    });
+  }
+  function onWorkItemTypeFilterChange(e) {
+    dispatch('filtersChanged', {
+      filterText,
+      stateFilter,
+      workItemTypeFilter: e.target.value,
+      sortKey,
+    });
   }
   function onSortChange(e) {
-    dispatch('filtersChanged', { filterText, stateFilter, sortKey: e.target.value });
+    dispatch('filtersChanged', {
+      filterText,
+      stateFilter,
+      workItemTypeFilter,
+      sortKey: e.target.value,
+    });
   }
 
   // DnD helpers
@@ -158,6 +183,12 @@
     return text.slice(0, max).trimEnd() + '…';
   }
 
+  $: availableWorkItemTypes = (() => {
+    if (!items || !items.length) return [];
+    const types = new Set(items.map((it) => it.fields?.['System.WorkItemType']).filter(Boolean));
+    return [...types];
+  })();
+
   $: kanbanGroups = (() => {
     // Derive buckets present from items
     const present = new Set(bucketOrder);
@@ -225,6 +256,16 @@
               <option value={c.key}>{c.label}</option>
             {/each}
           {/if}
+        </select>
+        <select
+          on:change={onWorkItemTypeFilterChange}
+          bind:value={workItemTypeFilter}
+          aria-label="Filter by work item type"
+        >
+          <option value="all">All Types</option>
+          {#each availableWorkItemTypes as type}
+            <option value={type}>{type}</option>
+          {/each}
         </select>
         <select on:change={onSortChange} bind:value={sortKey} aria-label="Sort items">
           <option value="updated-desc">Updated ↓</option>
@@ -442,11 +483,11 @@
               <div class="work-item-title">
                 {it.fields?.['System.Title'] || `Work Item #${it.id}`}
               </div>
-                    {#if extractDescription(it)}
-                      <div class="work-item-desc" title={extractDescription(it)}>
-                        {extractDescription(it)}
-                      </div>
-                    {/if}
+              {#if extractDescription(it)}
+                <div class="work-item-desc" title={extractDescription(it)}>
+                  {extractDescription(it)}
+                </div>
+              {/if}
 
               <div class="work-item-meta">
                 <span class="work-item-type">{it.fields?.['System.WorkItemType'] || 'Task'}</span>
@@ -746,7 +787,7 @@
     opacity: 0.75;
     display: -webkit-box;
     -webkit-line-clamp: 3;
-  line-clamp: 3;
+    line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;

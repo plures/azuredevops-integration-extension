@@ -467,6 +467,7 @@ async function handleMessage(msg: any) {
             kanbanView: false,
             filterText: '',
             stateFilter: 'all',
+            workItemTypeFilter: 'all',
             sortKey: 'updated-desc',
           }
         );

@@ -57,11 +57,13 @@ let loading = true;
 let errorMsg: string = '';
 let filterText = '';
 let stateFilter: string = 'all';
+let workItemTypeFilter: string = 'all';
 let sortKey: string = 'updated-desc';
 // Track optimistic moves so we can revert on failure
 const pendingMoves = new Map<number, { prevState: string }>();
 // Available normalized states (for filter dropdown)
 let stateOptions: string[] = [];
+let workItemTypeOptions: string[] = [];
 // Initialize kanbanView from persisted webview state if available
 try {
   const st =
@@ -93,6 +95,7 @@ function ensureApp() {
       errorMsg,
       filterText,
       stateFilter,
+      workItemTypeFilter,
       sortKey,
     },
   });
@@ -144,7 +147,7 @@ function ensureApp() {
   (app as any).$on('toggleKanban', () => {
     kanbanView = !kanbanView;
     (app as any).$set({ kanbanView });
-    const prefs = { kanbanView, filterText, stateFilter, sortKey };
+    const prefs = { kanbanView, filterText, stateFilter, workItemTypeFilter, sortKey };
     try {
       if (vscode && typeof (vscode as any).setState === 'function') {
         const prev =
@@ -160,17 +163,19 @@ function ensureApp() {
   (app as any).$on('filtersChanged', (ev: any) => {
     filterText = String(ev?.detail?.filterText ?? filterText);
     stateFilter = String(ev?.detail?.stateFilter ?? stateFilter);
+    workItemTypeFilter = String(ev?.detail?.workItemTypeFilter ?? workItemTypeFilter);
     sortKey = String(ev?.detail?.sortKey ?? sortKey);
     recomputeItemsForView();
     (app as any).$set({
       filterText,
       stateFilter,
+      workItemTypeFilter,
       sortKey,
       items: itemsForView,
       workItemCount: itemsForView.length,
       hasItems: itemsForView.length > 0,
     });
-    const prefs = { kanbanView, filterText, stateFilter, sortKey };
+    const prefs = { kanbanView, filterText, stateFilter, workItemTypeFilter, sortKey };
     try {
       if (vscode && typeof (vscode as any).setState === 'function') {
         const prev =
@@ -216,9 +221,12 @@ function ensureApp() {
 function passesFilters(it: any): boolean {
   const title = String(it?.fields?.['System.Title'] || '').toLowerCase();
   const stateRaw = String(it?.fields?.['System.State'] || '');
+  const typeRaw = String(it?.fields?.['System.WorkItemType'] || '');
   const norm = normalizeState(stateRaw);
   if (filterText && !title.includes(String(filterText).toLowerCase())) return false;
   if (stateFilter && stateFilter !== 'all' && norm !== stateFilter) return false;
+  if (workItemTypeFilter && workItemTypeFilter !== 'all' && typeRaw !== workItemTypeFilter)
+    return false;
   return true;
 }
 
@@ -285,6 +293,13 @@ function recomputeItemsForView() {
     'removed',
   ];
   stateOptions = order.filter((s) => allStatesSet.has(s));
+
+  const allWorkItemTypesSet = new Set<string>();
+  (Array.isArray(lastWorkItems) ? lastWorkItems : []).forEach((w: any) => {
+    const type = w?.fields?.['System.WorkItemType'];
+    if (type) allWorkItemTypesSet.add(type);
+  });
+  workItemTypeOptions = [...allWorkItemTypesSet].sort();
 }
 
 function formatElapsedHHMM(sec: number): string {
@@ -327,8 +342,10 @@ function onMessage(message: any) {
         errorMsg,
         filterText,
         stateFilter,
+        workItemTypeFilter,
         sortKey,
         availableStates: stateOptions,
+        availableWorkItemTypes: workItemTypeOptions,
       });
       break;
     }
@@ -414,6 +431,8 @@ function onMessage(message: any) {
       if (typeof prefs.kanbanView === 'boolean') kanbanView = prefs.kanbanView;
       if (typeof prefs.filterText === 'string') filterText = prefs.filterText;
       if (typeof prefs.stateFilter === 'string') stateFilter = prefs.stateFilter;
+      if (typeof prefs.workItemTypeFilter === 'string')
+        workItemTypeFilter = prefs.workItemTypeFilter;
       if (typeof prefs.sortKey === 'string') sortKey = prefs.sortKey;
       recomputeItemsForView();
       ensureApp();
@@ -421,11 +440,13 @@ function onMessage(message: any) {
         kanbanView,
         filterText,
         stateFilter,
+        workItemTypeFilter,
         sortKey,
         items: itemsForView,
         workItemCount: itemsForView.length,
         hasItems: itemsForView.length > 0,
         availableStates: stateOptions,
+        availableWorkItemTypes: workItemTypeOptions,
       });
       break;
     }
