@@ -15,7 +15,7 @@ Integrate Azure DevOps work items, time tracking, branching, and pull requests d
 - Verbose diagnostic logging (opt‑in) for easier troubleshooting
 - Webview filters (Sprint, Type, Assigned To) and a Kanban toggle
 - Per‑work‑item draft persistence in the editor (your notes stick to each item locally)
-- Smart stop flow: proposes Completed/Remaining updates and can post a Copilot‑generated summary comment
+- Smart stop flow: proposes Completed/Remaining updates and can post an AI-generated summary comment (Copilot prompt or OpenAI response)
 - Reliable queries across process templates with runtime compatibility fallback
 - Tunable API rate limiting (sustained rate and burst) to play nicely with Azure DevOps throttling
 - Optional MCP server for automation and agent/tool integrations (JSON‑RPC)
@@ -69,7 +69,14 @@ Where to find it in VS Code
 - Auto‑resume on activity (configurable)
 - View summarized time via Show Time Report (Today, Week, Month, All Time)
 - Elapsed cap: if a timer was left running, an optional cap (default 3.5 hours) is applied on stop to prevent over‑reporting
-- On Stop, the extension proposes Completed/Remaining updates and can generate a concise Copilot summary comment on the work item
+- On Stop, the extension proposes Completed/Remaining updates and can generate a concise AI summary (Copilot prompt or OpenAI response) for the work item
+
+## 🧠 AI Summaries
+
+- **Copilot prompts by default:** Stopping a timer or using the summary panel copies a Copilot-ready prompt to your clipboard. Paste it into GitHub Copilot Chat (or any LLM) to produce a summary.
+- **OpenAI integration (optional):** Run `Azure DevOps Integration: Set OpenAI API Key` to store an API key securely. Then set `azureDevOpsIntegration.summaryProvider` to `openai` (and optionally choose an `openAiModel`). The extension will call OpenAI directly and copy the generated summary to your clipboard.
+- **Draft-aware composer:** The summary panel keeps per-work-item drafts in localStorage so you can refine the message before applying updates or generating AI output.
+- **Timer-friendly:** When a timer is active, the panel auto-selects that work item and pre-fills a suggested note you can edit before sending to Copilot or OpenAI.
 
 ## ⌨️ Core Commands
 
@@ -90,6 +97,7 @@ Where to find it in VS Code
 | azureDevOpsInt.toggleKanbanView           | Azure DevOps Integration: Toggle Kanban View           |
 | azureDevOpsInt.selectTeam                 | Azure DevOps Integration: Select Team                  |
 | azureDevOpsInt.resetPreferredRepositories | Azure DevOps Integration: Reset Preferred Repositories |
+| azureDevOpsInt.setOpenAIApiKey            | Azure DevOps Integration: Set OpenAI API Key           |
 
 More helpful commands (selection):
 
@@ -116,6 +124,10 @@ Namespace: `azureDevOpsIntegration`
   // Time tracking
   "azureDevOpsIntegration.enableTimeTracking": true,
   "azureDevOpsIntegration.defaultElapsedLimitHours": 3.5,
+
+  // AI summaries
+  "azureDevOpsIntegration.summaryProvider": "builtin", // or "openai"
+  "azureDevOpsIntegration.openAiModel": "gpt-4o-mini",
 
   // Git integration
   "azureDevOpsIntegration.enableBranchCreation": true,

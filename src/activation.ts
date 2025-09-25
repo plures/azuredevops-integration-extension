@@ -4,6 +4,7 @@ import * as path from 'path';
 import { AzureDevOpsIntClient } from './azureClient.js';
 import { WorkItemsProvider } from './provider.js';
 import { WorkItemTimer } from './timer.js';
+import type OpenAIClient from 'openai';
 
 // Basic state keys
 const STATE_TIMER = 'azureDevOpsInt.timer.state';
@@ -19,6 +20,7 @@ let timer: WorkItemTimer | undefined;
 let client: AzureDevOpsIntClient | undefined;
 let statusBarItem: vscode.StatusBarItem | undefined;
 const PAT_KEY = 'azureDevOpsInt.pat';
+const OPENAI_SECRET_KEY = 'azureDevOpsInt.openai.apiKey';
 let viewProviderRegistered = false;
 let initialRefreshed = false; // prevent duplicate initial refresh (silentInit + webview init)
 let outputChannel: vscode.OutputChannel | undefined; // lazy created when debugLogging enabled
@@ -43,6 +45,7 @@ function logLine(text: string) {
 }
 let extensionContextRef: vscode.ExtensionContext | undefined; // keep a reference for later ops
 let cachedExtensionVersion: string | undefined; // cache package.json version for cache-busting
+let openAiClient: OpenAIClient | undefined;
 // Self-test tracking (prove Svelte webview round‑trip works)
 // Self-test pending promise handlers (typed loosely to avoid unused param lint churn)
 let selfTestPending:
@@ -137,6 +140,9 @@ export function activate(context: vscode.ExtensionContext) {
   // Core commands
   context.subscriptions.push(
     vscode.commands.registerCommand('azureDevOpsInt.setup', () => setupConnection(context)),
+    vscode.commands.registerCommand('azureDevOpsInt.setOpenAIApiKey', () =>
+      setOpenAIApiKey(context)
+    ),
     vscode.commands.registerCommand('azureDevOpsInt.openLogs', async () => {
       try {
         if (!outputChannel) {
@@ -713,15 +719,18 @@ async function handleMessage(msg: any) {
         vscode.window.showWarningMessage('No work item specified for Copilot prompt generation.');
         break;
       }
+      const timerSnapshot = timer?.snapshot?.();
       try {
-        const wi = await client?.getWorkItemById(id);
-        const prompt = buildCopilotPrompt({ ...msg, workItemId: id }, wi);
-        await vscode.env.clipboard.writeText(prompt);
-        // reply to webview to show a confirmation UI
-        panel?.webview.postMessage({ type: 'copilotPromptCopied', workItemId: id });
-        vscode.window.showInformationMessage(
-          'Copilot prompt copied to clipboard. Open Copilot chat and paste to generate a summary.'
-        );
+        await produceWorkItemSummary({
+          workItemId: id,
+          draftSummary: typeof msg.draftSummary === 'string' ? msg.draftSummary : undefined,
+          entrySeed: entrySeedFromMessage(msg, id),
+          reason: 'manualPrompt',
+          stillRunningTimer:
+            !!timerSnapshot &&
+            Number(timerSnapshot.workItemId) === Number(id) &&
+            !timerSnapshot.isPaused,
+        });
       } catch (e: any) {
         console.error('Failed to create Copilot prompt', e);
         vscode.window.showErrorMessage(
@@ -1700,6 +1709,326 @@ export { migrateLegacyPAT, persistTimer, restoreTimer, getSecretPAT, migrateLega
 // Export buildMinimalWebviewHtml for testing the webview HTML generation without changing runtime behavior.
 export { buildMinimalWebviewHtml };
 
+type SummaryProviderMode = 'builtin' | 'openai';
+
+type SummaryEntrySeed = {
+  workItemId: number;
+  startTime?: number;
+  endTime?: number;
+  hoursDecimal?: number;
+  duration?: number;
+  capApplied?: boolean;
+  capLimitHours?: number;
+};
+
+async function setOpenAIApiKey(context: vscode.ExtensionContext) {
+  const current = await context.secrets.get(OPENAI_SECRET_KEY);
+  const actions = [
+    { label: current ? 'Update API key' : 'Set API key', action: 'set' as const },
+    {
+      label: 'Clear stored key',
+      action: 'clear' as const,
+      description: current ? undefined : 'No key stored',
+    },
+  ];
+  const choice = await vscode.window.showQuickPick(actions, {
+    placeHolder: current
+      ? 'Update or clear the stored OpenAI API key'
+      : 'Store an OpenAI API key for summaries',
+    ignoreFocusOut: true,
+  });
+  if (!choice) return;
+
+  if (choice.action === 'set') {
+    const input = await vscode.window.showInputBox({
+      prompt: 'Enter your OpenAI API key',
+      password: true,
+      ignoreFocusOut: true,
+      placeHolder: 'sk-...',
+    });
+    if (!input) return;
+    await context.secrets.store(OPENAI_SECRET_KEY, input.trim());
+    resetOpenAiClient();
+    vscode.window.showInformationMessage('OpenAI API key saved.');
+    if (getSummaryProvider() !== 'openai') {
+      const enable = await vscode.window.showInformationMessage(
+        'Would you like to switch the work summary provider to OpenAI?',
+        'Yes',
+        'Not now'
+      );
+      if (enable === 'Yes') {
+        await getConfig().update('summaryProvider', 'openai', vscode.ConfigurationTarget.Global);
+      }
+    }
+    return;
+  }
+
+  if (!current) {
+    vscode.window.showInformationMessage('No OpenAI API key is stored.');
+    return;
+  }
+  await context.secrets.delete(OPENAI_SECRET_KEY);
+  resetOpenAiClient();
+  vscode.window.showInformationMessage('OpenAI API key cleared.');
+}
+
+function getSummaryProvider(): SummaryProviderMode {
+  try {
+    const value = (getConfig().get<string>('summaryProvider') || 'builtin').toLowerCase();
+    return value === 'openai' ? 'openai' : 'builtin';
+  } catch {
+    return 'builtin';
+  }
+}
+
+function resetOpenAiClient() {
+  openAiClient = undefined;
+}
+
+async function getOpenAIApiKey(context: vscode.ExtensionContext) {
+  return context.secrets.get(OPENAI_SECRET_KEY);
+}
+
+async function ensureOpenAiClient(context: vscode.ExtensionContext): Promise<OpenAIClient> {
+  if (openAiClient) return openAiClient;
+  const apiKey = (await getOpenAIApiKey(context))?.trim();
+  if (!apiKey) {
+    throw new Error('OpenAI API key not set. Use “Azure DevOps: Set OpenAI API Key” to store one.');
+  }
+  const module = await import('openai');
+  const OpenAIConstructor: any = (module as any).default ?? (module as any).OpenAI;
+  if (typeof OpenAIConstructor !== 'function') {
+    throw new Error('Failed to initialize OpenAI client.');
+  }
+  openAiClient = new OpenAIConstructor({ apiKey }) as OpenAIClient;
+  return openAiClient;
+}
+
+function normalizeSummaryEntrySeed(
+  workItemId: number,
+  seed?: Partial<SummaryEntrySeed>
+): SummaryEntrySeed {
+  const snapshot = timer?.snapshot?.();
+  const matchesSnapshot = snapshot && Number(snapshot.workItemId) === Number(workItemId);
+  const startTime = seed?.startTime ?? (matchesSnapshot ? snapshot?.startTime : undefined);
+  const endTime = seed?.endTime ?? (startTime ? Date.now() : undefined);
+  const rawDuration =
+    typeof seed?.duration === 'number'
+      ? seed.duration
+      : matchesSnapshot && typeof snapshot?.elapsedSeconds === 'number'
+        ? snapshot.elapsedSeconds
+        : undefined;
+  const hoursDecimal =
+    typeof seed?.hoursDecimal === 'number'
+      ? seed.hoursDecimal
+      : typeof rawDuration === 'number'
+        ? rawDuration > 1000
+          ? rawDuration / 3600000
+          : rawDuration / 3600
+        : undefined;
+  return {
+    workItemId,
+    startTime,
+    endTime,
+    duration: rawDuration,
+    hoursDecimal,
+    capApplied: seed?.capApplied,
+    capLimitHours: seed?.capLimitHours,
+  };
+}
+
+function entrySeedFromMessage(
+  message: any,
+  workItemId: number
+): Partial<SummaryEntrySeed> | undefined {
+  if (!message || typeof message !== 'object') return undefined;
+  const seed: Partial<SummaryEntrySeed> = {};
+  let hasValue = false;
+  if (typeof message.startTime === 'number') {
+    seed.startTime = message.startTime;
+    hasValue = true;
+  }
+  if (typeof message.endTime === 'number') {
+    seed.endTime = message.endTime;
+    hasValue = true;
+  }
+  if (typeof message.hoursDecimal === 'number') {
+    seed.hoursDecimal = message.hoursDecimal;
+    hasValue = true;
+  }
+  if (typeof message.duration === 'number') {
+    seed.duration = message.duration;
+    hasValue = true;
+  }
+  if (typeof message.capApplied === 'boolean') {
+    seed.capApplied = message.capApplied;
+    hasValue = true;
+  }
+  if (typeof message.capLimitHours === 'number') {
+    seed.capLimitHours = message.capLimitHours;
+    hasValue = true;
+  }
+  if (!hasValue) return undefined;
+  return { ...seed, workItemId };
+}
+
+function toPlainText(value: unknown, maxLength = 2000): string {
+  if (!value || typeof value !== 'string') return '';
+  const text = value
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength).trimEnd()}…`;
+}
+
+function buildOpenAiPrompt(
+  workItem: any,
+  seed: SummaryEntrySeed | undefined,
+  draftSummary: string | undefined
+): string {
+  const fields = workItem?.fields || {};
+  const title = fields['System.Title'] || `#${workItem?.id}`;
+  const type = fields['System.WorkItemType'] || 'Work Item';
+  const state = fields['System.State'] || 'Unknown';
+  const assignedTo = fields['System.AssignedTo'];
+  const description = toPlainText(fields['System.Description']);
+  const tags = toPlainText(fields['System.Tags'] || '')
+    .split(';')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const start = seed?.startTime ? new Date(seed.startTime).toISOString() : undefined;
+  const end = seed?.endTime ? new Date(seed.endTime).toISOString() : undefined;
+  const hours =
+    typeof seed?.hoursDecimal === 'number'
+      ? seed.hoursDecimal
+      : typeof seed?.duration === 'number'
+        ? seed.duration / 3600
+        : undefined;
+  const notes = toPlainText(draftSummary || '', 1000);
+
+  const lines: string[] = [];
+  lines.push('You are helping summarize Azure DevOps work.');
+  lines.push(
+    'Write a concise 1-2 sentence summary suitable as a work item comment. Mention progress, impact, and next steps if relevant.'
+  );
+  lines.push('Avoid hedging language, keep it factual.');
+  lines.push('\nContext:');
+  lines.push(`- Work item: #${workItem?.id} | ${type} | ${title}`);
+  lines.push(`- Current state: ${state}`);
+  if (assignedTo)
+    lines.push(
+      `- Assigned to: ${typeof assignedTo === 'string' ? assignedTo : assignedTo.displayName || assignedTo.uniqueName || 'Unknown'}`
+    );
+  if (typeof hours === 'number') lines.push(`- Time spent: ${hours.toFixed(2)} hours`);
+  if (start) lines.push(`- Start time: ${start}`);
+  if (end) lines.push(`- End time: ${end}`);
+  if (tags.length) lines.push(`- Tags: ${tags.join(', ')}`);
+  if (description) {
+    lines.push('\nWork item details:');
+    lines.push(description);
+  }
+  if (notes) {
+    lines.push('\nUser notes:');
+    lines.push(notes);
+  }
+  lines.push('\nRespond with only the summary sentences.');
+  return lines.join('\n');
+}
+
+async function generateOpenAiSummary(options: {
+  workItem: any;
+  seed: SummaryEntrySeed | undefined;
+  draftSummary?: string;
+  model: string;
+}): Promise<string> {
+  if (!extensionContextRef) {
+    throw new Error('Extension context unavailable.');
+  }
+  const client = await ensureOpenAiClient(extensionContextRef);
+  const prompt = buildOpenAiPrompt(options.workItem, options.seed, options.draftSummary);
+  const response = await client.responses.create({
+    model: options.model,
+    input: prompt,
+    temperature: 0.2,
+    max_output_tokens: 320,
+  } as any);
+  const text = (response as any)?.output_text;
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    throw new Error('OpenAI returned an empty summary.');
+  }
+  return text.trim();
+}
+
+async function produceWorkItemSummary(options: {
+  workItemId: number;
+  draftSummary?: string;
+  entrySeed?: Partial<SummaryEntrySeed>;
+  reason: 'manualPrompt' | 'timerStop';
+  providerOverride?: SummaryProviderMode;
+  stillRunningTimer?: boolean;
+}): Promise<{ provider: SummaryProviderMode; content: string }> {
+  if (!client) throw new Error('Client not initialized');
+  const workItem = await client.getWorkItemById(options.workItemId);
+  if (!workItem) throw new Error(`Work item #${options.workItemId} not found.`);
+  const seed = normalizeSummaryEntrySeed(options.workItemId, options.entrySeed);
+  const provider = options.providerOverride ?? getSummaryProvider();
+
+  if (provider === 'openai') {
+    try {
+      const model = getConfig().get<string>('openAiModel') || 'gpt-4o-mini';
+      const summary = await generateOpenAiSummary({
+        workItem,
+        seed,
+        draftSummary: options.draftSummary,
+        model,
+      });
+      await vscode.env.clipboard.writeText(summary);
+      panel?.webview.postMessage({
+        type: 'copilotPromptCopied',
+        workItemId: options.workItemId,
+        provider: 'openai',
+        summary,
+      });
+      const message = options.stillRunningTimer
+        ? 'Generated an OpenAI summary and copied it to the clipboard while the timer continues running.'
+        : 'Generated an OpenAI summary and copied it to the clipboard.';
+      vscode.window.showInformationMessage(message);
+      return { provider: 'openai', content: summary };
+    } catch (err) {
+      console.error('OpenAI summary generation failed', err);
+      vscode.window.showErrorMessage(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Failed to generate OpenAI summary. Falling back to Copilot prompt.'
+      );
+      return produceWorkItemSummary({ ...options, providerOverride: 'builtin' });
+    }
+  }
+
+  const prompt = buildCopilotPrompt(seed || { workItemId: options.workItemId }, workItem);
+  await vscode.env.clipboard.writeText(prompt);
+  panel?.webview.postMessage({
+    type: 'copilotPromptCopied',
+    workItemId: options.workItemId,
+    provider: 'builtin',
+    prompt,
+  });
+  const message = options.stillRunningTimer
+    ? 'Copilot prompt copied to clipboard. The timer is still running.'
+    : 'Copilot prompt copied to clipboard. Open Copilot chat and paste to generate a summary.';
+  vscode.window.showInformationMessage(message);
+  return { provider: 'builtin', content: prompt };
+}
+
 async function handleTimerStopAndOfferUpdate(
   entry: {
     workItemId: number;
@@ -1752,17 +2081,26 @@ async function handleTimerStopAndOfferUpdate(
   );
   if (!action) return;
 
+  let comment = generateAutoSummary(entry, workItem);
+
   // If user requested a Copilot prompt, generate it, copy to clipboard, and re-prompt
   if (action === 'Generate Copilot prompt') {
-    const promptText = buildCopilotPrompt(entry, workItem);
     try {
-      await vscode.env.clipboard.writeText(promptText);
-    } catch (e) {
-      console.error('Clipboard write failed', e);
+      const result = await produceWorkItemSummary({
+        workItemId: id,
+        draftSummary: comment,
+        entrySeed: entry,
+        reason: 'timerStop',
+      });
+      if (result.provider === 'openai' && result.content) {
+        comment = result.content;
+      }
+    } catch (err: any) {
+      console.error('Failed to generate summary prompt', err);
+      vscode.window.showErrorMessage(
+        'Failed to generate summary prompt: ' + (err?.message || String(err))
+      );
     }
-    vscode.window.showInformationMessage(
-      'Copilot prompt copied to clipboard. Open the Copilot chat and paste to generate a concise summary.'
-    );
     action = await vscode.window.showInformationMessage(
       `After generating the summary in Copilot, choose how to proceed for work item #${id}.`,
       { modal: true },
@@ -1774,7 +2112,6 @@ async function handleTimerStopAndOfferUpdate(
 
   let finalCompleted = suggestedCompleted;
   let finalRemaining = suggestedRemaining;
-  let comment = generateAutoSummary(entry, workItem);
 
   if (action === 'Edit') {
     const c = await vscode.window.showInputBox({
@@ -1832,28 +2169,20 @@ async function generateCopilotPromptWithoutStopping() {
 
   try {
     const id = snap.workItemId;
-    const wi = await client?.getWorkItemById(id);
-    if (!wi) {
-      vscode.window.showErrorMessage(`Work item #${id} not found.`);
-      return;
-    }
-
-    // We need to simulate a "stopped" entry for the prompt builder
-    const simulatedEntry = {
-      ...snap,
-      endTime: Date.now(),
-      duration: snap.elapsedSeconds * 1000,
-      hoursDecimal: snap.elapsedSeconds / 3600,
-    };
-
-    const prompt = buildCopilotPrompt(simulatedEntry, wi);
-    await vscode.env.clipboard.writeText(prompt);
-
-    // Use a toast notification via the webview
-    panel?.webview.postMessage({ type: 'copilotPromptCopied', workItemId: id });
-    vscode.window.showInformationMessage(
-      'Copilot prompt copied to clipboard. The timer is still running.'
-    );
+    await produceWorkItemSummary({
+      workItemId: id,
+      draftSummary: undefined,
+      entrySeed: {
+        workItemId: id,
+        startTime: snap.startTime,
+        endTime: Date.now(),
+        hoursDecimal:
+          typeof snap.elapsedSeconds === 'number' ? snap.elapsedSeconds / 3600 : undefined,
+        duration: typeof snap.elapsedSeconds === 'number' ? snap.elapsedSeconds * 1000 : undefined,
+      },
+      reason: 'manualPrompt',
+      stillRunningTimer: true,
+    });
   } catch (e: any) {
     console.error('Failed to create Copilot prompt', e);
     vscode.window.showErrorMessage(

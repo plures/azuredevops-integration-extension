@@ -20,6 +20,13 @@
   export let stateFilter = 'all'; // one of 'all', columnDefs keys
   export let sortKey = 'updated-desc'; // 'updated-desc' | 'id-desc' | 'id-asc' | 'title-asc'
   export let availableStates = []; // dynamic list of normalized state keys
+  export let summaryOpen = false;
+  export let summaryDraft = '';
+  export let summaryStatus = '';
+  export let summaryProvider = 'builtin';
+  export let summaryBusy = false;
+  export let summaryTargetId = 0;
+  export let summaryTargetTitle = '';
 
   function onRefresh() {
     dispatch('refresh');
@@ -42,6 +49,9 @@
   function onToggleKanban() {
     dispatch('toggleKanban');
   }
+  function onToggleSummary() {
+    dispatch('toggleSummary');
+  }
   function onFilterInput(e) {
     dispatch('filtersChanged', { filterText: e.target.value, stateFilter, sortKey });
   }
@@ -51,6 +61,31 @@
   function onSortChange(e) {
     dispatch('filtersChanged', { filterText, stateFilter, sortKey: e.target.value });
   }
+  function onSummaryInput(e) {
+    dispatch('summaryDraftChanged', { value: e.target.value });
+  }
+  function onSummaryBlur(e) {
+    dispatch('summaryDraftBlur', { value: e.target.value });
+  }
+  function onGenerateSummary() {
+    dispatch('generateSummary');
+  }
+  function onStopAndApplySummary() {
+    dispatch('stopAndApplySummary');
+  }
+
+  $: summaryButtonLabel =
+    summaryProvider === 'openai' ? 'Generate AI Summary' : 'Copy Copilot Prompt';
+  $: summaryHelperText =
+    summaryProvider === 'openai'
+      ? 'Creates an OpenAI summary and copies it to your clipboard.'
+      : 'Copies a Copilot-ready prompt to your clipboard.';
+  $: summaryTargetDisplay = summaryTargetId
+    ? `#${summaryTargetId} · ${summaryTargetTitle || `Work Item #${summaryTargetId}`}`
+    : '';
+  $: summaryGenerateDisabled = summaryBusy || !summaryTargetId;
+  $: summaryApplyDisabled = summaryBusy || !timerActive;
+  $: summaryAreaDisabled = !summaryTargetId;
 
   // DnD helpers
   let draggingId = null;
@@ -203,6 +238,14 @@
       {/if}
     {/if}
     <span class="actions" style="margin-left:auto;">
+      <button
+        class="summary-toggle"
+        on:click={onToggleSummary}
+        aria-expanded={summaryOpen ? 'true' : 'false'}
+        aria-label="Toggle summary composer"
+      >
+        Compose Summary {summaryOpen ? '▴' : '▾'}
+      </button>
       <span class="filters" aria-label="Filters and sort">
         <input
           placeholder="Filter..."
@@ -237,6 +280,73 @@
   </div>
 
   <div class="pane-body">
+    {#if summaryOpen}
+      <section class="summary-panel" aria-label="Work summary composer">
+        <div class="summary-header">
+          <div class="summary-context">
+            {#if summaryTargetId}
+              <span class="summary-target-label">Target</span>
+              <span class="summary-target-value">{summaryTargetDisplay}</span>
+              <span class="summary-provider-badge"
+                >{summaryProvider === 'openai' ? 'OpenAI' : 'Copilot'}</span
+              >
+              {#if timerActive}
+                <span class="summary-target-timer"
+                  >{timerRunning ? 'Running' : 'Paused'}
+                  {#if timerElapsedLabel}
+                    ({timerElapsedLabel})
+                  {/if}</span
+                >
+              {/if}
+            {:else}
+              <span class="muted">Start a timer or select a work item to enable summaries.</span>
+            {/if}
+          </div>
+          {#if summaryBusy}
+            <span class="spinner inline" role="status" aria-label="Generating summary"></span>
+          {/if}
+        </div>
+        <textarea
+          class="summary-textarea"
+          placeholder="Draft a concise update for your work item…"
+          value={summaryDraft}
+          on:input={onSummaryInput}
+          on:blur={onSummaryBlur}
+          rows="5"
+          disabled={summaryAreaDisabled}
+        ></textarea>
+        <div class="summary-actions">
+          <div class="summary-buttons">
+            <button
+              class="action-btn summary-generate"
+              on:click|preventDefault={onGenerateSummary}
+              title={summaryButtonLabel}
+              aria-label={summaryButtonLabel}
+              disabled={summaryGenerateDisabled}
+            >
+              <span class="codicon codicon-rocket" aria-hidden="true"></span>
+              {summaryButtonLabel}
+            </button>
+            <button
+              class="action-btn summary-apply"
+              on:click|preventDefault={onStopAndApplySummary}
+              title="Stop timer and apply time entry with this summary"
+              aria-label="Stop timer and apply time entry with this summary"
+              disabled={summaryApplyDisabled}
+            >
+              <span class="codicon codicon-check" aria-hidden="true"></span>
+              Stop &amp; Apply
+            </button>
+          </div>
+          <div class="summary-helper">{summaryHelperText}</div>
+        </div>
+        {#if summaryStatus}
+          <div class="summary-status" aria-live="polite">{summaryStatus}</div>
+        {/if}
+      </section>
+    {:else if summaryStatus}
+      <div class="summary-status-inline" aria-live="polite">{summaryStatus}</div>
+    {/if}
     {#if errorMsg}
       <div class="error-banner" role="alert">{errorMsg}</div>
     {/if}
@@ -442,11 +552,11 @@
               <div class="work-item-title">
                 {it.fields?.['System.Title'] || `Work Item #${it.id}`}
               </div>
-                    {#if extractDescription(it)}
-                      <div class="work-item-desc" title={extractDescription(it)}>
-                        {extractDescription(it)}
-                      </div>
-                    {/if}
+              {#if extractDescription(it)}
+                <div class="work-item-desc" title={extractDescription(it)}>
+                  {extractDescription(it)}
+                </div>
+              {/if}
 
               <div class="work-item-meta">
                 <span class="work-item-type">{it.fields?.['System.WorkItemType'] || 'Task'}</span>
@@ -553,6 +663,19 @@
     display: inline-flex;
     gap: 6px;
   }
+  .summary-toggle {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-editorWidget-border);
+    border-radius: 3px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .summary-toggle:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+    border-color: var(--ado-blue);
+  }
   .filters {
     display: inline-flex;
     gap: 6px;
@@ -617,6 +740,126 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+  }
+
+  .summary-panel {
+    margin: 12px;
+    padding: 12px;
+    border: 1px solid var(--vscode-editorWidget-border);
+    border-radius: 6px;
+    background: var(--vscode-editorWidget-background);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .summary-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .summary-context {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    flex-wrap: wrap;
+  }
+  .summary-target-label {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 10px;
+    color: var(--vscode-descriptionForeground, #888);
+  }
+  .summary-target-value {
+    font-weight: 600;
+    color: var(--vscode-editor-foreground);
+    background: rgba(0, 120, 212, 0.12);
+    padding: 2px 6px;
+    border-radius: 12px;
+  }
+  .summary-provider-badge {
+    font-size: 10px;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background: rgba(92, 45, 145, 0.2);
+    color: var(--ado-purple);
+    font-weight: 600;
+  }
+  .summary-target-timer {
+    font-size: 10px;
+    color: var(--ado-orange);
+    background: rgba(255, 140, 0, 0.18);
+    padding: 2px 6px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 140, 0, 0.35);
+  }
+  .summary-textarea {
+    width: 100%;
+    min-height: 120px;
+    resize: vertical;
+    padding: 8px;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    font-size: 12px;
+    font-family: var(--vscode-font-family);
+  }
+  .summary-textarea:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .summary-actions {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .summary-buttons {
+    display: inline-flex;
+    gap: 8px;
+  }
+  .summary-helper {
+    font-size: 11px;
+    opacity: 0.75;
+    max-width: 320px;
+  }
+  .summary-generate {
+    background: var(--ado-blue);
+    color: #fff;
+    border-color: var(--ado-blue);
+  }
+  .summary-generate:hover {
+    background: var(--ado-blue-light);
+  }
+  .summary-apply {
+    background: var(--ado-green);
+    color: #fff;
+    border-color: var(--ado-green);
+  }
+  .summary-apply:hover {
+    background: rgba(16, 124, 16, 0.85);
+  }
+  .summary-status,
+  .summary-status-inline {
+    font-size: 11px;
+    background: rgba(0, 120, 212, 0.12);
+    color: var(--ado-blue);
+    border-radius: 4px;
+    padding: 6px 8px;
+    margin-top: 2px;
+  }
+  .summary-status-inline {
+    margin: 8px 12px 0 12px;
+  }
+  .spinner.inline {
+    width: 10px;
+    height: 10px;
+    border-width: 2px;
   }
 
   .empty {
@@ -746,7 +989,7 @@
     opacity: 0.75;
     display: -webkit-box;
     -webkit-line-clamp: 3;
-  line-clamp: 3;
+    line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;

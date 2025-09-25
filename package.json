@@ -178,6 +178,11 @@
         "command": "azureDevOpsInt.showBuildStatus",
         "title": "Show Build Status",
         "category": "Azure DevOps Int"
+      },
+      {
+        "command": "azureDevOpsInt.setOpenAIApiKey",
+        "title": "Set OpenAI API Key",
+        "category": "Azure DevOps Int"
       }
     ],
     "views": {
@@ -345,6 +350,20 @@
           "type": "boolean",
           "default": false,
           "description": "Show completed/closed work items in the list"
+        },
+        "azureDevOpsIntegration.summaryProvider": {
+          "type": "string",
+          "default": "builtin",
+          "enum": [
+            "builtin",
+            "openai"
+          ],
+          "description": "Generate summaries using the built-in template or OpenAI (requires API key)."
+        },
+        "azureDevOpsIntegration.openAiModel": {
+          "type": "string",
+          "default": "gpt-4o-mini",
+          "description": "OpenAI model identifier to use when summaryProvider is set to 'openai'."
         }
       }
     }
@@ -401,7 +420,8 @@
     "esbuild-svelte": "^0.9.0"
   },
   "dependencies": {
-    "axios": "^1.12.2"
+    "axios": "^1.12.2",
+    "openai": "^4.59.0"
   },
   "volta": {
     "node": "20.19.0",

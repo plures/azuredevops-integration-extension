@@ -28,11 +28,16 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+### Added
+
+- Optional OpenAI summary provider: securely store an API key, select the provider in settings, and copy generated summaries straight from the work items view.
+
 ### Changed
 
 - Toggle Kanban toolbar button now uses a codicon at the command level; menu inherits the icon for consistent header styling
 - README screenshots switched to vertical layout for better Marketplace/Preview rendering
 - Screenshot generator now captures tightly-cropped, high-DPI images and stubs VS Code webview APIs during headless runs
+- Svelte webview summary panel now surfaces provider badges, busy states, and per-work-item draft persistence for AI summaries
 
 ### Fixed
 
