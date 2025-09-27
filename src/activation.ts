@@ -71,6 +71,9 @@ type TimerConnectionInfo = {
 };
 let timerConnectionInfo: TimerConnectionInfo = {};
 
+const DEFAULT_QUERY = 'My Activity';
+const activeQueryByConnection = new Map<string, string>();
+
 function shouldLogDebug(): boolean {
   try {
     return !!getConfig().get<boolean>('debugLogging');
@@ -95,6 +98,43 @@ function notifyConnectionsList() {
     activeConnectionId,
     logger: verbose,
   });
+}
+
+function normalizeQuery(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function getStoredQueryForConnection(connectionId?: string | null, fallback?: string): string {
+  const resolved = fallback ?? getDefaultQuery(getConfig());
+  const base = resolved && resolved.trim().length > 0 ? resolved : DEFAULT_QUERY;
+  if (!connectionId) return base;
+  const stored = activeQueryByConnection.get(connectionId);
+  if (stored && stored.trim().length > 0) return stored;
+  activeQueryByConnection.set(connectionId, base);
+  return base;
+}
+
+function setStoredQueryForConnection(connectionId: string, query?: string): string {
+  const resolvedDefault = getDefaultQuery(getConfig());
+  const normalized = normalizeQuery(query) ?? resolvedDefault ?? DEFAULT_QUERY;
+  activeQueryByConnection.set(connectionId, normalized);
+  return normalized;
+}
+
+function getQueryForProvider(
+  targetProvider?: WorkItemsProvider,
+  connectionId?: string | null
+): string {
+  const cfg = getConfig();
+  const fallback = getDefaultQuery(cfg);
+  const providerConnectionId = connectionId
+    ? connectionId
+    : typeof targetProvider?.getConnectionId === 'function'
+      ? targetProvider.getConnectionId()
+      : undefined;
+  return getStoredQueryForConnection(providerConnectionId, fallback);
 }
 
 function setTimerConnectionFrom(connection: ProjectConnection | undefined) {
@@ -189,6 +229,12 @@ async function loadConnectionsFromConfig(
     } else {
       const updated = normalized.find((item) => item.id === id);
       if (updated) state.config = updated;
+    }
+  }
+
+  for (const key of Array.from(activeQueryByConnection.keys())) {
+    if (!validIds.has(key)) {
+      activeQueryByConnection.delete(key);
     }
   }
 
@@ -376,15 +422,16 @@ async function ensureActiveConnection(
   await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', true);
 
   if (options.refresh !== false && provider) {
-    const defaultQuery = getDefaultQuery(settings);
+    const fallbackQuery = getDefaultQuery(settings);
+    const selectedQuery = getStoredQueryForConnection(state.id, fallbackQuery);
     if (!initialRefreshedConnections.has(state.id)) {
       initialRefreshedConnections.add(state.id);
     }
     verbose('[ensureActiveConnection] triggering provider refresh', {
       id: state.id,
-      query: defaultQuery,
+      query: selectedQuery,
     });
-    provider.refresh(defaultQuery);
+    provider.refresh(selectedQuery);
   }
 
   return state;
@@ -545,7 +592,7 @@ export function resolveDefaultQuery(_config: ConfigGetter): string {
     }
   }
 
-  return 'My Work Items';
+  return DEFAULT_QUERY;
 }
 
 function getDefaultQuery(config?: vscode.WorkspaceConfiguration): string {
@@ -752,14 +799,14 @@ export function activate(context: vscode.ExtensionContext) {
       const stopped = timer.stop();
       updateTimerContext(undefined);
       if (stopped) {
-        try {
-          await handleTimerStopAndOfferUpdate(stopped, { connection: timerConnectionSnapshot });
-        } catch (e: any) {
-          console.error('Error applying timer updates', e);
-          vscode.window.showErrorMessage(
-            'Failed to process timer update: ' + (e?.message || String(e))
-          );
-        }
+        // Show compose comment dialog in webview instead of VS Code dialogs
+        sendToWebview({
+          type: 'showComposeComment',
+          workItemId: stopped.workItemId,
+          mode: 'timerStop',
+          timerData: stopped,
+          connectionInfo: timerConnectionSnapshot,
+        });
       }
     }),
     vscode.commands.registerCommand('azureDevOpsInt.showTimeReport', () => showTimeReport()),
@@ -865,6 +912,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
         items: [],
         kanbanView: false,
         types: [],
+        query: getStoredQueryForConnection(activeConnectionId, getDefaultQuery(getConfig())),
       });
     }
   }
@@ -899,15 +947,15 @@ async function initDomainObjects(context: vscode.ExtensionContext) {
   notifyConnectionsList();
 
   if (panel && state?.provider) {
-    const defaultQuery = getDefaultQuery(config);
+    const selectedQuery = getStoredQueryForConnection(state.id, getDefaultQuery(config));
     if (!initialRefreshedConnections.has(state.id)) {
       initialRefreshedConnections.add(state.id);
     }
     verbose('[initDomainObjects] panel ready, refreshing provider', {
       id: state.id,
-      query: defaultQuery,
+      query: selectedQuery,
     });
-    state.provider.refresh(defaultQuery);
+    state.provider.refresh(selectedQuery);
   } else if (panel && !state?.provider) {
     verbose('[initDomainObjects] panel ready but provider missing, sending empty payload');
     sendWorkItemsSnapshot({
@@ -915,6 +963,7 @@ async function initDomainObjects(context: vscode.ExtensionContext) {
       items: [],
       kanbanView: false,
       types: [],
+      query: getStoredQueryForConnection(activeConnectionId, getDefaultQuery(config)),
     });
   }
 }
@@ -940,11 +989,13 @@ async function handleMessage(msg: any) {
         if (workItems.length > 0) {
           console.log('[azureDevOpsInt] First work item:', JSON.stringify(workItems[0], null, 2));
         }
+        const snapshotQuery = getQueryForProvider(provider, activeConnectionId);
         sendWorkItemsSnapshot({
           connectionId: activeConnectionId,
           items: workItems,
           kanbanView: false,
           provider,
+          query: snapshotQuery,
         });
         const snap = timer?.snapshot?.();
         if (snap)
@@ -998,7 +1049,7 @@ async function handleMessage(msg: any) {
       }
       break;
     }
-    case 'refresh':
+    case 'refresh': {
       verbose('[webview] refresh requested', {
         hasProvider: !!provider,
         cachedCount:
@@ -1016,10 +1067,28 @@ async function handleMessage(msg: any) {
           verbose('[webview] ensureActiveConnection failed in refresh', e?.message || e);
         }
       }
-      provider?.refresh();
+      const refreshQuery = getQueryForProvider(provider, activeConnectionId);
+      provider?.refresh(refreshQuery);
       break;
+    }
     case 'getWorkItems': {
       verbose('Work items requested from webview');
+      const cfg = getConfig();
+      const requestedConnectionId =
+        typeof msg.connectionId === 'string' ? msg.connectionId.trim() : '';
+      const fallbackQuery = getDefaultQuery(cfg);
+      const incomingQuery = normalizeQuery(msg.query);
+      const targetConnectionId = requestedConnectionId || activeConnectionId || undefined;
+
+      let resolvedQuery = fallbackQuery;
+      if (targetConnectionId) {
+        resolvedQuery = incomingQuery
+          ? setStoredQueryForConnection(targetConnectionId, incomingQuery)
+          : getStoredQueryForConnection(targetConnectionId, fallbackQuery);
+      } else if (incomingQuery) {
+        resolvedQuery = incomingQuery;
+      }
+
       let currentProvider = provider;
       verbose('[getWorkItems] current state', {
         hasProvider: !!currentProvider,
@@ -1028,37 +1097,72 @@ async function handleMessage(msg: any) {
             ? ((currentProvider as any).getWorkItems() || []).length
             : 0,
         activeConnectionId,
-        connections: connections.map((c) => c.id),
+        requestedConnectionId,
+        resolvedQuery,
       });
       if (!currentProvider && extensionContextRef) {
         verbose('No provider available; attempting to ensure active connection');
         try {
-          await ensureActiveConnection(extensionContextRef, activeConnectionId, {
-            refresh: true,
+          await ensureActiveConnection(extensionContextRef, targetConnectionId, {
+            refresh: false,
           });
         } catch (e: any) {
           verbose('ensureActiveConnection failed during getWorkItems request', e?.message || e);
         }
         currentProvider = provider;
       }
+      const responseConnectionId = targetConnectionId ?? activeConnectionId;
+      if (!targetConnectionId && responseConnectionId) {
+        resolvedQuery = incomingQuery
+          ? setStoredQueryForConnection(responseConnectionId, incomingQuery)
+          : getStoredQueryForConnection(responseConnectionId, fallbackQuery);
+      }
       const workItems =
         currentProvider && typeof (currentProvider as any).getWorkItems === 'function'
           ? (currentProvider as any).getWorkItems() || []
           : [];
-      verbose('[getWorkItems] responding with cached items', { count: workItems.length });
+      verbose('[getWorkItems] responding with cached items', {
+        count: workItems.length,
+        connectionId: responseConnectionId,
+      });
       sendWorkItemsSnapshot({
-        connectionId: activeConnectionId,
+        connectionId: responseConnectionId,
         items: workItems,
         provider: currentProvider,
+        query: resolvedQuery,
       });
       if (currentProvider && workItems.length === 0) {
-        verbose('Provider returned zero cached work items; triggering refresh');
+        verbose('Provider returned zero cached work items; triggering refresh', {
+          query: resolvedQuery,
+        });
         try {
-          currentProvider.refresh(getDefaultQuery(getConfig()));
+          currentProvider.refresh(resolvedQuery);
         } catch (e: any) {
           verbose('Provider refresh failed after empty cache response', e?.message || e);
         }
       }
+      break;
+    }
+    case 'setQuery': {
+      const connectionIdRaw = typeof msg.connectionId === 'string' ? msg.connectionId.trim() : '';
+      const targetId = connectionIdRaw || activeConnectionId || '';
+      if (!targetId) {
+        verbose('[setQuery] no connection id resolved; skipping');
+        break;
+      }
+      const storedQuery = setStoredQueryForConnection(
+        targetId,
+        typeof msg.query === 'string' ? msg.query : undefined
+      );
+      const state = connectionStates.get(targetId);
+      const targetProvider =
+        state?.provider ?? (targetId === activeConnectionId ? provider : undefined);
+      verbose('[setQuery] applied new query', {
+        connectionId: targetId,
+        query: storedQuery,
+        hasProvider: !!targetProvider,
+      });
+      targetProvider?.refresh(storedQuery);
       break;
     }
     case 'setActiveConnection': {
@@ -1076,6 +1180,8 @@ async function handleMessage(msg: any) {
           refresh: false,
         });
         const activeProvider = state?.provider;
+        const cfg = getConfig();
+        const selectedQuery = getStoredQueryForConnection(targetId, getDefaultQuery(cfg));
         const cachedItems =
           activeProvider && typeof (activeProvider as any).getWorkItems === 'function'
             ? (activeProvider as any).getWorkItems() || []
@@ -1085,14 +1191,15 @@ async function handleMessage(msg: any) {
           items: cachedItems,
           kanbanView: false,
           provider: activeProvider,
+          query: selectedQuery,
         });
         if (activeProvider && cachedItems.length === 0) {
-          activeProvider.refresh(getDefaultQuery(getConfig()));
+          activeProvider.refresh(selectedQuery);
         } else if (activeProvider && cachedItems.length > 0) {
           // still trigger a background refresh to keep results current
           setTimeout(() => {
             try {
-              activeProvider.refresh(getDefaultQuery(getConfig()));
+              activeProvider.refresh(selectedQuery);
             } catch (e: any) {
               verbose('[setActiveConnection] refresh after cached post failed', e?.message || e);
             }
@@ -1103,6 +1210,7 @@ async function handleMessage(msg: any) {
             items: [],
             kanbanView: false,
             types: [],
+            query: selectedQuery,
           });
         }
       } catch (e: any) {
@@ -1182,7 +1290,8 @@ async function handleMessage(msg: any) {
         await client.updateWorkItem(id, [
           { op: 'add', path: '/fields/System.State', value: desired },
         ]);
-        provider.refresh();
+        const postUpdateQuery = getQueryForProvider(provider, activeConnectionId);
+        provider.refresh(postUpdateQuery);
         panel?.webview.postMessage({
           type: 'moveWorkItemResult',
           id,
@@ -1357,6 +1466,112 @@ async function handleMessage(msg: any) {
       }
       break;
     }
+    case 'submitComposeComment': {
+      const workItemId: number | undefined =
+        typeof msg.workItemId === 'number' ? msg.workItemId : undefined;
+      const comment: string = typeof msg.comment === 'string' ? msg.comment.trim() : '';
+      const mode: string = typeof msg.mode === 'string' ? msg.mode : 'addComment';
+      const timerData = msg.timerData; // Timer stop data if mode is 'timerStop'
+      const connectionInfo = msg.connectionInfo; // Connection info for timer stops
+
+      if (!workItemId) {
+        vscode.window.showWarningMessage('No work item specified for comment.');
+        sendToWebview({
+          type: 'composeCommentResult',
+          workItemId: 0,
+          success: false,
+          error: 'No work item specified',
+        });
+        break;
+      }
+
+      try {
+        let targetClient = client;
+
+        // For timer stops, use the timer's connection info
+        if (mode === 'timerStop' && connectionInfo) {
+          targetClient = getClientForConnectionInfo(connectionInfo);
+        }
+
+        if (!targetClient) {
+          throw new Error('Client not initialized');
+        }
+
+        if (mode === 'timerStop' && timerData) {
+          // Handle timer stop with time entry update
+          const wi = await targetClient.getWorkItemById(workItemId);
+          if (!wi) throw new Error('Work item not found');
+
+          const currCompleted =
+            Number(wi.fields?.['Microsoft.VSTS.Scheduling.CompletedWork'] || 0) || 0;
+          const currRemaining =
+            Number(wi.fields?.['Microsoft.VSTS.Scheduling.RemainingWork'] || 0) || 0;
+          const hours = Number(timerData.hoursDecimal || timerData.duration / 3600 || 0);
+          const finalCompleted = Number((currCompleted + hours).toFixed(2));
+          const finalRemaining = Number(Math.max(0, currRemaining - hours).toFixed(2));
+
+          const patch = [
+            {
+              op: 'add',
+              path: '/fields/Microsoft.VSTS.Scheduling.CompletedWork',
+              value: finalCompleted,
+            },
+            {
+              op: 'add',
+              path: '/fields/Microsoft.VSTS.Scheduling.RemainingWork',
+              value: finalRemaining,
+            },
+          ];
+
+          await targetClient.updateWorkItem(workItemId, patch);
+
+          if (comment && comment.trim()) {
+            await targetClient.addWorkItemComment(
+              workItemId,
+              `Time tracked: ${hours.toFixed(2)} hours. ${comment}`
+            );
+          }
+
+          sendToWebview({
+            type: 'composeCommentResult',
+            workItemId,
+            success: true,
+            mode,
+            hours: hours,
+          });
+
+          vscode.window.showInformationMessage(
+            `Work item #${workItemId} updated: Completed ${finalCompleted}h, Remaining ${finalRemaining}h.`
+          );
+        } else {
+          // Handle regular comment addition
+          await targetClient.addWorkItemComment(workItemId, comment);
+
+          sendToWebview({
+            type: 'composeCommentResult',
+            workItemId,
+            success: true,
+            mode,
+          });
+
+          vscode.window.showInformationMessage(`Comment added to work item #${workItemId}.`);
+        }
+      } catch (err: any) {
+        console.error('Failed to submit compose comment', err);
+        vscode.window.showErrorMessage(
+          `Failed to ${mode === 'timerStop' ? 'apply timer update' : 'add comment'}: ` +
+            (err?.message || String(err))
+        );
+        sendToWebview({
+          type: 'composeCommentResult',
+          workItemId,
+          success: false,
+          error: err?.message || String(err),
+          mode,
+        });
+      }
+      break;
+    }
     case 'stopAndApply': {
       const comment = typeof msg.comment === 'string' ? msg.comment : '';
       const stopped = timer?.stop(async (finishedId: number, hoursDecimal: number) => {
@@ -1419,35 +1634,32 @@ async function handleMessage(msg: any) {
         break;
       }
 
-      // If comment not provided by webview, prompt the user with VS Code input box
-      if (!comment || comment.length === 0) {
-        comment = await vscode.window.showInputBox({
-          prompt: `Enter a comment for work item #${workItemId}`,
-          placeHolder: 'Type your comment…',
-          ignoreFocusOut: true,
-        });
-        if (!comment || comment.trim().length === 0) {
-          // User cancelled or empty input
-          break;
+      // If comment is provided by webview (from compose dialog), add it directly
+      if (comment && comment.length > 0) {
+        try {
+          if (!client) throw new Error('Client not initialized');
+          await client.addWorkItemComment(workItemId, comment);
+          vscode.window.showInformationMessage(`Comment added to work item #${workItemId}.`);
+          sendToWebview({ type: 'addCommentResult', workItemId, success: true });
+        } catch (err: any) {
+          console.error('Failed to add comment', err);
+          vscode.window.showErrorMessage('Failed to add comment: ' + (err?.message || String(err)));
+          sendToWebview({
+            type: 'addCommentResult',
+            workItemId,
+            success: false,
+            error: err?.message || String(err),
+          });
         }
-        comment = comment.trim();
+        break;
       }
 
-      try {
-        if (!client) throw new Error('Client not initialized');
-        await client.addWorkItemComment(workItemId, comment);
-        vscode.window.showInformationMessage(`Comment added to work item #${workItemId}.`);
-        sendToWebview({ type: 'addCommentResult', workItemId, success: true });
-      } catch (err: any) {
-        console.error('Failed to add comment', err);
-        vscode.window.showErrorMessage('Failed to add comment: ' + (err?.message || String(err)));
-        sendToWebview({
-          type: 'addCommentResult',
-          workItemId,
-          success: false,
-          error: err?.message || String(err),
-        });
-      }
+      // If no comment provided, show the compose dialog in webview
+      sendToWebview({
+        type: 'showComposeComment',
+        workItemId,
+        mode: 'addComment',
+      });
       break;
     }
     case 'uiPreferenceChanged': {
@@ -1860,15 +2072,15 @@ async function silentInit(context: vscode.ExtensionContext) {
 
   if (panel && state?.provider) {
     const cfg = getConfig();
-    const defaultQuery = getDefaultQuery(cfg);
+    const selectedQuery = getStoredQueryForConnection(state.id, getDefaultQuery(cfg));
     if (!initialRefreshedConnections.has(state.id)) {
       initialRefreshedConnections.add(state.id);
     }
     verbose('[silentInit] panel present, refreshing provider', {
       id: state.id,
-      query: defaultQuery,
+      query: selectedQuery,
     });
-    state.provider.refresh(defaultQuery);
+    state.provider.refresh(selectedQuery);
   }
 }
 
@@ -2032,11 +2244,19 @@ async function quickCreateWorkItem() {
   if (areaPath) extraFields['System.AreaPath'] = areaPath;
   if (iterationPath) extraFields['System.IterationPath'] = iterationPath;
 
+  const descriptionInput = await vscode.window.showInputBox({
+    prompt: `Description for the new ${chosenType} (optional)`,
+    ignoreFocusOut: true,
+    placeHolder: 'Leave blank to skip adding a description',
+    value: '',
+  });
+  const description = descriptionInput?.trim() ? descriptionInput.trim() : undefined;
+
   try {
     const created = await provider.createWorkItem(
       chosenType,
       title.trim(),
-      undefined,
+      description,
       undefined,
       extraFields
     );
@@ -2331,7 +2551,8 @@ async function editWorkItemInEditor(workItemId: number) {
       vscode.window.showInformationMessage(`Updated work item #${workItemId}`);
 
       // Refresh the work items list to show updated data
-      provider.refresh();
+      const refreshQuery = getQueryForProvider(provider, activeConnectionId);
+      provider.refresh(refreshQuery);
     } else {
       vscode.window.showInformationMessage('No changes made.');
     }
@@ -2356,7 +2577,8 @@ async function startTimerInteractive() {
   }
   const items = provider.getWorkItems();
   if (items.length === 0) {
-    await provider.refresh();
+    const refreshQuery = getQueryForProvider(provider, activeConnectionId);
+    await provider.refresh(refreshQuery);
   }
   const pick = await vscode.window.showQuickPick(
     provider.getWorkItems().map((w: any) => ({

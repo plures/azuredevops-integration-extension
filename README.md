@@ -4,7 +4,7 @@ Integrate Azure DevOps work items, time tracking, branching, and pull requests d
 
 ## 🚀 Highlights
 
-- Unified work items view (My Work Items, Current Sprint, All Active, Recently Updated, or custom WIQL)
+- Unified work items view with built-in filters (My Activity, Assigned to Me, Following, Mentioned, Current Sprint, All Active, Recently Updated) or custom WIQL
 - Team-aware Current Sprint: respects your selected team's current iteration
 - One‑click work item creation
 - Lightweight time tracking with inactivity auto‑pause
@@ -165,11 +165,11 @@ Rate limiting controls
 
 ## ❓ Troubleshooting
 
-| Issue                | Hint                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------------ |
-| Empty work item list | Verify organization/project & WIQL query (default: My Work Items). Check PAT scopes. |
-| Timer not starting   | Ensure a work item is selected; confirm no existing active timer.                    |
-| PR creation fails    | Confirm Code (Read & Write) scope on PAT and repository presence.                    |
+| Issue                | Hint                                                                               |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| Empty work item list | Verify organization/project & WIQL query (default: My Activity). Check PAT scopes. |
+| Timer not starting   | Ensure a work item is selected; confirm no existing active timer.                  |
+| PR creation fails    | Confirm Code (Read & Write) scope on PAT and repository presence.                  |
 
 ### Pull requests and preferred repositories
 
@@ -195,7 +195,8 @@ Optional: MCP server for automation
 
 ## 📘 Queries and compatibility
 
-- Process‑agnostic active filter: when supported by your org, the extension uses `[System.StateCategory] <> 'Completed'` and excludes items in `'Removed'` for default queries like "My Work Items", "All Active", and "Current Sprint".
+- The work items view includes a query filter dropdown with options for My Activity (default), Assigned to Me, Following, Mentioned, Current Sprint, All Active, and Recently Updated. Each connection remembers your last choice.
+- Process‑agnostic active filter: when supported by your org, the extension uses `[System.StateCategory] <> 'Completed'` and excludes items in `'Removed'` for default queries like "My Activity", "Assigned to Me", "All Active", and "Current Sprint".
 - Runtime fallback: some organizations or older processes reject `System.StateCategory` in WIQL. If that happens, the extension automatically falls back to a legacy filter equivalent to `NOT IN ('Closed','Done','Resolved','Removed')` and retries the query.
 - Recently Updated window: the "Recently Updated" query uses a 14‑day window (`[System.ChangedDate] >= @Today - 14`).
 

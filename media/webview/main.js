@@ -34,6 +34,16 @@ var fallbackNotice = null;
 var fallbackNotices = /* @__PURE__ */ new Map();
 var typeOptionsByConnection = /* @__PURE__ */ new Map();
 var searchHaystackCache = /* @__PURE__ */ new WeakMap();
+var DEFAULT_QUERY = "My Activity";
+var QUERY_OPTIONS = [
+  { value: "My Activity", label: "My Activity" },
+  { value: "Assigned to me", label: "Assigned to me" },
+  { value: "Following", label: "Following" },
+  { value: "Mentioned", label: "Mentioned" }
+];
+var DEFAULT_QUERY_KEY = "__default__";
+var selectedQueryByConnection = /* @__PURE__ */ new Map();
+selectedQueryByConnection.set(DEFAULT_QUERY_KEY, DEFAULT_QUERY);
 var filterStateByConnection = /* @__PURE__ */ new Map();
 function normalizeConnectionId(raw) {
   if (typeof raw === "string") {
@@ -91,6 +101,86 @@ function extractWorkItemTypes(items) {
   });
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
+function getQueryStorageKey(connectionId) {
+  if (typeof connectionId === "string") {
+    const trimmed = connectionId.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return DEFAULT_QUERY_KEY;
+}
+function normalizeQueryValue(raw) {
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return DEFAULT_QUERY;
+}
+function ensureQueryOption(value) {
+  const select = elements.queryFilter;
+  if (!select) return;
+  for (let i = 0; i < select.options.length; i += 1) {
+    if (select.options[i]?.value === value) {
+      return;
+    }
+  }
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = value;
+  select.appendChild(option);
+}
+function setSelectedQueryForConnection(connectionId, query) {
+  const key = getQueryStorageKey(connectionId);
+  const normalized = normalizeQueryValue(query);
+  selectedQueryByConnection.set(key, normalized);
+  if (key !== DEFAULT_QUERY_KEY) {
+    selectedQueryByConnection.set(DEFAULT_QUERY_KEY, normalized);
+  }
+  return normalized;
+}
+function getSelectedQueryForConnection(connectionId) {
+  const key = getQueryStorageKey(connectionId);
+  if (selectedQueryByConnection.has(key)) {
+    return selectedQueryByConnection.get(key);
+  }
+  const fallback = selectedQueryByConnection.get(DEFAULT_QUERY_KEY) ?? DEFAULT_QUERY;
+  selectedQueryByConnection.set(key, fallback);
+  return fallback;
+}
+function applyQuerySelectionToUi(connectionId) {
+  const select = elements.queryFilter;
+  if (!select) return;
+  const value = getSelectedQueryForConnection(connectionId);
+  ensureQueryOption(value);
+  select.value = value;
+}
+function initializeQueryDropdown() {
+  const select = elements.queryFilter;
+  if (!select) return;
+  select.innerHTML = "";
+  QUERY_OPTIONS.forEach(({ value, label }) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    select.appendChild(option);
+  });
+  const initial = getSelectedQueryForConnection(activeConnectionId);
+  ensureQueryOption(initial);
+  select.value = initial;
+}
+function handleQuerySelectionChange() {
+  const select = elements.queryFilter;
+  if (!select) return;
+  const normalized = setSelectedQueryForConnection(activeConnectionId, select.value);
+  ensureQueryOption(normalized);
+  applyQuerySelectionToUi(activeConnectionId);
+  isLoading = true;
+  showLoadingState();
+  postMessage({
+    type: "setQuery",
+    query: normalized,
+    connectionId: activeConnectionId ?? void 0
+  });
+}
 function persistCurrentFilterState() {
   const connectionId = activeConnectionId;
   if (!connectionId) return;
@@ -132,6 +222,7 @@ var elements = {
   connectionTabs: null,
   sprintFilter: null,
   typeFilter: null,
+  queryFilter: null,
   assignedToFilter: null,
   excludeDone: null,
   excludeClosed: null,
@@ -152,7 +243,8 @@ var elements = {
   summaryContainer: null,
   toggleSummaryBtn: null,
   summaryStatus: null,
-  submitComposeBtn: null
+  submitComposeBtn: null,
+  generatePromptBtn: null
 };
 function init() {
   elements.searchInput = document.getElementById("searchInput");
@@ -160,6 +252,7 @@ function init() {
   elements.connectionTabs = document.getElementById("connectionTabs");
   elements.sprintFilter = document.getElementById("sprintFilter");
   elements.typeFilter = document.getElementById("typeFilter");
+  elements.queryFilter = document.getElementById("queryFilter");
   elements.assignedToFilter = document.getElementById("assignedToFilter");
   elements.excludeDone = document.getElementById("excludeDone");
   elements.excludeClosed = document.getElementById("excludeClosed");
@@ -184,6 +277,7 @@ function init() {
   );
   elements.summaryStatus = document.getElementById("summaryStatus");
   elements.submitComposeBtn = document.getElementById("submitComposeBtn");
+  elements.generatePromptBtn = document.getElementById("generatePromptBtn");
   if (elements.summarySection) elements.summarySection.setAttribute("hidden", "");
   if (elements.summaryContainer) elements.summaryContainer.setAttribute("hidden", "");
   const toggleBtn = elements.toggleSummaryBtn;
@@ -198,6 +292,8 @@ function init() {
     console.error("[webview] Critical: workItemsContainer element not found");
     return;
   }
+  initializeQueryDropdown();
+  applyQuerySelectionToUi(activeConnectionId);
   console.log("[webview] Initializing webview...");
   setupEventListeners();
   setupMessageHandling();
@@ -264,28 +360,38 @@ function setupEventListeners() {
         postMessage({ type: "generateCopilotPrompt", workItemId, draftSummary: draft });
         break;
       }
+      case "stopAndApply":
       case "submitCompose": {
         const draft = elements.draftSummary ? elements.draftSummary.value : "";
         const mode = composeState?.mode ?? (currentTimer ? "timerStop" : null);
+        const workItemId = composeState?.workItemId;
+        if (!workItemId) {
+          setComposeStatus("No work item selected to add a comment.");
+          return;
+        }
+        if (!draft.trim()) {
+          setComposeStatus("Write a comment before submitting.");
+          if (elements.draftSummary) {
+            requestAnimationFrame(() => elements.draftSummary?.focus());
+          }
+          return;
+        }
         if (mode === "addComment") {
-          const targetId = composeState?.workItemId;
-          if (!targetId) {
-            setComposeStatus("No work item selected to add a comment.");
-            return;
-          }
-          if (!draft.trim()) {
-            setComposeStatus("Write a comment before submitting.");
-            if (elements.draftSummary) {
-              requestAnimationFrame(() => elements.draftSummary?.focus());
-            }
-            return;
-          }
-          setComposeStatus(`Adding a comment to work item #${targetId}...`);
-          postMessage({ type: "addComment", workItemId: targetId, comment: draft });
+          setComposeStatus(`Adding a comment to work item #${workItemId}...`);
         } else {
           setComposeStatus("Stopping timer and applying updates...");
-          postMessage({ type: "stopAndApply", comment: draft });
         }
+        const message = {
+          type: "submitComposeComment",
+          workItemId,
+          comment: draft,
+          mode: mode || "addComment"
+        };
+        if (mode === "timerStop" && composeState) {
+          message.timerData = composeState.timerData;
+          message.connectionInfo = composeState.connectionInfo;
+        }
+        postMessage(message);
         break;
       }
       case "createWorkItem":
@@ -397,6 +503,7 @@ function setupEventListeners() {
   elements.sprintFilter?.addEventListener("change", applyFilters);
   elements.typeFilter?.addEventListener("change", applyFilters);
   elements.assignedToFilter?.addEventListener("change", applyFilters);
+  elements.queryFilter?.addEventListener("change", handleQuerySelectionChange);
 }
 function escapeHtml(input) {
   const str = String(input ?? "");
@@ -683,12 +790,16 @@ function selectConnection(connectionId, options = {}) {
   activeConnectionId = trimmed;
   getFilterStateForConnection(trimmed);
   renderConnectionTabs();
+  applyQuerySelectionToUi(trimmed);
   const cachedItems = workItemsByConnection.get(trimmed);
   const cachedFallback = fallbackNotices.get(trimmed) || null;
   fallbackNotice = cachedFallback;
   if (cachedItems) {
     isLoading = false;
-    handleWorkItemsLoaded(cachedItems, trimmed, { fromCache: true });
+    handleWorkItemsLoaded(cachedItems, trimmed, {
+      fromCache: true,
+      query: getSelectedQueryForConnection(trimmed)
+    });
   } else if (changed) {
     isLoading = true;
     showLoadingState();
@@ -706,7 +817,9 @@ function setupMessageHandling() {
     switch (message.type) {
       case "workItemsLoaded":
         fallbackNotice = null;
-        handleWorkItemsLoaded(message.workItems || [], message.connectionId);
+        handleWorkItemsLoaded(message.workItems || [], message.connectionId, {
+          query: message.query
+        });
         break;
       case "workItemsFallback":
         handleWorkItemsFallback(message);
@@ -746,10 +859,65 @@ function setupMessageHandling() {
           try {
             removeDraftForWorkItem(id);
           } catch (e) {
-            console.warn("[webview] Failed to clear persisted draft after comment", e);
+            console.warn("[webview] Failed to remove persisted draft after add comment", e);
           }
         }
-        setComposeStatus(id ? `Comment added to work item #${id}.` : "Comment added successfully.");
+        setComposeStatus("Comment added successfully.");
+        setTimeout(() => {
+          hideComposePanel({ clearDraft: true });
+        }, 2e3);
+        break;
+      }
+      case "showComposeComment": {
+        const workItemId = typeof message.workItemId === "number" ? message.workItemId : null;
+        const mode = typeof message.mode === "string" ? message.mode : "addComment";
+        let presetText = "";
+        let statusMessage = "";
+        if (mode === "timerStop" && message.timerData) {
+          const hours = Number(
+            message.timerData.hoursDecimal || message.timerData.duration / 3600 || 0
+          );
+          if (composeState) {
+            composeState.timerData = message.timerData;
+            composeState.connectionInfo = message.connectionInfo;
+          }
+          presetText = `Worked approximately ${hours.toFixed(2)} hours. Summarize the key updates you completed.`;
+          statusMessage = `Timer stopped. Review the comment and submit to apply time updates to work item #${workItemId}.`;
+        } else {
+          statusMessage = `Compose a comment for work item #${workItemId}.`;
+        }
+        showComposePanel({
+          mode,
+          workItemId,
+          presetText,
+          message: statusMessage,
+          focus: true,
+          expand: true
+        });
+        break;
+      }
+      case "composeCommentResult": {
+        const id = message.workItemId;
+        const mode = message.mode;
+        const success = message.success;
+        if (!success) {
+          const errorMessage = typeof message.error === "string" && message.error.trim().length > 0 ? message.error.trim() : `Failed to ${mode === "timerStop" ? "apply timer update" : "add comment"}.`;
+          setComposeStatus(errorMessage);
+          break;
+        }
+        if (typeof id === "number") {
+          try {
+            removeDraftForWorkItem(id);
+          } catch (e) {
+            console.warn("[webview] Failed to remove persisted draft after compose", e);
+          }
+        }
+        if (mode === "timerStop") {
+          const hours = message.hours || 0;
+          setComposeStatus(`Applied ${hours.toFixed(2)} hours and comment to work item #${id}.`);
+        } else {
+          setComposeStatus("Comment added successfully.");
+        }
         setTimeout(() => {
           hideComposePanel({ clearDraft: true });
         }, 3e3);
@@ -803,6 +971,12 @@ function setupMessageHandling() {
             filterStateByConnection.delete(id);
           }
         });
+        Array.from(selectedQueryByConnection.keys()).forEach((id) => {
+          if (id === DEFAULT_QUERY_KEY) return;
+          if (!validIds.has(id)) {
+            selectedQueryByConnection.delete(id);
+          }
+        });
         const nextActiveId = typeof message.activeConnectionId === "string" && message.activeConnectionId.trim().length > 0 ? message.activeConnectionId.trim() : list.length > 0 ? list[0].id : null;
         if (nextActiveId) {
           selectConnection(nextActiveId, { fromMessage: true });
@@ -832,6 +1006,16 @@ function updateComposeToggle(expanded) {
 function updateComposeSubmitLabel() {
   if (elements.submitComposeBtn) {
     elements.submitComposeBtn.textContent = getComposeSubmitLabel(composeState?.mode ?? null);
+  }
+}
+function updateComposeButtonVisibility() {
+  const generatePromptBtn = elements.generatePromptBtn;
+  if (generatePromptBtn) {
+    if (composeState?.mode === "timerStop") {
+      generatePromptBtn.style.display = "";
+    } else {
+      generatePromptBtn.style.display = "none";
+    }
   }
 }
 function setComposeStatus(message) {
@@ -864,6 +1048,7 @@ function showComposePanel(options) {
   }
   updateComposeToggle(expand);
   updateComposeSubmitLabel();
+  updateComposeButtonVisibility();
   const workItemId = composeState.workItemId;
   if (typeof workItemId === "number" && Number.isFinite(workItemId)) {
     selectWorkItem(String(workItemId));
@@ -901,6 +1086,7 @@ function hideComposePanel(options) {
   }
   updateComposeToggle(false);
   updateComposeSubmitLabel();
+  updateComposeButtonVisibility();
   setComposeStatus(null);
   if (options?.clearDraft && elements.draftSummary) {
     elements.draftSummary.value = "";
@@ -910,7 +1096,12 @@ function requestWorkItems() {
   if (isLoading) return;
   isLoading = true;
   showLoadingState();
-  postMessage({ type: "getWorkItems" });
+  const query = getSelectedQueryForConnection(activeConnectionId);
+  postMessage({
+    type: "getWorkItems",
+    query,
+    connectionId: activeConnectionId ?? void 0
+  });
 }
 function showLoadingState() {
   if (!elements.workItemsContainer) return;
@@ -964,6 +1155,7 @@ function populateFilterDropdowns(connectionId) {
 function handleWorkItemsLoaded(items, connectionId, options = {}) {
   const trimmedId = typeof connectionId === "string" ? connectionId.trim() : "";
   const fromCache = options.fromCache === true;
+  const incomingQuery = typeof options.query === "string" && options.query.trim().length > 0 ? options.query.trim() : void 0;
   if (trimmedId) {
     workItemsByConnection.set(trimmedId, items);
     if (!fromCache) {
@@ -978,6 +1170,11 @@ function handleWorkItemsLoaded(items, connectionId, options = {}) {
   const connectionKey = trimmedId || activeConnectionId || null;
   if (connectionKey) {
     setTypeOptionsForConnection(connectionKey, extractWorkItemTypes(items));
+    if (incomingQuery) {
+      setSelectedQueryForConnection(connectionKey, incomingQuery);
+    } else if (!selectedQueryByConnection.has(getQueryStorageKey(connectionKey))) {
+      setSelectedQueryForConnection(connectionKey, void 0);
+    }
   }
   const shouldUpdateUi = !trimmedId || targetId === activeConnectionId || !activeConnectionId;
   if (shouldUpdateUi) {
@@ -991,6 +1188,7 @@ function handleWorkItemsLoaded(items, connectionId, options = {}) {
     if (activeConnectionId) {
       fallbackNotice = fallbackNotices.get(activeConnectionId) || null;
     }
+    applyQuerySelectionToUi(activeConnectionId ?? null);
     populateFilterDropdowns(activeConnectionId ?? void 0);
     if (activeConnectionId) {
       applyFilterStateToUi(activeConnectionId);
@@ -1000,7 +1198,7 @@ function handleWorkItemsLoaded(items, connectionId, options = {}) {
 }
 function handleWorkItemsFallback(message) {
   const original = message?.originalQuery ? String(message.originalQuery) : "Configured Query";
-  const fallback = message?.fallbackQuery ? String(message.fallbackQuery) : "My Work Items";
+  const fallback = message?.fallbackQuery ? String(message.fallbackQuery) : "My Activity";
   const defaultQuery = message?.defaultQuery ? String(message.defaultQuery) : void 0;
   const fetchedCount = typeof message?.fetchedCount === "number" ? Number(message.fetchedCount) : void 0;
   const identityMeta = message?.fallbackIdentity;
@@ -1226,7 +1424,7 @@ function renderWorkItems() {
   let bannerHtml = "";
   if (notice) {
     const original = escapeHtml(String(notice.originalQuery || "Configured Query"));
-    const fallback = escapeHtml(String(notice.fallbackQuery || "My Work Items"));
+    const fallback = escapeHtml(String(notice.fallbackQuery || "My Activity"));
     const defaultQueryText = notice.defaultQuery ? ` (default query: ${escapeHtml(String(notice.defaultQuery))})` : "";
     const fetchedSnippet = typeof notice.fetchedCount === "number" ? ` ${notice.fetchedCount} work items loaded.` : "";
     const identity = notice.fallbackIdentity;

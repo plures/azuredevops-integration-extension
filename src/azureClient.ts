@@ -23,6 +23,7 @@ export class AzureDevOpsIntClient {
   public encodedTeam: string | undefined;
   // Capability cache: prefer using [System.StateCategory] unless Azure DevOps rejects it for this org/project
   private preferStateCategory: boolean;
+  private cachedIdentity?: { id?: string; displayName?: string; uniqueName?: string };
 
   constructor(organization: string, project: string, pat: string, options: ClientOptions = {}) {
     this.organization = organization;
@@ -156,12 +157,45 @@ export class AzureDevOpsIntClient {
    * Falls back to null on error.
    */
   async getAuthenticatedUserId(): Promise<string | null> {
+    const identity = await this._getAuthenticatedIdentity();
+    return identity?.id ?? null;
+  }
+
+  private async _getAuthenticatedIdentity(): Promise<{
+    id?: string;
+    displayName?: string;
+    uniqueName?: string;
+  } | null> {
+    if (this.cachedIdentity) return this.cachedIdentity;
     try {
       // Use absolute URL (org-level) to avoid project scoping issues
       const url = `https://dev.azure.com/${this.encodedOrganization}/_apis/connectionData?api-version=7.0`;
       const resp = await this.axios.get(url);
-      const id = resp.data?.authenticatedUser?.id || resp.data?.authenticatedUser?.descriptor;
-      return id || null;
+      const user = resp.data?.authenticatedUser ?? {};
+      const identity = {
+        id:
+          typeof user.id === 'string'
+            ? user.id
+            : typeof user.descriptor === 'string'
+              ? user.descriptor
+              : undefined,
+        displayName:
+          typeof user.providerDisplayName === 'string'
+            ? user.providerDisplayName
+            : typeof user.displayName === 'string'
+              ? user.displayName
+              : undefined,
+        uniqueName:
+          typeof user.uniqueName === 'string'
+            ? user.uniqueName
+            : typeof user.subjectDescriptor === 'string'
+              ? user.subjectDescriptor
+              : typeof user.descriptor === 'string'
+                ? user.descriptor
+                : undefined,
+      };
+      this.cachedIdentity = identity;
+      return this.cachedIdentity;
     } catch (e) {
       console.error('Error fetching authenticated user identity', e);
       return null;
@@ -173,17 +207,30 @@ export class AzureDevOpsIntClient {
     return this._buildWIQL(queryNameOrText, this.preferStateCategory);
   }
 
-  private _buildWIQL(queryNameOrText: string, useStateCategory: boolean) {
-    const fields = `[System.Id], [System.Title], [System.State], [System.WorkItemType], 
+  private _selectFields() {
+    return `[System.Id], [System.Title], [System.State], [System.WorkItemType], 
                            [System.AssignedTo], [System.CreatedDate], [System.ChangedDate],
                            [System.IterationPath], [System.Tags], [Microsoft.VSTS.Common.Priority]`;
+  }
+
+  private _buildWIQL(queryNameOrText: string, useStateCategory: boolean) {
+    const fields = this._selectFields();
     const selectedSprint: string | null = null; // placeholder; inject externally if needed
     const sprintClause = selectedSprint ? `AND [System.IterationPath] = '${selectedSprint}'` : '';
     const activeFilter = this._activeStateFilter(useStateCategory);
     switch (queryNameOrText) {
+      case 'My Activity':
+        return `SELECT ${fields} FROM WorkItems 
+                        WHERE [System.TeamProject] = @Project
+                        AND ([System.AssignedTo] = @Me OR [System.CreatedBy] = @Me OR [System.ChangedBy] = @Me)
+                        ${activeFilter}
+                        ${sprintClause}
+                        ORDER BY [System.ChangedDate] DESC`;
+      case 'Assigned to me':
       case 'My Work Items':
         return `SELECT ${fields} FROM WorkItems 
-                        WHERE [System.AssignedTo] = @Me 
+                        WHERE [System.TeamProject] = @Project
+                        AND [System.AssignedTo] = @Me 
                         ${activeFilter}
                         ${sprintClause}
                         ORDER BY [System.ChangedDate] DESC`;
@@ -222,8 +269,121 @@ export class AzureDevOpsIntClient {
     return `AND [System.State] NOT IN ('Closed','Done','Resolved','Removed')`;
   }
 
+  private _mapRawWorkItems(rawItems: any[]): WorkItem[] {
+    if (!Array.isArray(rawItems)) return [];
+    return rawItems
+      .filter((item: any) => item && typeof item.id === 'number')
+      .map((item: any) => ({ id: item.id, fields: item.fields || {} }) as WorkItem);
+  }
+
+  private async _fetchWorkItemsByIds(ids: number[]): Promise<WorkItem[]> {
+    if (!Array.isArray(ids) || ids.length === 0) return [];
+    const uniqueIds = Array.from(new Set(ids.filter((id) => Number.isFinite(id)))) as number[];
+    if (uniqueIds.length === 0) return [];
+    const results: WorkItem[] = [];
+    const chunkSize = 200;
+    for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+      const chunk = uniqueIds.slice(i, i + chunkSize);
+      if (chunk.length === 0) continue;
+      try {
+        const resp = await this.axios.get(
+          `/wit/workitems?ids=${chunk.join(',')}&$expand=all&api-version=7.0`
+        );
+        const rawItems: any[] = resp.data?.value || [];
+        results.push(...this._mapRawWorkItems(rawItems));
+      } catch (err: any) {
+        console.warn(
+          '[azureDevOpsInt][GETWI] Failed to expand work item chunk',
+          err?.message || err
+        );
+      }
+    }
+    return results;
+  }
+
+  private _filterItemsForProject(items: WorkItem[]): WorkItem[] {
+    if (!Array.isArray(items) || !this.project) return Array.isArray(items) ? [...items] : [];
+    const target = this.project.trim().toLowerCase();
+    return items.filter((item) => {
+      const projectName = item?.fields?.['System.TeamProject'];
+      if (!projectName || typeof projectName !== 'string') return true;
+      return projectName.trim().toLowerCase() === target;
+    });
+  }
+
+  private _sortByChangedDateDesc(items: WorkItem[]): WorkItem[] {
+    return [...items].sort((a, b) => {
+      const aDate = new Date(a?.fields?.['System.ChangedDate'] || 0).getTime();
+      const bDate = new Date(b?.fields?.['System.ChangedDate'] || 0).getTime();
+      return bDate - aDate;
+    });
+  }
+
+  private async _getFollowedWorkItems(): Promise<WorkItem[]> {
+    try {
+      const resp = await this.axios.get('/work/workitems/favorites?api-version=7.0');
+      const entries = Array.isArray(resp.data?.value) ? resp.data.value : [];
+      const ids = entries
+        .map((entry: any) => {
+          if (typeof entry?.workItemId === 'number') return entry.workItemId;
+          if (typeof entry?.id === 'number') return entry.id;
+          const nested = entry?.workItem?.id;
+          return typeof nested === 'number' ? nested : NaN;
+        })
+        .filter((id: number) => Number.isFinite(id)) as number[];
+      if (ids.length === 0) return [];
+      const items = await this._fetchWorkItemsByIds(ids);
+      const filtered = this._filterItemsForProject(items);
+      return this._sortByChangedDateDesc(filtered);
+    } catch (err: any) {
+      console.warn(
+        '[azureDevOpsInt][GETWI] Failed to fetch followed work items',
+        err?.message || err
+      );
+      return [];
+    }
+  }
+
+  private async _getMentionedWorkItems(): Promise<WorkItem[]> {
+    const identity = await this._getAuthenticatedIdentity();
+    if (!identity) return [];
+    const terms = new Set<string>();
+    if (typeof identity.displayName === 'string' && identity.displayName.trim()) {
+      terms.add(identity.displayName.trim());
+    }
+    if (typeof identity.uniqueName === 'string' && identity.uniqueName.trim()) {
+      terms.add(identity.uniqueName.trim());
+    }
+    if (terms.size === 0) return [];
+    const clauses = Array.from(terms).map(
+      (term) => `[System.History] CONTAINS '${this._escapeWIQL(term)}'`
+    );
+    const fields = this._selectFields();
+    const stateFilter = this._activeStateFilter(this.preferStateCategory);
+    const query = `SELECT ${fields} FROM WorkItems 
+                        WHERE [System.TeamProject] = @Project
+                        AND (${clauses.join(' OR ')})
+                        ${stateFilter}
+                        ORDER BY [System.ChangedDate] DESC`;
+    try {
+      return await this.runWIQL(query);
+    } catch (err: any) {
+      console.warn(
+        '[azureDevOpsInt][GETWI] Failed to fetch mentioned work items',
+        err?.message || err
+      );
+      return [];
+    }
+  }
+
   async getWorkItems(query: string): Promise<WorkItem[]> {
     try {
+      if (query === 'Following') {
+        return await this._getFollowedWorkItems();
+      }
+      if (query === 'Mentioned') {
+        return await this._getMentionedWorkItems();
+      }
       let wiql = this.buildWIQL(query);
       // If querying Current Sprint, prefer resolving the explicit current iteration path for configured team
       if (query === 'Current Sprint') {
@@ -305,15 +465,7 @@ export class AzureDevOpsIntClient {
       const rawItems: any[] = itemsResp.data?.value || [];
       console.log('[azureDevOpsInt][GETWI] Raw expanded item count:', rawItems.length);
 
-      const items: WorkItem[] = rawItems
-        .filter((item: any) => !!item)
-        .map((item: any) => {
-          const fields = item.fields || {};
-          return {
-            id: item.id,
-            fields: fields,
-          } as WorkItem;
-        });
+      const items: WorkItem[] = this._mapRawWorkItems(rawItems);
 
       console.log(`[azureDevOpsInt][GETWI] Returning ${items.length} mapped work items.`);
       return items;

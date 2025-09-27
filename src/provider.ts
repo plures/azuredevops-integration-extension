@@ -21,6 +21,8 @@ function isProviderOptions(value: any): value is ProviderOptions {
   return value && typeof value === 'object' && !Array.isArray(value);
 }
 
+const DEFAULT_QUERY = 'My Activity';
+
 export class WorkItemsProvider {
   private connectionId: string;
   private client: AzureDevOpsIntClient | undefined;
@@ -34,6 +36,7 @@ export class WorkItemsProvider {
   private _refreshInFlight = false;
   private _lastRefreshTs = 0;
   private _workItemTypes: string[] = [];
+  private _currentQuery: string = DEFAULT_QUERY;
 
   constructor(
     connectionOrClient: string | AzureDevOpsIntClient,
@@ -84,7 +87,7 @@ export class WorkItemsProvider {
     return this.connectionId;
   }
 
-  async refresh(defaultQuery = 'My Work Items') {
+  async refresh(query?: string) {
     if (!this.client || typeof (this.client as any).getWorkItems !== 'function') {
       this.log('warn', 'Cannot refresh work items; client missing getWorkItems');
       return;
@@ -100,6 +103,12 @@ export class WorkItemsProvider {
     }
     this._refreshInFlight = true;
     try {
+      const normalizedQuery =
+        typeof query === 'string' && query.trim().length > 0
+          ? query.trim()
+          : this._currentQuery || DEFAULT_QUERY;
+      this._currentQuery = normalizedQuery;
+
       const shouldFetchTypes =
         this._workItemTypes.length === 0 &&
         typeof (this.client as any).getWorkItemTypes === 'function';
@@ -117,9 +126,9 @@ export class WorkItemsProvider {
 
       this.log('debug', 'refresh(): starting fetch', {
         connectionId: this.connectionId,
-        query: defaultQuery,
+        query: normalizedQuery,
       });
-      const fetched = await this.client.getWorkItems(defaultQuery);
+      const fetched = await this.client.getWorkItems(normalizedQuery);
       this.log('info', 'refresh(): completed fetch', {
         connectionId: this.connectionId,
         count: Array.isArray(fetched) ? fetched.length : 'n/a',
@@ -144,7 +153,7 @@ export class WorkItemsProvider {
       if (fetched.length === 0) {
         this.log('debug', 'refresh(): no results for query', {
           connectionId: this.connectionId,
-          query: defaultQuery,
+          query: normalizedQuery,
         });
       }
     } catch (err: any) {
@@ -272,6 +281,7 @@ export class WorkItemsProvider {
       type: 'workItemsLoaded',
       workItems: this._workItems,
       kanbanView: this._kanbanView,
+      query: this._currentQuery,
     });
     this._postWorkItemTypeOptions();
     if (Object.keys(this._currentFilters).length > 0)

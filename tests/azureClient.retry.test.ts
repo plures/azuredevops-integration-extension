@@ -18,7 +18,7 @@ describe('AzureDevOpsIntClient retry behavior', function () {
       .get(/.*wit\/workitems\?.*/)
       .reply(200, { value: [{ id: 55, fields: {} }] });
 
-    const items = await client.getWorkItems('My Work Items');
+    const items = await client.getWorkItems('My Activity');
     expect(items).to.have.length.greaterThan(0);
     expect(scope.isDone()).to.equal(true);
   }).timeout(10000);

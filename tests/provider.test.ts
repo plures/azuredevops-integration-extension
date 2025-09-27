@@ -32,7 +32,7 @@ describe('WorkItemsProvider', () => {
       getWorkItemTypes: async () => [{ name: 'Task' }, { name: 'Bug' }],
     } as any;
     const provider = new WorkItemsProvider('connection', client, (msg) => posted.push(msg), {});
-    await provider.refresh('My Work Items');
+    await provider.refresh('My Activity');
     const typeMessage = posted.find((p) => p.type === 'workItemTypeOptions');
     expect(typeMessage).to.exist;
     expect(typeMessage.types).to.include('Task');

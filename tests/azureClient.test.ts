@@ -6,11 +6,23 @@ import { AzureDevOpsIntClient } from '../src/azureClient.ts';
 describe('AzureDevOpsIntClient', function () {
   afterEach(() => nock.cleanAll());
 
-  it('buildWIQL returns expected string for "My Work Items"', function () {
+  it('buildWIQL returns expected string for "My Activity"', function () {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
-    const wiql = client.buildWIQL('My Work Items');
+    const wiql = client.buildWIQL('My Activity');
     expect(wiql).to.match(/SELECT [\s\S]* FROM WorkItems/);
-    expect(wiql).to.include('WHERE [System.AssignedTo] = @Me');
+    expect(wiql).to.include('[System.TeamProject] = @Project');
+    expect(wiql).to.include('[System.AssignedTo] = @Me');
+    expect(wiql).to.include('[System.CreatedBy] = @Me');
+    expect(wiql).to.include('[System.ChangedBy] = @Me');
+  });
+
+  it('buildWIQL returns expected string for "Assigned to me"', function () {
+    const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
+    const wiql = client.buildWIQL('Assigned to me');
+    expect(wiql).to.match(/SELECT [\s\S]* FROM WorkItems/);
+    expect(wiql).to.include('[System.TeamProject] = @Project');
+    expect(wiql).to.include('WHERE [System.TeamProject] = @Project');
+    expect(wiql).to.include('[System.AssignedTo] = @Me');
   });
 
   it('buildWIQL returns expected string for "All Active"', function () {
@@ -27,6 +39,60 @@ describe('AzureDevOpsIntClient', function () {
     expect(wiql).to.match(/SELECT[\s\S]*FROM WorkItems/);
     expect(wiql).to.include('[System.ChangedDate]');
     expect(wiql).to.include('ORDER BY [System.ChangedDate] DESC');
+  });
+
+  it('getWorkItems fetches followed work items via favorites API', async function () {
+    const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
+    nock('https://dev.azure.com')
+      .get('/org/proj/_apis/work/workitems/favorites?api-version=7.0')
+      .reply(200, { value: [{ workItemId: 101 }, { workItemId: 202 }] });
+    nock('https://dev.azure.com')
+      .get(/\/org\/proj\/_apis\/wit\/workitems\?ids=101,202.*$/)
+      .reply(200, {
+        value: [
+          {
+            id: 101,
+            fields: { 'System.TeamProject': 'proj', 'System.Title': 'Followed Item' },
+          },
+          {
+            id: 202,
+            fields: { 'System.TeamProject': 'other', 'System.Title': 'Other Project' },
+          },
+        ],
+      });
+    const items = await client.getWorkItems('Following');
+    expect(items).to.have.length(1);
+    expect(items[0]).to.have.property('id', 101);
+  });
+
+  it('getWorkItems builds mention query with authenticated identity', async function () {
+    const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
+    nock('https://dev.azure.com')
+      .get('/org/_apis/connectionData?api-version=7.0')
+      .reply(200, {
+        authenticatedUser: { displayName: 'Test User', uniqueName: 'user@example.com' },
+      });
+    const wiqlScope = nock('https://dev.azure.com')
+      .post(/\/org\/proj\/_apis\/wit\/wiql.*$/, (body) => {
+        expect(body.query).to.include('[System.History] CONTAINS');
+        expect(body.query).to.include('user@example.com');
+        expect(body.query).to.include('Test User');
+        return true;
+      })
+      .reply(200, { workItems: [{ id: 303 }] });
+    nock('https://dev.azure.com')
+      .get(/\/org\/proj\/_apis\/wit\/workitems\?ids=303.*$/)
+      .reply(200, {
+        value: [
+          {
+            id: 303,
+            fields: { 'System.TeamProject': 'proj', 'System.Title': 'Mentioned Item' },
+          },
+        ],
+      });
+    const items = await client.getWorkItems('Mentioned');
+    expect(items).to.have.length(1);
+    expect(wiqlScope.isDone()).to.equal(true);
   });
 
   it('getWorkItems handles empty WIQL response gracefully', async function () {

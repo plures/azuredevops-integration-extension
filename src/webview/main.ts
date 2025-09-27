@@ -76,6 +76,17 @@ const fallbackNotices = new Map<string, FallbackNoticeData | null>();
 const typeOptionsByConnection = new Map<string, string[]>();
 let searchHaystackCache = new WeakMap<any, string>();
 
+const DEFAULT_QUERY = 'My Activity';
+const QUERY_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'My Activity', label: 'My Activity' },
+  { value: 'Assigned to me', label: 'Assigned to me' },
+  { value: 'Following', label: 'Following' },
+  { value: 'Mentioned', label: 'Mentioned' },
+];
+const DEFAULT_QUERY_KEY = '__default__';
+const selectedQueryByConnection = new Map<string, string>();
+selectedQueryByConnection.set(DEFAULT_QUERY_KEY, DEFAULT_QUERY);
+
 type FilterState = {
   search: string;
   sprint: string;
@@ -160,6 +171,97 @@ function extractWorkItemTypes(items: any[]): string[] {
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
+function getQueryStorageKey(connectionId: string | null | undefined): string {
+  if (typeof connectionId === 'string') {
+    const trimmed = connectionId.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return DEFAULT_QUERY_KEY;
+}
+
+function normalizeQueryValue(raw: unknown): string {
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return DEFAULT_QUERY;
+}
+
+function ensureQueryOption(value: string) {
+  const select = elements.queryFilter;
+  if (!select) return;
+  for (let i = 0; i < select.options.length; i += 1) {
+    if (select.options[i]?.value === value) {
+      return;
+    }
+  }
+  const option = document.createElement('option');
+  option.value = value;
+  option.textContent = value;
+  select.appendChild(option);
+}
+
+function setSelectedQueryForConnection(
+  connectionId: string | null | undefined,
+  query: string | undefined
+): string {
+  const key = getQueryStorageKey(connectionId);
+  const normalized = normalizeQueryValue(query);
+  selectedQueryByConnection.set(key, normalized);
+  if (key !== DEFAULT_QUERY_KEY) {
+    selectedQueryByConnection.set(DEFAULT_QUERY_KEY, normalized);
+  }
+  return normalized;
+}
+
+function getSelectedQueryForConnection(connectionId: string | null | undefined): string {
+  const key = getQueryStorageKey(connectionId);
+  if (selectedQueryByConnection.has(key)) {
+    return selectedQueryByConnection.get(key)!;
+  }
+  const fallback = selectedQueryByConnection.get(DEFAULT_QUERY_KEY) ?? DEFAULT_QUERY;
+  selectedQueryByConnection.set(key, fallback);
+  return fallback;
+}
+
+function applyQuerySelectionToUi(connectionId: string | null | undefined) {
+  const select = elements.queryFilter;
+  if (!select) return;
+  const value = getSelectedQueryForConnection(connectionId);
+  ensureQueryOption(value);
+  select.value = value;
+}
+
+function initializeQueryDropdown() {
+  const select = elements.queryFilter;
+  if (!select) return;
+  select.innerHTML = '';
+  QUERY_OPTIONS.forEach(({ value, label }) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    select.appendChild(option);
+  });
+  const initial = getSelectedQueryForConnection(activeConnectionId);
+  ensureQueryOption(initial);
+  select.value = initial;
+}
+
+function handleQuerySelectionChange() {
+  const select = elements.queryFilter;
+  if (!select) return;
+  const normalized = setSelectedQueryForConnection(activeConnectionId, select.value);
+  ensureQueryOption(normalized);
+  applyQuerySelectionToUi(activeConnectionId);
+  isLoading = true;
+  showLoadingState();
+  postMessage({
+    type: 'setQuery',
+    query: normalized,
+    connectionId: activeConnectionId ?? undefined,
+  });
+}
+
 function persistCurrentFilterState() {
   const connectionId = activeConnectionId;
   if (!connectionId) return;
@@ -210,6 +312,7 @@ const elements = {
   connectionTabs: null as HTMLElement | null,
   sprintFilter: null as HTMLSelectElement | null,
   typeFilter: null as HTMLSelectElement | null,
+  queryFilter: null as HTMLSelectElement | null,
   assignedToFilter: null as HTMLSelectElement | null,
   excludeDone: null as HTMLInputElement | null,
   excludeClosed: null as HTMLInputElement | null,
@@ -231,6 +334,7 @@ const elements = {
   toggleSummaryBtn: null as HTMLButtonElement | null,
   summaryStatus: null as HTMLElement | null,
   submitComposeBtn: null as HTMLButtonElement | null,
+  generatePromptBtn: null as HTMLButtonElement | null,
 };
 
 // Initialize the application
@@ -241,6 +345,7 @@ function init() {
   elements.connectionTabs = document.getElementById('connectionTabs');
   elements.sprintFilter = document.getElementById('sprintFilter') as HTMLSelectElement;
   elements.typeFilter = document.getElementById('typeFilter') as HTMLSelectElement;
+  elements.queryFilter = document.getElementById('queryFilter') as HTMLSelectElement;
   elements.assignedToFilter = document.getElementById('assignedToFilter') as HTMLSelectElement;
   elements.excludeDone = document.getElementById('excludeDone') as HTMLInputElement;
   elements.excludeClosed = document.getElementById('excludeClosed') as HTMLInputElement;
@@ -271,6 +376,7 @@ function init() {
   ) as HTMLButtonElement;
   elements.summaryStatus = document.getElementById('summaryStatus');
   elements.submitComposeBtn = document.getElementById('submitComposeBtn') as HTMLButtonElement;
+  elements.generatePromptBtn = document.getElementById('generatePromptBtn') as HTMLButtonElement;
 
   if (elements.summarySection) elements.summarySection.setAttribute('hidden', '');
   if (elements.summaryContainer) elements.summaryContainer.setAttribute('hidden', '');
@@ -288,6 +394,9 @@ function init() {
     console.error('[webview] Critical: workItemsContainer element not found');
     return;
   }
+
+  initializeQueryDropdown();
+  applyQuerySelectionToUi(activeConnectionId);
 
   // Set up event listeners
   console.log('[webview] Initializing webview...');
@@ -380,28 +489,46 @@ function setupEventListeners() {
         postMessage({ type: 'generateCopilotPrompt', workItemId, draftSummary: draft });
         break;
       }
+      case 'stopAndApply':
       case 'submitCompose': {
         const draft = elements.draftSummary ? elements.draftSummary.value : '';
         const mode = composeState?.mode ?? (currentTimer ? 'timerStop' : null);
+        const workItemId = composeState?.workItemId;
+
+        if (!workItemId) {
+          setComposeStatus('No work item selected to add a comment.');
+          return;
+        }
+
+        if (!draft.trim()) {
+          setComposeStatus('Write a comment before submitting.');
+          if (elements.draftSummary) {
+            requestAnimationFrame(() => elements.draftSummary?.focus());
+          }
+          return;
+        }
+
         if (mode === 'addComment') {
-          const targetId = composeState?.workItemId;
-          if (!targetId) {
-            setComposeStatus('No work item selected to add a comment.');
-            return;
-          }
-          if (!draft.trim()) {
-            setComposeStatus('Write a comment before submitting.');
-            if (elements.draftSummary) {
-              requestAnimationFrame(() => elements.draftSummary?.focus());
-            }
-            return;
-          }
-          setComposeStatus(`Adding a comment to work item #${targetId}...`);
-          postMessage({ type: 'addComment', workItemId: targetId, comment: draft });
+          setComposeStatus(`Adding a comment to work item #${workItemId}...`);
         } else {
           setComposeStatus('Stopping timer and applying updates...');
-          postMessage({ type: 'stopAndApply', comment: draft });
         }
+
+        // Use unified message with additional data for timer stops
+        const message: any = {
+          type: 'submitComposeComment',
+          workItemId,
+          comment: draft,
+          mode: mode || 'addComment',
+        };
+
+        // Include timer data and connection info for timer stops
+        if (mode === 'timerStop' && composeState) {
+          message.timerData = (composeState as any).timerData;
+          message.connectionInfo = (composeState as any).connectionInfo;
+        }
+
+        postMessage(message);
         break;
       }
       case 'createWorkItem':
@@ -529,6 +656,7 @@ function setupEventListeners() {
   elements.sprintFilter?.addEventListener('change', applyFilters);
   elements.typeFilter?.addEventListener('change', applyFilters);
   elements.assignedToFilter?.addEventListener('change', applyFilters);
+  elements.queryFilter?.addEventListener('change', handleQuerySelectionChange);
 }
 
 // Filter and render functions
@@ -913,6 +1041,7 @@ function selectConnection(connectionId: string, options: { fromMessage?: boolean
   activeConnectionId = trimmed;
   getFilterStateForConnection(trimmed);
   renderConnectionTabs();
+  applyQuerySelectionToUi(trimmed);
 
   const cachedItems = workItemsByConnection.get(trimmed);
   const cachedFallback = fallbackNotices.get(trimmed) || null;
@@ -920,7 +1049,10 @@ function selectConnection(connectionId: string, options: { fromMessage?: boolean
 
   if (cachedItems) {
     isLoading = false;
-    handleWorkItemsLoaded(cachedItems, trimmed, { fromCache: true });
+    handleWorkItemsLoaded(cachedItems, trimmed, {
+      fromCache: true,
+      query: getSelectedQueryForConnection(trimmed),
+    });
   } else if (changed) {
     isLoading = true;
     showLoadingState();
@@ -941,7 +1073,9 @@ function setupMessageHandling() {
     switch (message.type) {
       case 'workItemsLoaded':
         fallbackNotice = null;
-        handleWorkItemsLoaded(message.workItems || [], message.connectionId);
+        handleWorkItemsLoaded(message.workItems || [], message.connectionId, {
+          query: message.query,
+        });
         break;
       case 'workItemsFallback':
         handleWorkItemsFallback(message);
@@ -985,10 +1119,76 @@ function setupMessageHandling() {
           try {
             removeDraftForWorkItem(id);
           } catch (e) {
-            console.warn('[webview] Failed to clear persisted draft after comment', e);
+            console.warn('[webview] Failed to remove persisted draft after add comment', e);
           }
         }
-        setComposeStatus(id ? `Comment added to work item #${id}.` : 'Comment added successfully.');
+        setComposeStatus('Comment added successfully.');
+        setTimeout(() => {
+          hideComposePanel({ clearDraft: true });
+        }, 2000);
+        break;
+      }
+      case 'showComposeComment': {
+        const workItemId = typeof message.workItemId === 'number' ? message.workItemId : null;
+        const mode = typeof message.mode === 'string' ? message.mode : 'addComment';
+        let presetText = '';
+        let statusMessage = '';
+
+        if (mode === 'timerStop' && message.timerData) {
+          const hours = Number(
+            message.timerData.hoursDecimal || message.timerData.duration / 3600 || 0
+          );
+          // Store timer data in compose state for later submission
+          if (composeState) {
+            (composeState as any).timerData = message.timerData;
+            (composeState as any).connectionInfo = message.connectionInfo;
+          }
+          presetText = `Worked approximately ${hours.toFixed(2)} hours. Summarize the key updates you completed.`;
+          statusMessage = `Timer stopped. Review the comment and submit to apply time updates to work item #${workItemId}.`;
+        } else {
+          statusMessage = `Compose a comment for work item #${workItemId}.`;
+        }
+
+        showComposePanel({
+          mode: mode as ComposeMode,
+          workItemId,
+          presetText,
+          message: statusMessage,
+          focus: true,
+          expand: true,
+        });
+        break;
+      }
+      case 'composeCommentResult': {
+        const id = message.workItemId;
+        const mode = message.mode;
+        const success = message.success;
+
+        if (!success) {
+          const errorMessage =
+            typeof message.error === 'string' && message.error.trim().length > 0
+              ? message.error.trim()
+              : `Failed to ${mode === 'timerStop' ? 'apply timer update' : 'add comment'}.`;
+          setComposeStatus(errorMessage);
+          break;
+        }
+
+        // Success case
+        if (typeof id === 'number') {
+          try {
+            removeDraftForWorkItem(id);
+          } catch (e) {
+            console.warn('[webview] Failed to remove persisted draft after compose', e);
+          }
+        }
+
+        if (mode === 'timerStop') {
+          const hours = message.hours || 0;
+          setComposeStatus(`Applied ${hours.toFixed(2)} hours and comment to work item #${id}.`);
+        } else {
+          setComposeStatus('Comment added successfully.');
+        }
+
         setTimeout(() => {
           hideComposePanel({ clearDraft: true });
         }, 3000);
@@ -1065,6 +1265,12 @@ function setupMessageHandling() {
             filterStateByConnection.delete(id);
           }
         });
+        Array.from(selectedQueryByConnection.keys()).forEach((id) => {
+          if (id === DEFAULT_QUERY_KEY) return;
+          if (!validIds.has(id)) {
+            selectedQueryByConnection.delete(id);
+          }
+        });
 
         const nextActiveId =
           typeof message.activeConnectionId === 'string' &&
@@ -1105,6 +1311,18 @@ function updateComposeToggle(expanded: boolean) {
 function updateComposeSubmitLabel() {
   if (elements.submitComposeBtn) {
     elements.submitComposeBtn.textContent = getComposeSubmitLabel(composeState?.mode ?? null);
+  }
+}
+
+function updateComposeButtonVisibility() {
+  const generatePromptBtn = elements.generatePromptBtn;
+  if (generatePromptBtn) {
+    // Show Copilot button only for timer stops
+    if (composeState?.mode === 'timerStop') {
+      generatePromptBtn.style.display = '';
+    } else {
+      generatePromptBtn.style.display = 'none';
+    }
   }
 }
 
@@ -1153,6 +1371,7 @@ function showComposePanel(options: ShowComposeOptions) {
   }
   updateComposeToggle(expand);
   updateComposeSubmitLabel();
+  updateComposeButtonVisibility();
 
   const workItemId = composeState.workItemId;
   if (typeof workItemId === 'number' && Number.isFinite(workItemId)) {
@@ -1198,6 +1417,7 @@ function hideComposePanel(options?: HideComposeOptions) {
   }
   updateComposeToggle(false);
   updateComposeSubmitLabel();
+  updateComposeButtonVisibility();
   setComposeStatus(null);
   if (options?.clearDraft && elements.draftSummary) {
     elements.draftSummary.value = '';
@@ -1209,7 +1429,12 @@ function requestWorkItems() {
 
   isLoading = true;
   showLoadingState();
-  postMessage({ type: 'getWorkItems' });
+  const query = getSelectedQueryForConnection(activeConnectionId);
+  postMessage({
+    type: 'getWorkItems',
+    query,
+    connectionId: activeConnectionId ?? undefined,
+  });
 }
 
 function showLoadingState() {
@@ -1290,10 +1515,14 @@ function populateFilterDropdowns(connectionId?: string) {
 function handleWorkItemsLoaded(
   items: any[],
   connectionId?: string | null,
-  options: { fromCache?: boolean } = {}
+  options: { fromCache?: boolean; query?: string } = {}
 ) {
   const trimmedId = typeof connectionId === 'string' ? connectionId.trim() : '';
   const fromCache = options.fromCache === true;
+  const incomingQuery =
+    typeof options.query === 'string' && options.query.trim().length > 0
+      ? options.query.trim()
+      : undefined;
 
   if (trimmedId) {
     workItemsByConnection.set(trimmedId, items);
@@ -1311,6 +1540,11 @@ function handleWorkItemsLoaded(
   const connectionKey = trimmedId || activeConnectionId || null;
   if (connectionKey) {
     setTypeOptionsForConnection(connectionKey, extractWorkItemTypes(items));
+    if (incomingQuery) {
+      setSelectedQueryForConnection(connectionKey, incomingQuery);
+    } else if (!selectedQueryByConnection.has(getQueryStorageKey(connectionKey))) {
+      setSelectedQueryForConnection(connectionKey, undefined);
+    }
   }
   const shouldUpdateUi = !trimmedId || targetId === activeConnectionId || !activeConnectionId;
 
@@ -1325,6 +1559,7 @@ function handleWorkItemsLoaded(
     if (activeConnectionId) {
       fallbackNotice = fallbackNotices.get(activeConnectionId) || null;
     }
+    applyQuerySelectionToUi(activeConnectionId ?? null);
     populateFilterDropdowns(activeConnectionId ?? undefined);
     if (activeConnectionId) {
       applyFilterStateToUi(activeConnectionId);
@@ -1335,7 +1570,7 @@ function handleWorkItemsLoaded(
 
 function handleWorkItemsFallback(message: any) {
   const original = message?.originalQuery ? String(message.originalQuery) : 'Configured Query';
-  const fallback = message?.fallbackQuery ? String(message.fallbackQuery) : 'My Work Items';
+  const fallback = message?.fallbackQuery ? String(message.fallbackQuery) : 'My Activity';
   const defaultQuery = message?.defaultQuery ? String(message.defaultQuery) : undefined;
   const fetchedCount =
     typeof message?.fetchedCount === 'number' ? Number(message.fetchedCount) : undefined;
@@ -1610,7 +1845,7 @@ function renderWorkItems() {
   let bannerHtml = '';
   if (notice) {
     const original = escapeHtml(String(notice.originalQuery || 'Configured Query'));
-    const fallback = escapeHtml(String(notice.fallbackQuery || 'My Work Items'));
+    const fallback = escapeHtml(String(notice.fallbackQuery || 'My Activity'));
     const defaultQueryText = notice.defaultQuery
       ? ` (default query: ${escapeHtml(String(notice.defaultQuery))})`
       : '';

@@ -36,6 +36,7 @@ export type PostWorkItemsSnapshotParams = {
   kanbanView?: boolean;
   provider?: WorkItemsProvider;
   types?: string[];
+  query?: string;
   logger?: LoggerFn;
 };
 
@@ -46,6 +47,7 @@ export function postWorkItemsSnapshot({
   kanbanView,
   provider,
   types,
+  query,
   logger,
 }: PostWorkItemsSnapshotParams): void {
   const itemsArray = Array.isArray(items) ? items : [];
@@ -57,6 +59,7 @@ export function postWorkItemsSnapshot({
       connectionId,
       workItems: itemsArray,
       kanbanView: !!kanbanView,
+      query,
     },
   });
 

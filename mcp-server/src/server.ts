@@ -103,7 +103,7 @@ const methods: Record<string, (id: any, params: any) => Promise<void>> = {
   },
 
   async listWorkItems(id, params) {
-    const query = params?.query || 'My Work Items';
+    const query = params?.query || 'My Activity';
     try {
       const items = await getClient().getWorkItems(query);
       respond(ok(id, flattenArray(items)));

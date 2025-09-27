@@ -64,9 +64,9 @@ describe('resolveDefaultQuery', () => {
     expect(resolveDefaultQuery(cfg)).to.equal('SELECT * FROM WorkItems');
   });
 
-  it('returns My Work Items when no overrides provided', () => {
+  it('returns My Activity when no overrides provided', () => {
     const cfg = makeConfig({}, { defaults: { workItemQuery: DEFAULT_WORK_ITEM_QUERY } });
-    expect(resolveDefaultQuery(cfg)).to.equal('My Work Items');
+    expect(resolveDefaultQuery(cfg)).to.equal('My Activity');
   });
 
   it('falls back to workItemQuery when inspect not available', () => {
