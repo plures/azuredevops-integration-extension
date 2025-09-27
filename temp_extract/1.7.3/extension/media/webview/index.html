@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -13,8 +13,28 @@
         --vscode-button-foreground: var(--vscode-button-foreground, #ffffff);
         --vscode-button-hoverBackground: var(--vscode-button-hoverBackground, #1177bb);
         --vscode-editorWidget-border: var(--vscode-editorWidget-border, #454545);
+        --vscode-list-hoverBackground: var(--vscode-list-hoverBackground, #2a2d2e);
         --vscode-badge-background: var(--vscode-badge-background, #4d4d4d);
         --vscode-badge-foreground: var(--vscode-badge-foreground, #ffffff);
+
+        /* ADO-inspired accent colors (small stripes/dots only; backgrounds still respect theme) */
+        --ado-state-new: #b2b2b2;
+        --ado-state-todo: #b2b2b2;
+        --ado-state-active: #007acc;
+        --ado-state-inprogress: #e69700;
+        --ado-state-doing: #e69700;
+        --ado-state-review: #6b4eff;
+        --ado-state-testing: #0098c7;
+        --ado-state-resolved: #339933;
+        --ado-state-done: #339933;
+  --ado-state-closed: #339933;
+        --ado-state-removed: #ff6347;
+
+        --ado-type-bug: #d83b01;
+        --ado-type-task: #a4880a;
+        --ado-type-story: #0098c7;
+        --ado-type-feature: #7fba00;
+        --ado-type-epic: #744da9;
       }
 
       * {
@@ -109,57 +129,9 @@
         font-weight: 600;
       }
 
-      .connection-tabs {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 16px;
-        border-bottom: 1px solid var(--vscode-editorWidget-border);
-        background: var(--vscode-editorGroupHeader-tabsBackground);
-        overflow-x: auto;
-        scrollbar-width: thin;
-      }
-
-      .connection-tab {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        border-radius: 6px 6px 0 0;
-        border: 1px solid transparent;
-        border-bottom: none;
-        cursor: pointer;
-        font-size: 12px;
-        color: var(--vscode-editor-foreground);
-        background: transparent;
-        transition:
-          background-color 0.2s ease,
-          color 0.2s ease,
-          border-color 0.2s ease;
-        white-space: nowrap;
-      }
-
-      .connection-tab:hover {
-        background: var(--vscode-list-hoverBackground);
-      }
-
-      .connection-tab.active {
-        color: var(--vscode-tab-activeForeground, var(--vscode-editor-foreground));
-        background: var(--vscode-editor-background);
-        border-color: var(--vscode-focusBorder);
-        border-bottom: 1px solid var(--vscode-editor-background);
-      }
-
-      .connection-tab .connection-meta {
-        font-size: 10px;
-        opacity: 0.7;
-      }
-
       .filters-container {
         display: flex;
         gap: 8px;
-        flex-wrap: wrap;
-        row-gap: 8px;
         padding: 8px 16px;
         border-bottom: 1px solid var(--vscode-editorWidget-border);
         background: var(--vscode-editor-background);
@@ -311,7 +283,7 @@
       .work-item-card {
         display: flex;
         flex-direction: column;
-        padding: 12px;
+        padding: 10px;
         border: 1px solid var(--vscode-editorWidget-border);
         margin-bottom: 8px;
         border-radius: 6px;
@@ -320,6 +292,41 @@
         background: var(--vscode-editor-background);
         position: relative;
       }
+
+      /* ADO-like left accent stripe by state */
+      .work-item-card::before,
+      .kanban-card::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        border-radius: 6px 0 0 6px;
+        background: transparent;
+      }
+      .work-item-card.state-new::before,
+      .kanban-card.state-new::before { background: var(--ado-state-new); }
+      .work-item-card.state-todo::before,
+      .kanban-card.state-todo::before { background: var(--ado-state-todo); }
+      .work-item-card.state-active::before,
+      .kanban-card.state-active::before { background: var(--ado-state-active); }
+      .work-item-card.state-inprogress::before,
+      .kanban-card.state-inprogress::before { background: var(--ado-state-inprogress); }
+      .work-item-card.state-doing::before,
+      .kanban-card.state-doing::before { background: var(--ado-state-doing); }
+      .work-item-card.state-review::before,
+      .kanban-card.state-review::before { background: var(--ado-state-review); }
+      .work-item-card.state-testing::before,
+      .kanban-card.state-testing::before { background: var(--ado-state-testing); }
+      .work-item-card.state-resolved::before,
+      .kanban-card.state-resolved::before { background: var(--ado-state-resolved); }
+      .work-item-card.state-done::before,
+      .kanban-card.state-done::before { background: var(--ado-state-done); }
+      .work-item-card.state-closed::before,
+      .kanban-card.state-closed::before { background: var(--ado-state-closed); }
+      .work-item-card.state-removed::before,
+      .kanban-card.state-removed::before { background: var(--ado-state-removed); }
 
       .work-item-card:hover {
         background: var(--vscode-list-hoverBackground);
@@ -330,13 +337,57 @@
       .work-item-card.selected {
         border-color: var(--vscode-focusBorder);
         background: var(--vscode-list-activeSelectionBackground);
+        color: var(--vscode-list-activeSelectionForeground);
+      }
+      /* Persist readable contrast when hovering selected cards */
+      .work-item-card.selected:hover,
+      .kanban-card.selected:hover {
+        color: var(--vscode-list-activeSelectionForeground);
+      }
+      .work-item-card.selected:hover .work-item-title,
+      .kanban-card.selected:hover .work-item-title {
+        color: var(--vscode-list-activeSelectionForeground) !important;
+        text-decoration: underline;
+      }
+      .work-item-card.selected:hover .work-item-description,
+      .kanban-card.selected:hover .work-item-description,
+      .work-item-card.selected:hover .work-item-assignee,
+      .kanban-card.selected:hover .work-item-assignee,
+      .work-item-card.selected:hover .work-item-iteration,
+      .kanban-card.selected:hover .work-item-iteration {
+        color: var(--vscode-list-activeSelectionForeground);
+      }
+      /* Ensure text inside selected cards contrasts with selection background */
+      .work-item-card.selected .work-item-title,
+      .kanban-card.selected .work-item-title {
+        color: var(--vscode-list-activeSelectionForeground) !important;
+        text-decoration: none;
+      }
+      .work-item-card.selected .work-item-description,
+      .kanban-card.selected .work-item-description,
+      .work-item-card.selected .work-item-assignee,
+      .kanban-card.selected .work-item-assignee,
+      .work-item-card.selected .work-item-iteration,
+      .kanban-card.selected .work-item-iteration {
+        color: var(--vscode-list-activeSelectionForeground);
+      }
+      /* Ensure selected cards also neutralize colored icon/priority for readability */
+      .work-item-card.selected .work-item-type-icon,
+      .kanban-card.selected .work-item-type-icon,
+      .work-item-card.selected .work-item-priority,
+      .kanban-card.selected .work-item-priority {
+        color: var(--vscode-list-activeSelectionForeground) !important;
+      }
+      /* Kanban selected card uses same foreground for readability */
+      .kanban-card.selected {
+        color: var(--vscode-list-activeSelectionForeground);
       }
 
       .work-item-header {
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
       }
 
       .work-item-type-icon {
@@ -348,27 +399,19 @@
         justify-content: center;
         border-radius: 4px;
         flex-shrink: 0;
+        /* ADO-like: colorized icon, no colored background block */
+        background: transparent;
       }
-
-      .type-bug {
-        background: rgba(255, 99, 71, 0.1);
-      }
-      .type-task {
-        background: rgba(100, 149, 237, 0.1);
-      }
-      .type-story {
-        background: rgba(50, 205, 50, 0.1);
-      }
-      .type-feature {
-        background: rgba(255, 215, 0, 0.1);
-      }
-      .type-epic {
-        background: rgba(138, 43, 226, 0.1);
-      }
+      .type-bug { color: var(--ado-type-bug); }
+      .type-task { color: var(--ado-type-task); }
+      .type-story { color: var(--ado-type-story); }
+      .type-feature { color: var(--ado-type-feature); }
+      .type-epic { color: var(--ado-type-epic); }
 
       .work-item-priority {
         margin-left: auto;
-        font-size: 14px;
+        font-size: 12px;
+        opacity: 0.9;
       }
 
       .work-item-content {
@@ -378,7 +421,7 @@
 
       .work-item-card .work-item-title {
         font-weight: 600;
-        font-size: 14px;
+        font-size: 13.5px;
         line-height: 1.3;
         margin-bottom: 6px;
         color: var(--vscode-editor-foreground);
@@ -389,31 +432,65 @@
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
       }
+      /* Ensure any links inside title keep proper color on non-selected hover */
+      .work-item-card:not(.selected):hover .work-item-title a,
+      .kanban-card:not(.selected):hover .work-item-title a {
+        color: var(--vscode-editor-foreground) !important;
+      }
+      /* For non-selected items, use normal foreground on hover (not link color) */
+      .work-item-card:not(.selected):hover .work-item-title,
+      .kanban-card:not(.selected):hover .work-item-title {
+        color: var(--vscode-editor-foreground) !important;
+        text-decoration: underline;
+      }
+      /* Generic anchors inside non-selected hovered cards should stay neutral */
+      .work-item-card:not(.selected):hover a,
+      .work-item-card:not(.selected):focus a,
+      .kanban-card:not(.selected):hover a,
+      .kanban-card:not(.selected):focus a {
+        color: var(--vscode-editor-foreground) !important;
+      }
+      /* Meta rows and badges within non-selected hover keep neutral/description colors */
+      .work-item-card:not(.selected):hover .work-item-meta-row,
+      .kanban-card:not(.selected):hover .work-item-meta-row,
+      .work-item-card:not(.selected):hover .work-item-assignee,
+      .kanban-card:not(.selected):hover .work-item-assignee,
+      .work-item-card:not(.selected):hover .work-item-iteration,
+      .kanban-card:not(.selected):hover .work-item-iteration {
+        color: var(--vscode-descriptionForeground) !important;
+      }
+      /* Non-selected hover should also keep neutral color for type icon and priority */
+      .work-item-card:not(.selected):hover .work-item-type-icon,
+      .kanban-card:not(.selected):hover .work-item-type-icon,
+      .work-item-card:not(.selected):hover .work-item-priority,
+      .kanban-card:not(.selected):hover .work-item-priority {
+        color: var(--vscode-editor-foreground) !important;
+      }
 
       .work-item-description {
         font-size: 12px;
         color: var(--vscode-descriptionForeground);
         line-height: 1.4;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
         overflow: hidden;
         text-overflow: ellipsis;
-        display: -webkit-box;
-        line-clamp: 2;
-        -webkit-line-clamp: 2;
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
       }
 
       .work-item-details {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 3px;
       }
 
       .work-item-meta-row {
         display: flex;
         gap: 8px;
         align-items: center;
-        font-size: 11px;
+        font-size: 10.5px;
       }
 
       .work-item-type {
@@ -424,47 +501,53 @@
         font-size: 10px;
         font-weight: 500;
       }
+      .work-item-card.selected .work-item-type,
+      .kanban-card.selected .work-item-type {
+        background: rgba(255, 255, 255, 0.2);
+        color: var(--vscode-list-activeSelectionForeground);
+      }
 
       .work-item-state {
         padding: 2px 6px;
         border-radius: 10px;
         font-size: 10px;
-        font-weight: 500;
+        font-weight: 600;
         text-transform: uppercase;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .work-item-card.selected .work-item-state,
+      .kanban-card.selected .work-item-state {
+        /* Keep colored dot but ensure label readable */
+        color: var(--vscode-list-activeSelectionForeground);
+        background: rgba(255, 255, 255, 0.12);
+      }
+      /* colored state dot */
+      .work-item-state::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        background: currentColor;
       }
 
-      .state-new {
-        background: rgba(100, 149, 237, 0.2);
-        color: #6495ed;
-      }
-      .state-active {
-        background: rgba(255, 165, 0, 0.2);
-        color: #ffa500;
-      }
-      .state-inprogress {
-        background: rgba(255, 165, 0, 0.2);
-        color: #ffa500;
-      }
-      .state-doing {
-        background: rgba(255, 165, 0, 0.2);
-        color: #ffa500;
-      }
-      .state-resolved {
-        background: rgba(50, 205, 50, 0.2);
-        color: #32cd32;
-      }
-      .state-done {
-        background: rgba(50, 205, 50, 0.2);
-        color: #32cd32;
-      }
-      .state-closed {
-        background: rgba(128, 128, 128, 0.2);
-        color: #808080;
-      }
-      .state-removed {
-        background: rgba(255, 99, 71, 0.2);
-        color: #ff6347;
-      }
+      /* State pill colors (scoped to the pill only to avoid coloring whole cards) */
+      .work-item-state.state-new { color: var(--ado-state-new); background: rgba(178, 178, 178, 0.15); }
+      .work-item-state.state-todo,
+      .work-item-state.state-to-do { color: var(--ado-state-todo); background: rgba(178, 178, 178, 0.15); }
+      .work-item-state.state-active { color: var(--ado-state-active); background: rgba(0, 122, 204, 0.10); }
+      .work-item-state.state-inprogress,
+      .work-item-state.state-in-progress { color: var(--ado-state-inprogress); background: rgba(230, 151, 0, 0.10); }
+      .work-item-state.state-doing { color: var(--ado-state-doing); background: rgba(230, 151, 0, 0.10); }
+      .work-item-state.state-review,
+      .work-item-state.state-code-review { color: var(--ado-state-review); background: rgba(107, 78, 255, 0.12); }
+      .work-item-state.state-testing { color: var(--ado-state-testing); background: rgba(0, 152, 199, 0.12); }
+      .work-item-state.state-resolved { color: var(--ado-state-resolved); background: rgba(51, 153, 51, 0.12); }
+      .work-item-state.state-done { color: var(--ado-state-done); background: rgba(51, 153, 51, 0.12); }
+      .work-item-state.state-closed { color: var(--ado-state-closed); background: rgba(51, 153, 51, 0.12); }
+      .work-item-state.state-removed { color: var(--ado-state-removed); background: rgba(255, 99, 71, 0.14); }
 
       .work-item-assignee,
       .work-item-iteration {
@@ -483,17 +566,23 @@
       .work-item-tags {
         display: flex;
         flex-wrap: wrap;
-        gap: 4px;
-        margin-top: 4px;
+        gap: 3px;
+        margin-top: 3px;
       }
 
       .work-item-tag {
         padding: 1px 4px;
-        background: var(--vscode-textCodeBlock-background);
+        background: rgba(255, 255, 255, 0.04);
         border: 1px solid var(--vscode-editorWidget-border);
         border-radius: 8px;
         font-size: 9px;
         color: var(--vscode-editor-foreground);
+      }
+      .work-item-card.selected .work-item-tag,
+      .kanban-card.selected .work-item-tag {
+        background: rgba(255, 255, 255, 0.18);
+        border-color: rgba(255, 255, 255, 0.25);
+        color: var(--vscode-list-activeSelectionForeground);
       }
 
       .tag-overflow {
@@ -541,9 +630,16 @@
         border: 1px solid rgba(255, 165, 0, 0.3);
         white-space: nowrap;
       }
+      .work-item-card.selected .timer-indicator,
+      .kanban-card.selected .timer-indicator {
+        /* Ensure readable on selection */
+        color: var(--vscode-list-activeSelectionForeground);
+        border-color: rgba(255, 255, 255, 0.35);
+      }
 
+      /* Avoid clashing with colored state stripe; use subtle inset ring for active timer */
       .has-active-timer {
-        border-left: 3px solid #ffa500;
+        box-shadow: inset 0 0 0 2px rgba(255, 165, 0, 0.25);
       }
 
       .has-active-timer .timer-indicator {
@@ -748,6 +844,17 @@
       .kanban-card-content {
         margin-bottom: 8px;
       }
+      /* Ensure kanban titles default to theme foreground */
+      .kanban-card .work-item-title {
+        color: var(--vscode-editor-foreground);
+      }
+      /* In selected kanban cards, anchors should inherit selection foreground */
+      .kanban-card.selected a,
+      .kanban-card.selected:hover a,
+      .work-item-card.selected a,
+      .work-item-card.selected:hover a {
+        color: var(--vscode-list-activeSelectionForeground) !important;
+      }
 
       .kanban-card-meta {
         display: flex;
@@ -772,28 +879,93 @@
       .kanban-column-header.state-new {
         border-left: 4px solid #6495ed;
       }
-      .kanban-column-header.state-active {
-        border-left: 4px solid #ffa500;
-      }
-      .kanban-column-header.state-inprogress {
-        border-left: 4px solid #ffa500;
-      }
-      .kanban-column-header.state-doing {
-        border-left: 4px solid #ffa500;
-      }
+      .kanban-column-header.state-active { border-left-color: var(--ado-state-active); }
+      .kanban-column-header.state-inprogress { border-left-color: var(--ado-state-inprogress); }
+      .kanban-column-header.state-doing { border-left-color: var(--ado-state-doing); }
       .kanban-column-header.state-resolved {
-        border-left: 4px solid #32cd32;
+        border-left: 4px solid var(--ado-state-resolved);
       }
-      .kanban-column-header.state-done {
-        border-left: 4px solid #32cd32;
-      }
+      .kanban-column-header.state-done { border-left: 4px solid var(--ado-state-done); }
       .kanban-column-header.state-closed {
-        border-left: 4px solid #808080;
+        border-left: 4px solid var(--ado-state-closed);
       }
       .kanban-column-header.state-removed {
         border-left: 4px solid #ff6347;
       }
     </style>
+    <script type="module" crossorigin src="./main.js"></script>
+    <script>
+      // Fixture bootstrap for headless screenshot generation:
+      // If scripts/screenshots/generate-screenshots.mjs injected window.__AZDO_FIXTURE__,
+      // synthesize extension → webview messages so the UI renders without VS Code.
+      (function () {
+        function bootWithFixtureOnce() {
+          try {
+            if (window.__AZDO_FIXTURE_BOOTED__) return;
+            var f = window.__AZDO_FIXTURE__;
+            if (!f) return;
+            window.__AZDO_FIXTURE_BOOTED__ = true;
+
+            // 1) Feed work items (and timer) first
+            setTimeout(function () {
+              try {
+                window.postMessage(
+                  { type: 'workItemsLoaded', workItems: Array.isArray(f.workItems) ? f.workItems : [] },
+                  '*'
+                );
+                if (f.timer) {
+                  window.postMessage({ type: 'timerUpdate', timer: f.timer }, '*');
+                  // Ensure timer sidebar is visible in screenshot mode
+                  try {
+                    var col = document.getElementById('timerColumn');
+                    if (col) {
+                      col.style.display = '';
+                      col.classList.add('timer-visible');
+                      col.classList.remove('timer-hidden');
+                    }
+                    // Expand Compose Summary section to show stop/apply flow
+                    var btn = document.getElementById('toggleSummaryBtn');
+                    var sc = document.getElementById('summaryContainer');
+                    if (btn && sc) {
+                      sc.removeAttribute('hidden');
+                      btn.setAttribute('aria-expanded', 'true');
+                      btn.textContent = 'Compose Summary ▴';
+                    }
+                  } catch {}
+                }
+              } catch {}
+            }, 0);
+
+            // 2) If kanban requested, toggle once after initial render kicks in
+            if (f.view === 'kanban') {
+              setTimeout(function () {
+                try { window.postMessage({ type: 'toggleKanbanView' }, '*'); } catch {}
+              }, 80);
+            }
+
+            // 3) Optionally select a specific work item after UI settles
+            if (f.selectWorkItemId) {
+              setTimeout(function () {
+                var sel = document.querySelector(
+                  '[data-action="selectWorkItem"][data-id="' + String(f.selectWorkItemId) + '"]'
+                );
+                if (sel) sel.click();
+              }, 160);
+            }
+          } catch (err) {
+            console.error('[webview] Fixture bootstrap failed', err);
+          }
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function () {
+            setTimeout(bootWithFixtureOnce, 0);
+          });
+        } else {
+          setTimeout(bootWithFixtureOnce, 0);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div class="search-container">
@@ -803,8 +975,6 @@
     <div class="status-overview" id="statusOverview">
       <!-- Status badges will be populated by JavaScript -->
     </div>
-
-    <div id="connectionTabs" class="connection-tabs" role="tablist" aria-label="Projects"></div>
 
     <div class="filters-container">
       <select id="sprintFilter" class="filter-dropdown">
@@ -844,7 +1014,7 @@
             <div id="timerInfo" class="timer-info">No active timer</div>
 
             <!-- Collapsible draft summary editor -->
-            <div class="summary-section" id="summarySection" style="margin-top: 0.75rem" hidden>
+            <div class="summary-section" style="margin-top: 0.75rem">
               <button
                 class="btn"
                 id="toggleSummaryBtn"
@@ -852,12 +1022,12 @@
                 aria-expanded="false"
                 style="width: 100%; text-align: left"
               >
-                Compose Comment ▾
+                Compose Summary ▾
               </button>
               <div id="summaryContainer" class="summary-container" hidden>
                 <textarea
                   id="draftSummary"
-                  placeholder="Write or generate a comment to post when stopping the timer or adding an update..."
+                  placeholder="Write or generate a summary to post as a comment when stopping the timer..."
                   rows="6"
                   style="
                     width: 100%;
@@ -875,7 +1045,7 @@
                   <button class="btn" id="generatePromptBtn" data-action="generateCopilotPrompt">
                     Generate Copilot Prompt
                   </button>
-                  <button class="btn" id="submitComposeBtn" data-action="submitCompose">
+                  <button class="btn" id="stopApplyBtn" data-action="stopAndApply">
                     Stop &amp; Apply
                   </button>
                 </div>
@@ -895,7 +1065,5 @@
       </div>
     </div>
 
-    <!-- The extension replaces this path at runtime to either main.js or svelte-main.js with CSP and nonces -->
-    <script type="module" crossorigin src="./main.js"></script>
   </body>
 </html>

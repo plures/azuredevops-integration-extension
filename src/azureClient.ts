@@ -404,12 +404,19 @@ export class AzureDevOpsIntClient {
     type: string,
     title: string,
     description?: string,
-    assignedTo?: string
+    assignedTo?: string,
+    extraFields?: Record<string, unknown>
   ): Promise<WorkItem> {
     const patch: any[] = [{ op: 'add', path: '/fields/System.Title', value: title }];
     if (description)
       patch.push({ op: 'add', path: '/fields/System.Description', value: description });
     if (assignedTo) patch.push({ op: 'add', path: '/fields/System.AssignedTo', value: assignedTo });
+    if (extraFields && typeof extraFields === 'object') {
+      for (const [field, value] of Object.entries(extraFields)) {
+        if (value === undefined || value === null || value === '') continue;
+        patch.push({ op: 'add', path: `/fields/${field}`, value });
+      }
+    }
     const resp = await this.axios.post(`/wit/workitems/$${type}?api-version=7.0`, patch, {
       headers: { 'Content-Type': 'application/json-patch+json' },
     });

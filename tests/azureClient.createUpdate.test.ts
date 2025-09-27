@@ -9,10 +9,22 @@ describe('AzureDevOpsIntClient create/update', function () {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
     const type = 'Task';
     const title = 'New Item';
+    const areaPath = 'Contoso/Trusted';
+    const expectedPatch = [
+      { op: 'add', path: '/fields/System.Title', value: title },
+      { op: 'add', path: '/fields/System.Description', value: 'desc' },
+      { op: 'add', path: '/fields/System.AreaPath', value: areaPath },
+    ];
     nock('https://dev.azure.com')
-      .post(/.*wit\/workitems\/\$Task\?api-version=7.0/)
+      .post('/org/proj/_apis/wit/workitems/$Task?api-version=7.0', (body) => {
+        const patchOps = typeof body === 'string' ? JSON.parse(body) : body;
+        expect(patchOps).to.deep.include.members(expectedPatch);
+        return true;
+      })
       .reply(200, { id: 321, fields: { 'System.Title': title } });
-    const created = await client.createWorkItem(type, title, 'desc');
+    const created = await client.createWorkItem(type, title, 'desc', undefined, {
+      'System.AreaPath': areaPath,
+    });
     expect(created).to.have.property('id', 321);
     expect(created.fields['System.Title']).to.equal(title);
   });

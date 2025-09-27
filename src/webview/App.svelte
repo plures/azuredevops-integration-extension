@@ -17,9 +17,11 @@
   export let errorMsg = '';
   // Filters / sort
   export let filterText = '';
+  export let typeFilter = '';
   export let stateFilter = 'all'; // one of 'all', columnDefs keys
   export let sortKey = 'updated-desc'; // 'updated-desc' | 'id-desc' | 'id-asc' | 'title-asc'
   export let availableStates = []; // dynamic list of normalized state keys
+  export let availableTypes = [];
   export let summaryOpen = false;
   export let summaryDraft = '';
   export let summaryStatus = '';
@@ -53,13 +55,36 @@
     dispatch('toggleSummary');
   }
   function onFilterInput(e) {
-    dispatch('filtersChanged', { filterText: e.target.value, stateFilter, sortKey });
+    dispatch('filtersChanged', {
+      filterText: e.target.value,
+      typeFilter,
+      stateFilter,
+      sortKey,
+    });
   }
   function onStateFilterChange(e) {
-    dispatch('filtersChanged', { filterText, stateFilter: e.target.value, sortKey });
+    dispatch('filtersChanged', {
+      filterText,
+      typeFilter,
+      stateFilter: e.target.value,
+      sortKey,
+    });
+  }
+  function onTypeFilterChange(e) {
+    dispatch('filtersChanged', {
+      filterText,
+      typeFilter: e.target.value,
+      stateFilter,
+      sortKey,
+    });
   }
   function onSortChange(e) {
-    dispatch('filtersChanged', { filterText, stateFilter, sortKey: e.target.value });
+    dispatch('filtersChanged', {
+      filterText,
+      typeFilter,
+      stateFilter,
+      sortKey: e.target.value,
+    });
   }
   function onSummaryInput(e) {
     dispatch('summaryDraftChanged', { value: e.target.value });
@@ -251,8 +276,20 @@
           placeholder="Filter..."
           value={filterText}
           on:input={onFilterInput}
-          aria-label="Filter by title"
+          aria-label="Filter work items"
         />
+        <select
+          on:change={onTypeFilterChange}
+          bind:value={typeFilter}
+          aria-label="Filter by work item type"
+        >
+          <option value="">All types</option>
+          {#if availableTypes && availableTypes.length}
+            {#each availableTypes as typeName}
+              <option value={typeName}>{typeName}</option>
+            {/each}
+          {/if}
+        </select>
         <select
           on:change={onStateFilterChange}
           bind:value={stateFilter}

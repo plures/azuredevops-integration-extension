@@ -56,12 +56,17 @@ let kanbanView = false;
 let loading = true;
 let errorMsg: string = '';
 let filterText = '';
+let typeFilter = '';
 let stateFilter: string = 'all';
 let sortKey: string = 'updated-desc';
+let normalizedQuery = '';
 // Track optimistic moves so we can revert on failure
 const pendingMoves = new Map<number, { prevState: string }>();
 // Available normalized states (for filter dropdown)
 let stateOptions: string[] = [];
+let typeOptions: string[] = [];
+const typeOptionHints = new Set<string>();
+let searchHaystackCache = new WeakMap<any, string>();
 let summaryOpen = false;
 let summaryDraft = '';
 let summaryStatus = '';
@@ -77,6 +82,7 @@ try {
     vscode && typeof (vscode as any).getState === 'function' ? (vscode as any).getState() : null;
   if (st && typeof st.kanbanView === 'boolean') kanbanView = !!st.kanbanView;
   if (st && typeof st.summaryOpen === 'boolean') summaryOpen = !!st.summaryOpen;
+  if (st && typeof st.typeFilter === 'string') typeFilter = st.typeFilter;
   if (st && typeof st.summaryWorkItemId === 'number') {
     summaryWorkItemId = st.summaryWorkItemId || null;
   }
@@ -99,9 +105,11 @@ function getAppProps() {
     loading,
     errorMsg,
     filterText,
+    typeFilter,
     stateFilter,
     sortKey,
     availableStates: stateOptions,
+    availableTypes: typeOptions,
     summaryOpen,
     summaryDraft,
     summaryStatus,
@@ -126,6 +134,7 @@ function persistViewState(extra?: Record<string, unknown>) {
       ...prev,
       kanbanView,
       filterText,
+      typeFilter,
       stateFilter,
       sortKey,
       summaryOpen,
@@ -223,11 +232,12 @@ function ensureApp() {
     // Send to extension for global persistence
     postMessage({
       type: 'uiPreferenceChanged',
-      preferences: { kanbanView, filterText, stateFilter, sortKey, summaryOpen },
+      preferences: { kanbanView, filterText, typeFilter, stateFilter, sortKey, summaryOpen },
     });
   });
   (app as any).$on('filtersChanged', (ev: any) => {
     filterText = String(ev?.detail?.filterText ?? filterText);
+    typeFilter = String(ev?.detail?.typeFilter ?? typeFilter);
     stateFilter = String(ev?.detail?.stateFilter ?? stateFilter);
     sortKey = String(ev?.detail?.sortKey ?? sortKey);
     recomputeItemsForView();
@@ -236,7 +246,7 @@ function ensureApp() {
     // Send to extension for global persistence
     postMessage({
       type: 'uiPreferenceChanged',
-      preferences: { kanbanView, filterText, stateFilter, sortKey, summaryOpen },
+      preferences: { kanbanView, filterText, typeFilter, stateFilter, sortKey, summaryOpen },
     });
   });
   (app as any).$on('moveItem', (ev: any) => {
@@ -447,11 +457,106 @@ function attemptStopAndApply() {
   postMessage({ type: 'stopAndApply', comment: summaryDraft });
 }
 
+function getWorkItemType(it: any): string {
+  if (!it) return '';
+  const flattened = typeof it?.type === 'string' ? it.type : undefined;
+  const fromFields =
+    typeof it?.fields?.['System.WorkItemType'] === 'string'
+      ? it.fields['System.WorkItemType']
+      : undefined;
+  const value = flattened || fromFields;
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function buildSearchHaystack(item: any): string {
+  const parts: string[] = [];
+  const seen = new WeakSet<object>();
+  const maxDepth = 5;
+
+  const push = (value: string) => {
+    const trimmed = value.trim();
+    if (trimmed.length > 0) parts.push(trimmed.toLowerCase());
+  };
+
+  const visit = (value: any, depth = 0) => {
+    if (value === null || value === undefined) return;
+    if (typeof value === 'string') {
+      push(value);
+      return;
+    }
+    if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
+      push(String(value));
+      return;
+    }
+    if (value instanceof Date) {
+      push(value.toISOString());
+      return;
+    }
+    if (typeof value === 'symbol') {
+      push(value.toString());
+      return;
+    }
+    if (typeof value === 'object') {
+      if (seen.has(value)) return;
+      seen.add(value);
+      if (depth >= maxDepth) return;
+      if (Array.isArray(value)) {
+        value.forEach((entry) => visit(entry, depth + 1));
+        return;
+      }
+
+      const identityKeys = [
+        'displayName',
+        'uniqueName',
+        'name',
+        'fullName',
+        'mailAddress',
+        'email',
+        'userPrincipalName',
+        'upn',
+        'descriptor',
+        'text',
+        'value',
+        'title',
+      ];
+      identityKeys.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          visit((value as any)[key], depth + 1);
+        }
+      });
+
+      Object.keys(value).forEach((key) => {
+        if (key === '__proto__') return;
+        visit((value as any)[key], depth + 1);
+      });
+    }
+  };
+
+  visit(item);
+
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function getSearchHaystack(item: any): string {
+  if (!item || (typeof item !== 'object' && typeof item !== 'function')) {
+    return typeof item === 'string' ? item.toLowerCase() : String(item ?? '').toLowerCase();
+  }
+  const cached = searchHaystackCache.get(item);
+  if (cached) return cached;
+  const haystack = buildSearchHaystack(item);
+  searchHaystackCache.set(item, haystack);
+  return haystack;
+}
+
 function passesFilters(it: any): boolean {
-  const title = String(it?.fields?.['System.Title'] || '').toLowerCase();
+  const query = normalizedQuery;
   const stateRaw = String(it?.fields?.['System.State'] || '');
   const norm = normalizeState(stateRaw);
-  if (filterText && !title.includes(String(filterText).toLowerCase())) return false;
+  if (query) {
+    const haystack = getSearchHaystack(it);
+    if (!haystack.includes(query)) return false;
+  }
+  if (typeFilter && getWorkItemType(it) !== typeFilter) return false;
   if (stateFilter && stateFilter !== 'all' && norm !== stateFilter) return false;
   return true;
 }
@@ -472,8 +577,39 @@ function normalizeState(raw: any): string {
   return 'new';
 }
 
+function recomputeTypeOptions() {
+  const combined = new Set<string>();
+  (Array.isArray(lastWorkItems) ? lastWorkItems : []).forEach((item: any) => {
+    const typeName = getWorkItemType(item);
+    if (typeName) combined.add(typeName);
+  });
+  typeOptionHints.forEach((hint) => combined.add(hint));
+  typeOptions = Array.from(combined).sort((a, b) => a.localeCompare(b));
+  if (typeFilter && !combined.has(typeFilter)) {
+    typeFilter = '';
+  }
+}
+
 function recomputeItemsForView() {
   const items = Array.isArray(lastWorkItems) ? lastWorkItems : [];
+  try {
+    console.log(
+      '[svelte-main] recomputeItemsForView: lastWorkItems.length=',
+      items.length,
+      'filterText=',
+      filterText,
+      'typeFilter=',
+      typeFilter,
+      'stateFilter=',
+      stateFilter
+    );
+  } catch (err) {
+    void err;
+  }
+  recomputeTypeOptions();
+  normalizedQuery = String(filterText || '')
+    .trim()
+    .toLowerCase();
   const filtered = items.filter(passesFilters);
   const sorted = [...filtered].sort((a: any, b: any) => {
     switch (sortKey) {
@@ -499,6 +635,7 @@ function recomputeItemsForView() {
     }
   });
   itemsForView = sorted;
+  workItemCount = itemsForView.length;
   // Recompute state options (distinct normalized states actually present in ALL items, not just filtered)
   const allStatesSet = new Set<string>();
   (Array.isArray(lastWorkItems) ? lastWorkItems : []).forEach((w: any) => {
@@ -536,6 +673,43 @@ function onMessage(message: any) {
   switch (message?.type) {
     case 'workItemsLoaded': {
       const items = Array.isArray(message.workItems) ? message.workItems : [];
+      try {
+        console.log('[svelte-main] workItemsLoaded received. count=', (items || []).length);
+        console.log(
+          '[svelte-main] workItemsLoaded sample ids=',
+          (items || []).slice(0, 5).map((i: any) => i.id || i.fields?.['System.Id'])
+        );
+        console.log(
+          '[svelte-main] current filters before apply: filterText=',
+          filterText,
+          'typeFilter=',
+          typeFilter,
+          'stateFilter=',
+          stateFilter
+        );
+        // Additional diagnostics: if host sent zero items, log the entire message and connectionId
+        if (!items || (items && items.length === 0)) {
+          try {
+            console.warn('[svelte-main] workItemsLoaded arrived with 0 items — full message:');
+            console.warn(message);
+            console.warn('[svelte-main] connectionId on message =', message?.connectionId);
+            console.warn(
+              '[svelte-main] local persisted state: typeFilter=',
+              typeFilter,
+              'filterText=',
+              filterText,
+              'stateFilter=',
+              stateFilter
+            );
+            console.warn('[svelte-main] timestamp (ms)=', Date.now());
+          } catch (err) {
+            void err;
+          }
+        }
+      } catch (err) {
+        void err;
+      }
+      searchHaystackCache = new WeakMap();
       lastWorkItems = items;
       if (typeof message.kanbanView === 'boolean') {
         kanbanView = message.kanbanView;
@@ -612,6 +786,7 @@ function onMessage(message: any) {
         const found = (lastWorkItems || []).find((w: any) => Number(w.id) === id);
         if (found && found.fields && pending) {
           found.fields['System.State'] = pending.prevState;
+          searchHaystackCache.delete(found);
           recomputeItemsForView();
         }
         syncApp();
@@ -620,6 +795,7 @@ function onMessage(message: any) {
         const found = (lastWorkItems || []).find((w: any) => Number(w.id) === id);
         if (found && found.fields) {
           found.fields['System.State'] = message.newState;
+          searchHaystackCache.delete(found);
           recomputeItemsForView();
         }
         syncApp();
@@ -635,10 +811,28 @@ function onMessage(message: any) {
       syncApp();
       break;
     }
+    case 'workItemTypeOptions': {
+      const list = Array.isArray(message?.types) ? message.types : [];
+      let changed = false;
+      for (const entry of list) {
+        const value = typeof entry === 'string' ? entry.trim() : '';
+        if (!value) continue;
+        if (!typeOptionHints.has(value)) {
+          typeOptionHints.add(value);
+          changed = true;
+        }
+      }
+      if (changed) {
+        recomputeItemsForView();
+        syncApp();
+      }
+      break;
+    }
     case 'uiPreferences': {
       const prefs = message?.preferences || {};
       if (typeof prefs.kanbanView === 'boolean') kanbanView = prefs.kanbanView;
       if (typeof prefs.filterText === 'string') filterText = prefs.filterText;
+      if (typeof prefs.typeFilter === 'string') typeFilter = prefs.typeFilter;
       if (typeof prefs.stateFilter === 'string') stateFilter = prefs.stateFilter;
       if (typeof prefs.sortKey === 'string') sortKey = prefs.sortKey;
       recomputeItemsForView();

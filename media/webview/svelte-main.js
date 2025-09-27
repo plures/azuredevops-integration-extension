@@ -129,6 +129,12 @@ function listen(node, event, handler, options) {
   node.addEventListener(event, handler, options);
   return () => node.removeEventListener(event, handler, options);
 }
+function prevent_default(fn) {
+  return function(event) {
+    event.preventDefault();
+    return fn.call(this, event);
+  };
+}
 function stop_propagation(fn) {
   return function(event) {
     event.stopPropagation();
@@ -1018,30 +1024,35 @@ var Toasts_default = Toasts;
 // src/webview/App.svelte
 function get_each_context_2(ctx, list, i) {
   const child_ctx = ctx.slice();
-  child_ctx[55] = list[i];
+  child_ctx[77] = list[i];
   return child_ctx;
 }
 function get_each_context2(ctx, list, i) {
   const child_ctx = ctx.slice();
-  child_ctx[52] = list[i];
+  child_ctx[74] = list[i];
   return child_ctx;
 }
 function get_each_context_1(ctx, list, i) {
   const child_ctx = ctx.slice();
-  child_ctx[55] = list[i];
+  child_ctx[77] = list[i];
   return child_ctx;
 }
 function get_each_context_4(ctx, list, i) {
   const child_ctx = ctx.slice();
-  child_ctx[63] = list[i];
+  child_ctx[85] = list[i];
   return child_ctx;
 }
 function get_each_context_3(ctx, list, i) {
   const child_ctx = ctx.slice();
-  child_ctx[60] = list[i];
+  child_ctx[82] = list[i];
   return child_ctx;
 }
-function create_if_block_18(ctx) {
+function get_each_context_5(ctx, list, i) {
+  const child_ctx = ctx.slice();
+  child_ctx[88] = list[i];
+  return child_ctx;
+}
+function create_if_block_26(ctx) {
   let span;
   let t0;
   let t1;
@@ -1052,10 +1063,10 @@ function create_if_block_18(ctx) {
       t0 = text("(");
       t1 = text(
         /*subtitle*/
-        ctx[3]
+        ctx[4]
       );
       t2 = text(")");
-      attr(span, "class", "muted svelte-188no3t");
+      attr(span, "class", "muted svelte-s1e7ae");
     },
     m(target, anchor) {
       insert(target, span, anchor);
@@ -1065,10 +1076,10 @@ function create_if_block_18(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*subtitle*/
-      8) set_data(
+      16) set_data(
         t1,
         /*subtitle*/
-        ctx2[3]
+        ctx2[4]
       );
     },
     d(detaching) {
@@ -1078,12 +1089,12 @@ function create_if_block_18(ctx) {
     }
   };
 }
-function create_if_block_17(ctx) {
+function create_if_block_25(ctx) {
   let span;
   return {
     c() {
       span = element("span");
-      attr(span, "class", "spinner svelte-188no3t");
+      attr(span, "class", "spinner svelte-s1e7ae");
       attr(span, "role", "status");
       attr(span, "aria-label", "Loading");
       attr(span, "title", "Loading");
@@ -1098,12 +1109,12 @@ function create_if_block_17(ctx) {
     }
   };
 }
-function create_if_block_14(ctx) {
+function create_if_block_22(ctx) {
   let span;
   let t0;
   let t1_value = (
     /*timerRunning*/
-    ctx[5] ? "Running" : "Paused"
+    ctx[6] ? "Running" : "Paused"
   );
   let t1;
   let t2;
@@ -1111,11 +1122,11 @@ function create_if_block_14(ctx) {
   let if_block1_anchor;
   let if_block0 = (
     /*timerElapsedLabel*/
-    ctx[6] && create_if_block_16(ctx)
+    ctx[7] && create_if_block_24(ctx)
   );
   let if_block1 = (
     /*activeId*/
-    ctx[7] && create_if_block_15(ctx)
+    ctx[8] && create_if_block_23(ctx)
   );
   return {
     c() {
@@ -1127,7 +1138,7 @@ function create_if_block_14(ctx) {
       t3 = space();
       if (if_block1) if_block1.c();
       if_block1_anchor = empty();
-      attr(span, "class", "muted svelte-188no3t");
+      attr(span, "class", "muted svelte-s1e7ae");
     },
     m(target, anchor) {
       insert(target, span, anchor);
@@ -1141,16 +1152,16 @@ function create_if_block_14(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*timerRunning*/
-      32 && t1_value !== (t1_value = /*timerRunning*/
-      ctx2[5] ? "Running" : "Paused")) set_data(t1, t1_value);
+      64 && t1_value !== (t1_value = /*timerRunning*/
+      ctx2[6] ? "Running" : "Paused")) set_data(t1, t1_value);
       if (
         /*timerElapsedLabel*/
-        ctx2[6]
+        ctx2[7]
       ) {
         if (if_block0) {
           if_block0.p(ctx2, dirty);
         } else {
-          if_block0 = create_if_block_16(ctx2);
+          if_block0 = create_if_block_24(ctx2);
           if_block0.c();
           if_block0.m(span, null);
         }
@@ -1160,12 +1171,12 @@ function create_if_block_14(ctx) {
       }
       if (
         /*activeId*/
-        ctx2[7]
+        ctx2[8]
       ) {
         if (if_block1) {
           if_block1.p(ctx2, dirty);
         } else {
-          if_block1 = create_if_block_15(ctx2);
+          if_block1 = create_if_block_23(ctx2);
           if_block1.c();
           if_block1.m(if_block1_anchor.parentNode, if_block1_anchor);
         }
@@ -1185,7 +1196,7 @@ function create_if_block_14(ctx) {
     }
   };
 }
-function create_if_block_16(ctx) {
+function create_if_block_24(ctx) {
   let t0;
   let t1;
   let t2;
@@ -1194,7 +1205,7 @@ function create_if_block_16(ctx) {
       t0 = text("(");
       t1 = text(
         /*timerElapsedLabel*/
-        ctx[6]
+        ctx[7]
       );
       t2 = text(")");
     },
@@ -1205,10 +1216,10 @@ function create_if_block_16(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*timerElapsedLabel*/
-      64) set_data(
+      128) set_data(
         t1,
         /*timerElapsedLabel*/
-        ctx2[6]
+        ctx2[7]
       );
     },
     d(detaching) {
@@ -1220,7 +1231,7 @@ function create_if_block_16(ctx) {
     }
   };
 }
-function create_if_block_15(ctx) {
+function create_if_block_23(ctx) {
   let button;
   let t0;
   let t1;
@@ -1234,13 +1245,13 @@ function create_if_block_15(ctx) {
       t0 = text("#");
       t1 = text(
         /*activeId*/
-        ctx[7]
+        ctx[8]
       );
       attr(button, "title", button_title_value = /*activeTitle*/
-      ctx[8] || "Open active work item");
+      ctx[9] || "Open active work item");
       attr(button, "aria-label", button_aria_label_value = `Open active work item #${/*activeId*/
-      ctx[7]}`);
-      attr(button, "class", "svelte-188no3t");
+      ctx[8]}`);
+      attr(button, "class", "svelte-s1e7ae");
     },
     m(target, anchor) {
       insert(target, button, anchor);
@@ -1251,26 +1262,26 @@ function create_if_block_15(ctx) {
           button,
           "click",
           /*onOpenActive*/
-          ctx[18]
+          ctx[32]
         );
         mounted = true;
       }
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*activeId*/
-      128) set_data(
+      256) set_data(
         t1,
         /*activeId*/
-        ctx2[7]
+        ctx2[8]
       );
       if (dirty[0] & /*activeTitle*/
-      256 && button_title_value !== (button_title_value = /*activeTitle*/
-      ctx2[8] || "Open active work item")) {
+      512 && button_title_value !== (button_title_value = /*activeTitle*/
+      ctx2[9] || "Open active work item")) {
         attr(button, "title", button_title_value);
       }
       if (dirty[0] & /*activeId*/
-      128 && button_aria_label_value !== (button_aria_label_value = `Open active work item #${/*activeId*/
-      ctx2[7]}`)) {
+      256 && button_aria_label_value !== (button_aria_label_value = `Open active work item #${/*activeId*/
+      ctx2[8]}`)) {
         attr(button, "aria-label", button_aria_label_value);
       }
     },
@@ -1283,11 +1294,106 @@ function create_if_block_15(ctx) {
     }
   };
 }
-function create_else_block_5(ctx) {
+function create_if_block_21(ctx) {
+  let each_1_anchor;
+  let each_value_5 = ensure_array_like(
+    /*availableTypes*/
+    ctx[16]
+  );
+  let each_blocks = [];
+  for (let i = 0; i < each_value_5.length; i += 1) {
+    each_blocks[i] = create_each_block_5(get_each_context_5(ctx, each_value_5, i));
+  }
+  return {
+    c() {
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        each_blocks[i].c();
+      }
+      each_1_anchor = empty();
+    },
+    m(target, anchor) {
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        if (each_blocks[i]) {
+          each_blocks[i].m(target, anchor);
+        }
+      }
+      insert(target, each_1_anchor, anchor);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*availableTypes*/
+      65536) {
+        each_value_5 = ensure_array_like(
+          /*availableTypes*/
+          ctx2[16]
+        );
+        let i;
+        for (i = 0; i < each_value_5.length; i += 1) {
+          const child_ctx = get_each_context_5(ctx2, each_value_5, i);
+          if (each_blocks[i]) {
+            each_blocks[i].p(child_ctx, dirty);
+          } else {
+            each_blocks[i] = create_each_block_5(child_ctx);
+            each_blocks[i].c();
+            each_blocks[i].m(each_1_anchor.parentNode, each_1_anchor);
+          }
+        }
+        for (; i < each_blocks.length; i += 1) {
+          each_blocks[i].d(1);
+        }
+        each_blocks.length = each_value_5.length;
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(each_1_anchor);
+      }
+      destroy_each(each_blocks, detaching);
+    }
+  };
+}
+function create_each_block_5(ctx) {
+  let option;
+  let t_value = (
+    /*typeName*/
+    ctx[88] + ""
+  );
+  let t;
+  let option_value_value;
+  return {
+    c() {
+      option = element("option");
+      t = text(t_value);
+      option.__value = option_value_value = /*typeName*/
+      ctx[88];
+      set_input_value(option, option.__value);
+    },
+    m(target, anchor) {
+      insert(target, option, anchor);
+      append(option, t);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*availableTypes*/
+      65536 && t_value !== (t_value = /*typeName*/
+      ctx2[88] + "")) set_data(t, t_value);
+      if (dirty[0] & /*availableTypes*/
+      65536 && option_value_value !== (option_value_value = /*typeName*/
+      ctx2[88])) {
+        option.__value = option_value_value;
+        set_input_value(option, option.__value);
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(option);
+      }
+    }
+  };
+}
+function create_else_block_6(ctx) {
   let each_1_anchor;
   let each_value_4 = ensure_array_like(
     /*columnDefs*/
-    ctx[16]
+    ctx[24]
   );
   let each_blocks = [];
   for (let i = 0; i < each_value_4.length; i += 1) {
@@ -1310,10 +1416,10 @@ function create_else_block_5(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*columnDefs*/
-      65536) {
+      16777216) {
         each_value_4 = ensure_array_like(
           /*columnDefs*/
-          ctx2[16]
+          ctx2[24]
         );
         let i;
         for (i = 0; i < each_value_4.length; i += 1) {
@@ -1340,11 +1446,11 @@ function create_else_block_5(ctx) {
     }
   };
 }
-function create_if_block_13(ctx) {
+function create_if_block_20(ctx) {
   let each_1_anchor;
   let each_value_3 = ensure_array_like(
     /*availableStates*/
-    ctx[14]
+    ctx[15]
   );
   let each_blocks = [];
   for (let i = 0; i < each_value_3.length; i += 1) {
@@ -1366,11 +1472,12 @@ function create_if_block_13(ctx) {
       insert(target, each_1_anchor, anchor);
     },
     p(ctx2, dirty) {
-      if (dirty[0] & /*availableStates, bucketLabels*/
-      16793600) {
+      if (dirty[0] & /*availableStates*/
+      32768 | dirty[1] & /*bucketLabels*/
+      8192) {
         each_value_3 = ensure_array_like(
           /*availableStates*/
-          ctx2[14]
+          ctx2[15]
         );
         let i;
         for (i = 0; i < each_value_3.length; i += 1) {
@@ -1401,7 +1508,7 @@ function create_each_block_4(ctx) {
   let option;
   let t_value = (
     /*c*/
-    ctx[63].label + ""
+    ctx[85].label + ""
   );
   let t;
   let option_value_value;
@@ -1410,7 +1517,7 @@ function create_each_block_4(ctx) {
       option = element("option");
       t = text(t_value);
       option.__value = option_value_value = /*c*/
-      ctx[63].key;
+      ctx[85].key;
       set_input_value(option, option.__value);
     },
     m(target, anchor) {
@@ -1419,11 +1526,11 @@ function create_each_block_4(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*columnDefs*/
-      65536 && t_value !== (t_value = /*c*/
-      ctx2[63].label + "")) set_data(t, t_value);
+      16777216 && t_value !== (t_value = /*c*/
+      ctx2[85].label + "")) set_data(t, t_value);
       if (dirty[0] & /*columnDefs*/
-      65536 && option_value_value !== (option_value_value = /*c*/
-      ctx2[63].key)) {
+      16777216 && option_value_value !== (option_value_value = /*c*/
+      ctx2[85].key)) {
         option.__value = option_value_value;
         set_input_value(option, option.__value);
       }
@@ -1439,11 +1546,11 @@ function create_each_block_3(ctx) {
   let option;
   let t_value = (
     /*bucketLabels*/
-    (ctx[24][
+    (ctx[44][
       /*s*/
-      ctx[60]
+      ctx[82]
     ] || /*s*/
-    ctx[60]) + ""
+    ctx[82]) + ""
   );
   let t;
   let option_value_value;
@@ -1452,7 +1559,7 @@ function create_each_block_3(ctx) {
       option = element("option");
       t = text(t_value);
       option.__value = option_value_value = /*s*/
-      ctx[60];
+      ctx[82];
       set_input_value(option, option.__value);
     },
     m(target, anchor) {
@@ -1461,15 +1568,15 @@ function create_each_block_3(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*availableStates*/
-      16384 && t_value !== (t_value = /*bucketLabels*/
-      (ctx2[24][
+      32768 && t_value !== (t_value = /*bucketLabels*/
+      (ctx2[44][
         /*s*/
-        ctx2[60]
+        ctx2[82]
       ] || /*s*/
-      ctx2[60]) + "")) set_data(t, t_value);
+      ctx2[82]) + "")) set_data(t, t_value);
       if (dirty[0] & /*availableStates*/
-      16384 && option_value_value !== (option_value_value = /*s*/
-      ctx2[60])) {
+      32768 && option_value_value !== (option_value_value = /*s*/
+      ctx2[82])) {
         option.__value = option_value_value;
         set_input_value(option, option.__value);
       }
@@ -1477,6 +1584,553 @@ function create_each_block_3(ctx) {
     d(detaching) {
       if (detaching) {
         detach(option);
+      }
+    }
+  };
+}
+function create_if_block_19(ctx) {
+  let div;
+  let t;
+  return {
+    c() {
+      div = element("div");
+      t = text(
+        /*summaryStatus*/
+        ctx[19]
+      );
+      attr(div, "class", "summary-status-inline svelte-s1e7ae");
+      attr(div, "aria-live", "polite");
+    },
+    m(target, anchor) {
+      insert(target, div, anchor);
+      append(div, t);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*summaryStatus*/
+      524288) set_data(
+        t,
+        /*summaryStatus*/
+        ctx2[19]
+      );
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div);
+      }
+    }
+  };
+}
+function create_if_block_13(ctx) {
+  let section;
+  let div1;
+  let div0;
+  let t0;
+  let t1;
+  let textarea;
+  let t2;
+  let div4;
+  let div2;
+  let button0;
+  let span0;
+  let t3;
+  let t4;
+  let t5;
+  let button1;
+  let span1;
+  let t6;
+  let t7;
+  let div3;
+  let t8;
+  let t9;
+  let mounted;
+  let dispose;
+  function select_block_type_2(ctx2, dirty) {
+    if (
+      /*summaryTargetId*/
+      ctx2[22]
+    ) return create_if_block_16;
+    return create_else_block_5;
+  }
+  let current_block_type = select_block_type_2(ctx, [-1, -1, -1]);
+  let if_block0 = current_block_type(ctx);
+  let if_block1 = (
+    /*summaryBusy*/
+    ctx[21] && create_if_block_15(ctx)
+  );
+  let if_block2 = (
+    /*summaryStatus*/
+    ctx[19] && create_if_block_14(ctx)
+  );
+  return {
+    c() {
+      section = element("section");
+      div1 = element("div");
+      div0 = element("div");
+      if_block0.c();
+      t0 = space();
+      if (if_block1) if_block1.c();
+      t1 = space();
+      textarea = element("textarea");
+      t2 = space();
+      div4 = element("div");
+      div2 = element("div");
+      button0 = element("button");
+      span0 = element("span");
+      t3 = space();
+      t4 = text(
+        /*summaryButtonLabel*/
+        ctx[30]
+      );
+      t5 = space();
+      button1 = element("button");
+      span1 = element("span");
+      t6 = text("\r\n              Stop & Apply");
+      t7 = space();
+      div3 = element("div");
+      t8 = text(
+        /*summaryHelperText*/
+        ctx[29]
+      );
+      t9 = space();
+      if (if_block2) if_block2.c();
+      attr(div0, "class", "summary-context svelte-s1e7ae");
+      attr(div1, "class", "summary-header svelte-s1e7ae");
+      attr(textarea, "class", "summary-textarea svelte-s1e7ae");
+      attr(textarea, "placeholder", "Draft a concise update for your work item\u2026");
+      textarea.value = /*summaryDraft*/
+      ctx[18];
+      attr(textarea, "rows", "5");
+      textarea.disabled = /*summaryAreaDisabled*/
+      ctx[25];
+      attr(span0, "class", "codicon codicon-rocket");
+      attr(span0, "aria-hidden", "true");
+      attr(button0, "class", "action-btn summary-generate svelte-s1e7ae");
+      attr(
+        button0,
+        "title",
+        /*summaryButtonLabel*/
+        ctx[30]
+      );
+      attr(
+        button0,
+        "aria-label",
+        /*summaryButtonLabel*/
+        ctx[30]
+      );
+      button0.disabled = /*summaryGenerateDisabled*/
+      ctx[27];
+      attr(span1, "class", "codicon codicon-check");
+      attr(span1, "aria-hidden", "true");
+      attr(button1, "class", "action-btn summary-apply svelte-s1e7ae");
+      attr(button1, "title", "Stop timer and apply time entry with this summary");
+      attr(button1, "aria-label", "Stop timer and apply time entry with this summary");
+      button1.disabled = /*summaryApplyDisabled*/
+      ctx[26];
+      attr(div2, "class", "summary-buttons svelte-s1e7ae");
+      attr(div3, "class", "summary-helper svelte-s1e7ae");
+      attr(div4, "class", "summary-actions svelte-s1e7ae");
+      attr(section, "class", "summary-panel svelte-s1e7ae");
+      attr(section, "aria-label", "Work summary composer");
+    },
+    m(target, anchor) {
+      insert(target, section, anchor);
+      append(section, div1);
+      append(div1, div0);
+      if_block0.m(div0, null);
+      append(div1, t0);
+      if (if_block1) if_block1.m(div1, null);
+      append(section, t1);
+      append(section, textarea);
+      append(section, t2);
+      append(section, div4);
+      append(div4, div2);
+      append(div2, button0);
+      append(button0, span0);
+      append(button0, t3);
+      append(button0, t4);
+      append(div2, t5);
+      append(div2, button1);
+      append(button1, span1);
+      append(button1, t6);
+      append(div4, t7);
+      append(div4, div3);
+      append(div3, t8);
+      append(section, t9);
+      if (if_block2) if_block2.m(section, null);
+      if (!mounted) {
+        dispose = [
+          listen(
+            textarea,
+            "input",
+            /*onSummaryInput*/
+            ctx[38]
+          ),
+          listen(
+            textarea,
+            "blur",
+            /*onSummaryBlur*/
+            ctx[39]
+          ),
+          listen(button0, "click", prevent_default(
+            /*onGenerateSummary*/
+            ctx[40]
+          )),
+          listen(button1, "click", prevent_default(
+            /*onStopAndApplySummary*/
+            ctx[41]
+          ))
+        ];
+        mounted = true;
+      }
+    },
+    p(ctx2, dirty) {
+      if (current_block_type === (current_block_type = select_block_type_2(ctx2, dirty)) && if_block0) {
+        if_block0.p(ctx2, dirty);
+      } else {
+        if_block0.d(1);
+        if_block0 = current_block_type(ctx2);
+        if (if_block0) {
+          if_block0.c();
+          if_block0.m(div0, null);
+        }
+      }
+      if (
+        /*summaryBusy*/
+        ctx2[21]
+      ) {
+        if (if_block1) {
+        } else {
+          if_block1 = create_if_block_15(ctx2);
+          if_block1.c();
+          if_block1.m(div1, null);
+        }
+      } else if (if_block1) {
+        if_block1.d(1);
+        if_block1 = null;
+      }
+      if (dirty[0] & /*summaryDraft*/
+      262144) {
+        textarea.value = /*summaryDraft*/
+        ctx2[18];
+      }
+      if (dirty[0] & /*summaryAreaDisabled*/
+      33554432) {
+        textarea.disabled = /*summaryAreaDisabled*/
+        ctx2[25];
+      }
+      if (dirty[0] & /*summaryButtonLabel*/
+      1073741824) set_data(
+        t4,
+        /*summaryButtonLabel*/
+        ctx2[30]
+      );
+      if (dirty[0] & /*summaryButtonLabel*/
+      1073741824) {
+        attr(
+          button0,
+          "title",
+          /*summaryButtonLabel*/
+          ctx2[30]
+        );
+      }
+      if (dirty[0] & /*summaryButtonLabel*/
+      1073741824) {
+        attr(
+          button0,
+          "aria-label",
+          /*summaryButtonLabel*/
+          ctx2[30]
+        );
+      }
+      if (dirty[0] & /*summaryGenerateDisabled*/
+      134217728) {
+        button0.disabled = /*summaryGenerateDisabled*/
+        ctx2[27];
+      }
+      if (dirty[0] & /*summaryApplyDisabled*/
+      67108864) {
+        button1.disabled = /*summaryApplyDisabled*/
+        ctx2[26];
+      }
+      if (dirty[0] & /*summaryHelperText*/
+      536870912) set_data(
+        t8,
+        /*summaryHelperText*/
+        ctx2[29]
+      );
+      if (
+        /*summaryStatus*/
+        ctx2[19]
+      ) {
+        if (if_block2) {
+          if_block2.p(ctx2, dirty);
+        } else {
+          if_block2 = create_if_block_14(ctx2);
+          if_block2.c();
+          if_block2.m(section, null);
+        }
+      } else if (if_block2) {
+        if_block2.d(1);
+        if_block2 = null;
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(section);
+      }
+      if_block0.d();
+      if (if_block1) if_block1.d();
+      if (if_block2) if_block2.d();
+      mounted = false;
+      run_all(dispose);
+    }
+  };
+}
+function create_else_block_5(ctx) {
+  let span;
+  return {
+    c() {
+      span = element("span");
+      span.textContent = "Start a timer or select a work item to enable summaries.";
+      attr(span, "class", "muted svelte-s1e7ae");
+    },
+    m(target, anchor) {
+      insert(target, span, anchor);
+    },
+    p: noop,
+    d(detaching) {
+      if (detaching) {
+        detach(span);
+      }
+    }
+  };
+}
+function create_if_block_16(ctx) {
+  let span0;
+  let t1;
+  let span1;
+  let t2;
+  let t3;
+  let span2;
+  let t4_value = (
+    /*summaryProvider*/
+    ctx[20] === "openai" ? "OpenAI" : "Copilot"
+  );
+  let t4;
+  let t5;
+  let if_block_anchor;
+  let if_block = (
+    /*timerActive*/
+    ctx[5] && create_if_block_17(ctx)
+  );
+  return {
+    c() {
+      span0 = element("span");
+      span0.textContent = "Target";
+      t1 = space();
+      span1 = element("span");
+      t2 = text(
+        /*summaryTargetDisplay*/
+        ctx[28]
+      );
+      t3 = space();
+      span2 = element("span");
+      t4 = text(t4_value);
+      t5 = space();
+      if (if_block) if_block.c();
+      if_block_anchor = empty();
+      attr(span0, "class", "summary-target-label svelte-s1e7ae");
+      attr(span1, "class", "summary-target-value svelte-s1e7ae");
+      attr(span2, "class", "summary-provider-badge svelte-s1e7ae");
+    },
+    m(target, anchor) {
+      insert(target, span0, anchor);
+      insert(target, t1, anchor);
+      insert(target, span1, anchor);
+      append(span1, t2);
+      insert(target, t3, anchor);
+      insert(target, span2, anchor);
+      append(span2, t4);
+      insert(target, t5, anchor);
+      if (if_block) if_block.m(target, anchor);
+      insert(target, if_block_anchor, anchor);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*summaryTargetDisplay*/
+      268435456) set_data(
+        t2,
+        /*summaryTargetDisplay*/
+        ctx2[28]
+      );
+      if (dirty[0] & /*summaryProvider*/
+      1048576 && t4_value !== (t4_value = /*summaryProvider*/
+      ctx2[20] === "openai" ? "OpenAI" : "Copilot")) set_data(t4, t4_value);
+      if (
+        /*timerActive*/
+        ctx2[5]
+      ) {
+        if (if_block) {
+          if_block.p(ctx2, dirty);
+        } else {
+          if_block = create_if_block_17(ctx2);
+          if_block.c();
+          if_block.m(if_block_anchor.parentNode, if_block_anchor);
+        }
+      } else if (if_block) {
+        if_block.d(1);
+        if_block = null;
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(span0);
+        detach(t1);
+        detach(span1);
+        detach(t3);
+        detach(span2);
+        detach(t5);
+        detach(if_block_anchor);
+      }
+      if (if_block) if_block.d(detaching);
+    }
+  };
+}
+function create_if_block_17(ctx) {
+  let span;
+  let t0_value = (
+    /*timerRunning*/
+    ctx[6] ? "Running" : "Paused"
+  );
+  let t0;
+  let t1;
+  let if_block = (
+    /*timerElapsedLabel*/
+    ctx[7] && create_if_block_18(ctx)
+  );
+  return {
+    c() {
+      span = element("span");
+      t0 = text(t0_value);
+      t1 = space();
+      if (if_block) if_block.c();
+      attr(span, "class", "summary-target-timer svelte-s1e7ae");
+    },
+    m(target, anchor) {
+      insert(target, span, anchor);
+      append(span, t0);
+      append(span, t1);
+      if (if_block) if_block.m(span, null);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*timerRunning*/
+      64 && t0_value !== (t0_value = /*timerRunning*/
+      ctx2[6] ? "Running" : "Paused")) set_data(t0, t0_value);
+      if (
+        /*timerElapsedLabel*/
+        ctx2[7]
+      ) {
+        if (if_block) {
+          if_block.p(ctx2, dirty);
+        } else {
+          if_block = create_if_block_18(ctx2);
+          if_block.c();
+          if_block.m(span, null);
+        }
+      } else if (if_block) {
+        if_block.d(1);
+        if_block = null;
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(span);
+      }
+      if (if_block) if_block.d();
+    }
+  };
+}
+function create_if_block_18(ctx) {
+  let t0;
+  let t1;
+  let t2;
+  return {
+    c() {
+      t0 = text("(");
+      t1 = text(
+        /*timerElapsedLabel*/
+        ctx[7]
+      );
+      t2 = text(")");
+    },
+    m(target, anchor) {
+      insert(target, t0, anchor);
+      insert(target, t1, anchor);
+      insert(target, t2, anchor);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*timerElapsedLabel*/
+      128) set_data(
+        t1,
+        /*timerElapsedLabel*/
+        ctx2[7]
+      );
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(t0);
+        detach(t1);
+        detach(t2);
+      }
+    }
+  };
+}
+function create_if_block_15(ctx) {
+  let span;
+  return {
+    c() {
+      span = element("span");
+      attr(span, "class", "spinner inline svelte-s1e7ae");
+      attr(span, "role", "status");
+      attr(span, "aria-label", "Generating summary");
+    },
+    m(target, anchor) {
+      insert(target, span, anchor);
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(span);
+      }
+    }
+  };
+}
+function create_if_block_14(ctx) {
+  let div;
+  let t;
+  return {
+    c() {
+      div = element("div");
+      t = text(
+        /*summaryStatus*/
+        ctx[19]
+      );
+      attr(div, "class", "summary-status svelte-s1e7ae");
+      attr(div, "aria-live", "polite");
+    },
+    m(target, anchor) {
+      insert(target, div, anchor);
+      append(div, t);
+    },
+    p(ctx2, dirty) {
+      if (dirty[0] & /*summaryStatus*/
+      524288) set_data(
+        t,
+        /*summaryStatus*/
+        ctx2[19]
+      );
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div);
       }
     }
   };
@@ -1489,9 +2143,9 @@ function create_if_block_12(ctx) {
       div = element("div");
       t = text(
         /*errorMsg*/
-        ctx[12]
+        ctx[13]
       );
-      attr(div, "class", "error-banner svelte-188no3t");
+      attr(div, "class", "error-banner svelte-s1e7ae");
       attr(div, "role", "alert");
     },
     m(target, anchor) {
@@ -1500,10 +2154,10 @@ function create_if_block_12(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*errorMsg*/
-      4096) set_data(
+      8192) set_data(
         t,
         /*errorMsg*/
-        ctx2[12]
+        ctx2[13]
       );
     },
     d(detaching) {
@@ -1519,7 +2173,7 @@ function create_else_block_4(ctx) {
     c() {
       div = element("div");
       div.textContent = "No work items to display.";
-      attr(div, "class", "empty svelte-188no3t");
+      attr(div, "class", "empty svelte-s1e7ae");
     },
     m(target, anchor) {
       insert(target, div, anchor);
@@ -1536,7 +2190,7 @@ function create_if_block_7(ctx) {
   let div;
   let each_value_2 = ensure_array_like(
     /*items*/
-    ctx[9].slice(0, 50)
+    ctx[10].slice(0, 50)
   );
   let each_blocks = [];
   for (let i = 0; i < each_value_2.length; i += 1) {
@@ -1548,7 +2202,7 @@ function create_if_block_7(ctx) {
       for (let i = 0; i < each_blocks.length; i += 1) {
         each_blocks[i].c();
       }
-      attr(div, "class", "items svelte-188no3t");
+      attr(div, "class", "items svelte-s1e7ae");
       attr(div, "aria-label", "Work items");
     },
     m(target, anchor) {
@@ -1560,11 +2214,12 @@ function create_if_block_7(ctx) {
       }
     },
     p(ctx2, dirty) {
-      if (dirty[0] & /*timerActive, activeId, items, dispatch, timerElapsedLabel*/
-      131792) {
+      if (dirty[0] & /*timerActive, activeId, items, timerElapsedLabel*/
+      1440 | dirty[1] & /*dispatch*/
+      1) {
         each_value_2 = ensure_array_like(
           /*items*/
-          ctx2[9].slice(0, 50)
+          ctx2[10].slice(0, 50)
         );
         let i;
         for (i = 0; i < each_value_2.length; i += 1) {
@@ -1595,7 +2250,7 @@ function create_if_block_1(ctx) {
   let div;
   let each_value = ensure_array_like(
     /*columnDefs*/
-    ctx[16]
+    ctx[24]
   );
   let each_blocks = [];
   for (let i = 0; i < each_value.length; i += 1) {
@@ -1607,7 +2262,7 @@ function create_if_block_1(ctx) {
       for (let i = 0; i < each_blocks.length; i += 1) {
         each_blocks[i].c();
       }
-      attr(div, "class", "kanban-board svelte-188no3t");
+      attr(div, "class", "kanban-board svelte-s1e7ae");
       attr(div, "aria-label", "Kanban board");
     },
     m(target, anchor) {
@@ -1619,11 +2274,12 @@ function create_if_block_1(ctx) {
       }
     },
     p(ctx2, dirty) {
-      if (dirty[0] & /*columnDefs, handleDrop, kanbanGroups, timerActive, activeId, handleDragStart, dispatch, kanbanView, timerElapsedLabel*/
-      12813520) {
+      if (dirty[0] & /*columnDefs, kanbanGroups, timerActive, activeId, kanbanView, timerElapsedLabel*/
+      25168288 | dirty[1] & /*handleDrop, handleDragStart, dispatch*/
+      6145) {
         each_value = ensure_array_like(
           /*columnDefs*/
-          ctx2[16]
+          ctx2[24]
         );
         let i;
         for (i = 0; i < each_value.length; i += 1) {
@@ -1655,8 +2311,8 @@ function create_if_block(ctx) {
   return {
     c() {
       div = element("div");
-      div.innerHTML = `<span class="spinner svelte-188no3t" role="status" aria-label="Loading"></span> Loading work items\u2026`;
-      attr(div, "class", "loading svelte-188no3t");
+      div.innerHTML = `<span class="spinner svelte-s1e7ae" role="status" aria-label="Loading"></span> Loading work items\u2026`;
+      attr(div, "class", "loading svelte-s1e7ae");
     },
     m(target, anchor) {
       insert(target, div, anchor);
@@ -1681,11 +2337,11 @@ function create_if_block_11(ctx) {
       t0 = space();
       t1 = text(
         /*timerElapsedLabel*/
-        ctx[6]
+        ctx[7]
       );
       attr(span0, "class", "codicon codicon-clock");
       attr(span0, "aria-hidden", "true");
-      attr(span1, "class", "timer-indicator svelte-188no3t");
+      attr(span1, "class", "timer-indicator svelte-s1e7ae");
     },
     m(target, anchor) {
       insert(target, span1, anchor);
@@ -1695,10 +2351,10 @@ function create_if_block_11(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*timerElapsedLabel*/
-      64) set_data(
+      128) set_data(
         t1,
         /*timerElapsedLabel*/
-        ctx2[6]
+        ctx2[7]
       );
     },
     d(detaching) {
@@ -1712,7 +2368,7 @@ function create_if_block_10(ctx) {
   let div;
   let t_value = extractDescription(
     /*it*/
-    ctx[55]
+    ctx[77]
   ) + "";
   let t;
   let div_title_value;
@@ -1720,10 +2376,10 @@ function create_if_block_10(ctx) {
     c() {
       div = element("div");
       t = text(t_value);
-      attr(div, "class", "work-item-desc svelte-188no3t");
+      attr(div, "class", "work-item-desc svelte-s1e7ae");
       attr(div, "title", div_title_value = extractDescription(
         /*it*/
-        ctx[55]
+        ctx[77]
       ));
     },
     m(target, anchor) {
@@ -1732,14 +2388,14 @@ function create_if_block_10(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*items*/
-      512 && t_value !== (t_value = extractDescription(
+      1024 && t_value !== (t_value = extractDescription(
         /*it*/
-        ctx2[55]
+        ctx2[77]
       ) + "")) set_data(t, t_value);
       if (dirty[0] & /*items*/
-      512 && div_title_value !== (div_title_value = extractDescription(
+      1024 && div_title_value !== (div_title_value = extractDescription(
         /*it*/
-        ctx2[55]
+        ctx2[77]
       ))) {
         attr(div, "title", div_title_value);
       }
@@ -1779,8 +2435,8 @@ function create_if_block_9(ctx) {
   let t0;
   let t1_value = (
     /*it*/
-    (ctx[55].fields["System.AssignedTo"].displayName || /*it*/
-    ctx[55].fields["System.AssignedTo"]) + ""
+    (ctx[77].fields["System.AssignedTo"].displayName || /*it*/
+    ctx[77].fields["System.AssignedTo"]) + ""
   );
   let t1;
   return {
@@ -1798,9 +2454,9 @@ function create_if_block_9(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*items*/
-      512 && t1_value !== (t1_value = /*it*/
-      (ctx2[55].fields["System.AssignedTo"].displayName || /*it*/
-      ctx2[55].fields["System.AssignedTo"]) + "")) set_data(t1, t1_value);
+      1024 && t1_value !== (t1_value = /*it*/
+      (ctx2[77].fields["System.AssignedTo"].displayName || /*it*/
+      ctx2[77].fields["System.AssignedTo"]) + "")) set_data(t1, t1_value);
     },
     d(detaching) {
       if (detaching) {
@@ -1821,9 +2477,9 @@ function create_else_block_2(ctx) {
   function click_handler_7() {
     return (
       /*click_handler_7*/
-      ctx[38](
+      ctx[60](
         /*it*/
-        ctx[55]
+        ctx[77]
       )
     );
   }
@@ -1834,12 +2490,12 @@ function create_else_block_2(ctx) {
       t = text(" Start");
       attr(span, "class", "codicon codicon-play");
       attr(span, "aria-hidden", "true");
-      attr(button, "class", "action-btn start svelte-188no3t");
+      attr(button, "class", "action-btn start svelte-s1e7ae");
       attr(button, "title", "Start timer");
       attr(button, "aria-label", button_aria_label_value = `Start timer for #${/*it*/
-      ctx[55].id}`);
+      ctx[77].id}`);
       button.disabled = /*timerActive*/
-      ctx[4];
+      ctx[5];
     },
     m(target, anchor) {
       insert(target, button, anchor);
@@ -1853,14 +2509,14 @@ function create_else_block_2(ctx) {
     p(new_ctx, dirty) {
       ctx = new_ctx;
       if (dirty[0] & /*items*/
-      512 && button_aria_label_value !== (button_aria_label_value = `Start timer for #${/*it*/
-      ctx[55].id}`)) {
+      1024 && button_aria_label_value !== (button_aria_label_value = `Start timer for #${/*it*/
+      ctx[77].id}`)) {
         attr(button, "aria-label", button_aria_label_value);
       }
       if (dirty[0] & /*timerActive*/
-      16) {
+      32) {
         button.disabled = /*timerActive*/
-        ctx[4];
+        ctx[5];
       }
     },
     d(detaching) {
@@ -1886,10 +2542,10 @@ function create_if_block_8(ctx) {
       t = text(" Stop");
       attr(span, "class", "codicon codicon-debug-stop");
       attr(span, "aria-hidden", "true");
-      attr(button, "class", "action-btn stop svelte-188no3t");
+      attr(button, "class", "action-btn stop svelte-s1e7ae");
       attr(button, "title", "Stop timer");
       attr(button, "aria-label", button_aria_label_value = `Stop timer for #${/*it*/
-      ctx[55].id}`);
+      ctx[77].id}`);
     },
     m(target, anchor) {
       insert(target, button, anchor);
@@ -1898,15 +2554,15 @@ function create_if_block_8(ctx) {
       if (!mounted) {
         dispose = listen(button, "click", stop_propagation(
           /*click_handler_6*/
-          ctx[37]
+          ctx[59]
         ));
         mounted = true;
       }
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*items*/
-      512 && button_aria_label_value !== (button_aria_label_value = `Stop timer for #${/*it*/
-      ctx2[55].id}`)) {
+      1024 && button_aria_label_value !== (button_aria_label_value = `Stop timer for #${/*it*/
+      ctx2[77].id}`)) {
         attr(button, "aria-label", button_aria_label_value);
       }
     },
@@ -1925,7 +2581,7 @@ function create_each_block_2(ctx) {
   let span0;
   let t0_value = getWorkItemTypeIcon(
     /*it*/
-    ctx[55].fields?.["System.WorkItemType"]
+    ctx[77].fields?.["System.WorkItemType"]
   ) + "";
   let t0;
   let t1;
@@ -1933,23 +2589,23 @@ function create_each_block_2(ctx) {
   let t2;
   let t3_value = (
     /*it*/
-    ctx[55].id + ""
+    ctx[77].id + ""
   );
   let t3;
   let t4;
   let show_if_2 = (
     /*timerActive*/
-    ctx[4] && /*activeId*/
-    ctx[7] === Number(
+    ctx[5] && /*activeId*/
+    ctx[8] === Number(
       /*it*/
-      ctx[55].id
+      ctx[77].id
     )
   );
   let t5;
   let span2;
   let t6_value = (
     /*it*/
-    (ctx[55].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + ""
+    (ctx[77].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + ""
   );
   let t6;
   let span2_class_value;
@@ -1958,28 +2614,28 @@ function create_each_block_2(ctx) {
   let div1;
   let t8_value = (
     /*it*/
-    (ctx[55].fields?.["System.Title"] || `Work Item #${/*it*/
-    ctx[55].id}`) + ""
+    (ctx[77].fields?.["System.Title"] || `Work Item #${/*it*/
+    ctx[77].id}`) + ""
   );
   let t8;
   let t9;
   let show_if_1 = extractDescription(
     /*it*/
-    ctx[55]
+    ctx[77]
   );
   let t10;
   let div2;
   let span3;
   let t11_value = (
     /*it*/
-    (ctx[55].fields?.["System.WorkItemType"] || "Task") + ""
+    (ctx[77].fields?.["System.WorkItemType"] || "Task") + ""
   );
   let t11;
   let t12;
   let span4;
   let t13_value = (
     /*it*/
-    (ctx[55].fields?.["System.State"] || "New") + ""
+    (ctx[77].fields?.["System.State"] || "New") + ""
   );
   let t13;
   let span4_class_value;
@@ -2010,62 +2666,62 @@ function create_each_block_2(ctx) {
   let dispose;
   let if_block0 = show_if_2 && create_if_block_11(ctx);
   let if_block1 = show_if_1 && create_if_block_10(ctx);
-  function select_block_type_4(ctx2, dirty) {
+  function select_block_type_6(ctx2, dirty) {
     if (
       /*it*/
-      ctx2[55].fields?.["System.AssignedTo"]
+      ctx2[77].fields?.["System.AssignedTo"]
     ) return create_if_block_9;
     return create_else_block_3;
   }
-  let current_block_type = select_block_type_4(ctx, [-1, -1, -1]);
+  let current_block_type = select_block_type_6(ctx, [-1, -1, -1]);
   let if_block2 = current_block_type(ctx);
-  function select_block_type_5(ctx2, dirty) {
+  function select_block_type_7(ctx2, dirty) {
     if (dirty[0] & /*timerActive, activeId, items*/
-    656) show_if = null;
+    1312) show_if = null;
     if (show_if == null) show_if = !!/*timerActive*/
-    (ctx2[4] && /*activeId*/
-    ctx2[7] === Number(
+    (ctx2[5] && /*activeId*/
+    ctx2[8] === Number(
       /*it*/
-      ctx2[55].id
+      ctx2[77].id
     ));
     if (show_if) return create_if_block_8;
     return create_else_block_2;
   }
-  let current_block_type_1 = select_block_type_5(ctx, [-1, -1, -1]);
+  let current_block_type_1 = select_block_type_7(ctx, [-1, -1, -1]);
   let if_block3 = current_block_type_1(ctx);
   function click_handler_8() {
     return (
       /*click_handler_8*/
-      ctx[39](
+      ctx[61](
         /*it*/
-        ctx[55]
+        ctx[77]
       )
     );
   }
   function click_handler_9() {
     return (
       /*click_handler_9*/
-      ctx[40](
+      ctx[62](
         /*it*/
-        ctx[55]
+        ctx[77]
       )
     );
   }
   function click_handler_10() {
     return (
       /*click_handler_10*/
-      ctx[41](
+      ctx[63](
         /*it*/
-        ctx[55]
+        ctx[77]
       )
     );
   }
   function keydown_handler_1(...args) {
     return (
       /*keydown_handler_1*/
-      ctx[42](
+      ctx[64](
         /*it*/
-        ctx[55],
+        ctx[77],
         ...args
       )
     );
@@ -2073,9 +2729,9 @@ function create_each_block_2(ctx) {
   function click_handler_11() {
     return (
       /*click_handler_11*/
-      ctx[43](
+      ctx[65](
         /*it*/
-        ctx[55]
+        ctx[77]
       )
     );
   }
@@ -2126,52 +2782,52 @@ function create_each_block_2(ctx) {
       span8 = element("span");
       t21 = text(" Comment");
       t22 = space();
-      attr(span0, "class", "work-item-type-icon svelte-188no3t");
-      attr(span1, "class", "work-item-id svelte-188no3t");
+      attr(span0, "class", "work-item-type-icon svelte-s1e7ae");
+      attr(span1, "class", "work-item-id svelte-s1e7ae");
       attr(span2, "class", span2_class_value = "work-item-priority " + getPriorityClass(
         /*it*/
-        ctx[55].fields?.["Microsoft.VSTS.Common.Priority"]
-      ) + " svelte-188no3t");
-      attr(div0, "class", "work-item-header svelte-188no3t");
-      attr(div1, "class", "work-item-title svelte-188no3t");
-      attr(span3, "class", "work-item-type svelte-188no3t");
+        ctx[77].fields?.["Microsoft.VSTS.Common.Priority"]
+      ) + " svelte-s1e7ae");
+      attr(div0, "class", "work-item-header svelte-s1e7ae");
+      attr(div1, "class", "work-item-title svelte-s1e7ae");
+      attr(span3, "class", "work-item-type svelte-s1e7ae");
       attr(span4, "class", span4_class_value = "work-item-state state-" + normalizeState(
         /*it*/
-        ctx[55].fields?.["System.State"]
-      ) + " svelte-188no3t");
+        ctx[77].fields?.["System.State"]
+      ) + " svelte-s1e7ae");
       attr(span5, "class", "work-item-assignee");
-      attr(div2, "class", "work-item-meta svelte-188no3t");
-      attr(div3, "class", "work-item-content svelte-188no3t");
+      attr(div2, "class", "work-item-meta svelte-s1e7ae");
+      attr(div3, "class", "work-item-content svelte-s1e7ae");
       attr(span6, "class", "codicon codicon-eye");
       attr(span6, "aria-hidden", "true");
-      attr(button0, "class", "action-btn view svelte-188no3t");
+      attr(button0, "class", "action-btn view svelte-s1e7ae");
       attr(button0, "title", "View in browser");
       attr(button0, "aria-label", button0_aria_label_value = `View work item #${/*it*/
-      ctx[55].id}`);
+      ctx[77].id}`);
       attr(span7, "class", "codicon codicon-edit");
       attr(span7, "aria-hidden", "true");
-      attr(button1, "class", "action-btn edit svelte-188no3t");
+      attr(button1, "class", "action-btn edit svelte-s1e7ae");
       attr(button1, "title", "Edit work item");
       attr(button1, "aria-label", button1_aria_label_value = `Edit work item #${/*it*/
-      ctx[55].id}`);
+      ctx[77].id}`);
       attr(span8, "class", "codicon codicon-comment");
       attr(span8, "aria-hidden", "true");
-      attr(button2, "class", "action-btn comment svelte-188no3t");
+      attr(button2, "class", "action-btn comment svelte-s1e7ae");
       attr(button2, "title", "Add comment");
       attr(button2, "aria-label", button2_aria_label_value = `Add comment to #${/*it*/
-      ctx[55].id}`);
-      attr(div4, "class", "work-item-actions svelte-188no3t");
+      ctx[77].id}`);
+      attr(div4, "class", "work-item-actions svelte-s1e7ae");
       attr(div5, "class", div5_class_value = "work-item-card " + /*timerActive*/
-      (ctx[4] && /*activeId*/
-      ctx[7] === Number(
+      (ctx[5] && /*activeId*/
+      ctx[8] === Number(
         /*it*/
-        ctx[55].id
-      ) ? "has-active-timer" : "") + " svelte-188no3t");
+        ctx[77].id
+      ) ? "has-active-timer" : "") + " svelte-s1e7ae");
       attr(div5, "tabindex", "0");
       attr(div5, "role", "button");
       attr(div5, "aria-label", div5_aria_label_value = `Work item #${/*it*/
-      ctx[55].id}: ${/*it*/
-      ctx[55].fields?.["System.Title"]} - press Enter to open`);
+      ctx[77].id}: ${/*it*/
+      ctx[77].fields?.["System.Title"]} - press Enter to open`);
     },
     m(target, anchor) {
       insert(target, div5, anchor);
@@ -2233,19 +2889,19 @@ function create_each_block_2(ctx) {
     p(new_ctx, dirty) {
       ctx = new_ctx;
       if (dirty[0] & /*items*/
-      512 && t0_value !== (t0_value = getWorkItemTypeIcon(
+      1024 && t0_value !== (t0_value = getWorkItemTypeIcon(
         /*it*/
-        ctx[55].fields?.["System.WorkItemType"]
+        ctx[77].fields?.["System.WorkItemType"]
       ) + "")) set_data(t0, t0_value);
       if (dirty[0] & /*items*/
-      512 && t3_value !== (t3_value = /*it*/
-      ctx[55].id + "")) set_data(t3, t3_value);
+      1024 && t3_value !== (t3_value = /*it*/
+      ctx[77].id + "")) set_data(t3, t3_value);
       if (dirty[0] & /*timerActive, activeId, items*/
-      656) show_if_2 = /*timerActive*/
-      ctx[4] && /*activeId*/
-      ctx[7] === Number(
+      1312) show_if_2 = /*timerActive*/
+      ctx[5] && /*activeId*/
+      ctx[8] === Number(
         /*it*/
-        ctx[55].id
+        ctx[77].id
       );
       if (show_if_2) {
         if (if_block0) {
@@ -2260,23 +2916,23 @@ function create_each_block_2(ctx) {
         if_block0 = null;
       }
       if (dirty[0] & /*items*/
-      512 && t6_value !== (t6_value = /*it*/
-      (ctx[55].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + "")) set_data(t6, t6_value);
+      1024 && t6_value !== (t6_value = /*it*/
+      (ctx[77].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + "")) set_data(t6, t6_value);
       if (dirty[0] & /*items*/
-      512 && span2_class_value !== (span2_class_value = "work-item-priority " + getPriorityClass(
+      1024 && span2_class_value !== (span2_class_value = "work-item-priority " + getPriorityClass(
         /*it*/
-        ctx[55].fields?.["Microsoft.VSTS.Common.Priority"]
-      ) + " svelte-188no3t")) {
+        ctx[77].fields?.["Microsoft.VSTS.Common.Priority"]
+      ) + " svelte-s1e7ae")) {
         attr(span2, "class", span2_class_value);
       }
       if (dirty[0] & /*items*/
-      512 && t8_value !== (t8_value = /*it*/
-      (ctx[55].fields?.["System.Title"] || `Work Item #${/*it*/
-      ctx[55].id}`) + "")) set_data(t8, t8_value);
+      1024 && t8_value !== (t8_value = /*it*/
+      (ctx[77].fields?.["System.Title"] || `Work Item #${/*it*/
+      ctx[77].id}`) + "")) set_data(t8, t8_value);
       if (dirty[0] & /*items*/
-      512) show_if_1 = extractDescription(
+      1024) show_if_1 = extractDescription(
         /*it*/
-        ctx[55]
+        ctx[77]
       );
       if (show_if_1) {
         if (if_block1) {
@@ -2291,19 +2947,19 @@ function create_each_block_2(ctx) {
         if_block1 = null;
       }
       if (dirty[0] & /*items*/
-      512 && t11_value !== (t11_value = /*it*/
-      (ctx[55].fields?.["System.WorkItemType"] || "Task") + "")) set_data(t11, t11_value);
+      1024 && t11_value !== (t11_value = /*it*/
+      (ctx[77].fields?.["System.WorkItemType"] || "Task") + "")) set_data(t11, t11_value);
       if (dirty[0] & /*items*/
-      512 && t13_value !== (t13_value = /*it*/
-      (ctx[55].fields?.["System.State"] || "New") + "")) set_data(t13, t13_value);
+      1024 && t13_value !== (t13_value = /*it*/
+      (ctx[77].fields?.["System.State"] || "New") + "")) set_data(t13, t13_value);
       if (dirty[0] & /*items*/
-      512 && span4_class_value !== (span4_class_value = "work-item-state state-" + normalizeState(
+      1024 && span4_class_value !== (span4_class_value = "work-item-state state-" + normalizeState(
         /*it*/
-        ctx[55].fields?.["System.State"]
-      ) + " svelte-188no3t")) {
+        ctx[77].fields?.["System.State"]
+      ) + " svelte-s1e7ae")) {
         attr(span4, "class", span4_class_value);
       }
-      if (current_block_type === (current_block_type = select_block_type_4(ctx, dirty)) && if_block2) {
+      if (current_block_type === (current_block_type = select_block_type_6(ctx, dirty)) && if_block2) {
         if_block2.p(ctx, dirty);
       } else {
         if_block2.d(1);
@@ -2313,7 +2969,7 @@ function create_each_block_2(ctx) {
           if_block2.m(span5, null);
         }
       }
-      if (current_block_type_1 === (current_block_type_1 = select_block_type_5(ctx, dirty)) && if_block3) {
+      if (current_block_type_1 === (current_block_type_1 = select_block_type_7(ctx, dirty)) && if_block3) {
         if_block3.p(ctx, dirty);
       } else {
         if_block3.d(1);
@@ -2324,33 +2980,33 @@ function create_each_block_2(ctx) {
         }
       }
       if (dirty[0] & /*items*/
-      512 && button0_aria_label_value !== (button0_aria_label_value = `View work item #${/*it*/
-      ctx[55].id}`)) {
+      1024 && button0_aria_label_value !== (button0_aria_label_value = `View work item #${/*it*/
+      ctx[77].id}`)) {
         attr(button0, "aria-label", button0_aria_label_value);
       }
       if (dirty[0] & /*items*/
-      512 && button1_aria_label_value !== (button1_aria_label_value = `Edit work item #${/*it*/
-      ctx[55].id}`)) {
+      1024 && button1_aria_label_value !== (button1_aria_label_value = `Edit work item #${/*it*/
+      ctx[77].id}`)) {
         attr(button1, "aria-label", button1_aria_label_value);
       }
       if (dirty[0] & /*items*/
-      512 && button2_aria_label_value !== (button2_aria_label_value = `Add comment to #${/*it*/
-      ctx[55].id}`)) {
+      1024 && button2_aria_label_value !== (button2_aria_label_value = `Add comment to #${/*it*/
+      ctx[77].id}`)) {
         attr(button2, "aria-label", button2_aria_label_value);
       }
       if (dirty[0] & /*timerActive, activeId, items*/
-      656 && div5_class_value !== (div5_class_value = "work-item-card " + /*timerActive*/
-      (ctx[4] && /*activeId*/
-      ctx[7] === Number(
+      1312 && div5_class_value !== (div5_class_value = "work-item-card " + /*timerActive*/
+      (ctx[5] && /*activeId*/
+      ctx[8] === Number(
         /*it*/
-        ctx[55].id
-      ) ? "has-active-timer" : "") + " svelte-188no3t")) {
+        ctx[77].id
+      ) ? "has-active-timer" : "") + " svelte-s1e7ae")) {
         attr(div5, "class", div5_class_value);
       }
       if (dirty[0] & /*items*/
-      512 && div5_aria_label_value !== (div5_aria_label_value = `Work item #${/*it*/
-      ctx[55].id}: ${/*it*/
-      ctx[55].fields?.["System.Title"]} - press Enter to open`)) {
+      1024 && div5_aria_label_value !== (div5_aria_label_value = `Work item #${/*it*/
+      ctx[77].id}: ${/*it*/
+      ctx[77].fields?.["System.Title"]} - press Enter to open`)) {
         attr(div5, "aria-label", div5_aria_label_value);
       }
     },
@@ -2373,7 +3029,7 @@ function create_else_block_1(ctx) {
     c() {
       div = element("div");
       div.textContent = "No items";
-      attr(div, "class", "empty svelte-188no3t");
+      attr(div, "class", "empty svelte-s1e7ae");
     },
     m(target, anchor) {
       insert(target, div, anchor);
@@ -2390,9 +3046,9 @@ function create_if_block_2(ctx) {
   let each_1_anchor;
   let each_value_1 = ensure_array_like(
     /*kanbanGroups*/
-    ctx[15][
+    ctx[23][
       /*col*/
-      ctx[52].key
+      ctx[74].key
     ]
   );
   let each_blocks = [];
@@ -2415,13 +3071,14 @@ function create_if_block_2(ctx) {
       insert(target, each_1_anchor, anchor);
     },
     p(ctx2, dirty) {
-      if (dirty[0] & /*kanbanGroups, columnDefs, timerActive, activeId, handleDragStart, dispatch, kanbanView, timerElapsedLabel*/
-      4424912) {
+      if (dirty[0] & /*kanbanGroups, columnDefs, timerActive, activeId, kanbanView, timerElapsedLabel*/
+      25168288 | dirty[1] & /*handleDragStart, dispatch*/
+      2049) {
         each_value_1 = ensure_array_like(
           /*kanbanGroups*/
-          ctx2[15][
+          ctx2[23][
             /*col*/
-            ctx2[52].key
+            ctx2[74].key
           ]
         );
         let i;
@@ -2461,11 +3118,11 @@ function create_if_block_6(ctx) {
       t0 = space();
       t1 = text(
         /*timerElapsedLabel*/
-        ctx[6]
+        ctx[7]
       );
       attr(span0, "class", "codicon codicon-clock");
       attr(span0, "aria-hidden", "true");
-      attr(span1, "class", "timer-indicator svelte-188no3t");
+      attr(span1, "class", "timer-indicator svelte-s1e7ae");
     },
     m(target, anchor) {
       insert(target, span1, anchor);
@@ -2475,10 +3132,10 @@ function create_if_block_6(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*timerElapsedLabel*/
-      64) set_data(
+      128) set_data(
         t1,
         /*timerElapsedLabel*/
-        ctx2[6]
+        ctx2[7]
       );
     },
     d(detaching) {
@@ -2492,7 +3149,7 @@ function create_if_block_5(ctx) {
   let div;
   let t_value = extractDescription(
     /*it*/
-    ctx[55]
+    ctx[77]
   ) + "";
   let t;
   let div_title_value;
@@ -2500,10 +3157,10 @@ function create_if_block_5(ctx) {
     c() {
       div = element("div");
       t = text(t_value);
-      attr(div, "class", "work-item-desc svelte-188no3t");
+      attr(div, "class", "work-item-desc svelte-s1e7ae");
       attr(div, "title", div_title_value = extractDescription(
         /*it*/
-        ctx[55]
+        ctx[77]
       ));
     },
     m(target, anchor) {
@@ -2512,14 +3169,14 @@ function create_if_block_5(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && t_value !== (t_value = extractDescription(
+      25165824 && t_value !== (t_value = extractDescription(
         /*it*/
-        ctx2[55]
+        ctx2[77]
       ) + "")) set_data(t, t_value);
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && div_title_value !== (div_title_value = extractDescription(
+      25165824 && div_title_value !== (div_title_value = extractDescription(
         /*it*/
-        ctx2[55]
+        ctx2[77]
       ))) {
         attr(div, "title", div_title_value);
       }
@@ -2537,8 +3194,8 @@ function create_if_block_4(ctx) {
   let t0;
   let t1_value = (
     /*it*/
-    (ctx[55].fields["System.AssignedTo"].displayName || /*it*/
-    ctx[55].fields["System.AssignedTo"]) + ""
+    (ctx[77].fields["System.AssignedTo"].displayName || /*it*/
+    ctx[77].fields["System.AssignedTo"]) + ""
   );
   let t1;
   return {
@@ -2559,9 +3216,9 @@ function create_if_block_4(ctx) {
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && t1_value !== (t1_value = /*it*/
-      (ctx2[55].fields["System.AssignedTo"].displayName || /*it*/
-      ctx2[55].fields["System.AssignedTo"]) + "")) set_data(t1, t1_value);
+      25165824 && t1_value !== (t1_value = /*it*/
+      (ctx2[77].fields["System.AssignedTo"].displayName || /*it*/
+      ctx2[77].fields["System.AssignedTo"]) + "")) set_data(t1, t1_value);
     },
     d(detaching) {
       if (detaching) {
@@ -2579,9 +3236,9 @@ function create_else_block(ctx) {
   function click_handler_1() {
     return (
       /*click_handler_1*/
-      ctx[29](
+      ctx[51](
         /*it*/
-        ctx[55]
+        ctx[77]
       )
     );
   }
@@ -2591,12 +3248,12 @@ function create_else_block(ctx) {
       span = element("span");
       attr(span, "class", "codicon codicon-play");
       attr(span, "aria-hidden", "true");
-      attr(button, "class", "action-btn start compact svelte-188no3t");
+      attr(button, "class", "action-btn start compact svelte-s1e7ae");
       attr(button, "title", "Start timer");
       attr(button, "aria-label", button_aria_label_value = `Start timer for #${/*it*/
-      ctx[55].id}`);
+      ctx[77].id}`);
       button.disabled = /*timerActive*/
-      ctx[4];
+      ctx[5];
     },
     m(target, anchor) {
       insert(target, button, anchor);
@@ -2609,14 +3266,14 @@ function create_else_block(ctx) {
     p(new_ctx, dirty) {
       ctx = new_ctx;
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && button_aria_label_value !== (button_aria_label_value = `Start timer for #${/*it*/
-      ctx[55].id}`)) {
+      25165824 && button_aria_label_value !== (button_aria_label_value = `Start timer for #${/*it*/
+      ctx[77].id}`)) {
         attr(button, "aria-label", button_aria_label_value);
       }
       if (dirty[0] & /*timerActive*/
-      16) {
+      32) {
         button.disabled = /*timerActive*/
-        ctx[4];
+        ctx[5];
       }
     },
     d(detaching) {
@@ -2640,10 +3297,10 @@ function create_if_block_3(ctx) {
       span = element("span");
       attr(span, "class", "codicon codicon-debug-stop");
       attr(span, "aria-hidden", "true");
-      attr(button, "class", "action-btn stop compact svelte-188no3t");
+      attr(button, "class", "action-btn stop compact svelte-s1e7ae");
       attr(button, "title", "Stop timer");
       attr(button, "aria-label", button_aria_label_value = `Stop timer for #${/*it*/
-      ctx[55].id}`);
+      ctx[77].id}`);
     },
     m(target, anchor) {
       insert(target, button, anchor);
@@ -2651,15 +3308,15 @@ function create_if_block_3(ctx) {
       if (!mounted) {
         dispose = listen(button, "click", stop_propagation(
           /*click_handler*/
-          ctx[28]
+          ctx[50]
         ));
         mounted = true;
       }
     },
     p(ctx2, dirty) {
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && button_aria_label_value !== (button_aria_label_value = `Stop timer for #${/*it*/
-      ctx2[55].id}`)) {
+      25165824 && button_aria_label_value !== (button_aria_label_value = `Stop timer for #${/*it*/
+      ctx2[77].id}`)) {
         attr(button, "aria-label", button_aria_label_value);
       }
     },
@@ -2678,7 +3335,7 @@ function create_each_block_1(ctx) {
   let span0;
   let t0_value = getWorkItemTypeIcon(
     /*it*/
-    ctx[55].fields?.["System.WorkItemType"]
+    ctx[77].fields?.["System.WorkItemType"]
   ) + "";
   let t0;
   let t1;
@@ -2686,23 +3343,23 @@ function create_each_block_1(ctx) {
   let t2;
   let t3_value = (
     /*it*/
-    ctx[55].id + ""
+    ctx[77].id + ""
   );
   let t3;
   let t4;
   let show_if_2 = (
     /*timerActive*/
-    ctx[4] && /*activeId*/
-    ctx[7] === Number(
+    ctx[5] && /*activeId*/
+    ctx[8] === Number(
       /*it*/
-      ctx[55].id
+      ctx[77].id
     )
   );
   let t5;
   let span2;
   let t6_value = (
     /*it*/
-    (ctx[55].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + ""
+    (ctx[77].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + ""
   );
   let t6;
   let span2_class_value;
@@ -2711,21 +3368,21 @@ function create_each_block_1(ctx) {
   let div1;
   let t8_value = (
     /*it*/
-    (ctx[55].fields?.["System.Title"] || `Work Item #${/*it*/
-    ctx[55].id}`) + ""
+    (ctx[77].fields?.["System.Title"] || `Work Item #${/*it*/
+    ctx[77].id}`) + ""
   );
   let t8;
   let t9;
   let show_if_1 = extractDescription(
     /*it*/
-    ctx[55]
+    ctx[77]
   );
   let t10;
   let div2;
   let span3;
   let t11_value = (
     /*it*/
-    (ctx[55].fields?.["System.WorkItemType"] || "Task") + ""
+    (ctx[77].fields?.["System.WorkItemType"] || "Task") + ""
   );
   let t11;
   let t12;
@@ -2753,55 +3410,55 @@ function create_each_block_1(ctx) {
   let if_block1 = show_if_1 && create_if_block_5(ctx);
   let if_block2 = (
     /*it*/
-    ctx[55].fields?.["System.AssignedTo"] && create_if_block_4(ctx)
+    ctx[77].fields?.["System.AssignedTo"] && create_if_block_4(ctx)
   );
-  function select_block_type_3(ctx2, dirty) {
+  function select_block_type_5(ctx2, dirty) {
     if (dirty[0] & /*timerActive, activeId, kanbanGroups, columnDefs*/
-    98448) show_if = null;
+    25166112) show_if = null;
     if (show_if == null) show_if = !!/*timerActive*/
-    (ctx2[4] && /*activeId*/
-    ctx2[7] === Number(
+    (ctx2[5] && /*activeId*/
+    ctx2[8] === Number(
       /*it*/
-      ctx2[55].id
+      ctx2[77].id
     ));
     if (show_if) return create_if_block_3;
     return create_else_block;
   }
-  let current_block_type = select_block_type_3(ctx, [-1, -1, -1]);
+  let current_block_type = select_block_type_5(ctx, [-1, -1, -1]);
   let if_block3 = current_block_type(ctx);
   function click_handler_2() {
     return (
       /*click_handler_2*/
-      ctx[30](
+      ctx[52](
         /*it*/
-        ctx[55]
+        ctx[77]
       )
     );
   }
   function click_handler_3() {
     return (
       /*click_handler_3*/
-      ctx[31](
+      ctx[53](
         /*it*/
-        ctx[55]
+        ctx[77]
       )
     );
   }
   function click_handler_4() {
     return (
       /*click_handler_4*/
-      ctx[32](
+      ctx[54](
         /*it*/
-        ctx[55]
+        ctx[77]
       )
     );
   }
   function dragstart_handler(...args) {
     return (
       /*dragstart_handler*/
-      ctx[33](
+      ctx[55](
         /*it*/
-        ctx[55],
+        ctx[77],
         ...args
       )
     );
@@ -2809,9 +3466,9 @@ function create_each_block_1(ctx) {
   function keydown_handler(...args) {
     return (
       /*keydown_handler*/
-      ctx[34](
+      ctx[56](
         /*it*/
-        ctx[55],
+        ctx[77],
         ...args
       )
     );
@@ -2819,9 +3476,9 @@ function create_each_block_1(ctx) {
   function click_handler_5() {
     return (
       /*click_handler_5*/
-      ctx[35](
+      ctx[57](
         /*it*/
-        ctx[55]
+        ctx[77]
       )
     );
   }
@@ -2865,51 +3522,51 @@ function create_each_block_1(ctx) {
       button2 = element("button");
       span6 = element("span");
       t17 = space();
-      attr(span0, "class", "work-item-type-icon svelte-188no3t");
-      attr(span1, "class", "work-item-id svelte-188no3t");
+      attr(span0, "class", "work-item-type-icon svelte-s1e7ae");
+      attr(span1, "class", "work-item-id svelte-s1e7ae");
       attr(span2, "class", span2_class_value = "work-item-priority " + getPriorityClass(
         /*it*/
-        ctx[55].fields?.["Microsoft.VSTS.Common.Priority"]
-      ) + " svelte-188no3t");
-      attr(div0, "class", "work-item-header svelte-188no3t");
-      attr(div1, "class", "work-item-title svelte-188no3t");
-      attr(span3, "class", "work-item-type svelte-188no3t");
-      attr(div2, "class", "work-item-meta svelte-188no3t");
-      attr(div3, "class", "work-item-content svelte-188no3t");
+        ctx[77].fields?.["Microsoft.VSTS.Common.Priority"]
+      ) + " svelte-s1e7ae");
+      attr(div0, "class", "work-item-header svelte-s1e7ae");
+      attr(div1, "class", "work-item-title svelte-s1e7ae");
+      attr(span3, "class", "work-item-type svelte-s1e7ae");
+      attr(div2, "class", "work-item-meta svelte-s1e7ae");
+      attr(div3, "class", "work-item-content svelte-s1e7ae");
       attr(span4, "class", "codicon codicon-eye");
       attr(span4, "aria-hidden", "true");
-      attr(button0, "class", "action-btn view compact svelte-188no3t");
+      attr(button0, "class", "action-btn view compact svelte-s1e7ae");
       attr(button0, "title", "View");
       attr(button0, "aria-label", button0_aria_label_value = `View work item #${/*it*/
-      ctx[55].id}`);
+      ctx[77].id}`);
       attr(span5, "class", "codicon codicon-edit");
       attr(span5, "aria-hidden", "true");
-      attr(button1, "class", "action-btn edit compact svelte-188no3t");
+      attr(button1, "class", "action-btn edit compact svelte-s1e7ae");
       attr(button1, "title", "Edit");
       attr(button1, "aria-label", button1_aria_label_value = `Edit work item #${/*it*/
-      ctx[55].id}`);
+      ctx[77].id}`);
       attr(span6, "class", "codicon codicon-comment");
       attr(span6, "aria-hidden", "true");
-      attr(button2, "class", "action-btn comment compact svelte-188no3t");
+      attr(button2, "class", "action-btn comment compact svelte-s1e7ae");
       attr(button2, "title", "Comment");
       attr(button2, "aria-label", button2_aria_label_value = `Add comment to #${/*it*/
-      ctx[55].id}`);
-      attr(div4, "class", "work-item-actions svelte-188no3t");
+      ctx[77].id}`);
+      attr(div4, "class", "work-item-actions svelte-s1e7ae");
       attr(div5, "class", div5_class_value = "work-item-card kanban-card state-" + normalizeState(
         /*it*/
-        ctx[55].fields?.["System.State"]
+        ctx[77].fields?.["System.State"]
       ) + " " + /*timerActive*/
-      (ctx[4] && /*activeId*/
-      ctx[7] === Number(
+      (ctx[5] && /*activeId*/
+      ctx[8] === Number(
         /*it*/
-        ctx[55].id
-      ) ? "has-active-timer" : "") + " svelte-188no3t");
+        ctx[77].id
+      ) ? "has-active-timer" : "") + " svelte-s1e7ae");
       attr(div5, "tabindex", "0");
       attr(div5, "draggable", "true");
       attr(div5, "role", "button");
       attr(div5, "aria-label", div5_aria_label_value = `Work item #${/*it*/
-      ctx[55].id}: ${/*it*/
-      ctx[55].fields?.["System.Title"]} - press Enter to open; Ctrl+Arrow to move`);
+      ctx[77].id}: ${/*it*/
+      ctx[77].fields?.["System.Title"]} - press Enter to open; Ctrl+Arrow to move`);
     },
     m(target, anchor) {
       insert(target, div5, anchor);
@@ -2965,19 +3622,19 @@ function create_each_block_1(ctx) {
     p(new_ctx, dirty) {
       ctx = new_ctx;
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && t0_value !== (t0_value = getWorkItemTypeIcon(
+      25165824 && t0_value !== (t0_value = getWorkItemTypeIcon(
         /*it*/
-        ctx[55].fields?.["System.WorkItemType"]
+        ctx[77].fields?.["System.WorkItemType"]
       ) + "")) set_data(t0, t0_value);
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && t3_value !== (t3_value = /*it*/
-      ctx[55].id + "")) set_data(t3, t3_value);
+      25165824 && t3_value !== (t3_value = /*it*/
+      ctx[77].id + "")) set_data(t3, t3_value);
       if (dirty[0] & /*timerActive, activeId, kanbanGroups, columnDefs*/
-      98448) show_if_2 = /*timerActive*/
-      ctx[4] && /*activeId*/
-      ctx[7] === Number(
+      25166112) show_if_2 = /*timerActive*/
+      ctx[5] && /*activeId*/
+      ctx[8] === Number(
         /*it*/
-        ctx[55].id
+        ctx[77].id
       );
       if (show_if_2) {
         if (if_block0) {
@@ -2992,23 +3649,23 @@ function create_each_block_1(ctx) {
         if_block0 = null;
       }
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && t6_value !== (t6_value = /*it*/
-      (ctx[55].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + "")) set_data(t6, t6_value);
+      25165824 && t6_value !== (t6_value = /*it*/
+      (ctx[77].fields?.["Microsoft.VSTS.Common.Priority"] || "3") + "")) set_data(t6, t6_value);
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && span2_class_value !== (span2_class_value = "work-item-priority " + getPriorityClass(
+      25165824 && span2_class_value !== (span2_class_value = "work-item-priority " + getPriorityClass(
         /*it*/
-        ctx[55].fields?.["Microsoft.VSTS.Common.Priority"]
-      ) + " svelte-188no3t")) {
+        ctx[77].fields?.["Microsoft.VSTS.Common.Priority"]
+      ) + " svelte-s1e7ae")) {
         attr(span2, "class", span2_class_value);
       }
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && t8_value !== (t8_value = /*it*/
-      (ctx[55].fields?.["System.Title"] || `Work Item #${/*it*/
-      ctx[55].id}`) + "")) set_data(t8, t8_value);
+      25165824 && t8_value !== (t8_value = /*it*/
+      (ctx[77].fields?.["System.Title"] || `Work Item #${/*it*/
+      ctx[77].id}`) + "")) set_data(t8, t8_value);
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304) show_if_1 = extractDescription(
+      25165824) show_if_1 = extractDescription(
         /*it*/
-        ctx[55]
+        ctx[77]
       );
       if (show_if_1) {
         if (if_block1) {
@@ -3023,11 +3680,11 @@ function create_each_block_1(ctx) {
         if_block1 = null;
       }
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && t11_value !== (t11_value = /*it*/
-      (ctx[55].fields?.["System.WorkItemType"] || "Task") + "")) set_data(t11, t11_value);
+      25165824 && t11_value !== (t11_value = /*it*/
+      (ctx[77].fields?.["System.WorkItemType"] || "Task") + "")) set_data(t11, t11_value);
       if (
         /*it*/
-        ctx[55].fields?.["System.AssignedTo"]
+        ctx[77].fields?.["System.AssignedTo"]
       ) {
         if (if_block2) {
           if_block2.p(ctx, dirty);
@@ -3040,7 +3697,7 @@ function create_each_block_1(ctx) {
         if_block2.d(1);
         if_block2 = null;
       }
-      if (current_block_type === (current_block_type = select_block_type_3(ctx, dirty)) && if_block3) {
+      if (current_block_type === (current_block_type = select_block_type_5(ctx, dirty)) && if_block3) {
         if_block3.p(ctx, dirty);
       } else {
         if_block3.d(1);
@@ -3051,36 +3708,36 @@ function create_each_block_1(ctx) {
         }
       }
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && button0_aria_label_value !== (button0_aria_label_value = `View work item #${/*it*/
-      ctx[55].id}`)) {
+      25165824 && button0_aria_label_value !== (button0_aria_label_value = `View work item #${/*it*/
+      ctx[77].id}`)) {
         attr(button0, "aria-label", button0_aria_label_value);
       }
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && button1_aria_label_value !== (button1_aria_label_value = `Edit work item #${/*it*/
-      ctx[55].id}`)) {
+      25165824 && button1_aria_label_value !== (button1_aria_label_value = `Edit work item #${/*it*/
+      ctx[77].id}`)) {
         attr(button1, "aria-label", button1_aria_label_value);
       }
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && button2_aria_label_value !== (button2_aria_label_value = `Add comment to #${/*it*/
-      ctx[55].id}`)) {
+      25165824 && button2_aria_label_value !== (button2_aria_label_value = `Add comment to #${/*it*/
+      ctx[77].id}`)) {
         attr(button2, "aria-label", button2_aria_label_value);
       }
       if (dirty[0] & /*kanbanGroups, columnDefs, timerActive, activeId*/
-      98448 && div5_class_value !== (div5_class_value = "work-item-card kanban-card state-" + normalizeState(
+      25166112 && div5_class_value !== (div5_class_value = "work-item-card kanban-card state-" + normalizeState(
         /*it*/
-        ctx[55].fields?.["System.State"]
+        ctx[77].fields?.["System.State"]
       ) + " " + /*timerActive*/
-      (ctx[4] && /*activeId*/
-      ctx[7] === Number(
+      (ctx[5] && /*activeId*/
+      ctx[8] === Number(
         /*it*/
-        ctx[55].id
-      ) ? "has-active-timer" : "") + " svelte-188no3t")) {
+        ctx[77].id
+      ) ? "has-active-timer" : "") + " svelte-s1e7ae")) {
         attr(div5, "class", div5_class_value);
       }
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && div5_aria_label_value !== (div5_aria_label_value = `Work item #${/*it*/
-      ctx[55].id}: ${/*it*/
-      ctx[55].fields?.["System.Title"]} - press Enter to open; Ctrl+Arrow to move`)) {
+      25165824 && div5_aria_label_value !== (div5_aria_label_value = `Work item #${/*it*/
+      ctx[77].id}: ${/*it*/
+      ctx[77].fields?.["System.Title"]} - press Enter to open; Ctrl+Arrow to move`)) {
         attr(div5, "aria-label", div5_aria_label_value);
       }
     },
@@ -3103,16 +3760,16 @@ function create_each_block2(ctx) {
   let h3;
   let t0_value = (
     /*col*/
-    ctx[52].label + ""
+    ctx[74].label + ""
   );
   let t0;
   let t1;
   let span;
   let t2_value = (
     /*kanbanGroups*/
-    (ctx[15][
+    (ctx[23][
       /*col*/
-      ctx[52].key
+      ctx[74].key
     ]?.length || 0) + ""
   );
   let t2;
@@ -3123,24 +3780,24 @@ function create_each_block2(ctx) {
   let div2_aria_label_value;
   let mounted;
   let dispose;
-  function select_block_type_2(ctx2, dirty) {
+  function select_block_type_4(ctx2, dirty) {
     if (
       /*kanbanGroups*/
-      ctx2[15][
+      ctx2[23][
         /*col*/
-        ctx2[52].key
+        ctx2[74].key
       ]?.length
     ) return create_if_block_2;
     return create_else_block_1;
   }
-  let current_block_type = select_block_type_2(ctx, [-1, -1, -1]);
+  let current_block_type = select_block_type_4(ctx, [-1, -1, -1]);
   let if_block = current_block_type(ctx);
   function drop_handler(...args) {
     return (
       /*drop_handler*/
-      ctx[36](
+      ctx[58](
         /*col*/
-        ctx[52],
+        ctx[74],
         ...args
       )
     );
@@ -3158,16 +3815,16 @@ function create_each_block2(ctx) {
       div1 = element("div");
       if_block.c();
       t4 = space();
-      attr(h3, "class", "svelte-188no3t");
-      attr(span, "class", "item-count svelte-188no3t");
-      attr(div0, "class", "kanban-column-header svelte-188no3t");
-      attr(div1, "class", "kanban-column-content svelte-188no3t");
+      attr(h3, "class", "svelte-s1e7ae");
+      attr(span, "class", "item-count svelte-s1e7ae");
+      attr(div0, "class", "kanban-column-header svelte-s1e7ae");
+      attr(div1, "class", "kanban-column-content svelte-s1e7ae");
       attr(div2, "class", div2_class_value = "kanban-column state-" + /*col*/
-      ctx[52].key + " svelte-188no3t");
+      ctx[74].key + " svelte-s1e7ae");
       attr(div2, "role", "listbox");
       attr(div2, "tabindex", "0");
       attr(div2, "aria-label", div2_aria_label_value = `${/*col*/
-      ctx[52].label} column - drop items here`);
+      ctx[74].label} column - drop items here`);
     },
     m(target, anchor) {
       insert(target, div2, anchor);
@@ -3189,15 +3846,15 @@ function create_each_block2(ctx) {
     p(new_ctx, dirty) {
       ctx = new_ctx;
       if (dirty[0] & /*columnDefs*/
-      65536 && t0_value !== (t0_value = /*col*/
-      ctx[52].label + "")) set_data(t0, t0_value);
+      16777216 && t0_value !== (t0_value = /*col*/
+      ctx[74].label + "")) set_data(t0, t0_value);
       if (dirty[0] & /*kanbanGroups, columnDefs*/
-      98304 && t2_value !== (t2_value = /*kanbanGroups*/
-      (ctx[15][
+      25165824 && t2_value !== (t2_value = /*kanbanGroups*/
+      (ctx[23][
         /*col*/
-        ctx[52].key
+        ctx[74].key
       ]?.length || 0) + "")) set_data(t2, t2_value);
-      if (current_block_type === (current_block_type = select_block_type_2(ctx, dirty)) && if_block) {
+      if (current_block_type === (current_block_type = select_block_type_4(ctx, dirty)) && if_block) {
         if_block.p(ctx, dirty);
       } else {
         if_block.d(1);
@@ -3208,13 +3865,13 @@ function create_each_block2(ctx) {
         }
       }
       if (dirty[0] & /*columnDefs*/
-      65536 && div2_class_value !== (div2_class_value = "kanban-column state-" + /*col*/
-      ctx[52].key + " svelte-188no3t")) {
+      16777216 && div2_class_value !== (div2_class_value = "kanban-column state-" + /*col*/
+      ctx[74].key + " svelte-s1e7ae")) {
         attr(div2, "class", div2_class_value);
       }
       if (dirty[0] & /*columnDefs*/
-      65536 && div2_aria_label_value !== (div2_aria_label_value = `${/*col*/
-      ctx[52].label} column - drop items here`)) {
+      16777216 && div2_aria_label_value !== (div2_aria_label_value = `${/*col*/
+      ctx[74].label} column - drop items here`)) {
         attr(div2, "aria-label", div2_aria_label_value);
       }
     },
@@ -3240,69 +3897,99 @@ function create_fragment2(ctx) {
   let t5;
   let t6;
   let span3;
+  let button;
+  let t7;
+  let t8_value = (
+    /*summaryOpen*/
+    ctx[17] ? "\u25B4" : "\u25BE"
+  );
+  let t8;
+  let button_aria_expanded_value;
+  let t9;
   let span2;
   let input;
-  let t7;
+  let t10;
   let select0;
   let option0;
-  let t9;
+  let t12;
   let select1;
   let option1;
+  let t14;
+  let select2;
   let option2;
   let option3;
   let option4;
-  let t14;
+  let option5;
+  let t19;
   let div1;
-  let t15;
-  let t16;
+  let t20;
+  let t21;
+  let t22;
   let toasts2;
   let current;
   let mounted;
   let dispose;
   let if_block0 = (
     /*subtitle*/
-    ctx[3] && create_if_block_18(ctx)
+    ctx[4] && create_if_block_26(ctx)
   );
   let if_block1 = (
     /*loading*/
-    ctx[11] && create_if_block_17(ctx)
+    ctx[12] && create_if_block_25(ctx)
   );
   let if_block2 = (
     /*timerActive*/
-    ctx[4] && create_if_block_14(ctx)
+    ctx[5] && create_if_block_22(ctx)
+  );
+  let if_block3 = (
+    /*availableTypes*/
+    ctx[16] && /*availableTypes*/
+    ctx[16].length && create_if_block_21(ctx)
   );
   function select_block_type(ctx2, dirty) {
     if (
       /*availableStates*/
-      ctx2[14] && /*availableStates*/
-      ctx2[14].length
-    ) return create_if_block_13;
-    return create_else_block_5;
+      ctx2[15] && /*availableStates*/
+      ctx2[15].length
+    ) return create_if_block_20;
+    return create_else_block_6;
   }
   let current_block_type = select_block_type(ctx, [-1, -1, -1]);
-  let if_block3 = current_block_type(ctx);
-  let if_block4 = (
-    /*errorMsg*/
-    ctx[12] && create_if_block_12(ctx)
-  );
+  let if_block4 = current_block_type(ctx);
   function select_block_type_1(ctx2, dirty) {
     if (
+      /*summaryOpen*/
+      ctx2[17]
+    ) return create_if_block_13;
+    if (
+      /*summaryStatus*/
+      ctx2[19]
+    ) return create_if_block_19;
+  }
+  let current_block_type_1 = select_block_type_1(ctx, [-1, -1, -1]);
+  let if_block5 = current_block_type_1 && current_block_type_1(ctx);
+  let if_block6 = (
+    /*errorMsg*/
+    ctx[13] && create_if_block_12(ctx)
+  );
+  function select_block_type_3(ctx2, dirty) {
+    if (
       /*loading*/
-      ctx2[11]
+      ctx2[12]
     ) return create_if_block;
     if (
       /*kanbanView*/
-      ctx2[10]
+      ctx2[11]
     ) return create_if_block_1;
     if (
       /*items*/
-      ctx2[9] && /*items*/
-      ctx2[9].length
+      ctx2[10] && /*items*/
+      ctx2[10].length
     ) return create_if_block_7;
     return create_else_block_4;
   }
-  let current_block_type_1 = select_block_type_1(ctx, [-1, -1, -1]);
-  let if_block5 = current_block_type_1(ctx);
+  let current_block_type_2 = select_block_type_3(ctx, [-1, -1, -1]);
+  let if_block7 = current_block_type_2(ctx);
   toasts2 = new Toasts_default({
     props: { ariaLabel: "Work item notifications" }
   });
@@ -3320,80 +4007,106 @@ function create_fragment2(ctx) {
       span1 = element("span");
       t4 = text(
         /*workItemCount*/
-        ctx[2]
+        ctx[3]
       );
       t5 = space();
       if (if_block2) if_block2.c();
       t6 = space();
       span3 = element("span");
+      button = element("button");
+      t7 = text("Compose Summary ");
+      t8 = text(t8_value);
+      t9 = space();
       span2 = element("span");
       input = element("input");
-      t7 = space();
+      t10 = space();
       select0 = element("select");
       option0 = element("option");
-      option0.textContent = "All";
-      if_block3.c();
-      t9 = space();
+      option0.textContent = "All types";
+      if (if_block3) if_block3.c();
+      t12 = space();
       select1 = element("select");
       option1 = element("option");
-      option1.textContent = "Updated \u2193";
-      option2 = element("option");
-      option2.textContent = "ID \u2193";
-      option3 = element("option");
-      option3.textContent = "ID \u2191";
-      option4 = element("option");
-      option4.textContent = "Title A\u2192Z";
+      option1.textContent = "All";
+      if_block4.c();
       t14 = space();
+      select2 = element("select");
+      option2 = element("option");
+      option2.textContent = "Updated \u2193";
+      option3 = element("option");
+      option3.textContent = "ID \u2193";
+      option4 = element("option");
+      option4.textContent = "ID \u2191";
+      option5 = element("option");
+      option5.textContent = "Title A\u2192Z";
+      t19 = space();
       div1 = element("div");
-      if (if_block4) if_block4.c();
-      t15 = space();
-      if_block5.c();
-      t16 = space();
+      if (if_block5) if_block5.c();
+      t20 = space();
+      if (if_block6) if_block6.c();
+      t21 = space();
+      if_block7.c();
+      t22 = space();
       create_component(toasts2.$$.fragment);
       set_style(span0, "font-weight", "600");
-      attr(span1, "class", "count svelte-188no3t");
+      attr(span1, "class", "count svelte-s1e7ae");
+      attr(button, "class", "summary-toggle svelte-s1e7ae");
+      attr(button, "aria-expanded", button_aria_expanded_value = /*summaryOpen*/
+      ctx[17] ? "true" : "false");
+      attr(button, "aria-label", "Toggle summary composer");
       attr(input, "placeholder", "Filter...");
       input.value = /*filterText*/
-      ctx[13];
-      attr(input, "aria-label", "Filter by title");
-      attr(input, "class", "svelte-188no3t");
-      option0.__value = "all";
+      ctx[14];
+      attr(input, "aria-label", "Filter work items");
+      attr(input, "class", "svelte-s1e7ae");
+      option0.__value = "";
       set_input_value(option0, option0.__value);
-      attr(select0, "aria-label", "Filter by state");
-      attr(select0, "class", "svelte-188no3t");
+      attr(select0, "aria-label", "Filter by work item type");
+      attr(select0, "class", "svelte-s1e7ae");
       if (
-        /*stateFilter*/
+        /*typeFilter*/
         ctx[0] === void 0
       ) add_render_callback(() => (
         /*select0_change_handler*/
-        ctx[26].call(select0)
+        ctx[47].call(select0)
       ));
-      option1.__value = "updated-desc";
+      option1.__value = "all";
       set_input_value(option1, option1.__value);
-      option2.__value = "id-desc";
-      set_input_value(option2, option2.__value);
-      option3.__value = "id-asc";
-      set_input_value(option3, option3.__value);
-      option4.__value = "title-asc";
-      set_input_value(option4, option4.__value);
-      attr(select1, "aria-label", "Sort items");
-      attr(select1, "class", "svelte-188no3t");
+      attr(select1, "aria-label", "Filter by state");
+      attr(select1, "class", "svelte-s1e7ae");
       if (
-        /*sortKey*/
+        /*stateFilter*/
         ctx[1] === void 0
       ) add_render_callback(() => (
         /*select1_change_handler*/
-        ctx[27].call(select1)
+        ctx[48].call(select1)
       ));
-      attr(span2, "class", "filters svelte-188no3t");
+      option2.__value = "updated-desc";
+      set_input_value(option2, option2.__value);
+      option3.__value = "id-desc";
+      set_input_value(option3, option3.__value);
+      option4.__value = "id-asc";
+      set_input_value(option4, option4.__value);
+      option5.__value = "title-asc";
+      set_input_value(option5, option5.__value);
+      attr(select2, "aria-label", "Sort items");
+      attr(select2, "class", "svelte-s1e7ae");
+      if (
+        /*sortKey*/
+        ctx[2] === void 0
+      ) add_render_callback(() => (
+        /*select2_change_handler*/
+        ctx[49].call(select2)
+      ));
+      attr(span2, "class", "filters svelte-s1e7ae");
       attr(span2, "aria-label", "Filters and sort");
-      attr(span3, "class", "actions svelte-188no3t");
+      attr(span3, "class", "actions svelte-s1e7ae");
       set_style(span3, "margin-left", "auto");
-      attr(div0, "class", "pane-header svelte-188no3t");
+      attr(div0, "class", "pane-header svelte-s1e7ae");
       attr(div0, "role", "toolbar");
       attr(div0, "aria-label", "Work Items actions");
-      attr(div1, "class", "pane-body svelte-188no3t");
-      attr(div2, "class", "pane svelte-188no3t");
+      attr(div1, "class", "pane-body svelte-s1e7ae");
+      attr(div2, "class", "pane svelte-s1e7ae");
     },
     m(target, anchor) {
       insert(target, div2, anchor);
@@ -3410,69 +4123,103 @@ function create_fragment2(ctx) {
       if (if_block2) if_block2.m(div0, null);
       append(div0, t6);
       append(div0, span3);
+      append(span3, button);
+      append(button, t7);
+      append(button, t8);
+      append(span3, t9);
       append(span3, span2);
       append(span2, input);
-      append(span2, t7);
+      append(span2, t10);
       append(span2, select0);
       append(select0, option0);
-      if_block3.m(select0, null);
+      if (if_block3) if_block3.m(select0, null);
       select_option(
         select0,
-        /*stateFilter*/
+        /*typeFilter*/
         ctx[0],
         true
       );
-      append(span2, t9);
+      append(span2, t12);
       append(span2, select1);
       append(select1, option1);
-      append(select1, option2);
-      append(select1, option3);
-      append(select1, option4);
+      if_block4.m(select1, null);
       select_option(
         select1,
-        /*sortKey*/
+        /*stateFilter*/
         ctx[1],
         true
       );
-      append(div2, t14);
+      append(span2, t14);
+      append(span2, select2);
+      append(select2, option2);
+      append(select2, option3);
+      append(select2, option4);
+      append(select2, option5);
+      select_option(
+        select2,
+        /*sortKey*/
+        ctx[2],
+        true
+      );
+      append(div2, t19);
       append(div2, div1);
-      if (if_block4) if_block4.m(div1, null);
-      append(div1, t15);
-      if_block5.m(div1, null);
-      append(div2, t16);
+      if (if_block5) if_block5.m(div1, null);
+      append(div1, t20);
+      if (if_block6) if_block6.m(div1, null);
+      append(div1, t21);
+      if_block7.m(div1, null);
+      append(div2, t22);
       mount_component(toasts2, div2, null);
       current = true;
       if (!mounted) {
         dispose = [
           listen(
+            button,
+            "click",
+            /*onToggleSummary*/
+            ctx[33]
+          ),
+          listen(
             input,
             "input",
             /*onFilterInput*/
-            ctx[19]
+            ctx[34]
           ),
           listen(
             select0,
             "change",
-            /*onStateFilterChange*/
-            ctx[20]
+            /*onTypeFilterChange*/
+            ctx[36]
           ),
           listen(
             select0,
             "change",
             /*select0_change_handler*/
-            ctx[26]
+            ctx[47]
           ),
           listen(
             select1,
             "change",
-            /*onSortChange*/
-            ctx[21]
+            /*onStateFilterChange*/
+            ctx[35]
           ),
           listen(
             select1,
             "change",
             /*select1_change_handler*/
-            ctx[27]
+            ctx[48]
+          ),
+          listen(
+            select2,
+            "change",
+            /*onSortChange*/
+            ctx[37]
+          ),
+          listen(
+            select2,
+            "change",
+            /*select2_change_handler*/
+            ctx[49]
           )
         ];
         mounted = true;
@@ -3481,12 +4228,12 @@ function create_fragment2(ctx) {
     p(ctx2, dirty) {
       if (
         /*subtitle*/
-        ctx2[3]
+        ctx2[4]
       ) {
         if (if_block0) {
           if_block0.p(ctx2, dirty);
         } else {
-          if_block0 = create_if_block_18(ctx2);
+          if_block0 = create_if_block_26(ctx2);
           if_block0.c();
           if_block0.m(div0, t2);
         }
@@ -3496,11 +4243,11 @@ function create_fragment2(ctx) {
       }
       if (
         /*loading*/
-        ctx2[11]
+        ctx2[12]
       ) {
         if (if_block1) {
         } else {
-          if_block1 = create_if_block_17(ctx2);
+          if_block1 = create_if_block_25(ctx2);
           if_block1.c();
           if_block1.m(div0, t3);
         }
@@ -3509,19 +4256,19 @@ function create_fragment2(ctx) {
         if_block1 = null;
       }
       if (!current || dirty[0] & /*workItemCount*/
-      4) set_data(
+      8) set_data(
         t4,
         /*workItemCount*/
-        ctx2[2]
+        ctx2[3]
       );
       if (
         /*timerActive*/
-        ctx2[4]
+        ctx2[5]
       ) {
         if (if_block2) {
           if_block2.p(ctx2, dirty);
         } else {
-          if_block2 = create_if_block_14(ctx2);
+          if_block2 = create_if_block_22(ctx2);
           if_block2.c();
           if_block2.m(div0, t6);
         }
@@ -3529,61 +4276,103 @@ function create_fragment2(ctx) {
         if_block2.d(1);
         if_block2 = null;
       }
-      if (!current || dirty[0] & /*filterText*/
-      8192 && input.value !== /*filterText*/
-      ctx2[13]) {
-        input.value = /*filterText*/
-        ctx2[13];
+      if ((!current || dirty[0] & /*summaryOpen*/
+      131072) && t8_value !== (t8_value = /*summaryOpen*/
+      ctx2[17] ? "\u25B4" : "\u25BE")) set_data(t8, t8_value);
+      if (!current || dirty[0] & /*summaryOpen*/
+      131072 && button_aria_expanded_value !== (button_aria_expanded_value = /*summaryOpen*/
+      ctx2[17] ? "true" : "false")) {
+        attr(button, "aria-expanded", button_aria_expanded_value);
       }
-      if (current_block_type === (current_block_type = select_block_type(ctx2, dirty)) && if_block3) {
-        if_block3.p(ctx2, dirty);
-      } else {
-        if_block3.d(1);
-        if_block3 = current_block_type(ctx2);
+      if (!current || dirty[0] & /*filterText*/
+      16384 && input.value !== /*filterText*/
+      ctx2[14]) {
+        input.value = /*filterText*/
+        ctx2[14];
+      }
+      if (
+        /*availableTypes*/
+        ctx2[16] && /*availableTypes*/
+        ctx2[16].length
+      ) {
         if (if_block3) {
+          if_block3.p(ctx2, dirty);
+        } else {
+          if_block3 = create_if_block_21(ctx2);
           if_block3.c();
           if_block3.m(select0, null);
         }
+      } else if (if_block3) {
+        if_block3.d(1);
+        if_block3 = null;
       }
-      if (dirty[0] & /*stateFilter, availableStates, columnDefs*/
-      81921) {
+      if (dirty[0] & /*typeFilter, availableTypes*/
+      65537) {
         select_option(
           select0,
-          /*stateFilter*/
+          /*typeFilter*/
           ctx2[0]
         );
       }
-      if (dirty[0] & /*sortKey*/
-      2) {
+      if (current_block_type === (current_block_type = select_block_type(ctx2, dirty)) && if_block4) {
+        if_block4.p(ctx2, dirty);
+      } else {
+        if_block4.d(1);
+        if_block4 = current_block_type(ctx2);
+        if (if_block4) {
+          if_block4.c();
+          if_block4.m(select1, null);
+        }
+      }
+      if (dirty[0] & /*stateFilter, availableStates, columnDefs*/
+      16809986) {
         select_option(
           select1,
-          /*sortKey*/
+          /*stateFilter*/
           ctx2[1]
         );
       }
-      if (
-        /*errorMsg*/
-        ctx2[12]
-      ) {
-        if (if_block4) {
-          if_block4.p(ctx2, dirty);
-        } else {
-          if_block4 = create_if_block_12(ctx2);
-          if_block4.c();
-          if_block4.m(div1, t15);
-        }
-      } else if (if_block4) {
-        if_block4.d(1);
-        if_block4 = null;
+      if (dirty[0] & /*sortKey*/
+      4) {
+        select_option(
+          select2,
+          /*sortKey*/
+          ctx2[2]
+        );
       }
       if (current_block_type_1 === (current_block_type_1 = select_block_type_1(ctx2, dirty)) && if_block5) {
         if_block5.p(ctx2, dirty);
       } else {
-        if_block5.d(1);
-        if_block5 = current_block_type_1(ctx2);
+        if (if_block5) if_block5.d(1);
+        if_block5 = current_block_type_1 && current_block_type_1(ctx2);
         if (if_block5) {
           if_block5.c();
-          if_block5.m(div1, null);
+          if_block5.m(div1, t20);
+        }
+      }
+      if (
+        /*errorMsg*/
+        ctx2[13]
+      ) {
+        if (if_block6) {
+          if_block6.p(ctx2, dirty);
+        } else {
+          if_block6 = create_if_block_12(ctx2);
+          if_block6.c();
+          if_block6.m(div1, t21);
+        }
+      } else if (if_block6) {
+        if_block6.d(1);
+        if_block6 = null;
+      }
+      if (current_block_type_2 === (current_block_type_2 = select_block_type_3(ctx2, dirty)) && if_block7) {
+        if_block7.p(ctx2, dirty);
+      } else {
+        if_block7.d(1);
+        if_block7 = current_block_type_2(ctx2);
+        if (if_block7) {
+          if_block7.c();
+          if_block7.m(div1, null);
         }
       }
     },
@@ -3603,9 +4392,13 @@ function create_fragment2(ctx) {
       if (if_block0) if_block0.d();
       if (if_block1) if_block1.d();
       if (if_block2) if_block2.d();
-      if_block3.d();
-      if (if_block4) if_block4.d();
-      if_block5.d();
+      if (if_block3) if_block3.d();
+      if_block4.d();
+      if (if_block5) {
+        if_block5.d();
+      }
+      if (if_block6) if_block6.d();
+      if_block7.d();
       destroy_component(toasts2);
       mounted = false;
       run_all(dispose);
@@ -3656,6 +4449,12 @@ function extractDescription(it) {
   return text2.slice(0, max).trimEnd() + "\u2026";
 }
 function instance2($$self, $$props, $$invalidate) {
+  let summaryButtonLabel;
+  let summaryHelperText;
+  let summaryTargetDisplay;
+  let summaryGenerateDisabled;
+  let summaryApplyDisabled;
+  let summaryAreaDisabled;
   let kanbanGroups;
   let columnDefs;
   const dispatch = createEventDispatcher();
@@ -3672,9 +4471,18 @@ function instance2($$self, $$props, $$invalidate) {
   let { loading: loading2 = false } = $$props;
   let { errorMsg: errorMsg2 = "" } = $$props;
   let { filterText: filterText2 = "" } = $$props;
+  let { typeFilter: typeFilter2 = "" } = $$props;
   let { stateFilter: stateFilter2 = "all" } = $$props;
   let { sortKey: sortKey2 = "updated-desc" } = $$props;
   let { availableStates = [] } = $$props;
+  let { availableTypes = [] } = $$props;
+  let { summaryOpen: summaryOpen2 = false } = $$props;
+  let { summaryDraft: summaryDraft2 = "" } = $$props;
+  let { summaryStatus: summaryStatus2 = "" } = $$props;
+  let { summaryProvider: summaryProvider2 = "builtin" } = $$props;
+  let { summaryBusy: summaryBusy2 = false } = $$props;
+  let { summaryTargetId = 0 } = $$props;
+  let { summaryTargetTitle: summaryTargetTitle2 = "" } = $$props;
   function onRefresh() {
     dispatch("refresh");
   }
@@ -3696,9 +4504,13 @@ function instance2($$self, $$props, $$invalidate) {
   function onToggleKanban() {
     dispatch("toggleKanban");
   }
+  function onToggleSummary() {
+    dispatch("toggleSummary");
+  }
   function onFilterInput(e) {
     dispatch("filtersChanged", {
       filterText: e.target.value,
+      typeFilter: typeFilter2,
       stateFilter: stateFilter2,
       sortKey: sortKey2
     });
@@ -3706,16 +4518,38 @@ function instance2($$self, $$props, $$invalidate) {
   function onStateFilterChange(e) {
     dispatch("filtersChanged", {
       filterText: filterText2,
+      typeFilter: typeFilter2,
       stateFilter: e.target.value,
+      sortKey: sortKey2
+    });
+  }
+  function onTypeFilterChange(e) {
+    dispatch("filtersChanged", {
+      filterText: filterText2,
+      typeFilter: e.target.value,
+      stateFilter: stateFilter2,
       sortKey: sortKey2
     });
   }
   function onSortChange(e) {
     dispatch("filtersChanged", {
       filterText: filterText2,
+      typeFilter: typeFilter2,
       stateFilter: stateFilter2,
       sortKey: e.target.value
     });
+  }
+  function onSummaryInput(e) {
+    dispatch("summaryDraftChanged", { value: e.target.value });
+  }
+  function onSummaryBlur(e) {
+    dispatch("summaryDraftBlur", { value: e.target.value });
+  }
+  function onGenerateSummary() {
+    dispatch("generateSummary");
+  }
+  function onStopAndApplySummary() {
+    dispatch("stopAndApplySummary");
   }
   let draggingId = null;
   function handleDragStart(ev, it) {
@@ -3760,14 +4594,19 @@ function instance2($$self, $$props, $$invalidate) {
     removed: "Removed"
   };
   function select0_change_handler() {
-    stateFilter2 = select_value(this);
-    $$invalidate(0, stateFilter2);
-    $$invalidate(14, availableStates);
-    $$invalidate(16, columnDefs), $$invalidate(15, kanbanGroups), $$invalidate(9, items);
+    typeFilter2 = select_value(this);
+    $$invalidate(0, typeFilter2);
+    $$invalidate(16, availableTypes);
   }
   function select1_change_handler() {
+    stateFilter2 = select_value(this);
+    $$invalidate(1, stateFilter2);
+    $$invalidate(15, availableStates);
+    $$invalidate(24, columnDefs), $$invalidate(23, kanbanGroups), $$invalidate(10, items);
+  }
+  function select2_change_handler() {
     sortKey2 = select_value(this);
-    $$invalidate(1, sortKey2);
+    $$invalidate(2, sortKey2);
   }
   const click_handler = () => dispatch("stopTimer");
   const click_handler_1 = (it) => dispatch("startItem", { id: it.id });
@@ -3814,27 +4653,61 @@ function instance2($$self, $$props, $$invalidate) {
   };
   const click_handler_11 = (it) => dispatch("openItem", { id: it.id });
   $$self.$$set = ($$props2) => {
-    if ("workItemCount" in $$props2) $$invalidate(2, workItemCount2 = $$props2.workItemCount);
-    if ("subtitle" in $$props2) $$invalidate(3, subtitle = $$props2.subtitle);
-    if ("hasItems" in $$props2) $$invalidate(25, hasItems = $$props2.hasItems);
-    if ("timerActive" in $$props2) $$invalidate(4, timerActive2 = $$props2.timerActive);
-    if ("timerRunning" in $$props2) $$invalidate(5, timerRunning2 = $$props2.timerRunning);
-    if ("timerElapsedLabel" in $$props2) $$invalidate(6, timerElapsedLabel2 = $$props2.timerElapsedLabel);
-    if ("activeId" in $$props2) $$invalidate(7, activeId2 = $$props2.activeId);
-    if ("activeTitle" in $$props2) $$invalidate(8, activeTitle2 = $$props2.activeTitle);
-    if ("items" in $$props2) $$invalidate(9, items = $$props2.items);
-    if ("kanbanView" in $$props2) $$invalidate(10, kanbanView2 = $$props2.kanbanView);
-    if ("loading" in $$props2) $$invalidate(11, loading2 = $$props2.loading);
-    if ("errorMsg" in $$props2) $$invalidate(12, errorMsg2 = $$props2.errorMsg);
-    if ("filterText" in $$props2) $$invalidate(13, filterText2 = $$props2.filterText);
-    if ("stateFilter" in $$props2) $$invalidate(0, stateFilter2 = $$props2.stateFilter);
-    if ("sortKey" in $$props2) $$invalidate(1, sortKey2 = $$props2.sortKey);
-    if ("availableStates" in $$props2) $$invalidate(14, availableStates = $$props2.availableStates);
+    if ("workItemCount" in $$props2) $$invalidate(3, workItemCount2 = $$props2.workItemCount);
+    if ("subtitle" in $$props2) $$invalidate(4, subtitle = $$props2.subtitle);
+    if ("hasItems" in $$props2) $$invalidate(45, hasItems = $$props2.hasItems);
+    if ("timerActive" in $$props2) $$invalidate(5, timerActive2 = $$props2.timerActive);
+    if ("timerRunning" in $$props2) $$invalidate(6, timerRunning2 = $$props2.timerRunning);
+    if ("timerElapsedLabel" in $$props2) $$invalidate(7, timerElapsedLabel2 = $$props2.timerElapsedLabel);
+    if ("activeId" in $$props2) $$invalidate(8, activeId2 = $$props2.activeId);
+    if ("activeTitle" in $$props2) $$invalidate(9, activeTitle2 = $$props2.activeTitle);
+    if ("items" in $$props2) $$invalidate(10, items = $$props2.items);
+    if ("kanbanView" in $$props2) $$invalidate(11, kanbanView2 = $$props2.kanbanView);
+    if ("loading" in $$props2) $$invalidate(12, loading2 = $$props2.loading);
+    if ("errorMsg" in $$props2) $$invalidate(13, errorMsg2 = $$props2.errorMsg);
+    if ("filterText" in $$props2) $$invalidate(14, filterText2 = $$props2.filterText);
+    if ("typeFilter" in $$props2) $$invalidate(0, typeFilter2 = $$props2.typeFilter);
+    if ("stateFilter" in $$props2) $$invalidate(1, stateFilter2 = $$props2.stateFilter);
+    if ("sortKey" in $$props2) $$invalidate(2, sortKey2 = $$props2.sortKey);
+    if ("availableStates" in $$props2) $$invalidate(15, availableStates = $$props2.availableStates);
+    if ("availableTypes" in $$props2) $$invalidate(16, availableTypes = $$props2.availableTypes);
+    if ("summaryOpen" in $$props2) $$invalidate(17, summaryOpen2 = $$props2.summaryOpen);
+    if ("summaryDraft" in $$props2) $$invalidate(18, summaryDraft2 = $$props2.summaryDraft);
+    if ("summaryStatus" in $$props2) $$invalidate(19, summaryStatus2 = $$props2.summaryStatus);
+    if ("summaryProvider" in $$props2) $$invalidate(20, summaryProvider2 = $$props2.summaryProvider);
+    if ("summaryBusy" in $$props2) $$invalidate(21, summaryBusy2 = $$props2.summaryBusy);
+    if ("summaryTargetId" in $$props2) $$invalidate(22, summaryTargetId = $$props2.summaryTargetId);
+    if ("summaryTargetTitle" in $$props2) $$invalidate(46, summaryTargetTitle2 = $$props2.summaryTargetTitle);
   };
   $$self.$$.update = () => {
+    if ($$self.$$.dirty[0] & /*summaryProvider*/
+    1048576) {
+      $: $$invalidate(30, summaryButtonLabel = summaryProvider2 === "openai" ? "Generate AI Summary" : "Copy Copilot Prompt");
+    }
+    if ($$self.$$.dirty[0] & /*summaryProvider*/
+    1048576) {
+      $: $$invalidate(29, summaryHelperText = summaryProvider2 === "openai" ? "Creates an OpenAI summary and copies it to your clipboard." : "Copies a Copilot-ready prompt to your clipboard.");
+    }
+    if ($$self.$$.dirty[0] & /*summaryTargetId*/
+    4194304 | $$self.$$.dirty[1] & /*summaryTargetTitle*/
+    32768) {
+      $: $$invalidate(28, summaryTargetDisplay = summaryTargetId ? `#${summaryTargetId} \xB7 ${summaryTargetTitle2 || `Work Item #${summaryTargetId}`}` : "");
+    }
+    if ($$self.$$.dirty[0] & /*summaryBusy, summaryTargetId*/
+    6291456) {
+      $: $$invalidate(27, summaryGenerateDisabled = summaryBusy2 || !summaryTargetId);
+    }
+    if ($$self.$$.dirty[0] & /*summaryBusy, timerActive*/
+    2097184) {
+      $: $$invalidate(26, summaryApplyDisabled = summaryBusy2 || !timerActive2);
+    }
+    if ($$self.$$.dirty[0] & /*summaryTargetId*/
+    4194304) {
+      $: $$invalidate(25, summaryAreaDisabled = !summaryTargetId);
+    }
     if ($$self.$$.dirty[0] & /*items*/
-    512) {
-      $: $$invalidate(15, kanbanGroups = (() => {
+    1024) {
+      $: $$invalidate(23, kanbanGroups = (() => {
         const present = new Set(bucketOrder);
         const groups = Object.fromEntries(bucketOrder.map((k) => [k, []]));
         (items || []).forEach((it) => {
@@ -3846,11 +4719,12 @@ function instance2($$self, $$props, $$invalidate) {
       })());
     }
     if ($$self.$$.dirty[0] & /*kanbanGroups*/
-    32768) {
-      $: $$invalidate(16, columnDefs = bucketOrder.filter((k) => (kanbanGroups[k] || []).length > 0 || ["new", "active", "inprogress", "review", "done"].includes(k)).map((k) => ({ key: k, label: bucketLabels[k] || k })));
+    8388608) {
+      $: $$invalidate(24, columnDefs = bucketOrder.filter((k) => (kanbanGroups[k] || []).length > 0 || ["new", "active", "inprogress", "review", "done"].includes(k)).map((k) => ({ key: k, label: bucketLabels[k] || k })));
     }
   };
   return [
+    typeFilter2,
     stateFilter2,
     sortKey2,
     workItemCount2,
@@ -3866,19 +4740,40 @@ function instance2($$self, $$props, $$invalidate) {
     errorMsg2,
     filterText2,
     availableStates,
+    availableTypes,
+    summaryOpen2,
+    summaryDraft2,
+    summaryStatus2,
+    summaryProvider2,
+    summaryBusy2,
+    summaryTargetId,
     kanbanGroups,
     columnDefs,
+    summaryAreaDisabled,
+    summaryApplyDisabled,
+    summaryGenerateDisabled,
+    summaryTargetDisplay,
+    summaryHelperText,
+    summaryButtonLabel,
     dispatch,
     onOpenActive,
+    onToggleSummary,
     onFilterInput,
     onStateFilterChange,
+    onTypeFilterChange,
     onSortChange,
+    onSummaryInput,
+    onSummaryBlur,
+    onGenerateSummary,
+    onStopAndApplySummary,
     handleDragStart,
     handleDrop,
     bucketLabels,
     hasItems,
+    summaryTargetTitle2,
     select0_change_handler,
     select1_change_handler,
+    select2_change_handler,
     click_handler,
     click_handler_1,
     click_handler_2,
@@ -3907,22 +4802,31 @@ var App = class extends SvelteComponent {
       create_fragment2,
       safe_not_equal,
       {
-        workItemCount: 2,
-        subtitle: 3,
-        hasItems: 25,
-        timerActive: 4,
-        timerRunning: 5,
-        timerElapsedLabel: 6,
-        activeId: 7,
-        activeTitle: 8,
-        items: 9,
-        kanbanView: 10,
-        loading: 11,
-        errorMsg: 12,
-        filterText: 13,
-        stateFilter: 0,
-        sortKey: 1,
-        availableStates: 14
+        workItemCount: 3,
+        subtitle: 4,
+        hasItems: 45,
+        timerActive: 5,
+        timerRunning: 6,
+        timerElapsedLabel: 7,
+        activeId: 8,
+        activeTitle: 9,
+        items: 10,
+        kanbanView: 11,
+        loading: 12,
+        errorMsg: 13,
+        filterText: 14,
+        typeFilter: 0,
+        stateFilter: 1,
+        sortKey: 2,
+        availableStates: 15,
+        availableTypes: 16,
+        summaryOpen: 17,
+        summaryDraft: 18,
+        summaryStatus: 19,
+        summaryProvider: 20,
+        summaryBusy: 21,
+        summaryTargetId: 22,
+        summaryTargetTitle: 46
       },
       null,
       [-1, -1, -1]
@@ -3968,15 +4872,86 @@ var kanbanView = false;
 var loading = true;
 var errorMsg = "";
 var filterText = "";
+var typeFilter = "";
 var stateFilter = "all";
 var sortKey = "updated-desc";
+var normalizedQuery = "";
 var pendingMoves = /* @__PURE__ */ new Map();
 var stateOptions = [];
+var typeOptions = [];
+var typeOptionHints = /* @__PURE__ */ new Set();
+var searchHaystackCache = /* @__PURE__ */ new WeakMap();
+var summaryOpen = false;
+var summaryDraft = "";
+var summaryStatus = "";
+var summaryProvider = "builtin";
+var summaryBusy = false;
+var summaryWorkItemId = null;
+var summaryTargetTitle = "";
+var summaryBusyTimer;
+var summaryStatusTimer;
 try {
   const st = vscode && typeof vscode.getState === "function" ? vscode.getState() : null;
   if (st && typeof st.kanbanView === "boolean") kanbanView = !!st.kanbanView;
+  if (st && typeof st.summaryOpen === "boolean") summaryOpen = !!st.summaryOpen;
+  if (st && typeof st.typeFilter === "string") typeFilter = st.typeFilter;
+  if (st && typeof st.summaryWorkItemId === "number") {
+    summaryWorkItemId = st.summaryWorkItemId || null;
+  }
 } catch (e) {
   console.warn("[svelte-main] Unable to read persisted state", e);
+}
+function getAppProps() {
+  return {
+    workItemCount,
+    subtitle: "",
+    hasItems: itemsForView.length > 0,
+    timerActive,
+    timerRunning,
+    timerElapsedLabel,
+    activeId,
+    activeTitle,
+    items: itemsForView,
+    kanbanView,
+    loading,
+    errorMsg,
+    filterText,
+    typeFilter,
+    stateFilter,
+    sortKey,
+    availableStates: stateOptions,
+    availableTypes: typeOptions,
+    summaryOpen,
+    summaryDraft,
+    summaryStatus,
+    summaryProvider,
+    summaryBusy,
+    summaryTargetId: summaryWorkItemId ?? 0,
+    summaryTargetTitle
+  };
+}
+function syncApp() {
+  ensureApp();
+  app.$set(getAppProps());
+}
+function persistViewState(extra) {
+  try {
+    if (!vscode || typeof vscode.setState !== "function") return;
+    const prev = typeof vscode.getState === "function" && vscode.getState() || {};
+    vscode.setState({
+      ...prev,
+      kanbanView,
+      filterText,
+      typeFilter,
+      stateFilter,
+      sortKey,
+      summaryOpen,
+      summaryWorkItemId,
+      ...extra
+    });
+  } catch (e) {
+    console.warn("[svelte-main] Unable to persist view state", e);
+  }
 }
 function ensureApp() {
   if (app) return app;
@@ -3986,28 +4961,12 @@ function ensureApp() {
   container.insertBefore(root, container.firstChild);
   app = new App_default({
     target: root,
-    props: {
-      workItemCount,
-      subtitle: "",
-      hasItems: (lastWorkItems || []).length > 0,
-      timerActive,
-      timerRunning,
-      timerElapsedLabel,
-      activeId,
-      activeTitle,
-      items: itemsForView,
-      kanbanView,
-      loading,
-      errorMsg,
-      filterText,
-      stateFilter,
-      sortKey
-    }
+    props: getAppProps()
   });
   app.$on("refresh", () => {
     loading = true;
     errorMsg = "";
-    app.$set({ loading, errorMsg });
+    syncApp();
     postMessage({ type: "refresh" });
   });
   app.$on("openFirst", () => {
@@ -4017,6 +4976,11 @@ function ensureApp() {
         type: "viewWorkItem",
         workItemId: Number(first.id || first.fields?.["System.Id"])
       });
+    if (first) {
+      const id = Number(first.id || first.fields?.["System.Id"]);
+      setSummaryTarget(id, { ensureOpen: true });
+      syncApp();
+    }
   });
   app.$on("startTimer", () => {
     const first = (lastWorkItems || [])[0];
@@ -4026,65 +4990,69 @@ function ensureApp() {
         workItemId: Number(first.id || first.fields?.["System.Id"])
       });
   });
-  app.$on("stopTimer", () => postMessage({ type: "stopTimer" }));
+  app.$on("stopTimer", () => postMessage({ type: "showStopTimerOptions" }));
   app.$on("openActive", (ev) => {
     const id = ev?.detail?.id ?? activeId;
-    if (id != null) postMessage({ type: "viewWorkItem", workItemId: Number(id) });
+    if (id != null) {
+      postMessage({ type: "viewWorkItem", workItemId: Number(id) });
+      setSummaryTarget(Number(id), { ensureOpen: true });
+      syncApp();
+    }
   });
   app.$on("openItem", (ev) => {
     const id = Number(ev?.detail?.id);
-    if (id) postMessage({ type: "viewWorkItem", workItemId: id });
+    if (id) {
+      postMessage({ type: "viewWorkItem", workItemId: id });
+      setSummaryTarget(id, { ensureOpen: false });
+      syncApp();
+    }
   });
   app.$on("startItem", (ev) => {
     const id = Number(ev?.detail?.id);
-    if (id) postMessage({ type: "startTimer", workItemId: id });
+    if (id) {
+      postMessage({ type: "startTimer", workItemId: id });
+      setSummaryTarget(id, { ensureOpen: true });
+      syncApp();
+    }
   });
   app.$on("editItem", (ev) => {
     const id = Number(ev?.detail?.id);
-    if (id) postMessage({ type: "editWorkItemInEditor", workItemId: id });
+    if (id) {
+      postMessage({ type: "editWorkItemInEditor", workItemId: id });
+      setSummaryTarget(id, { ensureOpen: false });
+      syncApp();
+    }
   });
   app.$on("commentItem", (ev) => {
     const id = Number(ev?.detail?.id);
-    if (id) postMessage({ type: "addComment", workItemId: id });
+    if (id) {
+      postMessage({ type: "addComment", workItemId: id });
+      setSummaryTarget(id, { ensureOpen: true });
+      syncApp();
+    }
   });
   app.$on("createWorkItem", () => postMessage({ type: "createWorkItem" }));
   app.$on("toggleKanban", () => {
     kanbanView = !kanbanView;
-    app.$set({ kanbanView });
-    const prefs = { kanbanView, filterText, stateFilter, sortKey };
-    try {
-      if (vscode && typeof vscode.setState === "function") {
-        const prev = typeof vscode.getState === "function" && vscode.getState() || {};
-        vscode.setState({ ...prev, ...prefs });
-      }
-    } catch (e) {
-      console.warn("[svelte-main] Unable to persist state", e);
-    }
-    postMessage({ type: "uiPreferenceChanged", preferences: prefs });
+    persistViewState();
+    syncApp();
+    postMessage({
+      type: "uiPreferenceChanged",
+      preferences: { kanbanView, filterText, typeFilter, stateFilter, sortKey, summaryOpen }
+    });
   });
   app.$on("filtersChanged", (ev) => {
     filterText = String(ev?.detail?.filterText ?? filterText);
+    typeFilter = String(ev?.detail?.typeFilter ?? typeFilter);
     stateFilter = String(ev?.detail?.stateFilter ?? stateFilter);
     sortKey = String(ev?.detail?.sortKey ?? sortKey);
     recomputeItemsForView();
-    app.$set({
-      filterText,
-      stateFilter,
-      sortKey,
-      items: itemsForView,
-      workItemCount: itemsForView.length,
-      hasItems: itemsForView.length > 0
+    persistViewState();
+    syncApp();
+    postMessage({
+      type: "uiPreferenceChanged",
+      preferences: { kanbanView, filterText, typeFilter, stateFilter, sortKey, summaryOpen }
     });
-    const prefs = { kanbanView, filterText, stateFilter, sortKey };
-    try {
-      if (vscode && typeof vscode.setState === "function") {
-        const prev = typeof vscode.getState === "function" && vscode.getState() || {};
-        vscode.setState({ ...prev, ...prefs });
-      }
-    } catch (e) {
-      console.warn("[svelte-main] Unable to persist filters", e);
-    }
-    postMessage({ type: "uiPreferenceChanged", preferences: prefs });
   });
   app.$on("moveItem", (ev) => {
     const id = Number(ev?.detail?.id);
@@ -4106,17 +5074,261 @@ function ensureApp() {
       pendingMoves.set(id, { prevState });
       found.fields["System.State"] = mapping[target] || "Active";
       recomputeItemsForView();
-      app.$set({ items: itemsForView });
+      syncApp();
     }
     postMessage({ type: "moveWorkItem", id, target });
   });
+  app.$on("toggleSummary", () => {
+    summaryOpen = !summaryOpen;
+    persistViewState();
+    syncApp();
+  });
+  const onDraftChange = (value) => {
+    summaryDraft = value;
+    if (summaryWorkItemId) saveDraftForWorkItem(summaryWorkItemId, summaryDraft);
+    syncApp();
+  };
+  app.$on("summaryDraftChanged", (ev) => {
+    onDraftChange(String(ev?.detail?.value ?? ""));
+  });
+  app.$on("summaryDraftBlur", (ev) => {
+    onDraftChange(String(ev?.detail?.value ?? ""));
+  });
+  app.$on("generateSummary", () => {
+    attemptSummaryGeneration();
+  });
+  app.$on("stopAndApplySummary", () => {
+    attemptStopAndApply();
+  });
   return app;
 }
+function findWorkItemById(id) {
+  const target = Number(id);
+  return (lastWorkItems || []).find((w) => Number(w.id || w.fields?.["System.Id"]) === target);
+}
+function getWorkItemTitle(id) {
+  const match = findWorkItemById(id);
+  if (match) return String(match.fields?.["System.Title"] || `#${id}`);
+  if (activeId === id && activeTitle) return activeTitle;
+  return `Work Item #${id}`;
+}
+function updateSummaryTargetTitle() {
+  if (summaryWorkItemId) {
+    summaryTargetTitle = getWorkItemTitle(summaryWorkItemId);
+  } else {
+    summaryTargetTitle = "";
+  }
+}
+function saveDraftForWorkItem(workItemId, text2) {
+  try {
+    localStorage.setItem(`azuredevops.draft.${workItemId}`, text2 || "");
+  } catch (e) {
+    console.warn("[svelte-main] Failed to save draft to localStorage", e);
+  }
+}
+function loadDraftForWorkItem(workItemId) {
+  try {
+    return localStorage.getItem(`azuredevops.draft.${workItemId}`);
+  } catch (e) {
+    console.warn("[svelte-main] Failed to load draft from localStorage", e);
+    return null;
+  }
+}
+function removeDraftForWorkItem(workItemId) {
+  try {
+    localStorage.removeItem(`azuredevops.draft.${workItemId}`);
+  } catch (e) {
+    console.warn("[svelte-main] Failed to remove draft from localStorage", e);
+  }
+}
+function setSummaryTarget(workItemId, options = {}) {
+  const id = Number(workItemId);
+  if (!Number.isFinite(id) || id <= 0) return;
+  const changed = summaryWorkItemId !== id;
+  if (changed) summaryWorkItemId = id;
+  updateSummaryTargetTitle();
+  const shouldRefresh = options.refreshDraft ?? changed;
+  if (shouldRefresh) {
+    const persisted = loadDraftForWorkItem(id);
+    if (persisted !== null) {
+      summaryDraft = persisted;
+    } else if (!summaryDraft || changed) {
+      summaryDraft = "";
+    }
+  }
+  const ensureOpenRequested = options.ensureOpen || !summaryOpen && timerActive;
+  let opened = false;
+  if (ensureOpenRequested && !summaryOpen) {
+    summaryOpen = true;
+    opened = true;
+  }
+  if (changed || shouldRefresh || opened) {
+    persistViewState();
+  }
+}
+function setSummaryBusy(busy) {
+  if (summaryBusyTimer) {
+    try {
+      clearTimeout(summaryBusyTimer);
+    } catch {
+    }
+    summaryBusyTimer = void 0;
+  }
+  summaryBusy = busy;
+  if (busy) {
+    summaryBusyTimer = setTimeout(() => {
+      summaryBusy = false;
+      summaryBusyTimer = void 0;
+      syncApp();
+    }, 6e3);
+  }
+}
+function setSummaryStatus(message, options) {
+  if (summaryStatusTimer) {
+    try {
+      clearTimeout(summaryStatusTimer);
+    } catch {
+    }
+    summaryStatusTimer = void 0;
+  }
+  summaryStatus = message;
+  const delay = options?.timeout ?? 0;
+  if (delay > 0) {
+    summaryStatusTimer = setTimeout(() => {
+      summaryStatusTimer = void 0;
+      summaryStatus = "";
+      syncApp();
+    }, delay);
+  }
+}
+function determineSummaryTargetId() {
+  if (summaryWorkItemId) return summaryWorkItemId;
+  if (timerActive && activeId) return activeId;
+  const first = itemsForView[0];
+  if (first) return Number(first.id || first.fields?.["System.Id"]);
+  return null;
+}
+function attemptSummaryGeneration() {
+  const targetId = determineSummaryTargetId();
+  if (!targetId) {
+    const message = "Select a work item or start a timer to generate a summary.";
+    setSummaryStatus(message, { timeout: 3500 });
+    addToast(message, { type: "warning", timeout: 3500 });
+    syncApp();
+    return;
+  }
+  if (!summaryOpen) summaryOpen = true;
+  setSummaryBusy(true);
+  setSummaryStatus("Generating summary\u2026");
+  syncApp();
+  postMessage({
+    type: "generateCopilotPrompt",
+    workItemId: targetId,
+    draftSummary: summaryDraft
+  });
+}
+function attemptStopAndApply() {
+  if (!timerActive) {
+    const message = "Start a timer before applying time to the work item.";
+    setSummaryStatus(message, { timeout: 3500 });
+    addToast(message, { type: "warning", timeout: 3500 });
+    syncApp();
+    return;
+  }
+  if (summaryWorkItemId) saveDraftForWorkItem(summaryWorkItemId, summaryDraft);
+  setSummaryBusy(true);
+  setSummaryStatus("Stopping timer and applying updates\u2026");
+  syncApp();
+  postMessage({ type: "stopAndApply", comment: summaryDraft });
+}
+function getWorkItemType(it) {
+  if (!it) return "";
+  const flattened = typeof it?.type === "string" ? it.type : void 0;
+  const fromFields = typeof it?.fields?.["System.WorkItemType"] === "string" ? it.fields["System.WorkItemType"] : void 0;
+  const value = flattened || fromFields;
+  return typeof value === "string" ? value.trim() : "";
+}
+function buildSearchHaystack(item) {
+  const parts = [];
+  const seen = /* @__PURE__ */ new WeakSet();
+  const maxDepth = 5;
+  const push = (value) => {
+    const trimmed = value.trim();
+    if (trimmed.length > 0) parts.push(trimmed.toLowerCase());
+  };
+  const visit = (value, depth = 0) => {
+    if (value === null || value === void 0) return;
+    if (typeof value === "string") {
+      push(value);
+      return;
+    }
+    if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") {
+      push(String(value));
+      return;
+    }
+    if (value instanceof Date) {
+      push(value.toISOString());
+      return;
+    }
+    if (typeof value === "symbol") {
+      push(value.toString());
+      return;
+    }
+    if (typeof value === "object") {
+      if (seen.has(value)) return;
+      seen.add(value);
+      if (depth >= maxDepth) return;
+      if (Array.isArray(value)) {
+        value.forEach((entry) => visit(entry, depth + 1));
+        return;
+      }
+      const identityKeys = [
+        "displayName",
+        "uniqueName",
+        "name",
+        "fullName",
+        "mailAddress",
+        "email",
+        "userPrincipalName",
+        "upn",
+        "descriptor",
+        "text",
+        "value",
+        "title"
+      ];
+      identityKeys.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          visit(value[key], depth + 1);
+        }
+      });
+      Object.keys(value).forEach((key) => {
+        if (key === "__proto__") return;
+        visit(value[key], depth + 1);
+      });
+    }
+  };
+  visit(item);
+  return parts.join(" ").replace(/\s+/g, " ").trim();
+}
+function getSearchHaystack(item) {
+  if (!item || typeof item !== "object" && typeof item !== "function") {
+    return typeof item === "string" ? item.toLowerCase() : String(item ?? "").toLowerCase();
+  }
+  const cached = searchHaystackCache.get(item);
+  if (cached) return cached;
+  const haystack = buildSearchHaystack(item);
+  searchHaystackCache.set(item, haystack);
+  return haystack;
+}
 function passesFilters(it) {
-  const title = String(it?.fields?.["System.Title"] || "").toLowerCase();
+  const query = normalizedQuery;
   const stateRaw = String(it?.fields?.["System.State"] || "");
   const norm = normalizeState2(stateRaw);
-  if (filterText && !title.includes(String(filterText).toLowerCase())) return false;
+  if (query) {
+    const haystack = getSearchHaystack(it);
+    if (!haystack.includes(query)) return false;
+  }
+  if (typeFilter && getWorkItemType(it) !== typeFilter) return false;
   if (stateFilter && stateFilter !== "all" && norm !== stateFilter) return false;
   return true;
 }
@@ -4135,8 +5347,36 @@ function normalizeState2(raw) {
   if (s === "removed") return "removed";
   return "new";
 }
+function recomputeTypeOptions() {
+  const combined = /* @__PURE__ */ new Set();
+  (Array.isArray(lastWorkItems) ? lastWorkItems : []).forEach((item) => {
+    const typeName = getWorkItemType(item);
+    if (typeName) combined.add(typeName);
+  });
+  typeOptionHints.forEach((hint) => combined.add(hint));
+  typeOptions = Array.from(combined).sort((a, b) => a.localeCompare(b));
+  if (typeFilter && !combined.has(typeFilter)) {
+    typeFilter = "";
+  }
+}
 function recomputeItemsForView() {
   const items = Array.isArray(lastWorkItems) ? lastWorkItems : [];
+  try {
+    console.log(
+      "[svelte-main] recomputeItemsForView: lastWorkItems.length=",
+      items.length,
+      "filterText=",
+      filterText,
+      "typeFilter=",
+      typeFilter,
+      "stateFilter=",
+      stateFilter
+    );
+  } catch (err) {
+    void err;
+  }
+  recomputeTypeOptions();
+  normalizedQuery = String(filterText || "").trim().toLowerCase();
   const filtered = items.filter(passesFilters);
   const sorted = [...filtered].sort((a, b) => {
     switch (sortKey) {
@@ -4162,6 +5402,7 @@ function recomputeItemsForView() {
     }
   });
   itemsForView = sorted;
+  workItemCount = itemsForView.length;
   const allStatesSet = /* @__PURE__ */ new Set();
   (Array.isArray(lastWorkItems) ? lastWorkItems : []).forEach((w) => {
     const norm = normalizeState2(w?.fields?.["System.State"]);
@@ -4191,76 +5432,106 @@ function onMessage(message) {
   switch (message?.type) {
     case "workItemsLoaded": {
       const items = Array.isArray(message.workItems) ? message.workItems : [];
+      try {
+        console.log("[svelte-main] workItemsLoaded received. count=", (items || []).length);
+        console.log(
+          "[svelte-main] workItemsLoaded sample ids=",
+          (items || []).slice(0, 5).map((i) => i.id || i.fields?.["System.Id"])
+        );
+        console.log(
+          "[svelte-main] current filters before apply: filterText=",
+          filterText,
+          "typeFilter=",
+          typeFilter,
+          "stateFilter=",
+          stateFilter
+        );
+        if (!items || items && items.length === 0) {
+          try {
+            console.warn("[svelte-main] workItemsLoaded arrived with 0 items \u2014 full message:");
+            console.warn(message);
+            console.warn("[svelte-main] connectionId on message =", message?.connectionId);
+            console.warn(
+              "[svelte-main] local persisted state: typeFilter=",
+              typeFilter,
+              "filterText=",
+              filterText,
+              "stateFilter=",
+              stateFilter
+            );
+            console.warn("[svelte-main] timestamp (ms)=", Date.now());
+          } catch (err) {
+            void err;
+          }
+        }
+      } catch (err) {
+        void err;
+      }
+      searchHaystackCache = /* @__PURE__ */ new WeakMap();
       lastWorkItems = items;
+      if (typeof message.kanbanView === "boolean") {
+        kanbanView = message.kanbanView;
+      }
       recomputeItemsForView();
       workItemCount = itemsForView.length;
       loading = false;
       errorMsg = "";
-      if (activeId != null) {
-        const match = items.find(
-          (w) => Number(w.id || w.fields?.["System.Id"]) === Number(activeId)
-        );
-        if (match) activeTitle = String(match.fields?.["System.Title"] || `#${activeId}`);
+      if (activeId) {
+        const match = findWorkItemById(activeId);
+        if (match) {
+          activeTitle = String(match.fields?.["System.Title"] || `#${activeId}`);
+        }
       }
-      ensureApp();
-      app.$set({
-        workItemCount,
-        hasItems: itemsForView.length > 0,
-        activeId,
-        activeTitle,
-        timerElapsedLabel,
-        items: itemsForView,
-        kanbanView,
-        loading,
-        errorMsg,
-        filterText,
-        stateFilter,
-        sortKey,
-        availableStates: stateOptions
-      });
+      if (summaryWorkItemId) {
+        updateSummaryTargetTitle();
+        if (!summaryDraft || !summaryDraft.trim()) {
+          const persisted = loadDraftForWorkItem(summaryWorkItemId);
+          if (persisted !== null) summaryDraft = persisted;
+        }
+      }
+      syncApp();
       break;
     }
     case "workItemsError": {
       loading = false;
       errorMsg = String(message?.error || "Failed to load work items.");
-      ensureApp();
-      app.$set({ loading, errorMsg });
-      break;
-    }
-    case "toggleKanbanView": {
-      kanbanView = !kanbanView;
-      ensureApp();
-      app.$set({ kanbanView });
-      try {
-        if (vscode && typeof vscode.setState === "function") {
-          const prev = typeof vscode.getState === "function" && vscode.getState() || {};
-          vscode.setState({ ...prev, kanbanView });
-        }
-      } catch (e) {
-        console.warn("[svelte-main] Unable to persist state", e);
-      }
+      syncApp();
       break;
     }
     case "timerUpdate": {
-      const snap = message?.timer || {};
-      timerActive = !!snap && typeof snap.workItemId !== "undefined";
-      timerRunning = !!snap && !snap.isPaused;
-      elapsedSeconds = Number(snap?.elapsedSeconds || 0);
-      timerElapsedLabel = formatElapsedHHMM(elapsedSeconds);
-      if (timerActive) {
-        activeId = Number(snap.workItemId) || 0;
-        const match = (lastWorkItems || []).find(
-          (w) => Number(w.id || w.fields?.["System.Id"]) === Number(activeId)
-        );
-        activeTitle = match ? String(match.fields?.["System.Title"] || `#${activeId}`) : "";
+      const snap = message?.timer;
+      const hasTimer = snap && typeof snap.workItemId !== "undefined";
+      timerActive = !!hasTimer;
+      timerRunning = !!hasTimer && !snap.isPaused;
+      elapsedSeconds = hasTimer ? Number(snap?.elapsedSeconds || 0) : 0;
+      timerElapsedLabel = hasTimer ? formatElapsedHHMM(elapsedSeconds) : "";
+      if (hasTimer) {
+        const newActiveId = Number(snap.workItemId) || 0;
+        activeId = newActiveId;
+        activeTitle = snap.workItemTitle || getWorkItemTitle(activeId) || (activeId ? `#${activeId}` : "");
+        const targetChanged = summaryWorkItemId !== activeId;
+        setSummaryTarget(activeId, { ensureOpen: true, refreshDraft: targetChanged });
+        if (!summaryDraft || !summaryDraft.trim()) {
+          const persisted = loadDraftForWorkItem(activeId);
+          if (persisted && persisted.length > 0) {
+            summaryDraft = persisted;
+          } else {
+            const seconds = Number(snap.elapsedSeconds || 0);
+            const hours = Math.max(0, seconds / 3600);
+            const fallbackTitle = activeTitle || `#${activeId}`;
+            summaryDraft = `Worked approximately ${hours.toFixed(
+              2
+            )} hours on ${fallbackTitle}. Provide a short summary of what you accomplished.`;
+          }
+        }
       } else {
         activeId = 0;
         activeTitle = "";
+        timerRunning = false;
         elapsedSeconds = 0;
         timerElapsedLabel = "";
       }
-      ensureApp();
-      app.$set({ timerActive, timerRunning, timerElapsedLabel, activeId, activeTitle });
+      syncApp();
       break;
     }
     case "moveWorkItemResult": {
@@ -4272,22 +5543,45 @@ function onMessage(message) {
         const found = (lastWorkItems || []).find((w) => Number(w.id) === id);
         if (found && found.fields && pending) {
           found.fields["System.State"] = pending.prevState;
+          searchHaystackCache.delete(found);
           recomputeItemsForView();
-          ensureApp();
-          app.$set({ items: itemsForView });
         }
+        syncApp();
         addToast(`Move failed: ${message.error || "Unknown error"}`, { type: "error" });
       } else if (message.newState) {
         const found = (lastWorkItems || []).find((w) => Number(w.id) === id);
         if (found && found.fields) {
           found.fields["System.State"] = message.newState;
+          searchHaystackCache.delete(found);
           recomputeItemsForView();
-          ensureApp();
-          app.$set({ items: itemsForView });
         }
+        syncApp();
         if (pending && pending.prevState !== message.newState) {
           addToast(`Moved #${id} \u2192 ${message.newState}`, { type: "success", timeout: 2500 });
         }
+      }
+      break;
+    }
+    case "toggleKanbanView": {
+      kanbanView = !kanbanView;
+      persistViewState();
+      syncApp();
+      break;
+    }
+    case "workItemTypeOptions": {
+      const list = Array.isArray(message?.types) ? message.types : [];
+      let changed = false;
+      for (const entry of list) {
+        const value = typeof entry === "string" ? entry.trim() : "";
+        if (!value) continue;
+        if (!typeOptionHints.has(value)) {
+          typeOptionHints.add(value);
+          changed = true;
+        }
+      }
+      if (changed) {
+        recomputeItemsForView();
+        syncApp();
       }
       break;
     }
@@ -4295,20 +5589,48 @@ function onMessage(message) {
       const prefs = message?.preferences || {};
       if (typeof prefs.kanbanView === "boolean") kanbanView = prefs.kanbanView;
       if (typeof prefs.filterText === "string") filterText = prefs.filterText;
+      if (typeof prefs.typeFilter === "string") typeFilter = prefs.typeFilter;
       if (typeof prefs.stateFilter === "string") stateFilter = prefs.stateFilter;
       if (typeof prefs.sortKey === "string") sortKey = prefs.sortKey;
       recomputeItemsForView();
-      ensureApp();
-      app.$set({
-        kanbanView,
-        filterText,
-        stateFilter,
-        sortKey,
-        items: itemsForView,
-        workItemCount: itemsForView.length,
-        hasItems: itemsForView.length > 0,
-        availableStates: stateOptions
-      });
+      syncApp();
+      break;
+    }
+    case "copilotPromptCopied": {
+      const provider = message?.provider === "openai" ? "openai" : "builtin";
+      summaryProvider = provider;
+      const workItemId = Number(message.workItemId || 0);
+      if (workItemId) {
+        setSummaryTarget(workItemId, { ensureOpen: true, refreshDraft: false });
+      }
+      if (provider === "openai" && typeof message.summary === "string" && message.summary.trim()) {
+        summaryDraft = message.summary.trim();
+        if (summaryWorkItemId) saveDraftForWorkItem(summaryWorkItemId, summaryDraft);
+      } else if (provider === "builtin" && typeof message.prompt === "string" && message.prompt.trim() && (!summaryDraft || !summaryDraft.trim())) {
+        summaryDraft = message.prompt;
+      }
+      setSummaryBusy(false);
+      setSummaryStatus(
+        provider === "openai" ? "OpenAI summary copied to clipboard." : "Copilot prompt copied to clipboard. Paste into Copilot chat to generate a summary.",
+        { timeout: 3500 }
+      );
+      summaryOpen = true;
+      syncApp();
+      break;
+    }
+    case "stopAndApplyResult": {
+      const id = Number(message.workItemId);
+      const hours = Number(message.hours || 0);
+      setSummaryBusy(false);
+      if (Number.isFinite(id) && id > 0) {
+        setSummaryTarget(id, { ensureOpen: true, refreshDraft: false });
+      }
+      summaryDraft = "";
+      if (Number.isFinite(id) && id > 0) {
+        removeDraftForWorkItem(id);
+      }
+      setSummaryStatus(`Applied ${hours.toFixed(2)} hours to work item #${id}.`, { timeout: 4e3 });
+      syncApp();
       break;
     }
     case "selfTestPing": {

@@ -7,6 +7,7 @@ describe('activation message handling', () => {
     const panel = { webview: { postMessage: (m: any) => posted.push(m) } } as any;
     const provider = {
       getWorkItems: () => [{ id: 1, fields: { 'System.Title': 'T' } }],
+      getWorkItemTypeOptions: () => ['Task'],
       refresh: () => {},
     } as any;
     __setTestContext({ panel, provider });
@@ -14,6 +15,7 @@ describe('activation message handling', () => {
     // Wait briefly for synchronous flow
     await new Promise((r) => setTimeout(r, 10));
     expect(posted.some((p) => p.type === 'workItemsLoaded')).to.equal(true);
+    expect(posted.some((p) => p.type === 'workItemTypeOptions')).to.equal(true);
   });
 
   it('startTimer triggers timer.start with id', async () => {
