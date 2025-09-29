@@ -1,48 +1,545 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 import { AzureDevOpsIntClient } from './azureClient.js';
 import { WorkItemsProvider } from './provider.js';
 import { WorkItemTimer } from './timer.js';
+import { SessionTelemetryManager } from './sessionTelemetry.js';
+import {
+  createScopedLogger,
+  getLogBufferSnapshot,
+  getOutputChannel,
+  logLine,
+  setOutputChannel,
+} from './logging.js';
+import {
+  getConnectionLabel,
+  postConnectionsUpdate,
+  postToWebview,
+  postWorkItemsSnapshot,
+} from './webviewMessaging.js';
+import type { PostWorkItemsSnapshotParams } from './webviewMessaging.js';
+import type OpenAIClient from 'openai';
+import { startSetupWizard } from './setupWizard.js';
 
 // Basic state keys
 const STATE_TIMER = 'azureDevOpsInt.timer.state';
 const STATE_TIME_ENTRIES = 'azureDevOpsInt.timer.entries';
 const STATE_LAST_SAVE = 'azureDevOpsInt.timer.lastSave';
+const STATE_TIMER_CONNECTION = 'azureDevOpsInt.timer.connection';
 const CONFIG_NS = 'azureDevOpsIntegration';
 // Legacy settings lived under 'azureDevOps' before renaming; keep migration path
 const LEGACY_CONFIG_NS = 'azureDevOps';
 
+type ProjectConnection = {
+  id: string;
+  organization: string;
+  project: string;
+  label?: string;
+  team?: string;
+  patKey?: string; // Key for storing PAT in secrets
+  baseUrl?: string; // Base URL for the Azure DevOps instance
+};
+
+type ConnectionState = {
+  id: string;
+  config: ProjectConnection;
+  client?: AzureDevOpsIntClient;
+  provider?: WorkItemsProvider;
+  pat?: string;
+};
+
+const CONNECTIONS_CONFIG_KEY = 'connections';
+const ACTIVE_CONNECTION_STATE_KEY = 'azureDevOpsInt.activeConnectionId';
+
 let panel: vscode.WebviewView | undefined;
 let provider: WorkItemsProvider | undefined;
 let timer: WorkItemTimer | undefined;
+let sessionTelemetry: SessionTelemetryManager | undefined;
 let client: AzureDevOpsIntClient | undefined;
 let statusBarItem: vscode.StatusBarItem | undefined;
 const PAT_KEY = 'azureDevOpsInt.pat';
+const OPENAI_SECRET_KEY = 'azureDevOpsInt.openai.apiKey';
 let viewProviderRegistered = false;
-let initialRefreshed = false; // prevent duplicate initial refresh (silentInit + webview init)
-let outputChannel: vscode.OutputChannel | undefined; // lazy created when debugLogging enabled
-// Lightweight in-memory log buffer so users can copy logs to clipboard
-const LOG_BUFFER_MAX = 5000; // max lines to retain
-let logBuffer: string[] = [];
-function logLine(text: string) {
+const initialRefreshedConnections = new Set<string>();
+let connections: ProjectConnection[] = [];
+const connectionStates = new Map<string, ConnectionState>();
+let activeConnectionId: string | undefined;
+type TimerConnectionInfo = {
+  id?: string;
+  label?: string;
+  organization?: string;
+  project?: string;
+};
+let timerConnectionInfo: TimerConnectionInfo = {};
+
+const DEFAULT_QUERY = 'My Activity';
+const activeQueryByConnection = new Map<string, string>();
+
+function shouldLogDebug(): boolean {
   try {
-    // Append to output channel if available
-    if (outputChannel) outputChannel.appendLine(text);
+    return !!getConfig().get<boolean>('debugLogging');
   } catch {
-    /* ignore */
+    return false;
   }
-  try {
-    logBuffer.push(text);
-    if (logBuffer.length > LOG_BUFFER_MAX) {
-      logBuffer.splice(0, logBuffer.length - LOG_BUFFER_MAX);
+}
+
+type WorkItemsSnapshotOptions = Omit<PostWorkItemsSnapshotParams, 'panel' | 'logger'>;
+
+function sendToWebview(message: any) {
+  postToWebview({ panel, message, logger: verbose });
+}
+
+function sendWorkItemsSnapshot(options: WorkItemsSnapshotOptions) {
+  postWorkItemsSnapshot({ panel, logger: verbose, ...options });
+}
+function notifyConnectionsList() {
+  postConnectionsUpdate({
+    panel,
+    connections,
+    activeConnectionId,
+    logger: verbose,
+  });
+}
+
+function normalizeQuery(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function getStoredQueryForConnection(connectionId?: string | null, fallback?: string): string {
+  const resolved = fallback ?? getDefaultQuery(getConfig());
+  const base = resolved && resolved.trim().length > 0 ? resolved : DEFAULT_QUERY;
+  if (!connectionId) return base;
+  const stored = activeQueryByConnection.get(connectionId);
+  if (stored && stored.trim().length > 0) return stored;
+  activeQueryByConnection.set(connectionId, base);
+  return base;
+}
+
+function setStoredQueryForConnection(connectionId: string, query?: string): string {
+  const resolvedDefault = getDefaultQuery(getConfig());
+  const normalized = normalizeQuery(query) ?? resolvedDefault ?? DEFAULT_QUERY;
+  activeQueryByConnection.set(connectionId, normalized);
+  return normalized;
+}
+
+function getQueryForProvider(
+  targetProvider?: WorkItemsProvider,
+  connectionId?: string | null
+): string {
+  const cfg = getConfig();
+  const fallback = getDefaultQuery(cfg);
+  const providerConnectionId = connectionId
+    ? connectionId
+    : typeof targetProvider?.getConnectionId === 'function'
+      ? targetProvider.getConnectionId()
+      : undefined;
+  return getStoredQueryForConnection(providerConnectionId, fallback);
+}
+
+function setTimerConnectionFrom(connection: ProjectConnection | undefined) {
+  if (connection) {
+    timerConnectionInfo = {
+      id: connection.id,
+      label: getConnectionLabel(connection),
+      organization: connection.organization,
+      project: connection.project,
+    };
+  } else {
+    timerConnectionInfo = {};
+  }
+}
+
+function getActiveTimerConnectionLabel(): string | undefined {
+  if (timerConnectionInfo.label) return timerConnectionInfo.label;
+  if (timerConnectionInfo.id) {
+    const match = connections.find((c) => c.id === timerConnectionInfo.id);
+    if (match) return getConnectionLabel(match);
+  }
+  if (timerConnectionInfo.organization && timerConnectionInfo.project) {
+    return `${timerConnectionInfo.organization}/${timerConnectionInfo.project}`;
+  }
+  return undefined;
+}
+
+function getClientForConnectionInfo(info?: TimerConnectionInfo): AzureDevOpsIntClient | undefined {
+  if (info?.id) {
+    const state = connectionStates.get(info.id);
+    if (state?.client) return state.client;
+    if (info.id === activeConnectionId && client) return client;
+  }
+  return client;
+}
+
+function sanitizeConnection(raw: any): ProjectConnection | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const organization = String(raw.organization || '').trim();
+  const project = String(raw.project || '').trim();
+  if (!organization || !project) return null;
+  const idValue = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : randomUUID();
+  const labelValue =
+    typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : undefined;
+  const teamValue = typeof raw.team === 'string' && raw.team.trim() ? raw.team.trim() : undefined;
+  const patKeyValue =
+    typeof raw.patKey === 'string' && raw.patKey.trim() ? raw.patKey.trim() : undefined;
+  const baseUrlValue =
+    typeof raw.baseUrl === 'string' && raw.baseUrl.trim() ? raw.baseUrl.trim() : undefined;
+  return {
+    id: idValue,
+    organization,
+    project,
+    label: labelValue,
+    team: teamValue,
+    patKey: patKeyValue,
+    baseUrl: baseUrlValue,
+  };
+}
+
+async function loadConnectionsFromConfig(
+  context: vscode.ExtensionContext
+): Promise<ProjectConnection[]> {
+  const settings = getConfig();
+  const rawConnections = settings.get<any[]>(CONNECTIONS_CONFIG_KEY) ?? [];
+  const normalized: ProjectConnection[] = [];
+  for (const entry of rawConnections) {
+    const sanitized = sanitizeConnection(entry);
+    if (sanitized) {
+      // Migrate existing connections to have patKey if they don't have one
+      if (!sanitized.patKey) {
+        sanitized.patKey = `azureDevOpsInt.pat.${sanitized.id}`;
+      }
+
+      // Migrate existing connections to have baseUrl if they don't have one
+      if (!sanitized.baseUrl) {
+        sanitized.baseUrl = `https://dev.azure.com/${sanitized.organization}`;
+      }
+
+      normalized.push(sanitized);
     }
-  } catch {
-    /* ignore buffer errors */
   }
+
+  if (normalized.length === 0) {
+    const legacyOrg = String(settings.get<string>('organization') || '').trim();
+    const legacyProject = String(settings.get<string>('project') || '').trim();
+    if (legacyOrg && legacyProject) {
+      const legacyTeam = String(settings.get<string>('team') || '').trim();
+      normalized.push({
+        id: randomUUID(),
+        organization: legacyOrg,
+        project: legacyProject,
+        team: legacyTeam || undefined,
+      });
+      await settings.update(CONNECTIONS_CONFIG_KEY, normalized, vscode.ConfigurationTarget.Global);
+    }
+  }
+
+  connections = normalized;
+
+  // Migrate global PAT to first connection if needed
+  if (connections.length > 0 && connections[0].patKey) {
+    await migrateGlobalPATToConnection(context, connections[0]);
+  }
+
+  verbose('[connections] Loaded connections from config', {
+    count: connections.length,
+    ids: connections.map((c) => c.id),
+  });
+  const validIds = new Set(normalized.map((item) => item.id));
+
+  for (const [id, state] of connectionStates.entries()) {
+    if (!validIds.has(id)) {
+      connectionStates.delete(id);
+      initialRefreshedConnections.delete(id);
+    } else {
+      const updated = normalized.find((item) => item.id === id);
+      if (updated) state.config = updated;
+    }
+  }
+
+  for (const key of Array.from(activeQueryByConnection.keys())) {
+    if (!validIds.has(key)) {
+      activeQueryByConnection.delete(key);
+    }
+  }
+
+  if (connections.length === 0) {
+    activeConnectionId = undefined;
+    await context.globalState.update(ACTIVE_CONNECTION_STATE_KEY, undefined);
+  } else {
+    let storedActive = context.globalState.get<string>(ACTIVE_CONNECTION_STATE_KEY);
+    if (!storedActive || !validIds.has(storedActive)) {
+      storedActive = connections[0].id;
+      await context.globalState.update(ACTIVE_CONNECTION_STATE_KEY, storedActive);
+    }
+    activeConnectionId = storedActive;
+  }
+
+  notifyConnectionsList();
+  return connections;
+}
+
+async function saveConnectionsToConfig(
+  context: vscode.ExtensionContext,
+  nextConnections: ProjectConnection[]
+): Promise<void> {
+  const settings = getConfig();
+  connections = nextConnections;
+  const serialized = nextConnections.map((entry) => ({ ...entry }));
+  await settings.update(CONNECTIONS_CONFIG_KEY, serialized, vscode.ConfigurationTarget.Global);
+
+  // Update legacy settings only for backward compatibility with single connection
+  if (nextConnections.length === 1) {
+    const primary = nextConnections[0];
+    await settings.update('organization', primary.organization, vscode.ConfigurationTarget.Global);
+    await settings.update('project', primary.project, vscode.ConfigurationTarget.Global);
+    await settings.update('team', primary.team, vscode.ConfigurationTarget.Global);
+  } else if (nextConnections.length === 0) {
+    // Clear legacy settings when no connections
+    await settings.update('organization', undefined, vscode.ConfigurationTarget.Global);
+    await settings.update('project', undefined, vscode.ConfigurationTarget.Global);
+    await settings.update('team', undefined, vscode.ConfigurationTarget.Global);
+  }
+  // For multiple connections, leave legacy settings as-is to avoid confusion
+
+  const validIds = new Set(nextConnections.map((item) => item.id));
+  for (const [id, state] of connectionStates.entries()) {
+    if (!validIds.has(id)) {
+      connectionStates.delete(id);
+      initialRefreshedConnections.delete(id);
+    } else {
+      const updated = nextConnections.find((item) => item.id === id);
+      if (updated) state.config = updated;
+    }
+  }
+
+  if (activeConnectionId && !validIds.has(activeConnectionId)) {
+    activeConnectionId = nextConnections[0]?.id;
+    await context.globalState.update(ACTIVE_CONNECTION_STATE_KEY, activeConnectionId);
+  }
+
+  notifyConnectionsList();
+}
+
+async function ensureConnectionsInitialized(context: vscode.ExtensionContext) {
+  if (connections.length === 0) await loadConnectionsFromConfig(context);
+  return connections;
+}
+
+async function ensureActiveConnection(
+  context: vscode.ExtensionContext,
+  connectionId?: string,
+  options: { refresh?: boolean; notify?: boolean } = {}
+): Promise<ConnectionState | undefined> {
+  await ensureConnectionsInitialized(context);
+
+  const targetId = connectionId ?? activeConnectionId ?? connections[0]?.id;
+  verbose('[ensureActiveConnection] evaluating target', {
+    requested: connectionId,
+    activeConnectionId,
+    resolved: targetId,
+    connectionCount: connections.length,
+  });
+  if (!targetId) {
+    if (options.notify !== false) notifyConnectionsList();
+    await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
+    provider = undefined;
+    client = undefined;
+    return undefined;
+  }
+
+  if (targetId !== activeConnectionId) {
+    activeConnectionId = targetId;
+    await context.globalState.update(ACTIVE_CONNECTION_STATE_KEY, targetId);
+    if (options.notify !== false) notifyConnectionsList();
+  }
+
+  const connection = connections.find((item) => item.id === targetId);
+  if (!connection) {
+    console.warn('[azureDevOpsInt] Connection not found for id', targetId);
+    return undefined;
+  }
+
+  verbose('[ensureActiveConnection] using connection', {
+    id: connection.id,
+    organization: connection.organization,
+    project: connection.project,
+  });
+
+  let state = connectionStates.get(targetId);
+  if (!state) {
+    state = { id: targetId, config: connection };
+    connectionStates.set(targetId, state);
+  } else {
+    state.config = connection;
+  }
+
+  const pat = await getSecretPAT(context, targetId);
+  if (!pat) {
+    verbose('[ensureActiveConnection] missing PAT, cannot create client');
+    provider = undefined;
+    client = undefined;
+    state.client = undefined;
+    state.provider = undefined;
+    await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
+    return state;
+  }
+
+  const settings = getConfig();
+  const ratePerSecond = Math.max(1, Math.min(50, settings.get<number>('apiRatePerSecond') ?? 5));
+  const burst = Math.max(1, Math.min(100, settings.get<number>('apiBurst') ?? 10));
+  const team = connection.team || settings.get<string>('team') || undefined;
+  const providerLogger = createScopedLogger(`provider:${connection.id}`, shouldLogDebug);
+
+  const needsNewClient =
+    !state.client ||
+    state.pat !== pat ||
+    state.client.organization !== connection.organization ||
+    state.client.project !== connection.project ||
+    state.client.team !== team;
+
+  if (needsNewClient) {
+    verbose('[ensureActiveConnection] creating new client', {
+      id: connection.id,
+      organization: connection.organization,
+      project: connection.project,
+      team,
+      baseUrl: connection.baseUrl,
+    });
+    state.client = new AzureDevOpsIntClient(connection.organization, connection.project, pat, {
+      ratePerSecond,
+      burst,
+      team,
+      baseUrl: connection.baseUrl,
+    });
+    state.pat = pat;
+    if (state.provider) state.provider.updateClient(state.client);
+  }
+
+  const activeClient = state.client;
+  if (!activeClient) {
+    provider = undefined;
+    client = undefined;
+    await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
+    return state;
+  }
+
+  if (!state.provider) {
+    verbose('[ensureActiveConnection] creating provider', {
+      id: state.id,
+    });
+    state.provider = new WorkItemsProvider(
+      state.id,
+      activeClient,
+      (msg: any) => postToWebview({ panel, message: msg, logger: verbose }),
+      { logger: providerLogger }
+    );
+  } else {
+    state.provider.setPostMessage((msg: any) =>
+      postToWebview({ panel, message: msg, logger: verbose })
+    );
+    state.provider.setLogger(providerLogger);
+  }
+
+  verbose('[ensureActiveConnection] provider ready', {
+    id: state.id,
+    hasClient: !!state.client,
+  });
+
+  client = activeClient;
+  provider = state.provider;
+
+  await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', true);
+
+  if (options.refresh !== false && provider) {
+    const fallbackQuery = getDefaultQuery(settings);
+    const selectedQuery = getStoredQueryForConnection(state.id, fallbackQuery);
+    if (!initialRefreshedConnections.has(state.id)) {
+      initialRefreshedConnections.add(state.id);
+    }
+    verbose('[ensureActiveConnection] triggering provider refresh', {
+      id: state.id,
+      query: selectedQuery,
+    });
+    provider.refresh(selectedQuery);
+  }
+
+  return state;
+}
+
+function ensureTimer(context: vscode.ExtensionContext) {
+  if (timer) return timer;
+  const config = getConfig();
+  let pomodoroBreakTimeout: NodeJS.Timeout | undefined;
+  timer = new WorkItemTimer({
+    autoResumeOnActivity: config.get<boolean>('autoResumeOnActivity') ?? true,
+    inactivityTimeoutSec: config.get<number>('timerInactivityTimeout') ?? 300,
+    defaultElapsedLimitHours: config.get<number>('defaultElapsedLimitHours') ?? 3.5,
+    pomodoroEnabled: config.get<boolean>('pomodoroEnabled') ?? false,
+    breakPrompt: () => {
+      const snap = timer?.snapshot?.();
+      if (!snap || snap.isPaused) return;
+      vscode.window
+        .showInformationMessage(
+          'Time for a Pomodoro break?',
+          { modal: true },
+          'Start 5‑min break',
+          'Skip'
+        )
+        .then((choice) => {
+          if (!choice || choice === 'Skip') return;
+          try {
+            timer?.pause();
+          } catch {
+            /* ignore pause error */
+          }
+          if (pomodoroBreakTimeout) {
+            try {
+              clearTimeout(pomodoroBreakTimeout);
+            } catch {
+              /* ignore clear error */
+            }
+            pomodoroBreakTimeout = undefined;
+          }
+          pomodoroBreakTimeout = setTimeout(
+            () => {
+              try {
+                timer?.resume();
+              } catch {
+                /* ignore resume error */
+              }
+              pomodoroBreakTimeout = undefined;
+            },
+            5 * 60 * 1000
+          );
+        });
+    },
+    persist: (data: { state?: any; timeEntries?: any[]; updateLastSave?: boolean }) =>
+      persistTimer(context, data),
+    restorePersisted: () => restoreTimer(context),
+    onState: (s: any) => {
+      sendToWebview({
+        type: 'timerUpdate',
+        timer: s,
+        connectionId: timerConnectionInfo.id,
+        connectionLabel: timerConnectionInfo.label,
+        connectionOrganization: timerConnectionInfo.organization,
+        connectionProject: timerConnectionInfo.project,
+      });
+      updateTimerContext(s);
+    },
+    onInfo: (m: any) => console.log('[timer]', m),
+    onWarn: (m: any) => console.warn('[timer]', m),
+    onError: (m: any) => console.error('[timer]', m),
+  });
+  timer.loadFromPersisted();
+  return timer;
 }
 let extensionContextRef: vscode.ExtensionContext | undefined; // keep a reference for later ops
 let cachedExtensionVersion: string | undefined; // cache package.json version for cache-busting
+let openAiClient: OpenAIClient | undefined;
 // Self-test tracking (prove Svelte webview round‑trip works)
 // Self-test pending promise handlers (typed loosely to avoid unused param lint churn)
 let selfTestPending:
@@ -67,6 +564,72 @@ const IS_SMOKE = process.env.VSCODE_INTEGRATION_SMOKE === '1' || isVSCodeTestRun
 
 function getConfig() {
   return vscode.workspace.getConfiguration(CONFIG_NS);
+}
+
+type ConfigInspection<T> = {
+  key: string;
+  defaultValue?: T;
+  globalValue?: T;
+  workspaceValue?: T;
+  workspaceFolderValue?: T;
+  globalLanguageValue?: T;
+  workspaceLanguageValue?: T;
+  workspaceFolderLanguageValue?: T;
+};
+
+type ConfigGetter = {
+  get<T>(section: string): T | undefined;
+  inspect?<T>(section: string): ConfigInspection<T> | undefined;
+};
+
+function hasConfigOverride<T>(metadata: ConfigInspection<T> | undefined): boolean {
+  if (!metadata) return false;
+  const overrideValues = [
+    metadata.globalValue,
+    metadata.workspaceValue,
+    metadata.workspaceFolderValue,
+    metadata.globalLanguageValue,
+    metadata.workspaceLanguageValue,
+    metadata.workspaceFolderLanguageValue,
+  ];
+  return overrideValues.some((value) => value !== undefined);
+}
+
+export function resolveDefaultQuery(_config: ConfigGetter): string {
+  const getValue = (key: string): string | undefined => {
+    try {
+      const raw = _config?.get<string | undefined>(key);
+      if (typeof raw !== 'string') return undefined;
+      const trimmed = raw.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const explicitDefault = getValue('defaultQuery');
+  if (explicitDefault) return explicitDefault;
+
+  const workItemQuery = getValue('workItemQuery');
+  if (workItemQuery) {
+    const inspectFn =
+      typeof _config?.inspect === 'function' ? _config.inspect.bind(_config) : undefined;
+    if (!inspectFn) return workItemQuery;
+    try {
+      const metadata = inspectFn<string>('workItemQuery');
+      if (hasConfigOverride(metadata)) return workItemQuery;
+    } catch {
+      // If inspect fails, assume the user intentionally set a custom query to avoid breaking legacy behavior.
+      return workItemQuery;
+    }
+  }
+
+  return DEFAULT_QUERY;
+}
+
+function getDefaultQuery(config?: vscode.WorkspaceConfiguration): string {
+  const target = (config ?? getConfig()) as ConfigGetter;
+  return resolveDefaultQuery(target);
 }
 function getExtensionVersion(context: vscode.ExtensionContext): string {
   if (cachedExtensionVersion) return cachedExtensionVersion;
@@ -110,7 +673,9 @@ export function activate(context: vscode.ExtensionContext) {
   }
   const cfg = getConfig();
   if (cfg.get<boolean>('debugLogging')) {
-    outputChannel = vscode.window.createOutputChannel('Azure DevOps Integration');
+    const channel =
+      getOutputChannel() ?? vscode.window.createOutputChannel('Azure DevOps Integration');
+    setOutputChannel(channel);
     logLine('[activate] Debug logging enabled');
   }
   // Status bar (hidden until connected or timer active)
@@ -137,22 +702,28 @@ export function activate(context: vscode.ExtensionContext) {
   // Core commands
   context.subscriptions.push(
     vscode.commands.registerCommand('azureDevOpsInt.setup', () => setupConnection(context)),
+    vscode.commands.registerCommand('azureDevOpsInt.setupWizard', () => setupWizard(context)),
+    vscode.commands.registerCommand('azureDevOpsInt.setOpenAIApiKey', () =>
+      setOpenAIApiKey(context)
+    ),
     vscode.commands.registerCommand('azureDevOpsInt.openLogs', async () => {
       try {
-        if (!outputChannel) {
-          outputChannel = vscode.window.createOutputChannel('Azure DevOps Integration');
+        let channel = getOutputChannel();
+        if (!channel) {
+          channel = vscode.window.createOutputChannel('Azure DevOps Integration');
+          setOutputChannel(channel);
           logLine('[logs] Output channel created on demand');
         }
-        outputChannel.show(true);
-        const cfg = getConfig();
-        if (!cfg.get<boolean>('debugLogging')) {
+        channel.show(true);
+        const currentConfig = getConfig();
+        if (!currentConfig.get<boolean>('debugLogging')) {
           const pick = await vscode.window.showInformationMessage(
             'Verbose logging is currently disabled. Enable it to capture more diagnostics?',
             'Enable',
             'Skip'
           );
           if (pick === 'Enable') {
-            await cfg.update('debugLogging', true, vscode.ConfigurationTarget.Global);
+            await currentConfig.update('debugLogging', true, vscode.ConfigurationTarget.Global);
             logLine('[logs] Debug logging enabled');
           }
         }
@@ -163,8 +734,9 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('azureDevOpsInt.copyLogsToClipboard', async () => {
       try {
         const version = extensionContextRef ? getExtensionVersion(extensionContextRef) : 'dev';
-        const header = `Azure DevOps Integration Logs\nVersion: ${version}\nTimestamp: ${new Date().toISOString()}\nLines: ${logBuffer.length}\n---\n`;
-        const body = logBuffer.join('\n');
+        const buffer = getLogBufferSnapshot();
+        const header = `Azure DevOps Integration Logs\nVersion: ${version}\nTimestamp: ${new Date().toISOString()}\nLines: ${buffer.length}\n---\n`;
+        const body = buffer.join('\n');
         const text = header + body + (body.endsWith('\n') ? '' : '\n');
         await vscode.env.clipboard.writeText(text);
         vscode.window.showInformationMessage('Copied extension logs to clipboard.');
@@ -227,24 +799,47 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand('azureDevOpsInt.showWorkItems', () => revealWorkItemsView()),
     vscode.commands.registerCommand('azureDevOpsInt.refreshWorkItems', () =>
-      provider?.refresh(getConfig().get('defaultQuery') || 'My Work Items')
+      (async () => {
+        const query = getDefaultQuery();
+        verbose('[command] refreshWorkItems invoked', {
+          hasProvider: !!provider,
+          query,
+        });
+        if (!provider && extensionContextRef) {
+          verbose('[command] refreshWorkItems no provider; attempting ensureActiveConnection');
+          try {
+            await ensureActiveConnection(extensionContextRef, activeConnectionId, {
+              refresh: false,
+            });
+          } catch (e: any) {
+            verbose('[command] ensureActiveConnection failed in refreshWorkItems', e?.message || e);
+          }
+        }
+        provider?.refresh(query);
+      })()
     ),
     vscode.commands.registerCommand('azureDevOpsInt.createWorkItem', () => quickCreateWorkItem()),
     vscode.commands.registerCommand('azureDevOpsInt.startTimer', () => startTimerInteractive()),
     vscode.commands.registerCommand('azureDevOpsInt.pauseTimer', () => timer?.pause()),
     vscode.commands.registerCommand('azureDevOpsInt.resumeTimer', () => timer?.resume()),
     vscode.commands.registerCommand('azureDevOpsInt.stopTimer', async () => {
-      const stopped = timer?.stop();
+      if (!timer) {
+        vscode.window.showInformationMessage('No active timer to stop.');
+        return;
+      }
+      const timerConnectionSnapshot: TimerConnectionInfo = { ...timerConnectionInfo };
+      setTimerConnectionFrom(undefined);
+      const stopped = timer.stop();
       updateTimerContext(undefined);
       if (stopped) {
-        try {
-          await handleTimerStopAndOfferUpdate(stopped);
-        } catch (e: any) {
-          console.error('Error applying timer updates', e);
-          vscode.window.showErrorMessage(
-            'Failed to process timer update: ' + (e?.message || String(e))
-          );
-        }
+        // Show compose comment dialog in webview instead of VS Code dialogs
+        sendToWebview({
+          type: 'showComposeComment',
+          workItemId: stopped.workItemId,
+          mode: 'timerStop',
+          timerData: stopped,
+          connectionInfo: timerConnectionSnapshot,
+        });
       }
     }),
     vscode.commands.registerCommand('azureDevOpsInt.showTimeReport', () => showTimeReport()),
@@ -261,7 +856,10 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('azureDevOpsInt.resetPreferredRepositories', () =>
       resetPreferredRepositories()
     ),
-    vscode.commands.registerCommand('azureDevOpsInt.selfTestWebview', () => selfTestWebview())
+    vscode.commands.registerCommand('azureDevOpsInt.selfTestWebview', () => selfTestWebview()),
+    vscode.commands.registerCommand('azureDevOpsInt.manageConnections', () =>
+      manageConnections(context)
+    )
   );
 
   // Attempt silent init if settings already present
@@ -275,10 +873,11 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  // React to configuration changes (org, project, PAT) to (re)initialize without requiring reload
+  // React to configuration changes (connections, org, project, PAT) to (re)initialize without requiring reload
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(async (e) => {
       if (
+        e.affectsConfiguration(`${CONFIG_NS}.connections`) ||
         e.affectsConfiguration(`${CONFIG_NS}.organization`) ||
         e.affectsConfiguration(`${CONFIG_NS}.project`) ||
         e.affectsConfiguration(`${CONFIG_NS}.personalAccessToken`)
@@ -339,100 +938,70 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
     const html = buildMinimalWebviewHtml(this.ctx, webview, nonce);
     webview.html = html;
     if (!IS_SMOKE) {
-      initDomainObjects(this.ctx, (msg: any) => webview.postMessage(msg));
+      initDomainObjects(this.ctx).catch((err) =>
+        console.error('[azureDevOpsInt] Failed to initialize domain objects', err)
+      );
     } else {
       // In smoke mode, avoid heavy initialization and network calls.
       // Still send minimal ready state so the webview can render.
-      try {
-        webview.postMessage({ type: 'workItemsLoaded', workItems: [], kanbanView: false });
-      } catch {
-        /* ignore */
-      }
+      sendWorkItemsSnapshot({
+        connectionId: activeConnectionId,
+        items: [],
+        kanbanView: false,
+        types: [],
+        query: getStoredQueryForConnection(activeConnectionId, getDefaultQuery(getConfig())),
+      });
     }
   }
 }
 
-async function initDomainObjects(context: vscode.ExtensionContext, postMessage: any) {
+async function initDomainObjects(context: vscode.ExtensionContext) {
+  verbose('[initDomainObjects] start');
   const config = getConfig();
-  const org = config.get<string>('organization') || '';
-  const project = config.get<string>('project') || '';
-  const pat = await getSecretPAT(context);
-  if (org && project && pat) {
-    try {
-      const rate = Math.max(1, Math.min(50, config.get<number>('apiRatePerSecond') ?? 5));
-      const burst = Math.max(1, Math.min(100, config.get<number>('apiBurst') ?? 10));
-      const team = config.get<string>('team') || undefined;
-      client = new AzureDevOpsIntClient(org, project, pat, { ratePerSecond: rate, burst, team });
-      vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', true);
-    } catch (e: any) {
-      console.error(e);
-    }
-  } else {
-    vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
-  }
-  provider = client ? new WorkItemsProvider(client, postMessage, {}) : undefined;
-  // Pomodoro: show a simple break prompt and optionally auto-resume after 5 minutes
-  let pomodoroBreakTimeout: any | undefined;
-  timer = new WorkItemTimer({
-    autoResumeOnActivity: config.get<boolean>('autoResumeOnActivity') ?? true,
-    inactivityTimeoutSec: config.get<number>('timerInactivityTimeout') ?? 300,
-    defaultElapsedLimitHours: config.get<number>('defaultElapsedLimitHours') ?? 3.5,
-    pomodoroEnabled: config.get<boolean>('pomodoroEnabled') ?? false,
-    breakPrompt: () => {
-      // Only act if a timer is active and not already paused by user
-      const snap = timer?.snapshot?.();
-      if (!snap || snap.isPaused) return;
-      vscode.window
-        .showInformationMessage(
-          'Time for a Pomodoro break?',
-          { modal: true },
-          'Start 5‑min break',
-          'Skip'
-        )
-        .then((choice) => {
-          if (!choice || choice === 'Skip') return;
-          // Pause now and auto-resume after 5 minutes
-          try {
-            timer?.pause();
-          } catch {
-            /* ignore pause error */
-          }
-          if (pomodoroBreakTimeout) {
-            try {
-              clearTimeout(pomodoroBreakTimeout);
-            } catch {
-              /* ignore clear error */
-            }
-            pomodoroBreakTimeout = undefined;
-          }
-          pomodoroBreakTimeout = setTimeout(
-            () => {
-              try {
-                timer?.resume();
-              } catch {
-                /* ignore resume error */
-              }
-              pomodoroBreakTimeout = undefined;
-            },
-            5 * 60 * 1000
-          );
-        });
-    },
-    persist: (data: { state?: any; timeEntries?: any[]; updateLastSave?: boolean }) =>
-      persistTimer(context, data),
-    restorePersisted: () => restoreTimer(context),
-    onState: (s: any) => {
-      postMessage({ type: 'timerUpdate', timer: s });
-      updateTimerContext(s);
-    },
-    onInfo: (m: any) => console.log('[timer]', m),
-    onWarn: (m: any) => console.warn('[timer]', m),
-    onError: (m: any) => console.error('[timer]', m),
+  sessionTelemetry = sessionTelemetry ?? new SessionTelemetryManager(context);
+  await ensureConnectionsInitialized(context);
+  const state = await ensureActiveConnection(context, activeConnectionId, { refresh: false });
+  verbose('[initDomainObjects] ensured active connection', {
+    hasState: !!state,
+    connectionId: state?.id,
+    hasProvider: !!state?.provider,
   });
-  timer.loadFromPersisted();
-  if (!initialRefreshed) {
-    provider?.refresh(config.get('defaultQuery') || 'My Work Items');
-    initialRefreshed = true;
+
+  const timerInstance = ensureTimer(context);
+  const snapshot = timerInstance.snapshot?.();
+  if (snapshot) {
+    sendToWebview({
+      type: 'timerUpdate',
+      timer: snapshot,
+      connectionId: timerConnectionInfo.id,
+      connectionLabel: timerConnectionInfo.label,
+      connectionOrganization: timerConnectionInfo.organization,
+      connectionProject: timerConnectionInfo.project,
+    });
+    updateTimerContext(snapshot);
+  }
+
+  notifyConnectionsList();
+
+  if (panel && state?.provider) {
+    const selectedQuery = getStoredQueryForConnection(state.id, getDefaultQuery(config));
+    if (!initialRefreshedConnections.has(state.id)) {
+      initialRefreshedConnections.add(state.id);
+    }
+    verbose('[initDomainObjects] panel ready, refreshing provider', {
+      id: state.id,
+      query: selectedQuery,
+    });
+    state.provider.refresh(selectedQuery);
+  } else if (panel && !state?.provider) {
+    verbose('[initDomainObjects] panel ready but provider missing, sending empty payload');
+    sendWorkItemsSnapshot({
+      connectionId: activeConnectionId,
+      items: [],
+      kanbanView: false,
+      types: [],
+      query: getStoredQueryForConnection(activeConnectionId, getDefaultQuery(config)),
+    });
   }
 }
 
@@ -457,23 +1026,39 @@ async function handleMessage(msg: any) {
         if (workItems.length > 0) {
           console.log('[azureDevOpsInt] First work item:', JSON.stringify(workItems[0], null, 2));
         }
-        panel.webview.postMessage({ type: 'workItemsLoaded', workItems, kanbanView: false });
+        const snapshotQuery = getQueryForProvider(provider, activeConnectionId);
+        sendWorkItemsSnapshot({
+          connectionId: activeConnectionId,
+          items: workItems,
+          kanbanView: false,
+          provider,
+          query: snapshotQuery,
+        });
         const snap = timer?.snapshot?.();
-        if (snap) panel.webview.postMessage({ type: 'timerUpdate', timer: snap });
+        if (snap)
+          sendToWebview({
+            type: 'timerUpdate',
+            timer: snap,
+            connectionId: timerConnectionInfo.id,
+            connectionLabel: timerConnectionInfo.label,
+            connectionOrganization: timerConnectionInfo.organization,
+            connectionProject: timerConnectionInfo.project,
+          });
         // Send UI preferences from global memento
         const uiPrefs = extensionContextRef?.globalState.get(
           'azureDevOpsIntegration.uiPreferences',
           {
             kanbanView: false,
             filterText: '',
+            typeFilter: '',
             stateFilter: 'all',
             sortKey: 'updated-desc',
           }
         );
-        panel.webview.postMessage({ type: 'uiPreferences', preferences: uiPrefs });
+        sendToWebview({ type: 'uiPreferences', preferences: uiPrefs });
         // If a self-test was queued before webview ready, trigger now
         if (selfTestPending) {
-          panel.webview.postMessage({ type: 'selfTestPing', nonce: selfTestPending.nonce });
+          sendToWebview({ type: 'selfTestPing', nonce: selfTestPending.nonce });
         }
       }
       break;
@@ -501,15 +1086,175 @@ async function handleMessage(msg: any) {
       }
       break;
     }
-    case 'refresh':
-      verbose('Refresh requested from webview');
-      provider?.refresh();
+    case 'refresh': {
+      verbose('[webview] refresh requested', {
+        hasProvider: !!provider,
+        cachedCount:
+          provider && typeof (provider as any).getWorkItems === 'function'
+            ? ((provider as any).getWorkItems() || []).length
+            : 0,
+      });
+      if (!provider && extensionContextRef) {
+        verbose('[webview] refresh no provider; ensuring connection');
+        try {
+          await ensureActiveConnection(extensionContextRef, activeConnectionId, {
+            refresh: false,
+          });
+        } catch (e: any) {
+          verbose('[webview] ensureActiveConnection failed in refresh', e?.message || e);
+        }
+      }
+      const refreshQuery = getQueryForProvider(provider, activeConnectionId);
+      provider?.refresh(refreshQuery);
       break;
+    }
     case 'getWorkItems': {
       verbose('Work items requested from webview');
-      if (panel) {
-        const workItems = provider?.getWorkItems() || [];
-        panel.webview.postMessage({ type: 'workItemsLoaded', workItems });
+      const cfg = getConfig();
+      const requestedConnectionId =
+        typeof msg.connectionId === 'string' ? msg.connectionId.trim() : '';
+      const fallbackQuery = getDefaultQuery(cfg);
+      const incomingQuery = normalizeQuery(msg.query);
+      const targetConnectionId = requestedConnectionId || activeConnectionId || undefined;
+
+      let resolvedQuery = fallbackQuery;
+      if (targetConnectionId) {
+        resolvedQuery = incomingQuery
+          ? setStoredQueryForConnection(targetConnectionId, incomingQuery)
+          : getStoredQueryForConnection(targetConnectionId, fallbackQuery);
+      } else if (incomingQuery) {
+        resolvedQuery = incomingQuery;
+      }
+
+      let currentProvider = provider;
+      verbose('[getWorkItems] current state', {
+        hasProvider: !!currentProvider,
+        cachedCount:
+          currentProvider && typeof (currentProvider as any).getWorkItems === 'function'
+            ? ((currentProvider as any).getWorkItems() || []).length
+            : 0,
+        activeConnectionId,
+        requestedConnectionId,
+        resolvedQuery,
+      });
+      if (!currentProvider && extensionContextRef) {
+        verbose('No provider available; attempting to ensure active connection');
+        try {
+          await ensureActiveConnection(extensionContextRef, targetConnectionId, {
+            refresh: false,
+          });
+        } catch (e: any) {
+          verbose('ensureActiveConnection failed during getWorkItems request', e?.message || e);
+        }
+        currentProvider = provider;
+      }
+      const responseConnectionId = targetConnectionId ?? activeConnectionId;
+      if (!targetConnectionId && responseConnectionId) {
+        resolvedQuery = incomingQuery
+          ? setStoredQueryForConnection(responseConnectionId, incomingQuery)
+          : getStoredQueryForConnection(responseConnectionId, fallbackQuery);
+      }
+      const workItems =
+        currentProvider && typeof (currentProvider as any).getWorkItems === 'function'
+          ? (currentProvider as any).getWorkItems() || []
+          : [];
+      verbose('[getWorkItems] responding with cached items', {
+        count: workItems.length,
+        connectionId: responseConnectionId,
+      });
+      sendWorkItemsSnapshot({
+        connectionId: responseConnectionId,
+        items: workItems,
+        provider: currentProvider,
+        query: resolvedQuery,
+      });
+      if (currentProvider && workItems.length === 0) {
+        verbose('Provider returned zero cached work items; triggering refresh', {
+          query: resolvedQuery,
+        });
+        try {
+          currentProvider.refresh(resolvedQuery);
+        } catch (e: any) {
+          verbose('Provider refresh failed after empty cache response', e?.message || e);
+        }
+      }
+      break;
+    }
+    case 'setQuery': {
+      const connectionIdRaw = typeof msg.connectionId === 'string' ? msg.connectionId.trim() : '';
+      const targetId = connectionIdRaw || activeConnectionId || '';
+      if (!targetId) {
+        verbose('[setQuery] no connection id resolved; skipping');
+        break;
+      }
+      const storedQuery = setStoredQueryForConnection(
+        targetId,
+        typeof msg.query === 'string' ? msg.query : undefined
+      );
+      const state = connectionStates.get(targetId);
+      const targetProvider =
+        state?.provider ?? (targetId === activeConnectionId ? provider : undefined);
+      verbose('[setQuery] applied new query', {
+        connectionId: targetId,
+        query: storedQuery,
+        hasProvider: !!targetProvider,
+      });
+      targetProvider?.refresh(storedQuery);
+      break;
+    }
+    case 'setActiveConnection': {
+      const targetId = typeof msg.connectionId === 'string' ? msg.connectionId.trim() : '';
+      if (!targetId) {
+        verbose('[setActiveConnection] missing connectionId in message');
+        break;
+      }
+      if (!extensionContextRef) {
+        verbose('[setActiveConnection] missing extension context');
+        break;
+      }
+      try {
+        const state = await ensureActiveConnection(extensionContextRef, targetId, {
+          refresh: false,
+        });
+        const activeProvider = state?.provider;
+        const cfg = getConfig();
+        const selectedQuery = getStoredQueryForConnection(targetId, getDefaultQuery(cfg));
+        const cachedItems =
+          activeProvider && typeof (activeProvider as any).getWorkItems === 'function'
+            ? (activeProvider as any).getWorkItems() || []
+            : [];
+        sendWorkItemsSnapshot({
+          connectionId: targetId,
+          items: cachedItems,
+          kanbanView: false,
+          provider: activeProvider,
+          query: selectedQuery,
+        });
+        if (activeProvider && cachedItems.length === 0) {
+          activeProvider.refresh(selectedQuery);
+        } else if (activeProvider && cachedItems.length > 0) {
+          // still trigger a background refresh to keep results current
+          setTimeout(() => {
+            try {
+              activeProvider.refresh(selectedQuery);
+            } catch (e: any) {
+              verbose('[setActiveConnection] refresh after cached post failed', e?.message || e);
+            }
+          }, 0);
+        } else if (!activeProvider) {
+          sendWorkItemsSnapshot({
+            connectionId: targetId,
+            items: [],
+            kanbanView: false,
+            types: [],
+            query: selectedQuery,
+          });
+        }
+      } catch (e: any) {
+        console.error('[setActiveConnection] failed', e);
+        vscode.window.showErrorMessage(
+          'Failed to switch Azure DevOps project: ' + (e?.message || String(e))
+        );
       }
       break;
     }
@@ -582,7 +1327,8 @@ async function handleMessage(msg: any) {
         await client.updateWorkItem(id, [
           { op: 'add', path: '/fields/System.State', value: desired },
         ]);
-        provider.refresh();
+        const postUpdateQuery = getQueryForProvider(provider, activeConnectionId);
+        provider.refresh(postUpdateQuery);
         panel?.webview.postMessage({
           type: 'moveWorkItemResult',
           id,
@@ -620,16 +1366,33 @@ async function handleMessage(msg: any) {
           : typeof msg.id === 'number'
             ? msg.id
             : undefined;
-      if (typeof id === 'number') {
-        const wi: any = provider
-          ?.getWorkItems()
-          .find((w: any) => (w as any).id === id || w.fields?.['System.Id'] === id);
-        if (wi)
-          timer?.start(
-            Number(wi.id || wi.fields?.['System.Id']),
-            wi.fields?.['System.Title'] || `#${id}`
-          );
+      if (typeof id !== 'number') break;
+
+      const activeState = timer?.snapshot?.();
+      if (activeState) {
+        const runningConnectionLabel = getActiveTimerConnectionLabel();
+        const message = runningConnectionLabel
+          ? `A timer is already running for ${runningConnectionLabel}. Stop it before starting another.`
+          : 'A timer is already running. Stop it before starting another.';
+        vscode.window.showInformationMessage(message);
+        break;
       }
+
+      const wi: any = provider
+        ?.getWorkItems()
+        .find((w: any) => (w as any).id === id || w.fields?.['System.Id'] === id);
+      if (!wi) break;
+
+      const connection = activeConnectionId
+        ? connections.find((c) => c.id === activeConnectionId)
+        : undefined;
+      const previousInfo = { ...timerConnectionInfo };
+      setTimerConnectionFrom(connection);
+      const started = timer?.start(
+        Number(wi.id || wi.fields?.['System.Id']),
+        wi.fields?.['System.Title'] || `#${id}`
+      );
+      if (!started) timerConnectionInfo = previousInfo;
       break;
     }
     case 'pauseTimer':
@@ -639,17 +1402,57 @@ async function handleMessage(msg: any) {
       timer?.resume();
       break;
     case 'stopTimer': {
+      const timerConnectionSnapshot: TimerConnectionInfo = { ...timerConnectionInfo };
+      setTimerConnectionFrom(undefined);
       const stopped = timer?.stop();
       updateTimerContext(undefined);
       if (stopped) {
         try {
-          await handleTimerStopAndOfferUpdate(stopped);
+          await handleTimerStopAndOfferUpdate(stopped, { connection: timerConnectionSnapshot });
         } catch (e: any) {
           console.error('Error applying timer updates', e);
           vscode.window.showErrorMessage(
             'Failed to process timer update: ' + (e?.message || String(e))
           );
         }
+      }
+      break;
+    }
+    case 'showStopTimerOptions': {
+      const choice = await vscode.window.showQuickPick(
+        [
+          { label: 'Stop Timer & Apply Time', action: 'stop' },
+          { label: 'Generate Copilot Summary & Continue', action: 'copilot' },
+        ],
+        {
+          placeHolder: 'What would you like to do?',
+          ignoreFocusOut: true,
+        }
+      );
+
+      if (!choice) return; // User cancelled
+
+      if (choice.action === 'stop') {
+        const timerConnectionSnapshot: TimerConnectionInfo = { ...timerConnectionInfo };
+        setTimerConnectionFrom(undefined);
+        const stopped = timer?.stop();
+        updateTimerContext(undefined);
+        if (stopped) {
+          try {
+            // The `false` here is to prevent offering the copilot prompt again.
+            await handleTimerStopAndOfferUpdate(stopped, {
+              offerCopilot: false,
+              connection: timerConnectionSnapshot,
+            });
+          } catch (e: any) {
+            console.error('Error applying timer updates', e);
+            vscode.window.showErrorMessage(
+              'Failed to process timer update: ' + (e?.message || String(e))
+            );
+          }
+        }
+      } else if (choice.action === 'copilot') {
+        await generateCopilotPromptWithoutStopping();
       }
       break;
     }
@@ -680,20 +1483,129 @@ async function handleMessage(msg: any) {
         vscode.window.showWarningMessage('No work item specified for Copilot prompt generation.');
         break;
       }
+      const timerSnapshot = timer?.snapshot?.();
       try {
-        const wi = await client?.getWorkItemById(id);
-        const prompt = buildCopilotPrompt({ ...msg, workItemId: id }, wi);
-        await vscode.env.clipboard.writeText(prompt);
-        // reply to webview to show a confirmation UI
-        panel?.webview.postMessage({ type: 'copilotPromptCopied', workItemId: id });
-        vscode.window.showInformationMessage(
-          'Copilot prompt copied to clipboard. Open Copilot chat and paste to generate a summary.'
-        );
+        await produceWorkItemSummary({
+          workItemId: id,
+          draftSummary: typeof msg.draftSummary === 'string' ? msg.draftSummary : undefined,
+          entrySeed: entrySeedFromMessage(msg, id),
+          reason: 'manualPrompt',
+          stillRunningTimer:
+            !!timerSnapshot &&
+            Number(timerSnapshot.workItemId) === Number(id) &&
+            !timerSnapshot.isPaused,
+        });
       } catch (e: any) {
         console.error('Failed to create Copilot prompt', e);
         vscode.window.showErrorMessage(
           'Failed to generate Copilot prompt: ' + (e?.message || String(e))
         );
+      }
+      break;
+    }
+    case 'submitComposeComment': {
+      const workItemId: number | undefined =
+        typeof msg.workItemId === 'number' ? msg.workItemId : undefined;
+      const comment: string = typeof msg.comment === 'string' ? msg.comment.trim() : '';
+      const mode: string = typeof msg.mode === 'string' ? msg.mode : 'addComment';
+      const timerData = msg.timerData; // Timer stop data if mode is 'timerStop'
+      const connectionInfo = msg.connectionInfo; // Connection info for timer stops
+
+      if (!workItemId) {
+        vscode.window.showWarningMessage('No work item specified for comment.');
+        sendToWebview({
+          type: 'composeCommentResult',
+          workItemId: 0,
+          success: false,
+          error: 'No work item specified',
+        });
+        break;
+      }
+
+      try {
+        let targetClient = client;
+
+        // For timer stops, use the timer's connection info
+        if (mode === 'timerStop' && connectionInfo) {
+          targetClient = getClientForConnectionInfo(connectionInfo);
+        }
+
+        if (!targetClient) {
+          throw new Error('Client not initialized');
+        }
+
+        if (mode === 'timerStop' && timerData) {
+          // Handle timer stop with time entry update
+          const wi = await targetClient.getWorkItemById(workItemId);
+          if (!wi) throw new Error('Work item not found');
+
+          const currCompleted =
+            Number(wi.fields?.['Microsoft.VSTS.Scheduling.CompletedWork'] || 0) || 0;
+          const currRemaining =
+            Number(wi.fields?.['Microsoft.VSTS.Scheduling.RemainingWork'] || 0) || 0;
+          const hours = Number(timerData.hoursDecimal || timerData.duration / 3600 || 0);
+          const finalCompleted = Number((currCompleted + hours).toFixed(2));
+          const finalRemaining = Number(Math.max(0, currRemaining - hours).toFixed(2));
+
+          const patch = [
+            {
+              op: 'add',
+              path: '/fields/Microsoft.VSTS.Scheduling.CompletedWork',
+              value: finalCompleted,
+            },
+            {
+              op: 'add',
+              path: '/fields/Microsoft.VSTS.Scheduling.RemainingWork',
+              value: finalRemaining,
+            },
+          ];
+
+          await targetClient.updateWorkItem(workItemId, patch);
+
+          if (comment && comment.trim()) {
+            await targetClient.addWorkItemComment(
+              workItemId,
+              `Time tracked: ${hours.toFixed(2)} hours. ${comment}`
+            );
+          }
+
+          sendToWebview({
+            type: 'composeCommentResult',
+            workItemId,
+            success: true,
+            mode,
+            hours: hours,
+          });
+
+          vscode.window.showInformationMessage(
+            `Work item #${workItemId} updated: Completed ${finalCompleted}h, Remaining ${finalRemaining}h.`
+          );
+        } else {
+          // Handle regular comment addition
+          await targetClient.addWorkItemComment(workItemId, comment);
+
+          sendToWebview({
+            type: 'composeCommentResult',
+            workItemId,
+            success: true,
+            mode,
+          });
+
+          vscode.window.showInformationMessage(`Comment added to work item #${workItemId}.`);
+        }
+      } catch (err: any) {
+        console.error('Failed to submit compose comment', err);
+        vscode.window.showErrorMessage(
+          `Failed to ${mode === 'timerStop' ? 'apply timer update' : 'add comment'}: ` +
+            (err?.message || String(err))
+        );
+        sendToWebview({
+          type: 'composeCommentResult',
+          workItemId,
+          success: false,
+          error: err?.message || String(err),
+          mode,
+        });
       }
       break;
     }
@@ -759,28 +1671,32 @@ async function handleMessage(msg: any) {
         break;
       }
 
-      // If comment not provided by webview, prompt the user with VS Code input box
-      if (!comment || comment.length === 0) {
-        comment = await vscode.window.showInputBox({
-          prompt: `Enter a comment for work item #${workItemId}`,
-          placeHolder: 'Type your comment…',
-          ignoreFocusOut: true,
-        });
-        if (!comment || comment.trim().length === 0) {
-          // User cancelled or empty input
-          break;
+      // If comment is provided by webview (from compose dialog), add it directly
+      if (comment && comment.length > 0) {
+        try {
+          if (!client) throw new Error('Client not initialized');
+          await client.addWorkItemComment(workItemId, comment);
+          vscode.window.showInformationMessage(`Comment added to work item #${workItemId}.`);
+          sendToWebview({ type: 'addCommentResult', workItemId, success: true });
+        } catch (err: any) {
+          console.error('Failed to add comment', err);
+          vscode.window.showErrorMessage('Failed to add comment: ' + (err?.message || String(err)));
+          sendToWebview({
+            type: 'addCommentResult',
+            workItemId,
+            success: false,
+            error: err?.message || String(err),
+          });
         }
-        comment = comment.trim();
+        break;
       }
 
-      try {
-        if (!client) throw new Error('Client not initialized');
-        await client.addWorkItemComment(workItemId, comment);
-        vscode.window.showInformationMessage(`Comment added to work item #${workItemId}.`);
-      } catch (err: any) {
-        console.error('Failed to add comment', err);
-        vscode.window.showErrorMessage('Failed to add comment: ' + (err?.message || String(err)));
-      }
+      // If no comment provided, show the compose dialog in webview
+      sendToWebview({
+        type: 'showComposeComment',
+        workItemId,
+        mode: 'addComment',
+      });
       break;
     }
     case 'uiPreferenceChanged': {
@@ -820,7 +1736,7 @@ async function selfTestWebview() {
         selfTestPending = { nonce, resolve, reject, timeout };
       });
       // If webview already ready we can post immediately; else it will be posted on webviewReady branch.
-      panel.webview.postMessage({ type: 'selfTestPing', nonce });
+      sendToWebview({ type: 'selfTestPing', nonce });
       return promise;
     };
     const result = await attempt();
@@ -831,7 +1747,38 @@ async function selfTestWebview() {
   }
 }
 
-async function getSecretPAT(context: vscode.ExtensionContext): Promise<string | undefined> {
+async function migrateGlobalPATToConnection(
+  context: vscode.ExtensionContext,
+  connection: ProjectConnection
+): Promise<void> {
+  if (!connection.patKey) return;
+
+  // Check if connection already has a PAT
+  const existingPAT = await context.secrets.get(connection.patKey);
+  if (existingPAT) return; // Already migrated
+
+  // Check if global PAT exists
+  const globalPAT = await context.secrets.get(PAT_KEY);
+  if (globalPAT) {
+    // Migrate global PAT to connection-specific key
+    await context.secrets.store(connection.patKey, globalPAT);
+    console.log(`[azureDevOpsInt] Migrated global PAT to connection ${connection.id}`);
+  }
+}
+
+async function getSecretPAT(
+  context: vscode.ExtensionContext,
+  connectionId?: string
+): Promise<string | undefined> {
+  if (connectionId) {
+    // Get connection-specific PAT
+    const connection = connections.find((conn) => conn.id === connectionId);
+    if (connection?.patKey) {
+      return context.secrets.get(connection.patKey);
+    }
+  }
+
+  // Fallback to global PAT for backward compatibility
   return context.secrets.get(PAT_KEY);
 }
 
@@ -847,13 +1794,49 @@ function persistTimer(
   if (data.updateLastSave) context.globalState.update(STATE_LAST_SAVE, Date.now());
   // Persist cap alongside state to ensure restored timers keep the same cap behavior
   const stateToPersist = data.state
-    ? { ...(data.state as any), __defaultElapsedLimitHours: data.defaultElapsedLimitHours }
+    ? {
+        ...(data.state as any),
+        __defaultElapsedLimitHours: data.defaultElapsedLimitHours,
+        __connectionId: timerConnectionInfo.id,
+        __connectionLabel: timerConnectionInfo.label,
+        __connectionOrganization: timerConnectionInfo.organization,
+        __connectionProject: timerConnectionInfo.project,
+      }
     : undefined;
   context.globalState.update(STATE_TIMER, stateToPersist);
   context.globalState.update(STATE_TIME_ENTRIES, data.timeEntries);
+  context.globalState.update(
+    STATE_TIMER_CONNECTION,
+    timerConnectionInfo.id ? { ...timerConnectionInfo } : undefined
+  );
 }
 function restoreTimer(context: vscode.ExtensionContext) {
   const persistedState = context.globalState.get<any>(STATE_TIMER);
+  const persistedConnection = context.globalState.get<TimerConnectionInfo | undefined>(
+    STATE_TIMER_CONNECTION
+  );
+  const embedded: TimerConnectionInfo = persistedState
+    ? {
+        id: persistedState.__connectionId,
+        label: persistedState.__connectionLabel,
+        organization: persistedState.__connectionOrganization,
+        project: persistedState.__connectionProject,
+      }
+    : {};
+  const restored: TimerConnectionInfo = {
+    id: embedded.id ?? persistedConnection?.id,
+    label: embedded.label ?? persistedConnection?.label,
+    organization: embedded.organization ?? persistedConnection?.organization,
+    project: embedded.project ?? persistedConnection?.project,
+  };
+  timerConnectionInfo =
+    restored.id || restored.label || restored.organization || restored.project ? restored : {};
+  if (persistedState) {
+    delete persistedState.__connectionId;
+    delete persistedState.__connectionLabel;
+    delete persistedState.__connectionOrganization;
+    delete persistedState.__connectionProject;
+  }
   return {
     state: persistedState,
     timeEntries: context.globalState.get<any[]>(STATE_TIME_ENTRIES) || [],
@@ -957,164 +1940,376 @@ function getNonce() {
 // ---------------- Additional Helper Logic ----------------
 
 async function setupConnection(context: vscode.ExtensionContext) {
+  await ensureConnectionsInitialized(context);
+  await migrateLegacyPAT(context);
+
+  const hasExistingConnections = connections.length > 0;
+  let action: 'add' | 'remove' | undefined;
+
+  if (!hasExistingConnections) {
+    action = 'add';
+  } else {
+    const pick = await vscode.window.showQuickPick(
+      [
+        {
+          label: 'Add project connection…',
+          description: 'Connect to another organization/project',
+          action: 'add' as const,
+        },
+        {
+          label: 'Remove project connection…',
+          description: 'Disconnect an existing project',
+          action: 'remove' as const,
+        },
+      ],
+      {
+        placeHolder: 'Manage Azure DevOps project connections',
+        ignoreFocusOut: true,
+      }
+    );
+    action = pick?.action;
+  }
+
+  if (action === 'add') {
+    const added = await promptAddConnection(context);
+    if (added) {
+      ensureTimer(context);
+    }
+  } else if (action === 'remove') {
+    const removed = await promptRemoveConnection(context);
+    if (removed) {
+      ensureTimer(context);
+    }
+  }
+}
+
+async function setupWizard(context: vscode.ExtensionContext) {
+  try {
+    const success = await startSetupWizard(context);
+    if (success) {
+      // Refresh the connection after successful setup
+      await ensureConnectionsInitialized(context);
+      await ensureActiveConnection(context, undefined, { refresh: true });
+      ensureTimer(context);
+    }
+  } catch (error) {
+    console.error('[setupWizard] Error:', error);
+    vscode.window.showErrorMessage(
+      `Setup wizard failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+async function manageConnections(context: vscode.ExtensionContext): Promise<void> {
+  await ensureConnectionsInitialized(context);
+
+  const connectionItems = connections.map((conn, index) => ({
+    label: conn.label || `${conn.organization}/${conn.project}`,
+    description: conn.team ? `Team: ${conn.team}` : undefined,
+    detail: `Organization: ${conn.organization}, Project: ${conn.project}`,
+    connection: conn,
+    index,
+  }));
+
+  const choices = [
+    { label: 'Add New Connection', action: 'add' as const },
+    { label: 'Edit Connection', action: 'edit' as const },
+    { label: 'Delete Connection', action: 'delete' as const },
+    { label: 'Cancel', action: 'cancel' as const },
+  ];
+
+  const action = await vscode.window.showQuickPick(choices, {
+    placeHolder: 'Manage Azure DevOps Connections',
+    ignoreFocusOut: true,
+  });
+
+  if (!action || action.action === 'cancel') {
+    return;
+  }
+
+  switch (action.action) {
+    case 'add':
+      await startSetupWizard(context);
+      break;
+    case 'edit': {
+      if (connectionItems.length === 0) {
+        vscode.window.showInformationMessage('No connections to edit. Add a connection first.');
+        return;
+      }
+      const selectedConnection = await vscode.window.showQuickPick(connectionItems, {
+        placeHolder: 'Select a connection to edit',
+        ignoreFocusOut: true,
+      });
+      if (selectedConnection) {
+        // Pre-populate wizard with existing connection data
+        // This would need to be implemented in the wizard
+        await startSetupWizard(context);
+      }
+      break;
+    }
+    case 'delete': {
+      if (connectionItems.length === 0) {
+        vscode.window.showInformationMessage('No connections to delete.');
+        return;
+      }
+      const connectionToDelete = await vscode.window.showQuickPick(connectionItems, {
+        placeHolder: 'Select a connection to delete',
+        ignoreFocusOut: true,
+      });
+      if (connectionToDelete) {
+        const confirm = await vscode.window.showWarningMessage(
+          `Are you sure you want to delete the connection "${connectionToDelete.label}"?`,
+          'Yes, Delete',
+          'Cancel'
+        );
+        if (confirm === 'Yes, Delete') {
+          // Delete the connection's PAT from secrets
+          if (connectionToDelete.connection.patKey) {
+            await context.secrets.delete(connectionToDelete.connection.patKey);
+          }
+
+          const updatedConnections = connections.filter(
+            (conn) => conn.id !== connectionToDelete.connection.id
+          );
+          await saveConnectionsToConfig(context, updatedConnections);
+          vscode.window.showInformationMessage('Connection deleted successfully.');
+        }
+      }
+      break;
+    }
+  }
+}
+
+async function promptAddConnection(context: vscode.ExtensionContext): Promise<boolean> {
+  const existingPat = await getSecretPAT(context);
+
+  const lastConnection = connections[connections.length - 1];
   const org = await vscode.window.showInputBox({
     prompt: 'Azure DevOps organization (short name)',
+    value: lastConnection?.organization ?? '',
     ignoreFocusOut: true,
   });
-  if (!org) return;
+  if (!org) return false;
+
   const project = await vscode.window.showInputBox({
     prompt: 'Azure DevOps project name',
+    value: lastConnection?.project ?? '',
     ignoreFocusOut: true,
   });
-  if (!project) return;
-  const pat = await vscode.window.showInputBox({
-    prompt: 'Personal Access Token (scopes: Work Items Read/Write)',
-    password: true,
+  if (!project) return false;
+
+  const label = await vscode.window.showInputBox({
+    prompt: 'Display label for this connection (optional)',
+    placeHolder: 'e.g. Contoso – Sprint Board',
     ignoreFocusOut: true,
   });
-  if (!pat) return;
-  const config = getConfig();
-  await config.update('organization', org, vscode.ConfigurationTarget.Global);
-  await config.update('project', project, vscode.ConfigurationTarget.Global);
-  await context.secrets.store(PAT_KEY, pat.trim());
-  vscode.window.showInformationMessage('Azure DevOps connection saved. Re-initializing...');
-  client = undefined;
-  provider = undefined;
-  timer = undefined; // reset
-  try {
-    vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', true);
-  } catch {
-    // ignore context set failure; not fatal
+
+  const team = await vscode.window.showInputBox({
+    prompt: 'Default team name (optional)',
+    placeHolder: 'Leave blank to use extension setting',
+    ignoreFocusOut: true,
+  });
+
+  let pat = existingPat;
+  if (pat) {
+    const patChoice = await vscode.window.showQuickPick(
+      [
+        { label: 'Use saved Personal Access Token', action: 'reuse' as const },
+        { label: 'Enter a new Personal Access Token…', action: 'update' as const },
+      ],
+      {
+        placeHolder: 'Choose how to authenticate with Azure DevOps',
+        ignoreFocusOut: true,
+      }
+    );
+    if (!patChoice) {
+      vscode.window.showInformationMessage('Setup cancelled without updating connections.');
+      return false;
+    }
+    if (patChoice.action === 'update') {
+      const entered = await vscode.window.showInputBox({
+        prompt: 'Personal Access Token (scopes: Work Items Read/Write)',
+        password: true,
+        ignoreFocusOut: true,
+      });
+      if (!entered || !entered.trim()) {
+        vscode.window.showWarningMessage('A Personal Access Token is required to complete setup.');
+        return false;
+      }
+      pat = entered.trim();
+      await context.secrets.store(PAT_KEY, pat);
+    }
+  } else {
+    const entered = await vscode.window.showInputBox({
+      prompt: 'Personal Access Token (scopes: Work Items Read/Write)',
+      password: true,
+      ignoreFocusOut: true,
+    });
+    if (!entered || !entered.trim()) {
+      vscode.window.showWarningMessage('A Personal Access Token is required to complete setup.');
+      return false;
+    }
+    pat = entered.trim();
+    await context.secrets.store(PAT_KEY, pat);
   }
-  // Force re-init with new PAT
-  await silentInit(context);
+
+  const newConnection: ProjectConnection = {
+    id: randomUUID(),
+    organization: org.trim(),
+    project: project.trim(),
+    label: label?.trim() ? label.trim() : undefined,
+    team: team?.trim() ? team.trim() : undefined,
+  };
+
+  const nextConnections = [...connections, newConnection];
+  await saveConnectionsToConfig(context, nextConnections);
+  await ensureActiveConnection(context, newConnection.id, { refresh: true });
+  vscode.window.showInformationMessage(
+    `Connected to ${getConnectionLabel(newConnection)}. The webview will refresh with the new project.`
+  );
+  return true;
+}
+
+async function promptRemoveConnection(context: vscode.ExtensionContext): Promise<boolean> {
+  if (connections.length === 0) {
+    vscode.window.showInformationMessage('There are no saved connections to remove.');
+    return false;
+  }
+
+  const items: Array<vscode.QuickPickItem & { connection: ProjectConnection }> = connections.map(
+    (connection) => {
+      const description = connection.team
+        ? `${connection.organization}/${connection.project} • ${connection.team}`
+        : `${connection.organization}/${connection.project}`;
+      return {
+        label: getConnectionLabel(connection),
+        description,
+        connection,
+      };
+    }
+  );
+
+  const pick = await vscode.window.showQuickPick(items, {
+    placeHolder: 'Select a project connection to remove',
+    ignoreFocusOut: true,
+  });
+  if (!pick) return false;
+
+  const confirm = await vscode.window.showWarningMessage(
+    `Remove connection ${pick.label}?`,
+    { modal: true },
+    'Remove'
+  );
+  if (confirm !== 'Remove') return false;
+
+  const currentActive = activeConnectionId;
+  const remaining = connections.filter((connection) => connection.id !== pick.connection.id);
+  await saveConnectionsToConfig(context, remaining);
+
+  const nextActiveId = pick.connection.id === currentActive ? remaining[0]?.id : currentActive;
+  await ensureActiveConnection(context, nextActiveId, { refresh: true });
+
+  if (remaining.length === 0) {
+    vscode.window.showInformationMessage(
+      'Removed last connection. Run Azure DevOps: Setup Connection to add another project.'
+    );
+  } else {
+    vscode.window.showInformationMessage(`Removed connection ${pick.label}.`);
+  }
+  return true;
 }
 
 async function silentInit(context: vscode.ExtensionContext) {
   if (IS_SMOKE) return; // Skip heavy init during smoke tests
   await migrateLegacyPAT(context);
-  const cfg = getConfig();
-  const pat = await getSecretPAT(context);
-  if (cfg.get('organization') && cfg.get('project') && pat) {
-    if (!client) {
-      try {
-        const rate = Math.max(1, Math.min(50, cfg.get<number>('apiRatePerSecond') ?? 5));
-        const burst = Math.max(1, Math.min(100, cfg.get<number>('apiBurst') ?? 10));
-        const team = (cfg.get<string>('team') as string) || undefined;
-        client = new AzureDevOpsIntClient(
-          String(cfg.get('organization')),
-          String(cfg.get('project')),
-          pat,
-          { ratePerSecond: rate, burst, team }
-        );
-        vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', true);
-      } catch (e) {
-        console.error(e);
-      }
-      if (client && !provider)
-        provider = new WorkItemsProvider(client, (msg: any) => panel?.webview.postMessage(msg), {});
-      if (!timer) {
-        // Pomodoro: show a simple break prompt and optionally auto-resume after 5 minutes
-        let pomodoroBreakTimeout: NodeJS.Timeout | undefined;
-        timer = new WorkItemTimer({
-          autoResumeOnActivity: cfg.get<boolean>('autoResumeOnActivity') ?? true,
-          inactivityTimeoutSec: cfg.get<number>('timerInactivityTimeout') ?? 300,
-          defaultElapsedLimitHours: cfg.get<number>('defaultElapsedLimitHours') ?? 3.5,
-          pomodoroEnabled: cfg.get<boolean>('pomodoroEnabled') ?? false,
-          breakPrompt: () => {
-            const snap = timer?.snapshot?.();
-            if (!snap || snap.isPaused) return;
-            vscode.window
-              .showInformationMessage(
-                'Time for a Pomodoro break?',
-                { modal: true },
-                'Start 5‑min break',
-                'Skip'
-              )
-              .then((choice) => {
-                if (!choice || choice === 'Skip') return;
-                try {
-                  timer?.pause();
-                } catch {
-                  /* ignore update error */
-                }
-                if (pomodoroBreakTimeout) {
-                  try {
-                    clearTimeout(pomodoroBreakTimeout);
-                  } catch {
-                    /* ignore clear error */
-                  }
-                  pomodoroBreakTimeout = undefined;
-                }
-                pomodoroBreakTimeout = setTimeout(
-                  () => {
-                    try {
-                      timer?.resume();
-                    } catch {
-                      /* ignore resume error */
-                    }
-                    pomodoroBreakTimeout = undefined;
-                  },
-                  5 * 60 * 1000
-                );
-              });
-          },
-          persist: (data: { state?: any; timeEntries?: any[]; updateLastSave?: boolean }) =>
-            persistTimer(context, data),
-          restorePersisted: () => restoreTimer(context),
-          onState: (s: any) => {
-            panel?.webview.postMessage({ type: 'timerUpdate', timer: s });
-            updateTimerContext(s);
-          },
-        });
-        timer.loadFromPersisted();
-      }
-      // Defer first refresh until webview attached to avoid double fetch
-      if (panel && !initialRefreshed) {
-        provider?.refresh(cfg.get('defaultQuery') || 'My Work Items');
-        initialRefreshed = true;
-      }
+  await ensureConnectionsInitialized(context);
+  verbose('[silentInit] initialized connections', {
+    connectionCount: connections.length,
+    activeConnectionId,
+  });
+  const state = await ensureActiveConnection(context, activeConnectionId, { refresh: false });
+  verbose('[silentInit] ensureActiveConnection returned', {
+    hasState: !!state,
+    stateId: state?.id,
+    hasProvider: !!state?.provider,
+  });
+  ensureTimer(context);
+
+  if (panel && state?.provider) {
+    const cfg = getConfig();
+    const selectedQuery = getStoredQueryForConnection(state.id, getDefaultQuery(cfg));
+    if (!initialRefreshedConnections.has(state.id)) {
+      initialRefreshedConnections.add(state.id);
     }
+    verbose('[silentInit] panel present, refreshing provider', {
+      id: state.id,
+      query: selectedQuery,
+    });
+    state.provider.refresh(selectedQuery);
   }
 }
 
 async function migrateLegacyPAT(context: vscode.ExtensionContext) {
   const NEW_KEY = PAT_KEY;
-  const LEGACY_SECRET_KEY = 'azureDevOps.pat';
-  // 1. Old globalState under new key (rare) -> secret
-  const legacyGlobal = context.globalState.get<string>(NEW_KEY);
-  const existing = await context.secrets.get(NEW_KEY);
-  if (legacyGlobal && !existing) {
+  const legacySecretKeys = [
+    'azureDevOps.pat',
+    'azureDevOpsIntegration.pat',
+    'azureDevOpsIntegration.personalAccessToken',
+  ];
+  const legacyGlobalKeys = [
+    NEW_KEY,
+    'azureDevOpsIntegration.personalAccessToken',
+    'azureDevOpsIntegration.pat',
+  ];
+
+  let stored = String((await context.secrets.get(NEW_KEY)) || '').trim();
+
+  const storeIfMissing = async (
+    candidate: string | undefined,
+    source: string,
+    cleanup?: () => Promise<void>
+  ) => {
+    if (stored) return;
+    const value = String(candidate || '').trim();
+    if (!value) return;
     try {
-      await context.secrets.store(NEW_KEY, legacyGlobal);
-      await context.globalState.update(NEW_KEY, undefined);
-      console.log('[azureDevOpsInt] Migrated PAT (globalState new key -> secret)');
+      await context.secrets.store(NEW_KEY, value);
+      stored = value;
+      if (cleanup) {
+        try {
+          await cleanup();
+        } catch {
+          /* ignore cleanup failure */
+        }
+      }
+      console.log(`[azureDevOpsInt] Migrated PAT (${source})`);
     } catch (e) {
-      console.error('Failed migrating PAT (globalState new key)', e);
+      console.error(`Failed migrating PAT (${source})`, e);
     }
-  }
-  // 2. Old secret key -> new secret key
-  const legacySecret = await context.secrets.get(LEGACY_SECRET_KEY);
-  if (legacySecret && !existing) {
-    try {
-      await context.secrets.store(NEW_KEY, legacySecret);
-      await context.secrets.delete(LEGACY_SECRET_KEY); // optional cleanup
-      console.log('[azureDevOpsInt] Migrated PAT (old secret key -> new secret key)');
-    } catch (e) {
-      console.error('Failed migrating PAT (old secret key)', e);
-    }
+  };
+
+  for (const key of legacyGlobalKeys) {
+    const value = context.globalState.get<string>(key);
+    await storeIfMissing(value, `globalState ${key}`, async () => {
+      if (key) await context.globalState.update(key, undefined);
+    });
   }
 
-  // 3. Migrate from settings if user entered a PAT there (more discoverable), then clear it
+  for (const key of legacySecretKeys) {
+    const value = await context.secrets.get(key);
+    await storeIfMissing(value || undefined, `secret ${key}`, async () => {
+      if (key !== NEW_KEY) await context.secrets.delete(key);
+    });
+  }
+
   try {
     const cfg = getConfig();
-    const patInSettings = String(cfg.get('personalAccessToken') || '').trim();
-    const existingSecret = await context.secrets.get(NEW_KEY);
-    if (patInSettings && !existingSecret) {
-      await context.secrets.store(NEW_KEY, patInSettings);
-      // Clear the setting to avoid storing secrets in settings.json
-      await cfg.update('personalAccessToken', '', vscode.ConfigurationTarget.Global);
-      console.log('[azureDevOpsInt] Migrated PAT from settings to secret store');
+    const configKeys = ['personalAccessToken', 'pat'];
+    for (const key of configKeys) {
+      const value = cfg.get<string>(key);
+      await storeIfMissing(value, `settings ${key}`, async () => {
+        await cfg.update(key, '', vscode.ConfigurationTarget.Global);
+      });
     }
   } catch (e) {
     console.warn('[azureDevOpsInt] migrate PAT from settings failed', e);
@@ -1150,16 +2345,169 @@ async function quickCreateWorkItem() {
     );
     return;
   }
+
   const cfg = getConfig();
   const defaultType: string = cfg.get('defaultWorkItemType') || 'Task';
-  const title = await vscode.window.showInputBox({ prompt: `New ${defaultType} title` });
+  const typeOptions =
+    typeof (provider as any).getWorkItemTypeOptions === 'function'
+      ? ((provider as any).getWorkItemTypeOptions() as string[])
+      : [];
+  let chosenType = defaultType;
+  if (Array.isArray(typeOptions) && typeOptions.length > 0) {
+    const quickPickType = await vscode.window.showQuickPick(
+      typeOptions.map((label) => ({ label, picked: label === defaultType })),
+      {
+        placeHolder: 'Select work item type',
+        ignoreFocusOut: true,
+      }
+    );
+    if (!quickPickType) return;
+    chosenType = quickPickType.label;
+  }
+
+  const title = await vscode.window.showInputBox({
+    prompt: `New ${chosenType} title`,
+    ignoreFocusOut: true,
+  });
   if (!title) return;
+
+  const workItems: any[] =
+    typeof provider.getWorkItems === 'function' ? provider.getWorkItems() : [];
+  const dedupe = (values: Array<string | undefined>) => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const value of values) {
+      const trimmed = typeof value === 'string' ? value.trim() : '';
+      if (!trimmed) continue;
+      if (seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      result.push(trimmed);
+    }
+    return result.sort((a, b) => a.localeCompare(b));
+  };
+
+  const areaPathCache = dedupe(workItems.map((w) => w.fields?.['System.AreaPath']));
+  const iterationPathCache = dedupe(workItems.map((w) => w.fields?.['System.IterationPath']));
+
+  const lastAreaPath = extensionContextRef?.globalState.get<string>('azureDevOpsInt.lastAreaPath');
+  if (lastAreaPath && !areaPathCache.includes(lastAreaPath)) areaPathCache.unshift(lastAreaPath);
+  const lastIterationPath = extensionContextRef?.globalState.get<string>(
+    'azureDevOpsInt.lastIterationPath'
+  );
+  if (lastIterationPath && !iterationPathCache.includes(lastIterationPath))
+    iterationPathCache.unshift(lastIterationPath);
+
+  const areaPath = await promptForAreaPath(areaPathCache);
+  if (!areaPath) return;
+  const iterationPath = await promptForIterationPath(iterationPathCache);
+  if (iterationPath === undefined) {
+    // User cancelled
+    return;
+  }
+
+  const extraFields: Record<string, string> = {};
+  if (areaPath) extraFields['System.AreaPath'] = areaPath;
+  if (iterationPath) extraFields['System.IterationPath'] = iterationPath;
+
+  const descriptionInput = await vscode.window.showInputBox({
+    prompt: `Description for the new ${chosenType} (optional)`,
+    ignoreFocusOut: true,
+    placeHolder: 'Leave blank to skip adding a description',
+    value: '',
+  });
+  const description = descriptionInput?.trim() ? descriptionInput.trim() : undefined;
+
   try {
-    const created = await provider.createWorkItem(defaultType, title);
+    const created = await provider.createWorkItem(
+      chosenType,
+      title.trim(),
+      description,
+      undefined,
+      extraFields
+    );
+    if (extensionContextRef) {
+      await extensionContextRef.globalState.update('azureDevOpsInt.lastAreaPath', areaPath);
+      await extensionContextRef.globalState.update(
+        'azureDevOpsInt.lastIterationPath',
+        iterationPath || null
+      );
+    }
     vscode.window.showInformationMessage(`Created work item #${created.id}`);
   } catch (e: any) {
     vscode.window.showErrorMessage(`Failed to create: ${e.message || e}`);
   }
+}
+
+async function promptForAreaPath(candidates: string[]): Promise<string | undefined> {
+  const hasCandidates = Array.isArray(candidates) && candidates.length > 0;
+  if (!hasCandidates) {
+    const manual = await vscode.window.showInputBox({
+      prompt: 'Area path for new work item (required)',
+      ignoreFocusOut: true,
+    });
+    return manual?.trim();
+  }
+  const pickItems: vscode.QuickPickItem[] = candidates.map((label, index) => ({
+    label,
+    picked: index === 0,
+  }));
+  pickItems.push({
+    label: 'Enter custom area path…',
+    description: 'Specify a different area path',
+    alwaysShow: true,
+  });
+  const selection = await vscode.window.showQuickPick(pickItems, {
+    placeHolder: 'Select Area Path for the new work item',
+    ignoreFocusOut: true,
+  });
+  if (!selection) return undefined;
+  if (selection.label === 'Enter custom area path…') {
+    const manual = await vscode.window.showInputBox({
+      prompt: 'Custom area path',
+      ignoreFocusOut: true,
+      value: candidates[0] ?? '',
+    });
+    return manual?.trim() || undefined;
+  }
+  return selection.label.trim();
+}
+
+async function promptForIterationPath(candidates: string[]): Promise<string | undefined> {
+  const skipLabel = 'Use default iteration (skip)';
+  const customLabel = 'Enter custom iteration path…';
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    const manual = await vscode.window.showInputBox({
+      prompt: 'Iteration path for the new work item (optional)',
+      placeHolder: 'Leave blank to use default iteration',
+      ignoreFocusOut: true,
+    });
+    if (manual === undefined) return undefined;
+    const trimmed = manual.trim();
+    return trimmed.length > 0 ? trimmed : '';
+  }
+  const items: vscode.QuickPickItem[] = [
+    { label: skipLabel, description: 'Let Azure DevOps use the default iteration' },
+    ...candidates.map((label, index) => ({ label, picked: index === 0 })),
+    { label: customLabel, description: 'Specify a different iteration path', alwaysShow: true },
+  ];
+  const selection = await vscode.window.showQuickPick(items, {
+    placeHolder: 'Select Iteration Path (optional)',
+    ignoreFocusOut: true,
+  });
+  if (!selection) return undefined;
+  if (selection.label === skipLabel) return '';
+  if (selection.label === customLabel) {
+    const manual = await vscode.window.showInputBox({
+      prompt: 'Custom iteration path (optional)',
+      placeHolder: 'Leave blank to use default',
+      ignoreFocusOut: true,
+      value: candidates[0] ?? '',
+    });
+    if (manual === undefined) return undefined;
+    const trimmed = manual.trim();
+    return trimmed.length > 0 ? trimmed : '';
+  }
+  return selection.label.trim();
 }
 
 async function selectTeam() {
@@ -1198,10 +2546,15 @@ async function selectTeam() {
           team: chosen.label,
         });
         provider = client
-          ? new WorkItemsProvider(client, (m: any) => panel?.webview.postMessage(m), {})
+          ? new WorkItemsProvider(
+              'default',
+              client,
+              (m: any) => postToWebview({ panel, message: m, logger: verbose }),
+              {}
+            )
           : provider;
         // refresh view if attached
-        provider?.refresh(cfg.get('defaultQuery') || 'My Work Items');
+        provider?.refresh(getDefaultQuery(cfg));
       } catch {
         /* ignore */
       }
@@ -1230,7 +2583,7 @@ function toggleKanbanView() {
   }
 
   // Send message to webview to toggle the view
-  panel.webview.postMessage({ type: 'toggleKanbanView' });
+  sendToWebview({ type: 'toggleKanbanView' });
 }
 
 async function editWorkItemInEditor(workItemId: number) {
@@ -1363,7 +2716,8 @@ async function editWorkItemInEditor(workItemId: number) {
       vscode.window.showInformationMessage(`Updated work item #${workItemId}`);
 
       // Refresh the work items list to show updated data
-      provider.refresh();
+      const refreshQuery = getQueryForProvider(provider, activeConnectionId);
+      provider.refresh(refreshQuery);
     } else {
       vscode.window.showInformationMessage('No changes made.');
     }
@@ -1378,12 +2732,18 @@ async function startTimerInteractive() {
     return;
   }
   if (timer.snapshot()) {
-    vscode.window.showInformationMessage('Timer already running');
+    const runningConnectionLabel = getActiveTimerConnectionLabel();
+    vscode.window.showInformationMessage(
+      runningConnectionLabel
+        ? `A timer is already running for ${runningConnectionLabel}. Stop it before starting another.`
+        : 'A timer is already running. Stop it before starting another.'
+    );
     return;
   }
   const items = provider.getWorkItems();
   if (items.length === 0) {
-    await provider.refresh();
+    const refreshQuery = getQueryForProvider(provider, activeConnectionId);
+    await provider.refresh(refreshQuery);
   }
   const pick = await vscode.window.showQuickPick(
     provider.getWorkItems().map((w: any) => ({
@@ -1395,10 +2755,16 @@ async function startTimerInteractive() {
   );
   if (!pick) return;
   const wi: any = (pick as any).wi;
-  timer.start(
+  const connection = activeConnectionId
+    ? connections.find((c) => c.id === activeConnectionId)
+    : undefined;
+  const previousInfo = { ...timerConnectionInfo };
+  setTimerConnectionFrom(connection);
+  const started = timer.start(
     Number(wi.id || wi.fields?.['System.Id']),
     wi.fields?.['System.Title'] || `#${wi.id}`
   );
+  if (!started) timerConnectionInfo = previousInfo;
 }
 
 function showTimeReport() {
@@ -1433,6 +2799,7 @@ function updateTimerContext(s: any) {
   vscode.commands.executeCommand('setContext', 'azureDevOpsInt.timerPaused', paused);
   if (statusBarItem) {
     if (s) {
+      const connectionLabel = getActiveTimerConnectionLabel();
       const sec = s.elapsedSeconds || 0;
       const h = Math.floor(sec / 3600)
         .toString()
@@ -1442,7 +2809,9 @@ function updateTimerContext(s: any) {
         .padStart(2, '0');
       const mini = `${h}:${m}`;
       statusBarItem.text = `$(watch) ${mini} #${s.workItemId}${s.isPaused ? ' (Paused)' : ''}`;
-      statusBarItem.tooltip = `Azure DevOps Timer for #${s.workItemId}`;
+      const tooltipLines = [`Azure DevOps Timer for #${s.workItemId}`];
+      if (connectionLabel) tooltipLines.push(`Project: ${connectionLabel}`);
+      statusBarItem.tooltip = tooltipLines.join('\n');
       statusBarItem.show();
     } else {
       statusBarItem.hide();
@@ -1452,7 +2821,7 @@ function updateTimerContext(s: any) {
 
 function verbose(msg: string, extra?: any) {
   try {
-    if (!outputChannel) return;
+    if (!getOutputChannel()) return;
     if (extra !== undefined) {
       logLine(
         `${new Date().toISOString()} ${msg} ${
@@ -1511,8 +2880,15 @@ async function createBranchFromWorkItem() {
     await repo.createBranch(branchName, true);
     vscode.window.showInformationMessage(`Created and switched to ${branchName}`);
     const autoStart = getConfig().get<boolean>('autoStartTimerOnBranch');
-    if (autoStart && timer && !timer.snapshot())
-      timer.start(Number(id), wi.fields?.['System.Title'] || `#${id}`);
+    if (autoStart && timer && !timer.snapshot()) {
+      const connection = activeConnectionId
+        ? connections.find((c) => c.id === activeConnectionId)
+        : undefined;
+      const previousInfo = { ...timerConnectionInfo };
+      setTimerConnectionFrom(connection);
+      const started = timer.start(Number(id), wi.fields?.['System.Title'] || `#${id}`);
+      if (!started) timerConnectionInfo = previousInfo;
+    }
   } catch (e: any) {
     vscode.window.showErrorMessage(`Branch creation failed: ${e.message || e}`);
   }
@@ -1653,7 +3029,7 @@ export function __setTestContext(
   if (ctx.timer !== undefined) timer = ctx.timer;
   if (ctx.client !== undefined) client = ctx.client;
   if (ctx.statusBarItem !== undefined) statusBarItem = ctx.statusBarItem;
-  if (ctx.outputChannel !== undefined) outputChannel = ctx.outputChannel;
+  if (ctx.outputChannel !== undefined) setOutputChannel(ctx.outputChannel);
 }
 // Export handleMessage for testing
 export { handleMessage };
@@ -1667,24 +3043,355 @@ export { migrateLegacyPAT, persistTimer, restoreTimer, getSecretPAT, migrateLega
 // Export buildMinimalWebviewHtml for testing the webview HTML generation without changing runtime behavior.
 export { buildMinimalWebviewHtml };
 
-async function handleTimerStopAndOfferUpdate(entry: {
+type SummaryProviderMode = 'builtin' | 'openai';
+
+type SummaryEntrySeed = {
   workItemId: number;
-  startTime: number;
-  endTime: number;
-  duration: number;
-  hoursDecimal: number;
+  startTime?: number;
+  endTime?: number;
+  hoursDecimal?: number;
+  duration?: number;
   capApplied?: boolean;
   capLimitHours?: number;
-}) {
+};
+
+async function setOpenAIApiKey(context: vscode.ExtensionContext) {
+  const current = await context.secrets.get(OPENAI_SECRET_KEY);
+  const actions = [
+    { label: current ? 'Update API key' : 'Set API key', action: 'set' as const },
+    {
+      label: 'Clear stored key',
+      action: 'clear' as const,
+      description: current ? undefined : 'No key stored',
+    },
+  ];
+  const choice = await vscode.window.showQuickPick(actions, {
+    placeHolder: current
+      ? 'Update or clear the stored OpenAI API key'
+      : 'Store an OpenAI API key for summaries',
+    ignoreFocusOut: true,
+  });
+  if (!choice) return;
+
+  if (choice.action === 'set') {
+    const input = await vscode.window.showInputBox({
+      prompt: 'Enter your OpenAI API key',
+      password: true,
+      ignoreFocusOut: true,
+      placeHolder: 'sk-...',
+    });
+    if (!input) return;
+    await context.secrets.store(OPENAI_SECRET_KEY, input.trim());
+    resetOpenAiClient();
+    vscode.window.showInformationMessage('OpenAI API key saved.');
+    if (getSummaryProvider() !== 'openai') {
+      const enable = await vscode.window.showInformationMessage(
+        'Would you like to switch the work summary provider to OpenAI?',
+        'Yes',
+        'Not now'
+      );
+      if (enable === 'Yes') {
+        await getConfig().update('summaryProvider', 'openai', vscode.ConfigurationTarget.Global);
+      }
+    }
+    return;
+  }
+
+  if (!current) {
+    vscode.window.showInformationMessage('No OpenAI API key is stored.');
+    return;
+  }
+  await context.secrets.delete(OPENAI_SECRET_KEY);
+  resetOpenAiClient();
+  vscode.window.showInformationMessage('OpenAI API key cleared.');
+}
+
+function getSummaryProvider(): SummaryProviderMode {
+  try {
+    const value = (getConfig().get<string>('summaryProvider') || 'builtin').toLowerCase();
+    return value === 'openai' ? 'openai' : 'builtin';
+  } catch {
+    return 'builtin';
+  }
+}
+
+function resetOpenAiClient() {
+  openAiClient = undefined;
+}
+
+async function getOpenAIApiKey(context: vscode.ExtensionContext) {
+  return context.secrets.get(OPENAI_SECRET_KEY);
+}
+
+async function ensureOpenAiClient(context: vscode.ExtensionContext): Promise<OpenAIClient> {
+  if (openAiClient) return openAiClient;
+  const apiKey = (await getOpenAIApiKey(context))?.trim();
+  if (!apiKey) {
+    throw new Error('OpenAI API key not set. Use “Azure DevOps: Set OpenAI API Key” to store one.');
+  }
+  const module = await import('openai');
+  const OpenAIConstructor: any = (module as any).default ?? (module as any).OpenAI;
+  if (typeof OpenAIConstructor !== 'function') {
+    throw new Error('Failed to initialize OpenAI client.');
+  }
+  openAiClient = new OpenAIConstructor({ apiKey }) as OpenAIClient;
+  return openAiClient;
+}
+
+function normalizeSummaryEntrySeed(
+  workItemId: number,
+  seed?: Partial<SummaryEntrySeed>
+): SummaryEntrySeed {
+  const snapshot = timer?.snapshot?.();
+  const matchesSnapshot = snapshot && Number(snapshot.workItemId) === Number(workItemId);
+  const startTime = seed?.startTime ?? (matchesSnapshot ? snapshot?.startTime : undefined);
+  const endTime = seed?.endTime ?? (startTime ? Date.now() : undefined);
+  const rawDuration =
+    typeof seed?.duration === 'number'
+      ? seed.duration
+      : matchesSnapshot && typeof snapshot?.elapsedSeconds === 'number'
+        ? snapshot.elapsedSeconds
+        : undefined;
+  const hoursDecimal =
+    typeof seed?.hoursDecimal === 'number'
+      ? seed.hoursDecimal
+      : typeof rawDuration === 'number'
+        ? rawDuration > 1000
+          ? rawDuration / 3600000
+          : rawDuration / 3600
+        : undefined;
+  return {
+    workItemId,
+    startTime,
+    endTime,
+    duration: rawDuration,
+    hoursDecimal,
+    capApplied: seed?.capApplied,
+    capLimitHours: seed?.capLimitHours,
+  };
+}
+
+function entrySeedFromMessage(
+  message: any,
+  workItemId: number
+): Partial<SummaryEntrySeed> | undefined {
+  if (!message || typeof message !== 'object') return undefined;
+  const seed: Partial<SummaryEntrySeed> = {};
+  let hasValue = false;
+  if (typeof message.startTime === 'number') {
+    seed.startTime = message.startTime;
+    hasValue = true;
+  }
+  if (typeof message.endTime === 'number') {
+    seed.endTime = message.endTime;
+    hasValue = true;
+  }
+  if (typeof message.hoursDecimal === 'number') {
+    seed.hoursDecimal = message.hoursDecimal;
+    hasValue = true;
+  }
+  if (typeof message.duration === 'number') {
+    seed.duration = message.duration;
+    hasValue = true;
+  }
+  if (typeof message.capApplied === 'boolean') {
+    seed.capApplied = message.capApplied;
+    hasValue = true;
+  }
+  if (typeof message.capLimitHours === 'number') {
+    seed.capLimitHours = message.capLimitHours;
+    hasValue = true;
+  }
+  if (!hasValue) return undefined;
+  return { ...seed, workItemId };
+}
+
+function toPlainText(value: unknown, maxLength = 2000): string {
+  if (!value || typeof value !== 'string') return '';
+  const text = value
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength).trimEnd()}…`;
+}
+
+function buildOpenAiPrompt(
+  workItem: any,
+  seed: SummaryEntrySeed | undefined,
+  draftSummary: string | undefined
+): string {
+  const fields = workItem?.fields || {};
+  const title = fields['System.Title'] || `#${workItem?.id}`;
+  const type = fields['System.WorkItemType'] || 'Work Item';
+  const state = fields['System.State'] || 'Unknown';
+  const assignedTo = fields['System.AssignedTo'];
+  const description = toPlainText(fields['System.Description']);
+  const tags = toPlainText(fields['System.Tags'] || '')
+    .split(';')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const start = seed?.startTime ? new Date(seed.startTime).toISOString() : undefined;
+  const end = seed?.endTime ? new Date(seed.endTime).toISOString() : undefined;
+  const hours =
+    typeof seed?.hoursDecimal === 'number'
+      ? seed.hoursDecimal
+      : typeof seed?.duration === 'number'
+        ? seed.duration / 3600
+        : undefined;
+  const notes = toPlainText(draftSummary || '', 1000);
+
+  const lines: string[] = [];
+  lines.push('You are helping summarize Azure DevOps work.');
+  lines.push(
+    'Write a concise 1-2 sentence summary suitable as a work item comment. Mention progress, impact, and next steps if relevant.'
+  );
+  lines.push('Avoid hedging language, keep it factual.');
+  lines.push('\nContext:');
+  lines.push(`- Work item: #${workItem?.id} | ${type} | ${title}`);
+  lines.push(`- Current state: ${state}`);
+  if (assignedTo)
+    lines.push(
+      `- Assigned to: ${typeof assignedTo === 'string' ? assignedTo : assignedTo.displayName || assignedTo.uniqueName || 'Unknown'}`
+    );
+  if (typeof hours === 'number') lines.push(`- Time spent: ${hours.toFixed(2)} hours`);
+  if (start) lines.push(`- Start time: ${start}`);
+  if (end) lines.push(`- End time: ${end}`);
+  if (tags.length) lines.push(`- Tags: ${tags.join(', ')}`);
+  if (description) {
+    lines.push('\nWork item details:');
+    lines.push(description);
+  }
+  if (notes) {
+    lines.push('\nUser notes:');
+    lines.push(notes);
+  }
+  lines.push('\nRespond with only the summary sentences.');
+  return lines.join('\n');
+}
+
+async function generateOpenAiSummary(options: {
+  workItem: any;
+  seed: SummaryEntrySeed | undefined;
+  draftSummary?: string;
+  model: string;
+}): Promise<string> {
+  if (!extensionContextRef) {
+    throw new Error('Extension context unavailable.');
+  }
+  const client = await ensureOpenAiClient(extensionContextRef);
+  const prompt = buildOpenAiPrompt(options.workItem, options.seed, options.draftSummary);
+  const response = await client.responses.create({
+    model: options.model,
+    input: prompt,
+    temperature: 0.2,
+    max_output_tokens: 320,
+  } as any);
+  const text = (response as any)?.output_text;
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    throw new Error('OpenAI returned an empty summary.');
+  }
+  return text.trim();
+}
+
+async function produceWorkItemSummary(options: {
+  workItemId: number;
+  draftSummary?: string;
+  entrySeed?: Partial<SummaryEntrySeed>;
+  reason: 'manualPrompt' | 'timerStop';
+  providerOverride?: SummaryProviderMode;
+  stillRunningTimer?: boolean;
+}): Promise<{ provider: SummaryProviderMode; content: string }> {
+  if (!client) throw new Error('Client not initialized');
+  const workItem = await client.getWorkItemById(options.workItemId);
+  if (!workItem) throw new Error(`Work item #${options.workItemId} not found.`);
+  const seed = normalizeSummaryEntrySeed(options.workItemId, options.entrySeed);
+  const provider = options.providerOverride ?? getSummaryProvider();
+
+  if (provider === 'openai') {
+    try {
+      const model = getConfig().get<string>('openAiModel') || 'gpt-4o-mini';
+      const summary = await generateOpenAiSummary({
+        workItem,
+        seed,
+        draftSummary: options.draftSummary,
+        model,
+      });
+      await vscode.env.clipboard.writeText(summary);
+      panel?.webview.postMessage({
+        type: 'copilotPromptCopied',
+        workItemId: options.workItemId,
+        provider: 'openai',
+        summary,
+      });
+      const message = options.stillRunningTimer
+        ? 'Generated an OpenAI summary and copied it to the clipboard while the timer continues running.'
+        : 'Generated an OpenAI summary and copied it to the clipboard.';
+      vscode.window.showInformationMessage(message);
+      return { provider: 'openai', content: summary };
+    } catch (err) {
+      console.error('OpenAI summary generation failed', err);
+      vscode.window.showErrorMessage(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Failed to generate OpenAI summary. Falling back to Copilot prompt.'
+      );
+      return produceWorkItemSummary({ ...options, providerOverride: 'builtin' });
+    }
+  }
+
+  const prompt = buildCopilotPrompt(seed || { workItemId: options.workItemId }, workItem);
+  await vscode.env.clipboard.writeText(prompt);
+  panel?.webview.postMessage({
+    type: 'copilotPromptCopied',
+    workItemId: options.workItemId,
+    provider: 'builtin',
+    prompt,
+  });
+  const message = options.stillRunningTimer
+    ? 'Copilot prompt copied to clipboard. The timer is still running.'
+    : 'Copilot prompt copied to clipboard. Open Copilot chat and paste to generate a summary.';
+  vscode.window.showInformationMessage(message);
+  return { provider: 'builtin', content: prompt };
+}
+
+async function handleTimerStopAndOfferUpdate(
+  entry: {
+    workItemId: number;
+    startTime: number;
+    endTime: number;
+    duration: number;
+    hoursDecimal: number;
+    capApplied?: boolean;
+    capLimitHours?: number;
+  },
+  options?: { offerCopilot?: boolean; connection?: TimerConnectionInfo }
+) {
   if (!entry) return;
-  if (!client) {
+  const clientForTimer = getClientForConnectionInfo(options?.connection);
+  if (!clientForTimer) {
     vscode.window.showWarningMessage(
-      'Timer stopped but the extension is not connected to Azure DevOps. Connect and try again to update the work item.'
+      'Timer stopped but no Azure DevOps client is available for the associated project. Connect and try again.'
     );
     return;
   }
   const id = Number(entry.workItemId);
-  let workItem = await client.getWorkItemById(id);
+  let workItem: any;
+  try {
+    workItem = await clientForTimer.getWorkItemById(id);
+  } catch (err: any) {
+    console.error('Failed to load work item for timer stop', err);
+    vscode.window.showErrorMessage('Failed to load work item: ' + (err?.message || String(err)));
+    return;
+  }
   if (!workItem) {
     vscode.window.showErrorMessage(`Work item #${id} not found.`);
     return;
@@ -1697,7 +3404,10 @@ async function handleTimerStopAndOfferUpdate(entry: {
   const suggestedCompleted = Number((currCompleted + hours).toFixed(2));
   const suggestedRemaining = Number(Math.max(0, currRemaining - hours).toFixed(2));
 
-  const initialOptions = ['Apply', 'Edit', 'Generate Copilot prompt'] as const;
+  const initialOptions: string[] = ['Apply', 'Edit'];
+  if (options?.offerCopilot !== false) {
+    initialOptions.push('Generate Copilot prompt');
+  }
   let promptMsg = `Add ${hours.toFixed(
     2
   )}h to Completed (${currCompleted} → ${suggestedCompleted}) and subtract from Remaining (${currRemaining} → ${suggestedRemaining}) for ${title}?`;
@@ -1713,17 +3423,32 @@ async function handleTimerStopAndOfferUpdate(entry: {
   );
   if (!action) return;
 
+  let comment = generateAutoSummary(entry, workItem);
+
   // If user requested a Copilot prompt, generate it, copy to clipboard, and re-prompt
   if (action === 'Generate Copilot prompt') {
-    const promptText = buildCopilotPrompt(entry, workItem);
     try {
-      await vscode.env.clipboard.writeText(promptText);
-    } catch (e) {
-      console.error('Clipboard write failed', e);
+      const previousClient = client;
+      try {
+        client = clientForTimer;
+        const result = await produceWorkItemSummary({
+          workItemId: id,
+          draftSummary: comment,
+          entrySeed: entry,
+          reason: 'timerStop',
+        });
+        if (result.provider === 'openai' && result.content) {
+          comment = result.content;
+        }
+      } finally {
+        client = previousClient;
+      }
+    } catch (err: any) {
+      console.error('Failed to generate summary prompt', err);
+      vscode.window.showErrorMessage(
+        'Failed to generate summary prompt: ' + (err?.message || String(err))
+      );
     }
-    vscode.window.showInformationMessage(
-      'Copilot prompt copied to clipboard. Open the Copilot chat and paste to generate a concise summary.'
-    );
     action = await vscode.window.showInformationMessage(
       `After generating the summary in Copilot, choose how to proceed for work item #${id}.`,
       { modal: true },
@@ -1735,7 +3460,6 @@ async function handleTimerStopAndOfferUpdate(entry: {
 
   let finalCompleted = suggestedCompleted;
   let finalRemaining = suggestedRemaining;
-  let comment = generateAutoSummary(entry, workItem);
 
   if (action === 'Edit') {
     const c = await vscode.window.showInputBox({
@@ -1767,14 +3491,18 @@ async function handleTimerStopAndOfferUpdate(entry: {
     if (edited !== undefined) comment = edited;
   }
 
+  const patch = [
+    { op: 'add', path: '/fields/Microsoft.VSTS.Scheduling.CompletedWork', value: finalCompleted },
+    { op: 'add', path: '/fields/Microsoft.VSTS.Scheduling.RemainingWork', value: finalRemaining },
+  ];
   try {
-    const patch = [
-      { op: 'add', path: '/fields/Microsoft.VSTS.Scheduling.CompletedWork', value: finalCompleted },
-      { op: 'add', path: '/fields/Microsoft.VSTS.Scheduling.RemainingWork', value: finalRemaining },
-    ];
-    await client.updateWorkItem(id, patch);
-    if (comment && comment.trim())
-      await client.addWorkItemComment(id, `Time tracked: ${hours.toFixed(2)} hours. ${comment}`);
+    await clientForTimer.updateWorkItem(id, patch);
+    if (comment && comment.trim()) {
+      await clientForTimer.addWorkItemComment(
+        id,
+        `Time tracked: ${hours.toFixed(2)} hours. ${comment}`
+      );
+    }
     vscode.window.showInformationMessage(
       `Work item #${id} updated: Completed ${finalCompleted}h, Remaining ${finalRemaining}h.`
     );
@@ -1784,6 +3512,52 @@ async function handleTimerStopAndOfferUpdate(entry: {
   }
 }
 
+async function generateCopilotPromptWithoutStopping() {
+  const snap = timer?.snapshot();
+  if (!snap) {
+    vscode.window.showWarningMessage('No active timer to generate a prompt for.');
+    return;
+  }
+
+  const timerConnectionSnapshot: TimerConnectionInfo = { ...timerConnectionInfo };
+  const clientForTimer = getClientForConnectionInfo(timerConnectionSnapshot);
+  if (!clientForTimer) {
+    vscode.window.showWarningMessage(
+      'No Azure DevOps connection is available for the running timer. Connect and try again.'
+    );
+    return;
+  }
+
+  const workItemId = Number(snap.workItemId);
+  if (!workItemId) {
+    vscode.window.showWarningMessage('Active timer is missing a work item.');
+    return;
+  }
+
+  const previousClient = client;
+  try {
+    client = clientForTimer;
+    await produceWorkItemSummary({
+      workItemId,
+      entrySeed: {
+        startTime: typeof snap.startTime === 'number' ? snap.startTime : undefined,
+        endTime: Date.now(),
+        duration: typeof snap.elapsedSeconds === 'number' ? snap.elapsedSeconds : undefined,
+        hoursDecimal:
+          typeof snap.elapsedSeconds === 'number' ? snap.elapsedSeconds / 3600 : undefined,
+      },
+      reason: 'manualPrompt',
+      stillRunningTimer: true,
+    });
+  } catch (e: any) {
+    console.error('Failed to create Copilot prompt', e);
+    vscode.window.showErrorMessage(
+      'Failed to generate Copilot prompt: ' + (e?.message || String(e))
+    );
+  } finally {
+    client = previousClient;
+  }
+}
 function generateAutoSummary(entry: any, workItem: any) {
   try {
     const title = workItem?.fields?.['System.Title'] || `#${entry.workItemId}`;
