@@ -1,9 +1,8 @@
 {
-  "type": "module",
   "name": "azuredevops-integration-extension",
   "displayName": "Azure DevOps Integration for VS Code",
   "description": "Integrate Azure DevOps work items, time tracking, and Git workflows directly in VS Code. Manage tasks, track time, create branches, and submit pull requests without leaving your editor.",
-  "version": "1.7.1",
+  "version": "1.7.7",
   "publisher": "PluresLLC",
   "icon": "media/icon.png",
   "repository": {
@@ -20,7 +19,7 @@
     "theme": "dark"
   },
   "engines": {
-    "vscode": "^1.102.0"
+    "vscode": "^1.99.0"
   },
   "categories": [
     "Other"
@@ -39,8 +38,10 @@
     "onStartupFinished",
     "onView:azureDevOpsWorkItems",
     "onCommand:azureDevOpsInt.showWorkItems",
-    "onCommand:azureDevOpsInt.setup"
+    "onCommand:azureDevOpsInt.setup",
+    "onCommand:azureDevOpsInt.setupWizard"
   ],
+  "type": "module",
   "main": "./dist/extension.js",
   "files": [
     "dist/**",
@@ -59,6 +60,16 @@
       {
         "command": "azureDevOpsInt.setup",
         "title": "Setup Connection",
+        "category": "Azure DevOps Int"
+      },
+      {
+        "command": "azureDevOpsInt.setupWizard",
+        "title": "Setup Wizard (Easy)",
+        "category": "Azure DevOps Int"
+      },
+      {
+        "command": "azureDevOpsInt.manageConnections",
+        "title": "Manage Connections",
         "category": "Azure DevOps Int"
       },
       {
@@ -178,6 +189,11 @@
         "command": "azureDevOpsInt.showBuildStatus",
         "title": "Show Build Status",
         "category": "Azure DevOps Int"
+      },
+      {
+        "command": "azureDevOpsInt.setOpenAIApiKey",
+        "title": "Set OpenAI API Key",
+        "category": "Azure DevOps Int"
       }
     ],
     "views": {
@@ -204,7 +220,7 @@
       {
         "view": "azureDevOpsWorkItems",
         "when": "!azureDevOpsInt.connected",
-        "contents": "No Azure DevOps configuration found.\n[Setup Azure DevOps Connection](command:azureDevOpsInt.setup)"
+        "contents": "No Azure DevOps configuration found.\n[Setup Wizard (Easy)](command:azureDevOpsInt.setupWizard) | [Manual Setup](command:azureDevOpsInt.setup)"
       }
     ],
     "menus": {
@@ -261,15 +277,48 @@
           "default": false,
           "description": "Enable verbose logging to the 'Azure DevOps Integration' output channel"
         },
-        "azureDevOpsIntegration.organization": {
-          "type": "string",
-          "default": "",
-          "description": "Azure DevOps organization name"
-        },
-        "azureDevOpsIntegration.project": {
-          "type": "string",
-          "default": "",
-          "description": "Azure DevOps project name"
+        "azureDevOpsIntegration.connections": {
+          "type": "array",
+          "default": [],
+          "description": "Azure DevOps connections (JSON array of connection objects)",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique identifier for the connection"
+              },
+              "organization": {
+                "type": "string",
+                "description": "Azure DevOps organization name"
+              },
+              "project": {
+                "type": "string",
+                "description": "Azure DevOps project name"
+              },
+              "label": {
+                "type": "string",
+                "description": "Optional display label for the connection"
+              },
+              "team": {
+                "type": "string",
+                "description": "Optional team name"
+              },
+              "patKey": {
+                "type": "string",
+                "description": "Key for storing PAT in secrets (internal use)"
+              },
+              "baseUrl": {
+                "type": "string",
+                "description": "Base URL for the Azure DevOps instance (e.g., https://dev.azure.com/org or https://org.visualstudio.com)"
+              }
+            },
+            "required": [
+              "id",
+              "organization",
+              "project"
+            ]
+          }
         },
         "azureDevOpsIntegration.defaultElapsedLimitHours": {
           "type": "number",
@@ -345,6 +394,20 @@
           "type": "boolean",
           "default": false,
           "description": "Show completed/closed work items in the list"
+        },
+        "azureDevOpsIntegration.summaryProvider": {
+          "type": "string",
+          "default": "builtin",
+          "enum": [
+            "builtin",
+            "openai"
+          ],
+          "description": "Generate summaries using the built-in template or OpenAI (requires API key)."
+        },
+        "azureDevOpsIntegration.openAiModel": {
+          "type": "string",
+          "default": "gpt-4o-mini",
+          "description": "OpenAI model identifier to use when summaryProvider is set to 'openai'."
         }
       }
     }
@@ -380,14 +443,15 @@
     "@types/mocha": "^10.0.10",
     "@types/nock": "^10.0.3",
     "@types/node": "24.x",
-    "@types/vscode": "^1.102.0",
+    "@types/vscode": "^1.99.0",
     "@typescript-eslint/eslint-plugin": "^8.44.0",
     "@typescript-eslint/parser": "^8.44.0",
     "@vscode/test-electron": "^2.5.2",
-    "@vscode/vsce": "^3.6.0",
+    "@vscode/vsce": "^3.6.2",
     "chai": "^6.0.1",
     "chokidar": "^4.0.3",
     "esbuild": "^0.25.10",
+    "esbuild-svelte": "^0.9.0",
     "eslint": "^9.36.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.6",
@@ -395,13 +459,14 @@
     "nock": "^14.0.10",
     "playwright": "^1.55.0",
     "prettier": "^3.6.2",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.2",
     "svelte": "^4.2.18",
-    "esbuild-svelte": "^0.9.0"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
   },
   "dependencies": {
-    "axios": "^1.12.2"
+    "axios": "^1.12.2",
+    "openai": "^4.59.0",
+    "sql.js": "^1.13.0"
   },
   "volta": {
     "node": "20.19.0",

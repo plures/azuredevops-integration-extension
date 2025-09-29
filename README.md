@@ -2,28 +2,15 @@
 
 Integrate Azure DevOps work items, time tracking, branching, and pull requests directly inside VS Code.
 
-## 🚀 Highlights
+## 🚀 Key Features
 
-- Unified work items view (My Work Items, Current Sprint, All Active, Recently Updated, or custom WIQL)
-- Team-aware Current Sprint: respects your selected team's current iteration
-- One‑click work item creation
-- Lightweight time tracking with inactivity auto‑pause
-- Status bar timer with start/stop and pause/resume commands
-- Branch creation from a selected work item (optional auto‑start timer)
-- Pull request creation & quick access to your active PRs
-- Secure PAT storage (secret store) + automatic migration from legacy keys
-- Verbose diagnostic logging (opt‑in) for easier troubleshooting
-- Webview filters (Sprint, Type, Assigned To) and a Kanban toggle
-- Per‑work‑item draft persistence in the editor (your notes stick to each item locally)
-- Smart stop flow: proposes Completed/Remaining updates and can post a Copilot‑generated summary comment
-- Reliable queries across process templates with runtime compatibility fallback
-- Tunable API rate limiting (sustained rate and burst) to play nicely with Azure DevOps throttling
-- Optional MCP server for automation and agent/tool integrations (JSON‑RPC)
-- Consistent Start/Stop and Edit actions across list and Kanban
-- Preserved scroll positions (list vertical, Kanban horizontal) for smoother UX
-- Keyboard Kanban navigation (Ctrl/Cmd + ←/→) with live toast feedback on move
-- Accessible toast notifications (aria-live polite) for move success/errors
-- Codicon-based iconography (replaces legacy emojis) for actions and status
+- **Work Items Management**: Unified view with built-in filters (My Activity, Assigned to Me, Current Sprint, All Active, Recently Updated) and custom WIQL support
+- **Time Tracking**: Lightweight timer with inactivity auto-pause, status bar integration, and automatic work item updates
+- **Git Integration**: Create branches and pull requests directly from work items with customizable naming templates
+- **Smart Setup**: Easy setup wizard that parses work item URLs and guides you through configuration
+- **AI-Powered Summaries**: Generate work summaries using Copilot prompts or OpenAI integration
+- **Multiple Views**: Switch between list and Kanban views with preserved scroll positions and keyboard navigation
+- **Secure Storage**: PAT tokens stored securely in VS Code's secret store with automatic migration
 
 ## 📥 Installation
 
@@ -49,143 +36,133 @@ Required scopes (minimum recommended):
 
 Generate at: Azure DevOps → User Settings → Security → Personal Access Tokens.
 
-## ⚙️ Setup
+## ⚙️ Quick Setup
 
-Run: Azure DevOps Integration: Setup Connection
-Provide Organization (short name), Project, and PAT. The extension stores the PAT securely. If settings already exist it silently initializes on startup.
+### Easy Setup Wizard (Recommended)
 
-Optional: set a Team for iteration-aware queries
+1. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
+2. Run: `Azure DevOps Integration: Setup Wizard (Easy)`
+3. Paste a work item URL from your Azure DevOps organization
+4. The wizard will auto-detect your organization and project
+5. Follow the guided steps to create a Personal Access Token
+6. Test your connection and you're ready to go!
 
-- Use the command: Azure DevOps Integration: Select Team to set a team context. When set, the "Current Sprint" query resolves using that team's current iteration. You can clear or change this later by running the command again.
+### Manual Setup
 
-Where to find it in VS Code
+1. Run: `Azure DevOps Integration: Setup Connection`
+2. Provide your Organization (short name), Project, and PAT
+3. The extension stores the PAT securely in VS Code's secret store
 
-- The extension adds an Activity Bar container named "Azure DevOps" with a "Work Items" view. Open it to browse, filter (Sprint, Type, Assigned To), switch Kanban/List, and act on items.
+### Optional: Team Configuration
+
+- Use `Azure DevOps Integration: Select Team` to set a team context
+- When set, the "Current Sprint" query uses that team's current iteration
+- You can change or clear this anytime by running the command again
+
+### Accessing the Extension
+
+- Look for the "Azure DevOps" icon in the Activity Bar
+- Click to open the "Work Items" view
+- Browse, filter, and manage your work items with list or Kanban views
 
 ## 🕒 Time Tracking
 
-- Start/Stop timer from the command palette or by picking a work item
-- Auto‑pause after configurable inactivity timeout
-- Auto‑resume on activity (configurable)
-- View summarized time via Show Time Report (Today, Week, Month, All Time)
-- Elapsed cap: if a timer was left running, an optional cap (default 3.5 hours) is applied on stop to prevent over‑reporting
-- On Stop, the extension proposes Completed/Remaining updates and can generate a concise Copilot summary comment on the work item
+- **Start/Stop Timer**: Click the timer button on any work item or use the command palette
+- **Smart Pause**: Automatically pauses after inactivity (configurable timeout)
+- **Auto-Resume**: Resumes when you become active again
+- **Time Reports**: View tracked time across different periods (Today, Week, Month, All Time)
+- **Automatic Updates**: When stopping a timer, automatically updates work item's Completed/Remaining hours
+- **AI Summaries**: Generate work summaries using Copilot prompts or OpenAI integration
 
-## ⌨️ Core Commands
+## 🧠 AI-Powered Work Summaries
 
-| Command ID                                | Palette Title                                          |
-| ----------------------------------------- | ------------------------------------------------------ |
-| azureDevOpsInt.setup                      | Azure DevOps Integration: Setup Connection             |
-| azureDevOpsInt.showWorkItems              | Azure DevOps Integration: Show Work Items              |
-| azureDevOpsInt.createWorkItem             | Azure DevOps Integration: Create Work Item             |
-| azureDevOpsInt.refreshWorkItems           | Azure DevOps Integration: Refresh Work Items           |
-| azureDevOpsInt.startTimer                 | Azure DevOps Integration: Start/Stop Timer             |
-| azureDevOpsInt.pauseTimer                 | Azure DevOps Integration: Pause Timer                  |
-| azureDevOpsInt.resumeTimer                | Azure DevOps Integration: Resume Timer                 |
-| azureDevOpsInt.stopTimer                  | Azure DevOps Integration: Stop Timer                   |
-| azureDevOpsInt.showTimeReport             | Azure DevOps Integration: Show Time Report             |
-| azureDevOpsInt.createBranch               | Azure DevOps Integration: Create Branch from Work Item |
-| azureDevOpsInt.createPullRequest          | Azure DevOps Integration: Create Pull Request          |
-| azureDevOpsInt.showPullRequests           | Azure DevOps Integration: Show My Pull Requests        |
-| azureDevOpsInt.toggleKanbanView           | Azure DevOps Integration: Toggle Kanban View           |
-| azureDevOpsInt.selectTeam                 | Azure DevOps Integration: Select Team                  |
-| azureDevOpsInt.resetPreferredRepositories | Azure DevOps Integration: Reset Preferred Repositories |
+- **Copilot Integration**: Generate Copilot-ready prompts for work summaries
+- **OpenAI Support**: Direct integration with OpenAI for automatic summary generation
+- **Smart Drafts**: Per-work-item draft persistence for refining your messages
+- **Timer Integration**: Auto-selects active work item when generating summaries
 
-More helpful commands (selection):
+## ⌨️ Essential Commands
 
-- Set Default Timer Elapsed Cap — `azureDevOpsInt.setDefaultElapsedLimit`
+| Command                                                  | Description                             |
+| -------------------------------------------------------- | --------------------------------------- |
+| `Azure DevOps Integration: Setup Wizard (Easy)`          | Guided setup with work item URL parsing |
+| `Azure DevOps Integration: Setup Connection`             | Manual connection setup                 |
+| `Azure DevOps Integration: Show Work Items`              | Open the work items view                |
+| `Azure DevOps Integration: Start/Stop Timer`             | Toggle timer for selected work item     |
+| `Azure DevOps Integration: Show Time Report`             | View time tracking reports              |
+| `Azure DevOps Integration: Create Work Item`             | Create a new work item                  |
+| `Azure DevOps Integration: Create Branch from Work Item` | Create Git branch from work item        |
+| `Azure DevOps Integration: Create Pull Request`          | Create PR from current branch           |
+| `Azure DevOps Integration: Toggle Kanban View`           | Switch between list and Kanban views    |
+| `Azure DevOps Integration: Select Team`                  | Set team context for sprint queries     |
+| `Azure DevOps Integration: Set OpenAI API Key`           | Configure OpenAI integration            |
 
-## 🔧 Configuration (Settings)
+## 🔧 Key Settings
 
-Namespace: `azureDevOpsIntegration`
+The most important settings you might want to configure:
 
 ```jsonc
 {
-  "azureDevOpsIntegration.organization": "myorg",
-  "azureDevOpsIntegration.project": "myproject",
-  "azureDevOpsIntegration.debugLogging": false,
-
-  // Work item list behavior
-  "azureDevOpsIntegration.defaultWorkItemType": "Task",
-  "azureDevOpsIntegration.workItemQuery": "<WIQL query>",
-  "azureDevOpsIntegration.showCompletedWorkItems": false,
-  "azureDevOpsIntegration.workItemsPerPage": 50,
-  "azureDevOpsIntegration.enableAutoRefresh": true,
-  "azureDevOpsIntegration.refreshIntervalMinutes": 5,
-
   // Time tracking
-  "azureDevOpsIntegration.enableTimeTracking": true,
   "azureDevOpsIntegration.defaultElapsedLimitHours": 3.5,
+  "azureDevOpsIntegration.enableTimeTracking": true,
+
+  // AI summaries
+  "azureDevOpsIntegration.summaryProvider": "builtin", // or "openai"
+  "azureDevOpsIntegration.openAiModel": "gpt-4o-mini",
 
   // Git integration
-  "azureDevOpsIntegration.enableBranchCreation": true,
-  "azureDevOpsIntegration.enablePullRequestCreation": true,
   "azureDevOpsIntegration.branchNameTemplate": "feature/{id}-{title}",
+  "azureDevOpsIntegration.enableBranchCreation": true,
 
-  // Azure DevOps API rate limiting
-  "azureDevOpsIntegration.apiRatePerSecond": 2,
-  "azureDevOpsIntegration.apiBurst": 5,
+  // Work items
+  "azureDevOpsIntegration.workItemsPerPage": 50,
+  "azureDevOpsIntegration.enableAutoRefresh": true,
+
+  // Debugging
+  "azureDevOpsIntegration.debugLogging": false,
 }
 ```
 
-The Personal Access Token is stored via the VS Code secret storage (not in settings.json).
+> **Note**: Personal Access Tokens are stored securely in VS Code's secret store, not in settings.json.
 
-## 🔍 Logging & Diagnostics
+## 🔍 Troubleshooting
 
-Enable setting: azureDevOpsIntegration.debugLogging. An output channel "Azure DevOps Integration" appears with verbose lifecycle, webview message, and refresh diagnostics.
+If you encounter issues:
 
-Quick ways to share logs
+1. **Enable Debug Logging**: Set `azureDevOpsIntegration.debugLogging` to `true` in settings
+2. **View Logs**: Run `Azure DevOps Integration: Open Logs` to see detailed diagnostics
+3. **Copy Logs**: Use `Azure DevOps Integration: Copy Logs to Clipboard` to share logs for support
 
-- Command palette → "Azure DevOps: Open Logs" to open the extension's Output channel. If verbose logging is off, you'll be prompted to enable it. Reproduce the issue, then copy the output and attach it to your issue.
-- Command palette → "Azure DevOps: Copy Logs to Clipboard" to copy the collected logs (including webview forwarding and context header) in one click.
-- Command palette → "Azure DevOps: Open Logs Folder (VS Code)" to open the VS Code logs directory. Zip the folder for the current window (it contains extension host logs like exthost.log) and attach it to your issue if requested.
-- Optional: Developer Tools (Help → Toggle Developer Tools) can surface webview console errors. The extension forwards many webview console messages into the Output channel when logging is enabled.
+### Common Issues
 
-Rate limiting controls
-
-- You can tune Azure DevOps REST throughput via `azureDevOpsIntegration.apiRatePerSecond` and `azureDevOpsIntegration.apiBurst` if your org has strict throttling or you're working with very large queries.
-
-## 🔄 Migration & Backward Compatibility
-
-- Legacy config keys under azureDevOps.\* are auto‑migrated if the new values are empty.
-- Legacy secret key azureDevOps.pat is migrated to azureDevOpsInt.pat.
-- Class alias: AzureDevOpsClient (deprecated) still exported pointing to AzureDevOpsIntClient.
-
-## ❓ Troubleshooting
-
-| Issue                | Hint                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------------ |
-| Empty work item list | Verify organization/project & WIQL query (default: My Work Items). Check PAT scopes. |
-| Timer not starting   | Ensure a work item is selected; confirm no existing active timer.                    |
-| PR creation fails    | Confirm Code (Read & Write) scope on PAT and repository presence.                    |
-
-### Pull requests and preferred repositories
-
-- The first time you create a PR, you'll be prompted to pick one or more repositories. These are saved as `azureDevOpsIntegration.preferredRepositoryIds`.
-- To change or clear your choices, run: Azure DevOps Integration: Reset Preferred Repositories.
-- The "Show My Pull Requests" command searches across repositories and filters to your identity.
+| Issue                | Solution                                                        |
+| -------------------- | --------------------------------------------------------------- |
+| Empty work item list | Verify organization/project settings and PAT scopes             |
+| Timer not starting   | Ensure a work item is selected and no timer is already active   |
+| PR creation fails    | Confirm PAT has Code (Read & Write) scope and repository exists |
 
 ## 📦 Development
 
-Scripts:
+This extension is built with modern tooling and follows VS Code extension best practices:
 
-- build:all – build the extension bundle
-- screenshots:setup – one-time install of Playwright browser (Chromium)
-- screenshots:capture – generate PNGs from the committed webview using fixture data
-- screenshots:build – build extension then capture screenshots
-- screenshots:watch – watch `media/webview/**` and recapture on change
+- **TypeScript** with strict type checking
+- **Svelte** for the webview UI components
+- **ESBuild** for fast compilation
+- **Comprehensive testing** with unit and integration tests
 
-Launch configs (/.vscode) let you run the extension with live reload (watch tasks).
+### Development Scripts
 
-Optional: MCP server for automation
+```bash
+npm run build          # Build the extension
+npm run test           # Run unit tests
+npm run test:integration # Run integration tests
+npm run screenshots:capture # Generate documentation screenshots
+```
 
-- This repo includes a minimal Model Context Protocol (MCP) server that exposes a lean set of Azure DevOps Work Item operations over JSON-RPC. See `mcp-server/README.md` if you want to script or integrate with agent toolchains.
+### MCP Server
 
-## 📘 Queries and compatibility
-
-- Process‑agnostic active filter: when supported by your org, the extension uses `[System.StateCategory] <> 'Completed'` and excludes items in `'Removed'` for default queries like "My Work Items", "All Active", and "Current Sprint".
-- Runtime fallback: some organizations or older processes reject `System.StateCategory` in WIQL. If that happens, the extension automatically falls back to a legacy filter equivalent to `NOT IN ('Closed','Done','Resolved','Removed')` and retries the query.
-- Recently Updated window: the "Recently Updated" query uses a 14‑day window (`[System.ChangedDate] >= @Today - 14`).
+The repository includes a Model Context Protocol (MCP) server for automation and agent integrations. See `mcp-server/README.md` for details.
 
 ## 🤝 Contributing
 

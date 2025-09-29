@@ -1,0 +1,551 @@
+/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/Toasts.esbuild-svelte-fake-css */
+.toast-region.svelte-cy4nnu.svelte-cy4nnu {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1000;
+  max-width: 360px;
+  pointer-events: none;
+}
+.toast.svelte-cy4nnu.svelte-cy4nnu {
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  padding: 10px 12px 10px 14px;
+  border-left: 4px solid var(--vscode-editorWidget-border);
+  border-radius: 6px;
+  color: var(--vscode-editor-foreground);
+  font-size: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  pointer-events: auto;
+  animation: svelte-cy4nnu-fadeIn 160ms ease;
+}
+.toast.info.svelte-cy4nnu.svelte-cy4nnu {
+  border-left-color: var(--ado-blue);
+}
+.toast.success.svelte-cy4nnu.svelte-cy4nnu {
+  border-left-color: var(--state-resolved);
+}
+.toast.warning.svelte-cy4nnu.svelte-cy4nnu {
+  border-left-color: var(--ado-orange);
+}
+.toast.error.svelte-cy4nnu.svelte-cy4nnu {
+  border-left-color: var(--ado-red);
+}
+.toast.svelte-cy4nnu .msg.svelte-cy4nnu {
+  flex: 1;
+  line-height: 1.3;
+}
+.toast.svelte-cy4nnu button.close.svelte-cy4nnu {
+  border: none;
+  background: transparent;
+  color: var(--vscode-editor-foreground);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  line-height: 1;
+  border-radius: 3px;
+}
+.toast.svelte-cy4nnu button.close.svelte-cy4nnu:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+@keyframes svelte-cy4nnu-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/App.esbuild-svelte-fake-css */
+.pane.svelte-voz37t.svelte-voz37t {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--vscode-editor-background);
+  color: var(--vscode-editor-foreground);
+  font-family: var(--vscode-font-family);
+}
+.pane-header.svelte-voz37t.svelte-voz37t {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--vscode-editorWidget-border);
+  background: var(--vscode-editorGroupHeader-tabsBackground);
+  color: var(--vscode-editor-foreground);
+  flex-shrink: 0;
+}
+.muted.svelte-voz37t.svelte-voz37t {
+  opacity: 0.7;
+}
+.count.svelte-voz37t.svelte-voz37t {
+  margin-left: auto;
+  opacity: 0.85;
+}
+.actions.svelte-voz37t.svelte-voz37t {
+  display: inline-flex;
+  gap: 6px;
+}
+.filters.svelte-voz37t.svelte-voz37t {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: 8px;
+}
+.filters.svelte-voz37t input.svelte-voz37t,
+.filters.svelte-voz37t select.svelte-voz37t {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 3px;
+}
+.spinner.svelte-voz37t.svelte-voz37t {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--vscode-editorWidget-border);
+  border-top-color: var(--ado-blue);
+  border-radius: 50%;
+  animation: svelte-voz37t-spin 1s linear infinite;
+  display: inline-block;
+  margin-left: 6px;
+}
+@keyframes svelte-voz37t-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+button.svelte-voz37t.svelte-voz37t {
+  font-size: 11px;
+  padding: 4px 8px;
+  color: var(--vscode-button-foreground);
+  background: var(--ado-blue);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--vscode-font-family);
+}
+button.svelte-voz37t.svelte-voz37t:hover {
+  background: var(--ado-blue-light);
+}
+button[disabled].svelte-voz37t.svelte-voz37t {
+  opacity: 0.5;
+  cursor: default;
+  filter: grayscale(0.2);
+}
+.pane-body.svelte-voz37t.svelte-voz37t {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.empty.svelte-voz37t.svelte-voz37t {
+  padding: 20px;
+  font-size: 14px;
+  opacity: 0.7;
+  text-align: center;
+}
+.loading.svelte-voz37t.svelte-voz37t {
+  padding: 20px;
+  font-size: 14px;
+  opacity: 0.9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+.error-banner.svelte-voz37t.svelte-voz37t {
+  margin: 8px;
+  padding: 8px;
+  border: 1px solid var(--ado-red);
+  background: rgba(209, 52, 56, 0.1);
+  color: var(--ado-red);
+  border-radius: 4px;
+  font-size: 12px;
+}
+.items.svelte-voz37t.svelte-voz37t {
+  padding: 8px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.work-item-card.svelte-voz37t.svelte-voz37t {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 4px;
+  background: var(--vscode-editor-background);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+.work-item-card.svelte-voz37t.svelte-voz37t:hover {
+  background: var(--vscode-list-hoverBackground);
+  border-color: var(--ado-blue);
+  box-shadow: 0 2px 8px rgba(0, 120, 212, 0.1);
+}
+.work-item-card.has-active-timer.svelte-voz37t.svelte-voz37t {
+  border-left: 3px solid var(--ado-orange);
+}
+.work-item-header.svelte-voz37t.svelte-voz37t {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.work-item-type-icon.svelte-voz37t.svelte-voz37t {
+  font-family: "codicon";
+  font-size: 16px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+  color: var(--ado-blue);
+}
+.work-item-id.svelte-voz37t.svelte-voz37t {
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.work-item-priority.svelte-voz37t.svelte-voz37t {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 600;
+}
+.priority-1.svelte-voz37t.svelte-voz37t {
+  color: var(--ado-red);
+}
+.priority-2.svelte-voz37t.svelte-voz37t {
+  color: var(--ado-orange);
+}
+.priority-3.svelte-voz37t.svelte-voz37t {
+  color: var(--ado-blue);
+}
+.priority-4.svelte-voz37t.svelte-voz37t {
+  color: var(--ado-gray);
+}
+.work-item-content.svelte-voz37t.svelte-voz37t {
+  flex: 1;
+  margin-bottom: 8px;
+}
+.work-item-title.svelte-voz37t.svelte-voz37t {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.3;
+  margin-bottom: 6px;
+  color: var(--vscode-editor-foreground);
+}
+.work-item-desc.svelte-voz37t.svelte-voz37t {
+  font-size: 11px;
+  line-height: 1.3;
+  margin-bottom: 6px;
+  opacity: 0.75;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+}
+.work-item-meta.svelte-voz37t.svelte-voz37t {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+.work-item-type.svelte-voz37t.svelte-voz37t {
+  padding: 2px 6px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 500;
+}
+.work-item-state.svelte-voz37t.svelte-voz37t {
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+.state-todo.svelte-voz37t.svelte-voz37t,
+.state-new.svelte-voz37t.svelte-voz37t {
+  background: rgba(0, 120, 212, 0.2);
+  color: var(--state-new);
+}
+.state-active.svelte-voz37t.svelte-voz37t,
+.state-inprogress.svelte-voz37t.svelte-voz37t,
+.state-doing.svelte-voz37t.svelte-voz37t {
+  background: rgba(255, 140, 0, 0.2);
+  color: var(--state-active);
+}
+.state-resolved.svelte-voz37t.svelte-voz37t,
+.state-done.svelte-voz37t.svelte-voz37t,
+.state-closed.svelte-voz37t.svelte-voz37t {
+  background: rgba(16, 124, 16, 0.2);
+  color: var(--state-resolved);
+}
+.state-removed.svelte-voz37t.svelte-voz37t {
+  background: rgba(209, 52, 56, 0.2);
+  color: var(--state-removed);
+}
+.state-review.svelte-voz37t.svelte-voz37t {
+  background: rgba(92, 45, 145, 0.2);
+  color: var(--ado-purple);
+}
+.timer-indicator.svelte-voz37t.svelte-voz37t {
+  background: rgba(255, 140, 0, 0.2);
+  color: var(--ado-orange);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 140, 0, 0.3);
+  animation: svelte-voz37t-pulse 2s infinite;
+}
+@keyframes svelte-voz37t-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+.work-item-actions.svelte-voz37t.svelte-voz37t {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.work-item-card.svelte-voz37t:hover .work-item-actions.svelte-voz37t {
+  opacity: 1;
+}
+.action-btn.svelte-voz37t.svelte-voz37t {
+  padding: 6px 8px;
+  background: var(--vscode-button-secondaryBackground);
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.1s ease;
+  color: var(--vscode-button-secondaryForeground);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: "codicon";
+}
+.action-btn.svelte-voz37t.svelte-voz37t:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+  border-color: var(--ado-blue);
+}
+.action-btn.start.svelte-voz37t.svelte-voz37t {
+  background: var(--ado-green);
+  color: white;
+  border-color: var(--ado-green);
+}
+.action-btn.start.svelte-voz37t.svelte-voz37t:hover {
+  background: rgba(16, 124, 16, 0.8);
+}
+.action-btn.stop.svelte-voz37t.svelte-voz37t {
+  background: var(--ado-red);
+  color: white;
+  border-color: var(--ado-red);
+}
+.action-btn.stop.svelte-voz37t.svelte-voz37t:hover {
+  background: rgba(209, 52, 56, 0.8);
+}
+.action-btn.view.svelte-voz37t.svelte-voz37t {
+  background: var(--ado-blue);
+  color: white;
+  border-color: var(--ado-blue);
+}
+.action-btn.view.svelte-voz37t.svelte-voz37t:hover {
+  background: var(--ado-blue-light);
+}
+.action-btn.edit.svelte-voz37t.svelte-voz37t {
+  background: var(--ado-purple);
+  color: white;
+  border-color: var(--ado-purple);
+}
+.action-btn.edit.svelte-voz37t.svelte-voz37t:hover {
+  background: rgba(92, 45, 145, 0.8);
+}
+.action-btn.comment.svelte-voz37t.svelte-voz37t {
+  background: var(--ado-gray);
+  color: white;
+  border-color: var(--ado-gray);
+}
+.action-btn.comment.svelte-voz37t.svelte-voz37t:hover {
+  background: var(--ado-gray-light);
+}
+.kanban-board.svelte-voz37t.svelte-voz37t {
+  display: flex;
+  gap: 12px;
+  padding: 8px;
+  overflow-x: auto;
+  flex: 1;
+}
+.kanban-column.svelte-voz37t.svelte-voz37t {
+  min-width: 280px;
+  max-width: 320px;
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background);
+  display: flex;
+  flex-direction: column;
+}
+.kanban-column-header.svelte-voz37t.svelte-voz37t {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--vscode-editorWidget-border);
+  background: var(--vscode-editorGroupHeader-tabsBackground);
+  border-top: 3px solid transparent;
+}
+.kanban-column-header.svelte-voz37t h3.svelte-voz37t {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+}
+.item-count.svelte-voz37t.svelte-voz37t {
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.kanban-column-content.svelte-voz37t.svelte-voz37t {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+}
+.kanban-card.svelte-voz37t.svelte-voz37t {
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--vscode-editor-background);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.kanban-card.svelte-voz37t.svelte-voz37t:hover {
+  background: var(--vscode-list-hoverBackground);
+  border-color: var(--ado-blue);
+}
+.kanban-card.svelte-voz37t .title.svelte-voz37t {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--vscode-editor-foreground);
+  font-size: 13px;
+}
+.kanban-card.svelte-voz37t .meta.svelte-voz37t {
+  font-size: 11px;
+  opacity: 0.8;
+  margin-bottom: 6px;
+}
+.kanban-card.svelte-voz37t .actions.svelte-voz37t {
+  display: inline-flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.kanban-card.svelte-voz37t:hover .actions.svelte-voz37t {
+  opacity: 1;
+}
+.kanban-column.state-todo.svelte-voz37t .kanban-column-header.svelte-voz37t {
+  border-top-color: var(--state-new);
+}
+.kanban-column.state-active.svelte-voz37t .kanban-column-header.svelte-voz37t {
+  border-top-color: var(--state-active);
+}
+.kanban-column.state-inprogress.svelte-voz37t .kanban-column-header.svelte-voz37t {
+  border-top-color: var(--state-active);
+}
+.kanban-column.state-review.svelte-voz37t .kanban-column-header.svelte-voz37t {
+  border-top-color: var(--ado-purple);
+}
+.kanban-column.state-resolved.svelte-voz37t .kanban-column-header.svelte-voz37t {
+  border-top-color: var(--state-resolved);
+}
+.kanban-column.state-done.svelte-voz37t .kanban-column-header.svelte-voz37t {
+  border-top-color: var(--state-resolved);
+}
+.kanban-column.state-removed.svelte-voz37t .kanban-column-header.svelte-voz37t {
+  border-top-color: var(--state-removed);
+}
+.kanban-card.state-todo.svelte-voz37t.svelte-voz37t {
+  border-left-color: var(--state-new);
+}
+.kanban-card.state-active.svelte-voz37t.svelte-voz37t {
+  border-left-color: var(--state-active);
+}
+.kanban-card.state-inprogress.svelte-voz37t.svelte-voz37t {
+  border-left-color: var(--state-active);
+}
+.kanban-card.state-review.svelte-voz37t.svelte-voz37t {
+  border-left-color: var(--ado-purple);
+}
+.kanban-card.state-resolved.svelte-voz37t.svelte-voz37t {
+  border-left-color: var(--state-resolved);
+}
+.kanban-card.state-done.svelte-voz37t.svelte-voz37t {
+  border-left-color: var(--state-resolved);
+}
+.kanban-card.state-removed.svelte-voz37t.svelte-voz37t {
+  border-left-color: var(--state-removed);
+}
+.action-btn.compact.svelte-voz37t.svelte-voz37t {
+  min-width: 28px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+.kanban-card.svelte-voz37t .work-item-actions.svelte-voz37t {
+  justify-content: center;
+  gap: 4px;
+}
+.kanban-card.svelte-voz37t .work-item-header.svelte-voz37t {
+  margin-bottom: 6px;
+}
+.kanban-card.svelte-voz37t .work-item-content.svelte-voz37t {
+  margin-bottom: 8px;
+}
+.kanban-card.svelte-voz37t .timer-indicator.svelte-voz37t {
+  font-size: 10px;
+  margin-left: auto;
+}
+/*# sourceMappingURL=svelte-main.css.map */

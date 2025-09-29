@@ -3,32 +3,98 @@ import type { WorkItem } from './types.js';
 
 export type PostMessageFn = (msg: any) => void;
 
+export type ProviderLogger = {
+  debug?: (message: string, meta?: any) => void;
+  info?: (message: string, meta?: any) => void;
+  warn?: (message: string, meta?: any) => void;
+  error?: (message: string, meta?: any) => void;
+};
+
+type ProviderOptions = {
+  kanbanView?: boolean;
+  currentFilters?: Record<string, any>;
+  logger?: ProviderLogger;
+  debounceMs?: number;
+};
+
+function isProviderOptions(value: any): value is ProviderOptions {
+  return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+const DEFAULT_QUERY = 'My Activity';
+
 export class WorkItemsProvider {
+  private connectionId: string;
   private client: AzureDevOpsIntClient | undefined;
-  private postMessage: PostMessageFn | undefined;
+  private postMessage: PostMessageFn;
+  private logger: ProviderLogger | undefined;
+  private debounceMs = 2000;
   private _workItems: WorkItem[] = [];
   private _selectedWorkItem: WorkItem | undefined;
   private _kanbanView = false;
   private _currentFilters: Record<string, any> = {};
   private _refreshInFlight = false;
   private _lastRefreshTs = 0;
+  private _workItemTypes: string[] = [];
+  private _currentQuery: string = DEFAULT_QUERY;
 
   constructor(
-    client: AzureDevOpsIntClient,
-    postMessage: PostMessageFn,
-    options: { kanbanView?: boolean; currentFilters?: Record<string, any> } = {}
+    connectionOrClient: string | AzureDevOpsIntClient,
+    clientOrPostMessage: AzureDevOpsIntClient | PostMessageFn,
+    postMessageOrOptions?: PostMessageFn | ProviderOptions,
+    maybeOptions?: ProviderOptions
   ) {
-    this.client = client;
-    this.postMessage = postMessage;
-    this._kanbanView = options.kanbanView ?? false;
-    this._currentFilters = options.currentFilters ?? {};
+    if (typeof connectionOrClient === 'string') {
+      this.connectionId = connectionOrClient;
+      this.client = clientOrPostMessage as AzureDevOpsIntClient;
+      this.postMessage =
+        (typeof postMessageOrOptions === 'function' ? postMessageOrOptions : undefined) ||
+        (() => {});
+      this.applyOptions(maybeOptions ?? {});
+    } else {
+      // Legacy signature: (client, postMessage, options)
+      this.connectionId = 'default';
+      this.client = connectionOrClient;
+      this.postMessage =
+        (typeof clientOrPostMessage === 'function' ? clientOrPostMessage : undefined) || (() => {});
+      this.applyOptions(isProviderOptions(postMessageOrOptions) ? postMessageOrOptions : {});
+    }
   }
 
-  async refresh(defaultQuery = 'My Work Items') {
-    if (!this.client) return;
+  private applyOptions(options: ProviderOptions) {
+    this._kanbanView = options.kanbanView ?? this._kanbanView;
+    this._currentFilters = options.currentFilters ?? this._currentFilters;
+    this.logger = options.logger ?? this.logger;
+    if (typeof options.debounceMs === 'number' && options.debounceMs >= 0) {
+      this.debounceMs = options.debounceMs;
+    }
+  }
+
+  updateClient(nextClient: AzureDevOpsIntClient | undefined) {
+    this.client = nextClient;
+    this._workItemTypes = [];
+  }
+
+  setPostMessage(nextPostMessage: PostMessageFn) {
+    this.postMessage = nextPostMessage || (() => {});
+  }
+
+  setLogger(nextLogger: ProviderLogger | undefined) {
+    this.logger = nextLogger;
+  }
+
+  getConnectionId() {
+    return this.connectionId;
+  }
+
+  async refresh(query?: string) {
+    if (!this.client || typeof (this.client as any).getWorkItems !== 'function') {
+      this.log('warn', 'Cannot refresh work items; client missing getWorkItems');
+      return;
+    }
     const now = Date.now();
     // Debounce: skip if a refresh completed less than 2000ms ago
-    if (now - this._lastRefreshTs < 2000) {
+    if (now - this._lastRefreshTs < this.debounceMs) {
       return;
     }
     if (this._refreshInFlight) {
@@ -37,19 +103,64 @@ export class WorkItemsProvider {
     }
     this._refreshInFlight = true;
     try {
-      console.log('[azureDevOpsInt] refresh(): starting fetch for query:', defaultQuery);
-      const fetched = await this.client.getWorkItems(defaultQuery);
-      console.log('[azureDevOpsInt] refresh(): received', fetched.length, 'work items');
+      const normalizedQuery =
+        typeof query === 'string' && query.trim().length > 0
+          ? query.trim()
+          : this._currentQuery || DEFAULT_QUERY;
+      this._currentQuery = normalizedQuery;
+
+      const shouldFetchTypes =
+        this._workItemTypes.length === 0 &&
+        typeof (this.client as any).getWorkItemTypes === 'function';
+      const typePromise: Promise<any[] | null> | null = shouldFetchTypes
+        ? Promise.resolve()
+            .then(() => (this.client as any).getWorkItemTypes())
+            .catch((err: any) => {
+              this.log('warn', 'Failed to fetch work item types', {
+                connectionId: this.connectionId,
+                error: err?.message || String(err),
+              });
+              return null;
+            })
+        : null;
+
+      this.log('debug', 'refresh(): starting fetch', {
+        connectionId: this.connectionId,
+        query: normalizedQuery,
+      });
+      const fetched = await this.client.getWorkItems(normalizedQuery);
+      this.log('info', 'refresh(): completed fetch', {
+        connectionId: this.connectionId,
+        count: Array.isArray(fetched) ? fetched.length : 'n/a',
+      });
+
+      if (typePromise) {
+        try {
+          const rawTypes = await typePromise;
+          if (Array.isArray(rawTypes) && rawTypes.length > 0) {
+            this._mergeWorkItemTypesFromNames(this._normalizeTypeNames(rawTypes));
+          }
+        } catch {
+          // Errors already logged in catch above; swallow here to avoid aborting refresh
+        }
+      }
 
       // Always update the work items, even if empty
       this._workItems = fetched;
+      this._mergeWorkItemTypesFromItems(fetched);
       this._postWorkItemsLoaded();
 
       if (fetched.length === 0) {
-        console.log('[azureDevOpsInt] refresh(): No work items found for query:', defaultQuery);
+        this.log('debug', 'refresh(): no results for query', {
+          connectionId: this.connectionId,
+          query: normalizedQuery,
+        });
       }
     } catch (err: any) {
-      console.error('[azureDevOpsInt] Failed to refresh work items:', err);
+      this.log('error', 'Failed to refresh work items', {
+        connectionId: this.connectionId,
+        error: err?.message || String(err),
+      });
       this._error(err.message || 'Failed to load work items');
     } finally {
       this._refreshInFlight = false;
@@ -62,47 +173,76 @@ export class WorkItemsProvider {
     return this.client.getWorkItemById(id);
   }
 
-  async createWorkItem(type: string, title: string, description?: string, assignedTo?: string) {
-    if (!this.client) throw new Error('No client');
-    const created = await this.client.createWorkItem(type, title, description, assignedTo);
+  async createWorkItem(
+    type: string,
+    title: string,
+    description?: string,
+    assignedTo?: string,
+    extraFields?: Record<string, unknown>
+  ) {
+    if (!this.client || typeof (this.client as any).createWorkItem !== 'function') {
+      throw new Error('No client');
+    }
+    const created = await this.client.createWorkItem(
+      type,
+      title,
+      description,
+      assignedTo,
+      extraFields
+    );
     await this.refresh();
     return created;
   }
 
   async updateWorkItem(id: number, patchOps: any[]) {
-    if (!this.client) throw new Error('No client');
+    if (!this.client || typeof (this.client as any).updateWorkItem !== 'function') {
+      throw new Error('No client');
+    }
     const updated = await this.client.updateWorkItem(id, patchOps);
     await this.refresh();
     return updated;
   }
 
   async addWorkItemComment(id: number, text: string) {
-    if (!this.client) throw new Error('No client');
+    if (!this.client || typeof (this.client as any).addWorkItemComment !== 'function') {
+      throw new Error('No client');
+    }
     return this.client.addWorkItemComment(id, text);
   }
 
   async addTimeEntry(id: number, hours: number, note?: string) {
-    if (!this.client) throw new Error('No client');
+    if (!this.client || typeof (this.client as any).addTimeEntry !== 'function') {
+      throw new Error('No client');
+    }
     await this.client.addTimeEntry(id, hours, note);
     await this.refresh();
   }
 
   async search(term: string) {
-    if (!this.client) return [];
+    if (!this.client || typeof (this.client as any).searchWorkItems !== 'function') {
+      this.log('warn', 'search() skipped; client missing searchWorkItems');
+      return [];
+    }
     const res = await this.client.searchWorkItems(term);
     this.showWorkItems(res);
     return res;
   }
 
   async filter(filterObj: any) {
-    if (!this.client) return [];
+    if (!this.client || typeof (this.client as any).filterWorkItems !== 'function') {
+      this.log('warn', 'filter() skipped; client missing filterWorkItems');
+      return [];
+    }
     const res = await this.client.filterWorkItems(filterObj);
     this.showWorkItems(res);
     return res;
   }
 
   async runWIQL(wiql: string) {
-    if (!this.client) return [];
+    if (!this.client || typeof (this.client as any).runWIQL !== 'function') {
+      this.log('warn', 'runWIQL() skipped; client missing runWIQL');
+      return [];
+    }
     return this.client.runWIQL(wiql);
   }
 
@@ -113,6 +253,7 @@ export class WorkItemsProvider {
     } else {
       this._workItems = items;
     }
+    this._mergeWorkItemTypesFromItems(items);
     this._postWorkItemsLoaded();
   }
 
@@ -132,6 +273,7 @@ export class WorkItemsProvider {
     this._workItems = [];
     this._selectedWorkItem = undefined;
     this._currentFilters = {};
+    this._workItemTypes = [];
   }
 
   private _postWorkItemsLoaded() {
@@ -139,15 +281,89 @@ export class WorkItemsProvider {
       type: 'workItemsLoaded',
       workItems: this._workItems,
       kanbanView: this._kanbanView,
+      query: this._currentQuery,
     });
+    this._postWorkItemTypeOptions();
     if (Object.keys(this._currentFilters).length > 0)
       this._post({ type: 'restoreFilters', filters: this._currentFilters });
   }
   private _post(msg: any) {
-    this.postMessage && this.postMessage(msg);
+    if (!this.postMessage) return;
+    if (msg && typeof msg === 'object' && !Array.isArray(msg)) {
+      this.postMessage({ connectionId: this.connectionId, ...msg });
+    } else {
+      this.postMessage(msg);
+    }
   }
   private _error(message: string) {
     this._post({ type: 'error', message });
+  }
+
+  private log(level: 'debug' | 'info' | 'warn' | 'error', message: string, meta?: any) {
+    if (!this.logger) return;
+    const fn = this.logger[level];
+    if (typeof fn === 'function') {
+      try {
+        fn(message, meta);
+      } catch {
+        // ignore logger failures
+      }
+    }
+  }
+
+  getWorkItemTypeOptions() {
+    return [...this._workItemTypes];
+  }
+
+  private _normalizeTypeNames(rawTypes: any[]): string[] {
+    if (!Array.isArray(rawTypes)) return [];
+    return rawTypes
+      .map((entry: any) => {
+        if (!entry) return '';
+        if (typeof entry === 'string') return entry.trim();
+        if (typeof entry.name === 'string') return entry.name.trim();
+        if (typeof entry.text === 'string') return entry.text.trim();
+        if (typeof entry.referenceName === 'string') return entry.referenceName.trim();
+        return '';
+      })
+      .filter((name: string) => name.length > 0);
+  }
+
+  private _mergeWorkItemTypesFromNames(names: string[]) {
+    if (!Array.isArray(names) || names.length === 0) return;
+    const current = new Set(this._workItemTypes);
+    let changed = false;
+    for (const raw of names) {
+      const value = typeof raw === 'string' ? raw.trim() : '';
+      if (!value) continue;
+      if (!current.has(value)) {
+        current.add(value);
+        changed = true;
+      }
+    }
+    if (changed) {
+      this._workItemTypes = Array.from(current).sort((a, b) => a.localeCompare(b));
+    }
+  }
+
+  private _mergeWorkItemTypesFromItems(items: WorkItem[]) {
+    if (!Array.isArray(items) || items.length === 0) return;
+    const names = items
+      .map((item: any) => {
+        const fromFlattened = typeof item?.type === 'string' ? item.type : undefined;
+        const fromFields =
+          typeof item?.fields?.['System.WorkItemType'] === 'string'
+            ? item.fields['System.WorkItemType']
+            : undefined;
+        const value = fromFlattened || fromFields;
+        return typeof value === 'string' ? value.trim() : '';
+      })
+      .filter((name: string) => name.length > 0);
+    this._mergeWorkItemTypesFromNames(names);
+  }
+
+  private _postWorkItemTypeOptions() {
+    this._post({ type: 'workItemTypeOptions', types: [...this._workItemTypes] });
   }
 }
 

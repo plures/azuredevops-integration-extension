@@ -1,0 +1,30 @@
+Azure DevOps Integration Logs
+Version: 1.8.3
+Timestamp: 2025-09-26T19:36:45.911Z
+Lines: 25
+---
+[activate] Debug logging enabled
+2025-09-26T19:24:19.092Z [connections] Loaded connections from config {"count":1,"ids":["42c0eb89-58cc-4ab9-8881-b74dfff647c3"]}
+2025-09-26T19:24:19.092Z [silentInit] initialized connections {"connectionCount":1,"activeConnectionId":"42c0eb89-58cc-4ab9-8881-b74dfff647c3"}
+2025-09-26T19:24:19.093Z [ensureActiveConnection] evaluating target {"requested":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","activeConnectionId":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","resolved":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","connectionCount":1}
+2025-09-26T19:24:19.093Z [ensureActiveConnection] using connection {"id":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","organization":"msazuredev","project":"SFTCloudInfra"}
+2025-09-26T19:24:19.276Z [ensureActiveConnection] creating new client {"id":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","organization":"msazuredev","project":"SFTCloudInfra"}
+2025-09-26T19:24:19.276Z [ensureActiveConnection] creating provider {"id":"42c0eb89-58cc-4ab9-8881-b74dfff647c3"}
+2025-09-26T19:24:19.276Z [ensureActiveConnection] provider ready {"id":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","hasClient":true}
+2025-09-26T19:24:19.804Z [silentInit] ensureActiveConnection returned {"hasState":true,"stateId":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","hasProvider":true}
+2025-09-26T19:24:44.431Z [initDomainObjects] start
+2025-09-26T19:24:44.432Z [ensureActiveConnection] evaluating target {"requested":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","activeConnectionId":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","resolved":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","connectionCount":1}
+2025-09-26T19:24:44.432Z [ensureActiveConnection] using connection {"id":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","organization":"msazuredev","project":"SFTCloudInfra"}
+2025-09-26T19:24:44.545Z [ensureActiveConnection] provider ready {"id":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","hasClient":true}
+2025-09-26T19:24:44.551Z [initDomainObjects] ensured active connection {"hasState":true,"connectionId":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","hasProvider":true}
+2025-09-26T19:24:44.551Z [postToWebview] posting message {"type":"connectionsUpdate","hasPanel":true}
+2025-09-26T19:24:44.551Z [initDomainObjects] panel ready, refreshing provider {"id":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","query":"SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.State] <> 'Closed' ORDER BY [System.CreatedDate] DESC"}
+2025-09-26T19:24:45.082Z [webview->ext] {"type":"webviewConsole","level":"log","args":["[webview] Azure DevOps Integration v1.8.3"]}
+[webviewConsole][log] [webview] Azure DevOps Integration v1.8.3
+2025-09-26T19:24:45.083Z [webview->ext] {"type":"webviewReady"}
+2025-09-26T19:24:45.083Z [webview->ext] {"type":"getWorkItems"}
+2025-09-26T19:24:45.083Z Work items requested from webview
+2025-09-26T19:24:45.083Z [getWorkItems] current state {"hasProvider":true,"cachedCount":0,"activeConnectionId":"42c0eb89-58cc-4ab9-8881-b74dfff647c3","connections":["42c0eb89-58cc-4ab9-8881-b74dfff647c3"]}
+2025-09-26T19:24:45.083Z [getWorkItems] responding with cached items {"count":0}
+2025-09-26T19:24:45.083Z Provider returned zero cached work items; triggering refresh
+2025-09-26T19:24:45.615Z [postToWebview] posting message {"type":"workItemsLoaded","hasPanel":true}

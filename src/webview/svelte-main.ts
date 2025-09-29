@@ -56,19 +56,94 @@ let kanbanView = false;
 let loading = true;
 let errorMsg: string = '';
 let filterText = '';
+let typeFilter = '';
 let stateFilter: string = 'all';
 let sortKey: string = 'updated-desc';
+let normalizedQuery = '';
 // Track optimistic moves so we can revert on failure
 const pendingMoves = new Map<number, { prevState: string }>();
 // Available normalized states (for filter dropdown)
 let stateOptions: string[] = [];
+let typeOptions: string[] = [];
+const typeOptionHints = new Set<string>();
+let searchHaystackCache = new WeakMap<any, string>();
+let summaryOpen = false;
+let summaryDraft = '';
+let summaryStatus = '';
+let summaryProvider: 'builtin' | 'openai' = 'builtin';
+let summaryBusy = false;
+let summaryWorkItemId: number | null = null;
+let summaryTargetTitle = '';
+let summaryBusyTimer: ReturnType<typeof setTimeout> | undefined;
+let summaryStatusTimer: ReturnType<typeof setTimeout> | undefined;
 // Initialize kanbanView from persisted webview state if available
 try {
   const st =
     vscode && typeof (vscode as any).getState === 'function' ? (vscode as any).getState() : null;
   if (st && typeof st.kanbanView === 'boolean') kanbanView = !!st.kanbanView;
+  if (st && typeof st.summaryOpen === 'boolean') summaryOpen = !!st.summaryOpen;
+  if (st && typeof st.typeFilter === 'string') typeFilter = st.typeFilter;
+  if (st && typeof st.summaryWorkItemId === 'number') {
+    summaryWorkItemId = st.summaryWorkItemId || null;
+  }
 } catch (e) {
   console.warn('[svelte-main] Unable to read persisted state', e);
+}
+
+function getAppProps() {
+  return {
+    workItemCount,
+    subtitle: '',
+    hasItems: itemsForView.length > 0,
+    timerActive,
+    timerRunning,
+    timerElapsedLabel,
+    activeId,
+    activeTitle,
+    items: itemsForView,
+    kanbanView,
+    loading,
+    errorMsg,
+    filterText,
+    typeFilter,
+    stateFilter,
+    sortKey,
+    availableStates: stateOptions,
+    availableTypes: typeOptions,
+    summaryOpen,
+    summaryDraft,
+    summaryStatus,
+    summaryProvider,
+    summaryBusy,
+    summaryTargetId: summaryWorkItemId ?? 0,
+    summaryTargetTitle,
+  };
+}
+
+function syncApp() {
+  ensureApp();
+  (app as any).$set(getAppProps());
+}
+
+function persistViewState(extra?: Record<string, unknown>) {
+  try {
+    if (!vscode || typeof (vscode as any).setState !== 'function') return;
+    const prev =
+      (typeof (vscode as any).getState === 'function' && (vscode as any).getState()) || {};
+    (vscode as any).setState({
+      ...prev,
+      kanbanView,
+      filterText,
+      typeFilter,
+      stateFilter,
+      sortKey,
+      summaryOpen,
+      summaryWorkItemId,
+      ...extra,
+    });
+  } catch (e) {
+    console.warn('[svelte-main] Unable to persist view state', e);
+  }
 }
 function ensureApp() {
   if (app) return app;
@@ -78,29 +153,13 @@ function ensureApp() {
   container.insertBefore(root, container.firstChild);
   app = new App({
     target: root,
-    props: {
-      workItemCount,
-      subtitle: '',
-      hasItems: (lastWorkItems || []).length > 0,
-      timerActive,
-      timerRunning,
-      timerElapsedLabel,
-      activeId,
-      activeTitle,
-      items: itemsForView,
-      kanbanView,
-      loading,
-      errorMsg,
-      filterText,
-      stateFilter,
-      sortKey,
-    },
+    props: getAppProps(),
   });
   // Hook up UI events
   (app as any).$on('refresh', () => {
     loading = true;
     errorMsg = '';
-    (app as any).$set({ loading, errorMsg });
+    syncApp();
     postMessage({ type: 'refresh' });
   });
   (app as any).$on('openFirst', () => {
@@ -110,6 +169,11 @@ function ensureApp() {
         type: 'viewWorkItem',
         workItemId: Number(first.id || first.fields?.['System.Id']),
       });
+    if (first) {
+      const id = Number(first.id || first.fields?.['System.Id']);
+      setSummaryTarget(id, { ensureOpen: true });
+      syncApp();
+    }
   });
   (app as any).$on('startTimer', () => {
     const first = (lastWorkItems || [])[0];
@@ -119,69 +183,71 @@ function ensureApp() {
         workItemId: Number(first.id || first.fields?.['System.Id']),
       });
   });
-  (app as any).$on('stopTimer', () => postMessage({ type: 'stopTimer' }));
+  (app as any).$on('stopTimer', () => postMessage({ type: 'showStopTimerOptions' }));
   (app as any).$on('openActive', (ev: any) => {
     const id = ev?.detail?.id ?? activeId;
-    if (id != null) postMessage({ type: 'viewWorkItem', workItemId: Number(id) });
+    if (id != null) {
+      postMessage({ type: 'viewWorkItem', workItemId: Number(id) });
+      setSummaryTarget(Number(id), { ensureOpen: true });
+      syncApp();
+    }
   });
   (app as any).$on('openItem', (ev: any) => {
     const id = Number(ev?.detail?.id);
-    if (id) postMessage({ type: 'viewWorkItem', workItemId: id });
+    if (id) {
+      postMessage({ type: 'viewWorkItem', workItemId: id });
+      setSummaryTarget(id, { ensureOpen: false });
+      syncApp();
+    }
   });
   (app as any).$on('startItem', (ev: any) => {
     const id = Number(ev?.detail?.id);
-    if (id) postMessage({ type: 'startTimer', workItemId: id });
+    if (id) {
+      postMessage({ type: 'startTimer', workItemId: id });
+      setSummaryTarget(id, { ensureOpen: true });
+      syncApp();
+    }
   });
   (app as any).$on('editItem', (ev: any) => {
     const id = Number(ev?.detail?.id);
-    if (id) postMessage({ type: 'editWorkItemInEditor', workItemId: id });
+    if (id) {
+      postMessage({ type: 'editWorkItemInEditor', workItemId: id });
+      setSummaryTarget(id, { ensureOpen: false });
+      syncApp();
+    }
   });
   (app as any).$on('commentItem', (ev: any) => {
     const id = Number(ev?.detail?.id);
-    if (id) postMessage({ type: 'addComment', workItemId: id });
+    if (id) {
+      postMessage({ type: 'addComment', workItemId: id });
+      setSummaryTarget(id, { ensureOpen: true });
+      syncApp();
+    }
   });
   (app as any).$on('createWorkItem', () => postMessage({ type: 'createWorkItem' }));
   (app as any).$on('toggleKanban', () => {
     kanbanView = !kanbanView;
-    (app as any).$set({ kanbanView });
-    const prefs = { kanbanView, filterText, stateFilter, sortKey };
-    try {
-      if (vscode && typeof (vscode as any).setState === 'function') {
-        const prev =
-          (typeof (vscode as any).getState === 'function' && (vscode as any).getState()) || {};
-        (vscode as any).setState({ ...prev, ...prefs });
-      }
-    } catch (e) {
-      console.warn('[svelte-main] Unable to persist state', e);
-    }
+    persistViewState();
+    syncApp();
     // Send to extension for global persistence
-    postMessage({ type: 'uiPreferenceChanged', preferences: prefs });
+    postMessage({
+      type: 'uiPreferenceChanged',
+      preferences: { kanbanView, filterText, typeFilter, stateFilter, sortKey, summaryOpen },
+    });
   });
   (app as any).$on('filtersChanged', (ev: any) => {
     filterText = String(ev?.detail?.filterText ?? filterText);
+    typeFilter = String(ev?.detail?.typeFilter ?? typeFilter);
     stateFilter = String(ev?.detail?.stateFilter ?? stateFilter);
     sortKey = String(ev?.detail?.sortKey ?? sortKey);
     recomputeItemsForView();
-    (app as any).$set({
-      filterText,
-      stateFilter,
-      sortKey,
-      items: itemsForView,
-      workItemCount: itemsForView.length,
-      hasItems: itemsForView.length > 0,
-    });
-    const prefs = { kanbanView, filterText, stateFilter, sortKey };
-    try {
-      if (vscode && typeof (vscode as any).setState === 'function') {
-        const prev =
-          (typeof (vscode as any).getState === 'function' && (vscode as any).getState()) || {};
-        (vscode as any).setState({ ...prev, ...prefs });
-      }
-    } catch (e) {
-      console.warn('[svelte-main] Unable to persist filters', e);
-    }
+    persistViewState();
+    syncApp();
     // Send to extension for global persistence
-    postMessage({ type: 'uiPreferenceChanged', preferences: prefs });
+    postMessage({
+      type: 'uiPreferenceChanged',
+      preferences: { kanbanView, filterText, typeFilter, stateFilter, sortKey, summaryOpen },
+    });
   });
   (app as any).$on('moveItem', (ev: any) => {
     const id = Number(ev?.detail?.id);
@@ -206,18 +272,291 @@ function ensureApp() {
       pendingMoves.set(id, { prevState });
       found.fields['System.State'] = mapping[target] || 'Active';
       recomputeItemsForView();
-      (app as any).$set({ items: itemsForView });
+      syncApp();
     }
     postMessage({ type: 'moveWorkItem', id, target });
+  });
+  (app as any).$on('toggleSummary', () => {
+    summaryOpen = !summaryOpen;
+    persistViewState();
+    syncApp();
+  });
+  const onDraftChange = (value: string) => {
+    summaryDraft = value;
+    if (summaryWorkItemId) saveDraftForWorkItem(summaryWorkItemId, summaryDraft);
+    syncApp();
+  };
+  (app as any).$on('summaryDraftChanged', (ev: any) => {
+    onDraftChange(String(ev?.detail?.value ?? ''));
+  });
+  (app as any).$on('summaryDraftBlur', (ev: any) => {
+    onDraftChange(String(ev?.detail?.value ?? ''));
+  });
+  (app as any).$on('generateSummary', () => {
+    attemptSummaryGeneration();
+  });
+  (app as any).$on('stopAndApplySummary', () => {
+    attemptStopAndApply();
   });
   return app;
 }
 
+function findWorkItemById(id: number) {
+  const target = Number(id);
+  return (lastWorkItems || []).find((w: any) => Number(w.id || w.fields?.['System.Id']) === target);
+}
+
+function getWorkItemTitle(id: number): string {
+  const match = findWorkItemById(id);
+  if (match) return String(match.fields?.['System.Title'] || `#${id}`);
+  if (activeId === id && activeTitle) return activeTitle;
+  return `Work Item #${id}`;
+}
+
+function updateSummaryTargetTitle() {
+  if (summaryWorkItemId) {
+    summaryTargetTitle = getWorkItemTitle(summaryWorkItemId);
+  } else {
+    summaryTargetTitle = '';
+  }
+}
+
+function saveDraftForWorkItem(workItemId: number, text: string) {
+  try {
+    localStorage.setItem(`azuredevops.draft.${workItemId}`, text || '');
+  } catch (e) {
+    console.warn('[svelte-main] Failed to save draft to localStorage', e);
+  }
+}
+
+function loadDraftForWorkItem(workItemId: number): string | null {
+  try {
+    return localStorage.getItem(`azuredevops.draft.${workItemId}`);
+  } catch (e) {
+    console.warn('[svelte-main] Failed to load draft from localStorage', e);
+    return null;
+  }
+}
+
+function removeDraftForWorkItem(workItemId: number) {
+  try {
+    localStorage.removeItem(`azuredevops.draft.${workItemId}`);
+  } catch (e) {
+    console.warn('[svelte-main] Failed to remove draft from localStorage', e);
+  }
+}
+
+function setSummaryTarget(
+  workItemId: number,
+  options: { ensureOpen?: boolean; refreshDraft?: boolean } = {}
+) {
+  const id = Number(workItemId);
+  if (!Number.isFinite(id) || id <= 0) return;
+  const changed = summaryWorkItemId !== id;
+  if (changed) summaryWorkItemId = id;
+  updateSummaryTargetTitle();
+  const shouldRefresh = options.refreshDraft ?? changed;
+  if (shouldRefresh) {
+    const persisted = loadDraftForWorkItem(id);
+    if (persisted !== null) {
+      summaryDraft = persisted;
+    } else if (!summaryDraft || changed) {
+      summaryDraft = '';
+    }
+  }
+  const ensureOpenRequested = options.ensureOpen || (!summaryOpen && timerActive);
+  let opened = false;
+  if (ensureOpenRequested && !summaryOpen) {
+    summaryOpen = true;
+    opened = true;
+  }
+  if (changed || shouldRefresh || opened) {
+    persistViewState();
+  }
+}
+
+function setSummaryBusy(busy: boolean) {
+  if (summaryBusyTimer) {
+    try {
+      clearTimeout(summaryBusyTimer);
+    } catch {
+      /* ignore */
+    }
+    summaryBusyTimer = undefined;
+  }
+  summaryBusy = busy;
+  if (busy) {
+    summaryBusyTimer = setTimeout(() => {
+      summaryBusy = false;
+      summaryBusyTimer = undefined;
+      syncApp();
+    }, 6000);
+  }
+}
+
+function setSummaryStatus(message: string, options?: { timeout?: number }) {
+  if (summaryStatusTimer) {
+    try {
+      clearTimeout(summaryStatusTimer);
+    } catch {
+      /* ignore */
+    }
+    summaryStatusTimer = undefined;
+  }
+  summaryStatus = message;
+  const delay = options?.timeout ?? 0;
+  if (delay > 0) {
+    summaryStatusTimer = setTimeout(() => {
+      summaryStatusTimer = undefined;
+      summaryStatus = '';
+      syncApp();
+    }, delay);
+  }
+}
+
+function determineSummaryTargetId(): number | null {
+  if (summaryWorkItemId) return summaryWorkItemId;
+  if (timerActive && activeId) return activeId;
+  const first = itemsForView[0];
+  if (first) return Number(first.id || first.fields?.['System.Id']);
+  return null;
+}
+
+function attemptSummaryGeneration() {
+  const targetId = determineSummaryTargetId();
+  if (!targetId) {
+    const message = 'Select a work item or start a timer to generate a summary.';
+    setSummaryStatus(message, { timeout: 3500 });
+    addToast(message, { type: 'warning', timeout: 3500 });
+    syncApp();
+    return;
+  }
+  if (!summaryOpen) summaryOpen = true;
+  setSummaryBusy(true);
+  setSummaryStatus('Generating summary…');
+  syncApp();
+  postMessage({
+    type: 'generateCopilotPrompt',
+    workItemId: targetId,
+    draftSummary: summaryDraft,
+  });
+}
+
+function attemptStopAndApply() {
+  if (!timerActive) {
+    const message = 'Start a timer before applying time to the work item.';
+    setSummaryStatus(message, { timeout: 3500 });
+    addToast(message, { type: 'warning', timeout: 3500 });
+    syncApp();
+    return;
+  }
+  if (summaryWorkItemId) saveDraftForWorkItem(summaryWorkItemId, summaryDraft);
+  setSummaryBusy(true);
+  setSummaryStatus('Stopping timer and applying updates…');
+  syncApp();
+  postMessage({ type: 'stopAndApply', comment: summaryDraft });
+}
+
+function getWorkItemType(it: any): string {
+  if (!it) return '';
+  const flattened = typeof it?.type === 'string' ? it.type : undefined;
+  const fromFields =
+    typeof it?.fields?.['System.WorkItemType'] === 'string'
+      ? it.fields['System.WorkItemType']
+      : undefined;
+  const value = flattened || fromFields;
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function buildSearchHaystack(item: any): string {
+  const parts: string[] = [];
+  const seen = new WeakSet<object>();
+  const maxDepth = 5;
+
+  const push = (value: string) => {
+    const trimmed = value.trim();
+    if (trimmed.length > 0) parts.push(trimmed.toLowerCase());
+  };
+
+  const visit = (value: any, depth = 0) => {
+    if (value === null || value === undefined) return;
+    if (typeof value === 'string') {
+      push(value);
+      return;
+    }
+    if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
+      push(String(value));
+      return;
+    }
+    if (value instanceof Date) {
+      push(value.toISOString());
+      return;
+    }
+    if (typeof value === 'symbol') {
+      push(value.toString());
+      return;
+    }
+    if (typeof value === 'object') {
+      if (seen.has(value)) return;
+      seen.add(value);
+      if (depth >= maxDepth) return;
+      if (Array.isArray(value)) {
+        value.forEach((entry) => visit(entry, depth + 1));
+        return;
+      }
+
+      const identityKeys = [
+        'displayName',
+        'uniqueName',
+        'name',
+        'fullName',
+        'mailAddress',
+        'email',
+        'userPrincipalName',
+        'upn',
+        'descriptor',
+        'text',
+        'value',
+        'title',
+      ];
+      identityKeys.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          visit((value as any)[key], depth + 1);
+        }
+      });
+
+      Object.keys(value).forEach((key) => {
+        if (key === '__proto__') return;
+        visit((value as any)[key], depth + 1);
+      });
+    }
+  };
+
+  visit(item);
+
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function getSearchHaystack(item: any): string {
+  if (!item || (typeof item !== 'object' && typeof item !== 'function')) {
+    return typeof item === 'string' ? item.toLowerCase() : String(item ?? '').toLowerCase();
+  }
+  const cached = searchHaystackCache.get(item);
+  if (cached) return cached;
+  const haystack = buildSearchHaystack(item);
+  searchHaystackCache.set(item, haystack);
+  return haystack;
+}
+
 function passesFilters(it: any): boolean {
-  const title = String(it?.fields?.['System.Title'] || '').toLowerCase();
+  const query = normalizedQuery;
   const stateRaw = String(it?.fields?.['System.State'] || '');
   const norm = normalizeState(stateRaw);
-  if (filterText && !title.includes(String(filterText).toLowerCase())) return false;
+  if (query) {
+    const haystack = getSearchHaystack(it);
+    if (!haystack.includes(query)) return false;
+  }
+  if (typeFilter && getWorkItemType(it) !== typeFilter) return false;
   if (stateFilter && stateFilter !== 'all' && norm !== stateFilter) return false;
   return true;
 }
@@ -238,8 +577,39 @@ function normalizeState(raw: any): string {
   return 'new';
 }
 
+function recomputeTypeOptions() {
+  const combined = new Set<string>();
+  (Array.isArray(lastWorkItems) ? lastWorkItems : []).forEach((item: any) => {
+    const typeName = getWorkItemType(item);
+    if (typeName) combined.add(typeName);
+  });
+  typeOptionHints.forEach((hint) => combined.add(hint));
+  typeOptions = Array.from(combined).sort((a, b) => a.localeCompare(b));
+  if (typeFilter && !combined.has(typeFilter)) {
+    typeFilter = '';
+  }
+}
+
 function recomputeItemsForView() {
   const items = Array.isArray(lastWorkItems) ? lastWorkItems : [];
+  try {
+    console.log(
+      '[svelte-main] recomputeItemsForView: lastWorkItems.length=',
+      items.length,
+      'filterText=',
+      filterText,
+      'typeFilter=',
+      typeFilter,
+      'stateFilter=',
+      stateFilter
+    );
+  } catch (err) {
+    void err;
+  }
+  recomputeTypeOptions();
+  normalizedQuery = String(filterText || '')
+    .trim()
+    .toLowerCase();
   const filtered = items.filter(passesFilters);
   const sorted = [...filtered].sort((a: any, b: any) => {
     switch (sortKey) {
@@ -265,6 +635,7 @@ function recomputeItemsForView() {
     }
   });
   itemsForView = sorted;
+  workItemCount = itemsForView.length;
   // Recompute state options (distinct normalized states actually present in ALL items, not just filtered)
   const allStatesSet = new Set<string>();
   (Array.isArray(lastWorkItems) ? lastWorkItems : []).forEach((w: any) => {
@@ -302,79 +673,108 @@ function onMessage(message: any) {
   switch (message?.type) {
     case 'workItemsLoaded': {
       const items = Array.isArray(message.workItems) ? message.workItems : [];
+      try {
+        console.log('[svelte-main] workItemsLoaded received. count=', (items || []).length);
+        console.log(
+          '[svelte-main] workItemsLoaded sample ids=',
+          (items || []).slice(0, 5).map((i: any) => i.id || i.fields?.['System.Id'])
+        );
+        console.log(
+          '[svelte-main] current filters before apply: filterText=',
+          filterText,
+          'typeFilter=',
+          typeFilter,
+          'stateFilter=',
+          stateFilter
+        );
+        // Additional diagnostics: if host sent zero items, log the entire message and connectionId
+        if (!items || (items && items.length === 0)) {
+          try {
+            console.warn('[svelte-main] workItemsLoaded arrived with 0 items — full message:');
+            console.warn(message);
+            console.warn('[svelte-main] connectionId on message =', message?.connectionId);
+            console.warn(
+              '[svelte-main] local persisted state: typeFilter=',
+              typeFilter,
+              'filterText=',
+              filterText,
+              'stateFilter=',
+              stateFilter
+            );
+            console.warn('[svelte-main] timestamp (ms)=', Date.now());
+          } catch (err) {
+            void err;
+          }
+        }
+      } catch (err) {
+        void err;
+      }
+      searchHaystackCache = new WeakMap();
       lastWorkItems = items;
+      if (typeof message.kanbanView === 'boolean') {
+        kanbanView = message.kanbanView;
+      }
       recomputeItemsForView();
       workItemCount = itemsForView.length;
       loading = false;
       errorMsg = '';
-      // If we know an activeId from timer, try to hydrate a title
-      if (activeId != null) {
-        const match = items.find(
-          (w: any) => Number(w.id || w.fields?.['System.Id']) === Number(activeId)
-        );
-        if (match) activeTitle = String(match.fields?.['System.Title'] || `#${activeId}`);
+      if (activeId) {
+        const match = findWorkItemById(activeId);
+        if (match) {
+          activeTitle = String(match.fields?.['System.Title'] || `#${activeId}`);
+        }
       }
-      ensureApp();
-      (app as any).$set({
-        workItemCount,
-        hasItems: itemsForView.length > 0,
-        activeId,
-        activeTitle,
-        timerElapsedLabel,
-        items: itemsForView,
-        kanbanView,
-        loading,
-        errorMsg,
-        filterText,
-        stateFilter,
-        sortKey,
-        availableStates: stateOptions,
-      });
+      if (summaryWorkItemId) {
+        updateSummaryTargetTitle();
+        if (!summaryDraft || !summaryDraft.trim()) {
+          const persisted = loadDraftForWorkItem(summaryWorkItemId);
+          if (persisted !== null) summaryDraft = persisted;
+        }
+      }
+      syncApp();
       break;
     }
     case 'workItemsError': {
       loading = false;
       errorMsg = String(message?.error || 'Failed to load work items.');
-      ensureApp();
-      (app as any).$set({ loading, errorMsg });
-      break;
-    }
-    case 'toggleKanbanView': {
-      kanbanView = !kanbanView;
-      ensureApp();
-      (app as any).$set({ kanbanView });
-      try {
-        if (vscode && typeof (vscode as any).setState === 'function') {
-          const prev =
-            (typeof (vscode as any).getState === 'function' && (vscode as any).getState()) || {};
-          (vscode as any).setState({ ...prev, kanbanView });
-        }
-      } catch (e) {
-        console.warn('[svelte-main] Unable to persist state', e);
-      }
+      syncApp();
       break;
     }
     case 'timerUpdate': {
-      const snap = message?.timer || {};
-      timerActive = !!snap && typeof snap.workItemId !== 'undefined';
-      timerRunning = !!snap && !snap.isPaused;
-      elapsedSeconds = Number(snap?.elapsedSeconds || 0);
-      timerElapsedLabel = formatElapsedHHMM(elapsedSeconds);
-      if (timerActive) {
-        activeId = Number(snap.workItemId) || 0;
-        // Try to find title from cached items; fallback to empty
-        const match = (lastWorkItems || []).find(
-          (w: any) => Number(w.id || w.fields?.['System.Id']) === Number(activeId)
-        );
-        activeTitle = match ? String(match.fields?.['System.Title'] || `#${activeId}`) : '';
+      const snap = message?.timer;
+      const hasTimer = snap && typeof snap.workItemId !== 'undefined';
+      timerActive = !!hasTimer;
+      timerRunning = !!hasTimer && !snap.isPaused;
+      elapsedSeconds = hasTimer ? Number(snap?.elapsedSeconds || 0) : 0;
+      timerElapsedLabel = hasTimer ? formatElapsedHHMM(elapsedSeconds) : '';
+      if (hasTimer) {
+        const newActiveId = Number(snap.workItemId) || 0;
+        activeId = newActiveId;
+        activeTitle =
+          snap.workItemTitle || getWorkItemTitle(activeId) || (activeId ? `#${activeId}` : '');
+        const targetChanged = summaryWorkItemId !== activeId;
+        setSummaryTarget(activeId, { ensureOpen: true, refreshDraft: targetChanged });
+        if (!summaryDraft || !summaryDraft.trim()) {
+          const persisted = loadDraftForWorkItem(activeId);
+          if (persisted && persisted.length > 0) {
+            summaryDraft = persisted;
+          } else {
+            const seconds = Number(snap.elapsedSeconds || 0);
+            const hours = Math.max(0, seconds / 3600);
+            const fallbackTitle = activeTitle || `#${activeId}`;
+            summaryDraft = `Worked approximately ${hours.toFixed(
+              2
+            )} hours on ${fallbackTitle}. Provide a short summary of what you accomplished.`;
+          }
+        }
       } else {
         activeId = 0;
         activeTitle = '';
+        timerRunning = false;
         elapsedSeconds = 0;
         timerElapsedLabel = '';
       }
-      ensureApp();
-      (app as any).$set({ timerActive, timerRunning, timerElapsedLabel, activeId, activeTitle });
+      syncApp();
       break;
     }
     case 'moveWorkItemResult': {
@@ -383,50 +783,104 @@ function onMessage(message: any) {
       const pending = pendingMoves.get(id);
       pendingMoves.delete(id);
       if (!message.success) {
-        // Revert the optimistic update
         const found = (lastWorkItems || []).find((w: any) => Number(w.id) === id);
         if (found && found.fields && pending) {
           found.fields['System.State'] = pending.prevState;
+          searchHaystackCache.delete(found);
           recomputeItemsForView();
-          ensureApp();
-          (app as any).$set({ items: itemsForView });
         }
+        syncApp();
         addToast(`Move failed: ${message.error || 'Unknown error'}`, { type: 'error' });
       } else if (message.newState) {
-        // Ensure UI reflects server-confirmed canonical state (may differ from mapping label)
         const found = (lastWorkItems || []).find((w: any) => Number(w.id) === id);
         if (found && found.fields) {
           found.fields['System.State'] = message.newState;
+          searchHaystackCache.delete(found);
           recomputeItemsForView();
-          ensureApp();
-          (app as any).$set({ items: itemsForView });
         }
-        // Optional success toast only if state actually changed textually
+        syncApp();
         if (pending && pending.prevState !== message.newState) {
           addToast(`Moved #${id} → ${message.newState}`, { type: 'success', timeout: 2500 });
         }
       }
       break;
     }
+    case 'toggleKanbanView': {
+      kanbanView = !kanbanView;
+      persistViewState();
+      syncApp();
+      break;
+    }
+    case 'workItemTypeOptions': {
+      const list = Array.isArray(message?.types) ? message.types : [];
+      let changed = false;
+      for (const entry of list) {
+        const value = typeof entry === 'string' ? entry.trim() : '';
+        if (!value) continue;
+        if (!typeOptionHints.has(value)) {
+          typeOptionHints.add(value);
+          changed = true;
+        }
+      }
+      if (changed) {
+        recomputeItemsForView();
+        syncApp();
+      }
+      break;
+    }
     case 'uiPreferences': {
-      // Merge incoming global preferences with local state
       const prefs = message?.preferences || {};
       if (typeof prefs.kanbanView === 'boolean') kanbanView = prefs.kanbanView;
       if (typeof prefs.filterText === 'string') filterText = prefs.filterText;
+      if (typeof prefs.typeFilter === 'string') typeFilter = prefs.typeFilter;
       if (typeof prefs.stateFilter === 'string') stateFilter = prefs.stateFilter;
       if (typeof prefs.sortKey === 'string') sortKey = prefs.sortKey;
       recomputeItemsForView();
-      ensureApp();
-      (app as any).$set({
-        kanbanView,
-        filterText,
-        stateFilter,
-        sortKey,
-        items: itemsForView,
-        workItemCount: itemsForView.length,
-        hasItems: itemsForView.length > 0,
-        availableStates: stateOptions,
-      });
+      syncApp();
+      break;
+    }
+    case 'copilotPromptCopied': {
+      const provider = message?.provider === 'openai' ? 'openai' : 'builtin';
+      summaryProvider = provider;
+      const workItemId = Number(message.workItemId || 0);
+      if (workItemId) {
+        setSummaryTarget(workItemId, { ensureOpen: true, refreshDraft: false });
+      }
+      if (provider === 'openai' && typeof message.summary === 'string' && message.summary.trim()) {
+        summaryDraft = message.summary.trim();
+        if (summaryWorkItemId) saveDraftForWorkItem(summaryWorkItemId, summaryDraft);
+      } else if (
+        provider === 'builtin' &&
+        typeof message.prompt === 'string' &&
+        message.prompt.trim() &&
+        (!summaryDraft || !summaryDraft.trim())
+      ) {
+        summaryDraft = message.prompt;
+      }
+      setSummaryBusy(false);
+      setSummaryStatus(
+        provider === 'openai'
+          ? 'OpenAI summary copied to clipboard.'
+          : 'Copilot prompt copied to clipboard. Paste into Copilot chat to generate a summary.',
+        { timeout: 3500 }
+      );
+      summaryOpen = true;
+      syncApp();
+      break;
+    }
+    case 'stopAndApplyResult': {
+      const id = Number(message.workItemId);
+      const hours = Number(message.hours || 0);
+      setSummaryBusy(false);
+      if (Number.isFinite(id) && id > 0) {
+        setSummaryTarget(id, { ensureOpen: true, refreshDraft: false });
+      }
+      summaryDraft = '';
+      if (Number.isFinite(id) && id > 0) {
+        removeDraftForWorkItem(id);
+      }
+      setSummaryStatus(`Applied ${hours.toFixed(2)} hours to work item #${id}.`, { timeout: 4000 });
+      syncApp();
       break;
     }
     case 'selfTestPing': {
@@ -434,7 +888,6 @@ function onMessage(message: any) {
       break;
     }
     default:
-      // ignore
       break;
   }
 }

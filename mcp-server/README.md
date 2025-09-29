@@ -4,16 +4,16 @@ Model Context Protocol style JSON-RPC 2.0 (one JSON object per line on stdio) se
 
 ## Supported Methods (All `jsonrpc: "2.0"`)
 
-| Method           | Params Shape                                                                  | Result                          | Notes                                 |
-| ---------------- | ----------------------------------------------------------------------------- | ------------------------------- | ------------------------------------- |
-| `ping`           | `{}` or omitted                                                               | `{ pong: true, time: epochMs }` | Simple health check                   |
-| `listWorkItems`  | `{ query?: string }`                                                          | `FlatWorkItem[]`                | Named query or raw WIQL string        |
-| `getWorkItem`    | `{ id: number }`                                                              | `FlatWorkItem`                  | Single item (flattened)               |
-| `createWorkItem` | `{ type?: string, title: string, description?: string, assignedTo?: string }` | `FlatWorkItem`                  | Defaults type to `Task`               |
-| `updateWorkItem` | `{ workItemId: number, patch: Patch[] }`                                      | `FlatWorkItem`                  | JSON Patch ops (Azure DevOps format)  |
-| `addComment`     | `{ workItemId: number, text: string }`                                        | Azure Comment Response          | Not flattened; original service shape |
-| `search`         | `{ term: string }`                                                            | `FlatWorkItem[]`                | Title substring OR exact ID match     |
-| `filter`         | `{ sprint?, includeState?, excludeStates?, type?, assignedTo? }`              | `FlatWorkItem[]`                | Composes WIQL dynamically             |
+| Method           | Params Shape                                                                  | Result                          | Notes                                                      |
+| ---------------- | ----------------------------------------------------------------------------- | ------------------------------- | ---------------------------------------------------------- |
+| `ping`           | `{}` or omitted                                                               | `{ pong: true, time: epochMs }` | Simple health check                                        |
+| `listWorkItems`  | `{ query?: string }`                                                          | `FlatWorkItem[]`                | Named query or raw WIQL string (defaults to "My Activity") |
+| `getWorkItem`    | `{ id: number }`                                                              | `FlatWorkItem`                  | Single item (flattened)                                    |
+| `createWorkItem` | `{ type?: string, title: string, description?: string, assignedTo?: string }` | `FlatWorkItem`                  | Defaults type to `Task`                                    |
+| `updateWorkItem` | `{ workItemId: number, patch: Patch[] }`                                      | `FlatWorkItem`                  | JSON Patch ops (Azure DevOps format)                       |
+| `addComment`     | `{ workItemId: number, text: string }`                                        | Azure Comment Response          | Not flattened; original service shape                      |
+| `search`         | `{ term: string }`                                                            | `FlatWorkItem[]`                | Title substring OR exact ID match                          |
+| `filter`         | `{ sprint?, includeState?, excludeStates?, type?, assignedTo? }`              | `FlatWorkItem[]`                | Composes WIQL dynamically                                  |
 
 ## Environment Variables
 
@@ -57,7 +57,7 @@ AZDO_ORG=yourOrg AZDO_PROJECT=YourProject AZDO_PAT=xxxxx node dist/server.js
 Request:
 
 ```json
-{ "jsonrpc": "2.0", "id": 1, "method": "listWorkItems", "params": { "query": "My Work Items" } }
+{ "jsonrpc": "2.0", "id": 1, "method": "listWorkItems", "params": { "query": "My Activity" } }
 ```
 
 Response (truncated example):

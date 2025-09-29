@@ -1013,7 +1013,7 @@
             </div>
             <div id="timerInfo" class="timer-info">No active timer</div>
 
-            <!-- Collapsible draft summary editor -->
+            <!-- Collapsible draft comment editor -->
             <div class="summary-section" style="margin-top: 0.75rem">
               <button
                 class="btn"
@@ -1022,12 +1022,12 @@
                 aria-expanded="false"
                 style="width: 100%; text-align: left"
               >
-                Compose Summary ▾
+                Compose Comment ▾
               </button>
               <div id="summaryContainer" class="summary-container" hidden>
                 <textarea
                   id="draftSummary"
-                  placeholder="Write or generate a summary to post as a comment when stopping the timer..."
+                  placeholder="Write or generate a comment to post when stopping the timer or adding a comment..."
                   rows="6"
                   style="
                     width: 100%;
@@ -1045,8 +1045,8 @@
                   <button class="btn" id="generatePromptBtn" data-action="generateCopilotPrompt">
                     Generate Copilot Prompt
                   </button>
-                  <button class="btn" id="stopApplyBtn" data-action="stopAndApply">
-                    Stop &amp; Apply
+                  <button class="btn" id="submitComposeBtn" data-action="submitCompose">
+                    Submit Comment
                   </button>
                 </div>
                 <div

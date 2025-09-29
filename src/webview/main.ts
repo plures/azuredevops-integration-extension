@@ -42,18 +42,277 @@ function postMessage(msg: any) {
 }
 
 // State management
+type ConnectionEntry = {
+  id: string;
+  label: string;
+  organization?: string;
+  project?: string;
+};
+
+let connections: ConnectionEntry[] = [];
+let activeConnectionId: string | null = null;
+const workItemsByConnection = new Map<string, any[]>();
+
 let workItems: any[] = [];
 let currentTimer: any = null;
 let selectedWorkItemId: number | null = null;
 let isLoading = false;
 let currentView: 'list' | 'kanban' = 'list';
+type FallbackNoticeData = {
+  originalQuery: string;
+  fallbackQuery: string;
+  defaultQuery?: string;
+  fetchedCount?: number;
+  fallbackIdentity?: {
+    id?: string;
+    displayName?: string;
+    uniqueName?: string;
+  };
+  assignees?: string[];
+};
+
+let fallbackNotice: FallbackNoticeData | null = null;
+const fallbackNotices = new Map<string, FallbackNoticeData | null>();
+const typeOptionsByConnection = new Map<string, string[]>();
+let searchHaystackCache = new WeakMap<any, string>();
+
+const DEFAULT_QUERY = 'My Activity';
+const QUERY_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'My Activity', label: 'My Activity' },
+  { value: 'Assigned to me', label: 'Assigned to me' },
+  { value: 'Following', label: 'Following' },
+  { value: 'Mentioned', label: 'Mentioned' },
+];
+const DEFAULT_QUERY_KEY = '__default__';
+const selectedQueryByConnection = new Map<string, string>();
+selectedQueryByConnection.set(DEFAULT_QUERY_KEY, DEFAULT_QUERY);
+
+type FilterState = {
+  search: string;
+  sprint: string;
+  type: string;
+  assignedTo: string;
+  excludeDone: boolean;
+  excludeClosed: boolean;
+  excludeRemoved: boolean;
+  excludeInReview: boolean;
+};
+
+const filterStateByConnection = new Map<string, FilterState>();
+
+function normalizeConnectionId(raw: unknown): string | null {
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return null;
+}
+
+function getDefaultFilterState(): FilterState {
+  return {
+    search: '',
+    sprint: '',
+    type: '',
+    assignedTo: '',
+    excludeDone: false,
+    excludeClosed: false,
+    excludeRemoved: false,
+    excludeInReview: false,
+  };
+}
+
+function getFilterStateForConnection(connectionId: string): FilterState {
+  if (!filterStateByConnection.has(connectionId)) {
+    filterStateByConnection.set(connectionId, getDefaultFilterState());
+  }
+  return filterStateByConnection.get(connectionId)!;
+}
+
+function setTypeOptionsForConnection(
+  connectionId: string,
+  values: string[],
+  options: { merge?: boolean } = {}
+) {
+  const base = options.merge
+    ? new Set<string>(typeOptionsByConnection.get(connectionId) ?? [])
+    : new Set<string>();
+  values.forEach((value) => {
+    if (typeof value !== 'string') return;
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return;
+    base.add(trimmed);
+  });
+  typeOptionsByConnection.set(
+    connectionId,
+    Array.from(base).sort((a, b) => a.localeCompare(b))
+  );
+}
+
+function getTypeOptionsForConnection(connectionId: string | null): string[] {
+  if (!connectionId) return [];
+  return typeOptionsByConnection.get(connectionId) ?? [];
+}
+
+function extractWorkItemTypes(items: any[]): string[] {
+  if (!Array.isArray(items)) return [];
+  const set = new Set<string>();
+  items.forEach((item) => {
+    const flattened = typeof item?.type === 'string' ? item.type : undefined;
+    const fromFields =
+      typeof item?.fields?.['System.WorkItemType'] === 'string'
+        ? item.fields['System.WorkItemType']
+        : undefined;
+    const value = flattened ?? fromFields;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) set.add(trimmed);
+    }
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+function getQueryStorageKey(connectionId: string | null | undefined): string {
+  if (typeof connectionId === 'string') {
+    const trimmed = connectionId.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return DEFAULT_QUERY_KEY;
+}
+
+function normalizeQueryValue(raw: unknown): string {
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return DEFAULT_QUERY;
+}
+
+function ensureQueryOption(value: string) {
+  const select = elements.queryFilter;
+  if (!select) return;
+  for (let i = 0; i < select.options.length; i += 1) {
+    if (select.options[i]?.value === value) {
+      return;
+    }
+  }
+  const option = document.createElement('option');
+  option.value = value;
+  option.textContent = value;
+  select.appendChild(option);
+}
+
+function setSelectedQueryForConnection(
+  connectionId: string | null | undefined,
+  query: string | undefined
+): string {
+  const key = getQueryStorageKey(connectionId);
+  const normalized = normalizeQueryValue(query);
+  selectedQueryByConnection.set(key, normalized);
+  if (key !== DEFAULT_QUERY_KEY) {
+    selectedQueryByConnection.set(DEFAULT_QUERY_KEY, normalized);
+  }
+  return normalized;
+}
+
+function getSelectedQueryForConnection(connectionId: string | null | undefined): string {
+  const key = getQueryStorageKey(connectionId);
+  if (selectedQueryByConnection.has(key)) {
+    return selectedQueryByConnection.get(key)!;
+  }
+  const fallback = selectedQueryByConnection.get(DEFAULT_QUERY_KEY) ?? DEFAULT_QUERY;
+  selectedQueryByConnection.set(key, fallback);
+  return fallback;
+}
+
+function applyQuerySelectionToUi(connectionId: string | null | undefined) {
+  const select = elements.queryFilter;
+  if (!select) return;
+  const value = getSelectedQueryForConnection(connectionId);
+  ensureQueryOption(value);
+  select.value = value;
+}
+
+function initializeQueryDropdown() {
+  const select = elements.queryFilter;
+  if (!select) return;
+  select.innerHTML = '';
+  QUERY_OPTIONS.forEach(({ value, label }) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    select.appendChild(option);
+  });
+  const initial = getSelectedQueryForConnection(activeConnectionId);
+  ensureQueryOption(initial);
+  select.value = initial;
+}
+
+function handleQuerySelectionChange() {
+  const select = elements.queryFilter;
+  if (!select) return;
+  const normalized = setSelectedQueryForConnection(activeConnectionId, select.value);
+  ensureQueryOption(normalized);
+  applyQuerySelectionToUi(activeConnectionId);
+  isLoading = true;
+  showLoadingState();
+  postMessage({
+    type: 'setQuery',
+    query: normalized,
+    connectionId: activeConnectionId ?? undefined,
+  });
+}
+
+function persistCurrentFilterState() {
+  const connectionId = activeConnectionId;
+  if (!connectionId) return;
+  const state = getFilterStateForConnection(connectionId);
+  state.search = elements.searchInput?.value ?? '';
+  state.sprint = elements.sprintFilter?.value ?? '';
+  state.type = elements.typeFilter?.value ?? '';
+  state.assignedTo = elements.assignedToFilter?.value ?? '';
+  state.excludeDone = !!elements.excludeDone?.checked;
+  state.excludeClosed = !!elements.excludeClosed?.checked;
+  state.excludeRemoved = !!elements.excludeRemoved?.checked;
+  state.excludeInReview = !!elements.excludeInReview?.checked;
+}
+
+function applyFilterStateToUi(connectionId: string) {
+  const state = getFilterStateForConnection(connectionId);
+  if (elements.searchInput) {
+    elements.searchInput.value = state.search;
+  }
+
+  const ensureSelectValue = (select: HTMLSelectElement | null, desired: string) => {
+    if (!select) return '';
+    const options = Array.from(select.options).map((option) => option.value);
+    const value = desired && options.includes(desired) ? desired : '';
+    select.value = value;
+    return value;
+  };
+
+  state.sprint = ensureSelectValue(elements.sprintFilter, state.sprint);
+  state.type = ensureSelectValue(elements.typeFilter, state.type);
+  state.assignedTo = ensureSelectValue(elements.assignedToFilter, state.assignedTo);
+
+  if (elements.excludeDone) elements.excludeDone.checked = state.excludeDone;
+  if (elements.excludeClosed) elements.excludeClosed.checked = state.excludeClosed;
+  if (elements.excludeRemoved) elements.excludeRemoved.checked = state.excludeRemoved;
+  if (elements.excludeInReview) elements.excludeInReview.checked = state.excludeInReview;
+}
+
+type ComposeMode = 'timerStop' | 'addComment';
+
+let composeState: { mode: ComposeMode; workItemId: number | null } | null = null;
+let lastTimerSnapshot: any | null = null;
 
 // DOM element references
 const elements = {
   searchInput: null as HTMLInputElement | null,
   statusOverview: null as HTMLElement | null,
+  connectionTabs: null as HTMLElement | null,
   sprintFilter: null as HTMLSelectElement | null,
   typeFilter: null as HTMLSelectElement | null,
+  queryFilter: null as HTMLSelectElement | null,
   assignedToFilter: null as HTMLSelectElement | null,
   excludeDone: null as HTMLInputElement | null,
   excludeClosed: null as HTMLInputElement | null,
@@ -70,9 +329,12 @@ const elements = {
   stopTimerBtn: null as HTMLButtonElement | null,
   // New summary editor elements
   draftSummary: null as HTMLTextAreaElement | null,
+  summarySection: null as HTMLElement | null,
   summaryContainer: null as HTMLElement | null,
   toggleSummaryBtn: null as HTMLButtonElement | null,
   summaryStatus: null as HTMLElement | null,
+  submitComposeBtn: null as HTMLButtonElement | null,
+  generatePromptBtn: null as HTMLButtonElement | null,
 };
 
 // Initialize the application
@@ -80,8 +342,10 @@ function init() {
   // Get DOM element references for new structure
   elements.searchInput = document.getElementById('searchInput') as HTMLInputElement;
   elements.statusOverview = document.getElementById('statusOverview');
+  elements.connectionTabs = document.getElementById('connectionTabs');
   elements.sprintFilter = document.getElementById('sprintFilter') as HTMLSelectElement;
   elements.typeFilter = document.getElementById('typeFilter') as HTMLSelectElement;
+  elements.queryFilter = document.getElementById('queryFilter') as HTMLSelectElement;
   elements.assignedToFilter = document.getElementById('assignedToFilter') as HTMLSelectElement;
   elements.excludeDone = document.getElementById('excludeDone') as HTMLInputElement;
   elements.excludeClosed = document.getElementById('excludeClosed') as HTMLInputElement;
@@ -105,16 +369,34 @@ function init() {
 
   // New summary element references
   elements.draftSummary = document.getElementById('draftSummary') as HTMLTextAreaElement;
+  elements.summarySection = document.getElementById('summarySection');
   elements.summaryContainer = document.getElementById('summaryContainer');
   (elements as any).toggleSummaryBtn = document.getElementById(
     'toggleSummaryBtn'
   ) as HTMLButtonElement;
   elements.summaryStatus = document.getElementById('summaryStatus');
+  elements.submitComposeBtn = document.getElementById('submitComposeBtn') as HTMLButtonElement;
+  elements.generatePromptBtn = document.getElementById('generatePromptBtn') as HTMLButtonElement;
+
+  if (elements.summarySection) elements.summarySection.setAttribute('hidden', '');
+  if (elements.summaryContainer) elements.summaryContainer.setAttribute('hidden', '');
+  const toggleBtn = (elements as any).toggleSummaryBtn as HTMLButtonElement | null;
+  if (toggleBtn) {
+    toggleBtn.setAttribute('aria-expanded', 'false');
+    toggleBtn.textContent = 'Compose Comment ▾';
+  }
+
+  if (elements.connectionTabs) {
+    elements.connectionTabs.setAttribute('hidden', '');
+  }
 
   if (!elements.workItemsContainer) {
     console.error('[webview] Critical: workItemsContainer element not found');
     return;
   }
+
+  initializeQueryDropdown();
+  applyQuerySelectionToUi(activeConnectionId);
 
   // Set up event listeners
   console.log('[webview] Initializing webview...');
@@ -145,6 +427,14 @@ function setupEventListeners() {
       return;
     }
 
+    // Handle connection tab clicks
+    const connectionTab = (e.target as HTMLElement).closest('.connection-tab');
+    if (connectionTab) {
+      const id = connectionTab.getAttribute('data-connection-id');
+      if (id) selectConnection(id);
+      return;
+    }
+
     // Handle work item card clicks
     const workItemCard = (e.target as HTMLElement).closest('[data-action="selectWorkItem"]');
     if (workItemCard && !(e.target as HTMLElement).closest('button')) {
@@ -171,43 +461,74 @@ function setupEventListeners() {
         requestWorkItems();
         break;
       case 'toggleSummary': {
+        if (!composeState) return;
         const container = elements.summaryContainer;
-        const toggleBtn = (elements as any).toggleSummaryBtn as HTMLButtonElement | null;
         if (!container) return;
         const isHidden = container.hasAttribute('hidden');
         if (isHidden) {
           container.removeAttribute('hidden');
-          if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
-          if (toggleBtn) toggleBtn.textContent = 'Compose Summary ▴';
+          updateComposeToggle(true);
         } else {
           container.setAttribute('hidden', '');
-          if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
-          if (toggleBtn) toggleBtn.textContent = 'Compose Summary ▾';
+          updateComposeToggle(false);
         }
         break;
       }
       case 'generateCopilotPrompt': {
         // Use current timer's work item id when available; otherwise try button id
-        const workItemId = id || (currentTimer ? currentTimer.workItemId : undefined);
+        const workItemId =
+          id ?? composeState?.workItemId ?? (currentTimer ? currentTimer.workItemId : undefined);
         const draft = elements.draftSummary ? elements.draftSummary.value : '';
         if (!workItemId) {
           console.warn('[webview] generateCopilotPrompt: no work item id available');
-          if (elements.summaryStatus)
-            elements.summaryStatus.textContent = 'No work item selected to generate prompt.';
+          setComposeStatus('No work item selected to generate prompt.');
           return;
         }
         // Provide visual feedback
-        if (elements.summaryStatus)
-          elements.summaryStatus.textContent =
-            'Preparing Copilot prompt and copying to clipboard...';
+        setComposeStatus('Preparing Copilot prompt and copying to clipboard...');
         postMessage({ type: 'generateCopilotPrompt', workItemId, draftSummary: draft });
         break;
       }
-      case 'stopAndApply': {
+      case 'stopAndApply':
+      case 'submitCompose': {
         const draft = elements.draftSummary ? elements.draftSummary.value : '';
-        if (elements.summaryStatus)
-          elements.summaryStatus.textContent = 'Stopping timer and applying updates...';
-        postMessage({ type: 'stopAndApply', comment: draft });
+        const mode = composeState?.mode ?? (currentTimer ? 'timerStop' : null);
+        const workItemId = composeState?.workItemId;
+
+        if (!workItemId) {
+          setComposeStatus('No work item selected to add a comment.');
+          return;
+        }
+
+        if (!draft.trim()) {
+          setComposeStatus('Write a comment before submitting.');
+          if (elements.draftSummary) {
+            requestAnimationFrame(() => elements.draftSummary?.focus());
+          }
+          return;
+        }
+
+        if (mode === 'addComment') {
+          setComposeStatus(`Adding a comment to work item #${workItemId}...`);
+        } else {
+          setComposeStatus('Stopping timer and applying updates...');
+        }
+
+        // Use unified message with additional data for timer stops
+        const message: any = {
+          type: 'submitComposeComment',
+          workItemId,
+          comment: draft,
+          mode: mode || 'addComment',
+        };
+
+        // Include timer data and connection info for timer stops
+        if (mode === 'timerStop' && composeState) {
+          message.timerData = (composeState as any).timerData;
+          message.connectionInfo = (composeState as any).connectionInfo;
+        }
+
+        postMessage(message);
         break;
       }
       case 'createWorkItem':
@@ -335,6 +656,7 @@ function setupEventListeners() {
   elements.sprintFilter?.addEventListener('change', applyFilters);
   elements.typeFilter?.addEventListener('change', applyFilters);
   elements.assignedToFilter?.addEventListener('change', applyFilters);
+  elements.queryFilter?.addEventListener('change', handleQuerySelectionChange);
 }
 
 // Filter and render functions
@@ -406,8 +728,13 @@ function selectWorkItem(id: string) {
 }
 
 function handleAddComment(workItemId: number) {
-  // Ask the extension to show an input box (more reliable than window.prompt in VS Code webviews)
-  postMessage({ type: 'addComment', workItemId });
+  const id = Number(workItemId);
+  if (!Number.isFinite(id) || id <= 0) return;
+  showComposePanel({
+    mode: 'addComment',
+    workItemId: id,
+    message: `Compose a comment for work item #${id}.`,
+  });
 }
 
 function formatTimerDuration(seconds: number): string {
@@ -514,6 +841,7 @@ function filterByStatus(status: string) {
   if (elements.sprintFilter) elements.sprintFilter.value = '';
   if (elements.typeFilter) elements.typeFilter.value = '';
   if (elements.assignedToFilter) elements.assignedToFilter.value = '';
+  persistCurrentFilterState();
 
   // Update the work items display
   elements.workItemsContainer!.innerHTML = filteredItems
@@ -662,42 +990,208 @@ function updateStatusOverview(items = workItems) {
     .join('');
 }
 
+function renderConnectionTabs() {
+  const container = elements.connectionTabs;
+  if (!container) return;
+
+  if (!connections.length) {
+    container.innerHTML = '';
+    container.setAttribute('hidden', '');
+    return;
+  }
+
+  container.removeAttribute('hidden');
+  const activeId = activeConnectionId;
+  container.innerHTML = connections
+    .map((conn) => {
+      const id = conn.id;
+      const label = escapeHtml(conn.label || conn.project || conn.organization || id);
+      const isActive = id === activeId;
+      const metaParts: string[] = [];
+      if (conn.organization) metaParts.push(conn.organization);
+      if (conn.project && conn.project !== conn.label) metaParts.push(conn.project);
+      const metaText = metaParts.length ? escapeHtml(metaParts.join(' / ')) : '';
+      const ariaSelected = isActive ? 'true' : 'false';
+      const tabIndex = isActive ? '0' : '-1';
+      return `
+        <button
+          class="connection-tab${isActive ? ' active' : ''}"
+          role="tab"
+          aria-selected="${ariaSelected}"
+          tabindex="${tabIndex}"
+          data-connection-id="${escapeHtml(id)}"
+        >
+          <span>${label}</span>
+          ${metaText ? `<span class="connection-meta">${metaText}</span>` : ''}
+        </button>
+      `;
+    })
+    .join('');
+}
+
+function selectConnection(connectionId: string, options: { fromMessage?: boolean } = {}) {
+  if (!connectionId || typeof connectionId !== 'string') return;
+  const trimmed = connectionId.trim();
+  if (!trimmed) return;
+  const previousConnectionId = activeConnectionId;
+  const changed = previousConnectionId !== trimmed;
+  if (changed && previousConnectionId) {
+    persistCurrentFilterState();
+  }
+  activeConnectionId = trimmed;
+  getFilterStateForConnection(trimmed);
+  renderConnectionTabs();
+  applyQuerySelectionToUi(trimmed);
+
+  const cachedItems = workItemsByConnection.get(trimmed);
+  const cachedFallback = fallbackNotices.get(trimmed) || null;
+  fallbackNotice = cachedFallback;
+
+  if (cachedItems) {
+    isLoading = false;
+    handleWorkItemsLoaded(cachedItems, trimmed, {
+      fromCache: true,
+      query: getSelectedQueryForConnection(trimmed),
+    });
+  } else if (changed) {
+    isLoading = true;
+    showLoadingState();
+  } else if (cachedFallback) {
+    isLoading = false;
+    renderWorkItems();
+  }
+
+  if (!options.fromMessage) {
+    postMessage({ type: 'setActiveConnection', connectionId: trimmed });
+  }
+}
+
 function setupMessageHandling() {
   window.addEventListener('message', (event) => {
     const message = event.data;
 
     switch (message.type) {
       case 'workItemsLoaded':
-        handleWorkItemsLoaded(message.workItems || []);
+        fallbackNotice = null;
+        handleWorkItemsLoaded(message.workItems || [], message.connectionId, {
+          query: message.query,
+        });
+        break;
+      case 'workItemsFallback':
+        handleWorkItemsFallback(message);
         break;
       case 'copilotPromptCopied': {
         const id = message.workItemId;
-        if (elements.summaryStatus)
-          elements.summaryStatus.textContent =
-            'Copilot prompt copied to clipboard. Paste into Copilot chat to generate a summary.';
+        setComposeStatus(
+          'Copilot prompt copied to clipboard. Paste into Copilot chat to generate a comment.'
+        );
         // Briefly show feedback then clear
         setTimeout(() => {
-          if (elements.summaryStatus) elements.summaryStatus.textContent = '';
+          setComposeStatus(null);
         }, 3500);
         break;
       }
       case 'stopAndApplyResult': {
         const id = message.workItemId;
         const hours = message.hours;
-        if (elements.summaryStatus)
-          elements.summaryStatus.textContent = `Applied ${hours.toFixed(
-            2
-          )} hours to work item #${id}.`;
-        // Reset draft after apply
-        if (elements.draftSummary) elements.draftSummary.value = '';
+        setComposeStatus(`Applied ${hours.toFixed(2)} hours to work item #${id}.`);
         try {
           if (typeof id === 'number') removeDraftForWorkItem(id);
         } catch (e) {
           console.warn('[webview] Failed to remove persisted draft after apply', e);
         }
         setTimeout(() => {
-          if (elements.summaryStatus) elements.summaryStatus.textContent = '';
-        }, 4000);
+          hideComposePanel({ clearDraft: true });
+        }, 3500);
+        break;
+      }
+      case 'addCommentResult': {
+        const id = typeof message.workItemId === 'number' ? message.workItemId : null;
+        if (message?.success === false) {
+          const errorMessage =
+            typeof message.error === 'string' && message.error.trim().length > 0
+              ? message.error.trim()
+              : 'Failed to add comment.';
+          setComposeStatus(errorMessage);
+          break;
+        }
+        if (id) {
+          try {
+            removeDraftForWorkItem(id);
+          } catch (e) {
+            console.warn('[webview] Failed to remove persisted draft after add comment', e);
+          }
+        }
+        setComposeStatus('Comment added successfully.');
+        setTimeout(() => {
+          hideComposePanel({ clearDraft: true });
+        }, 2000);
+        break;
+      }
+      case 'showComposeComment': {
+        const workItemId = typeof message.workItemId === 'number' ? message.workItemId : null;
+        const mode = typeof message.mode === 'string' ? message.mode : 'addComment';
+        let presetText = '';
+        let statusMessage = '';
+
+        if (mode === 'timerStop' && message.timerData) {
+          const hours = Number(
+            message.timerData.hoursDecimal || message.timerData.duration / 3600 || 0
+          );
+          // Store timer data in compose state for later submission
+          if (composeState) {
+            (composeState as any).timerData = message.timerData;
+            (composeState as any).connectionInfo = message.connectionInfo;
+          }
+          presetText = `Worked approximately ${hours.toFixed(2)} hours. Summarize the key updates you completed.`;
+          statusMessage = `Timer stopped. Review the comment and submit to apply time updates to work item #${workItemId}.`;
+        } else {
+          statusMessage = `Compose a comment for work item #${workItemId}.`;
+        }
+
+        showComposePanel({
+          mode: mode as ComposeMode,
+          workItemId,
+          presetText,
+          message: statusMessage,
+          focus: true,
+          expand: true,
+        });
+        break;
+      }
+      case 'composeCommentResult': {
+        const id = message.workItemId;
+        const mode = message.mode;
+        const success = message.success;
+
+        if (!success) {
+          const errorMessage =
+            typeof message.error === 'string' && message.error.trim().length > 0
+              ? message.error.trim()
+              : `Failed to ${mode === 'timerStop' ? 'apply timer update' : 'add comment'}.`;
+          setComposeStatus(errorMessage);
+          break;
+        }
+
+        // Success case
+        if (typeof id === 'number') {
+          try {
+            removeDraftForWorkItem(id);
+          } catch (e) {
+            console.warn('[webview] Failed to remove persisted draft after compose', e);
+          }
+        }
+
+        if (mode === 'timerStop') {
+          const hours = message.hours || 0;
+          setComposeStatus(`Applied ${hours.toFixed(2)} hours and comment to work item #${id}.`);
+        } else {
+          setComposeStatus('Comment added successfully.');
+        }
+
+        setTimeout(() => {
+          hideComposePanel({ clearDraft: true });
+        }, 3000);
         break;
       }
       case 'workItemsError':
@@ -712,10 +1206,222 @@ function setupMessageHandling() {
       case 'selfTestPing':
         handleSelfTestPing(message.nonce);
         break;
+      case 'workItemTypeOptions': {
+        const connectionId = normalizeConnectionId(message.connectionId) ?? activeConnectionId;
+        const incoming: string[] = Array.isArray(message.types)
+          ? message.types
+              .map((value: any) => (typeof value === 'string' ? value.trim() : ''))
+              .filter((value: string) => value.length > 0)
+          : [];
+
+        if (!connectionId) {
+          break;
+        }
+
+        setTypeOptionsForConnection(connectionId, incoming, { merge: true });
+
+        if (connectionId === activeConnectionId) {
+          populateFilterDropdowns(connectionId);
+          applyFilterStateToUi(connectionId);
+          applyFilters();
+        }
+        break;
+      }
+      case 'connectionsUpdate': {
+        const list: ConnectionEntry[] = Array.isArray(message.connections)
+          ? message.connections
+              .map((entry: any) => {
+                const id = typeof entry?.id === 'string' ? entry.id.trim() : '';
+                if (!id) return null;
+                const labelCandidate =
+                  typeof entry?.label === 'string' && entry.label.trim().length > 0
+                    ? entry.label.trim()
+                    : typeof entry?.project === 'string' && entry.project.trim().length > 0
+                      ? entry.project.trim()
+                      : id;
+                return {
+                  id,
+                  label: labelCandidate,
+                  organization:
+                    typeof entry?.organization === 'string' && entry.organization.trim().length > 0
+                      ? entry.organization.trim()
+                      : undefined,
+                  project:
+                    typeof entry?.project === 'string' && entry.project.trim().length > 0
+                      ? entry.project.trim()
+                      : undefined,
+                } satisfies ConnectionEntry;
+              })
+              .filter((entry: ConnectionEntry | null): entry is ConnectionEntry => entry !== null)
+          : [];
+
+        connections = list;
+        const validIds = new Set(list.map((conn) => conn.id));
+        Array.from(workItemsByConnection.keys()).forEach((id) => {
+          if (!validIds.has(id)) {
+            workItemsByConnection.delete(id);
+            fallbackNotices.delete(id);
+            typeOptionsByConnection.delete(id);
+            filterStateByConnection.delete(id);
+          }
+        });
+        Array.from(selectedQueryByConnection.keys()).forEach((id) => {
+          if (id === DEFAULT_QUERY_KEY) return;
+          if (!validIds.has(id)) {
+            selectedQueryByConnection.delete(id);
+          }
+        });
+
+        const nextActiveId =
+          typeof message.activeConnectionId === 'string' &&
+          message.activeConnectionId.trim().length > 0
+            ? message.activeConnectionId.trim()
+            : list.length > 0
+              ? list[0].id
+              : null;
+
+        if (nextActiveId) {
+          selectConnection(nextActiveId, { fromMessage: true });
+        } else {
+          activeConnectionId = null;
+          workItems = [];
+          fallbackNotice = null;
+          renderConnectionTabs();
+          renderWorkItems();
+        }
+        break;
+      }
       default:
         console.log('[webview] Unknown message type:', message.type);
     }
   });
+}
+
+function getComposeSubmitLabel(mode: ComposeMode | null): string {
+  return mode === 'addComment' ? 'Add Comment' : 'Stop & Apply';
+}
+
+function updateComposeToggle(expanded: boolean) {
+  const toggleBtn = (elements as any).toggleSummaryBtn as HTMLButtonElement | null;
+  if (!toggleBtn) return;
+  toggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  toggleBtn.textContent = expanded ? 'Compose Comment ▴' : 'Compose Comment ▾';
+}
+
+function updateComposeSubmitLabel() {
+  if (elements.submitComposeBtn) {
+    elements.submitComposeBtn.textContent = getComposeSubmitLabel(composeState?.mode ?? null);
+  }
+}
+
+function updateComposeButtonVisibility() {
+  const generatePromptBtn = elements.generatePromptBtn;
+  if (generatePromptBtn) {
+    // Show Copilot button only for timer stops
+    if (composeState?.mode === 'timerStop') {
+      generatePromptBtn.style.display = '';
+    } else {
+      generatePromptBtn.style.display = 'none';
+    }
+  }
+}
+
+function setComposeStatus(message: string | null | undefined) {
+  if (!elements.summaryStatus) return;
+  if (typeof message === 'string' && message.trim().length > 0) {
+    elements.summaryStatus.textContent = message;
+  } else {
+    elements.summaryStatus.textContent = '';
+  }
+}
+
+type ShowComposeOptions = {
+  mode: ComposeMode;
+  workItemId?: number | null;
+  presetText?: string;
+  focus?: boolean;
+  message?: string | null;
+  expand?: boolean;
+};
+
+function showComposePanel(options: ShowComposeOptions) {
+  composeState = {
+    mode: options.mode,
+    workItemId:
+      typeof options.workItemId === 'number' && Number.isFinite(options.workItemId)
+        ? options.workItemId
+        : null,
+  };
+
+  if (elements.summarySection) {
+    elements.summarySection.removeAttribute('hidden');
+    (elements.summarySection as HTMLElement).dataset.mode = options.mode;
+    if (composeState?.workItemId) {
+      (elements.summarySection as HTMLElement).dataset.workItemId = String(composeState.workItemId);
+    } else {
+      delete (elements.summarySection as HTMLElement).dataset.workItemId;
+    }
+  }
+
+  const expand = options.expand !== false;
+  if (elements.summaryContainer) {
+    if (expand) {
+      elements.summaryContainer.removeAttribute('hidden');
+    }
+  }
+  updateComposeToggle(expand);
+  updateComposeSubmitLabel();
+  updateComposeButtonVisibility();
+
+  const workItemId = composeState.workItemId;
+  if (typeof workItemId === 'number' && Number.isFinite(workItemId)) {
+    selectWorkItem(String(workItemId));
+  }
+
+  const textarea = elements.draftSummary;
+  if (textarea) {
+    let draftValue: string | null = null;
+    if (typeof options.presetText === 'string') {
+      draftValue = options.presetText;
+    } else if (workItemId) {
+      const persisted = loadDraftForWorkItem(workItemId);
+      if (persisted !== null) {
+        draftValue = persisted;
+      }
+    }
+    textarea.value = draftValue ?? '';
+    if (options.focus !== false) {
+      requestAnimationFrame(() => {
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      });
+    }
+  }
+
+  setComposeStatus(options.message);
+}
+
+type HideComposeOptions = {
+  clearDraft?: boolean;
+};
+
+function hideComposePanel(options?: HideComposeOptions) {
+  composeState = null;
+  if (elements.summaryContainer) {
+    elements.summaryContainer.setAttribute('hidden', '');
+  }
+  if (elements.summarySection) {
+    elements.summarySection.setAttribute('hidden', '');
+    delete (elements.summarySection as HTMLElement).dataset.mode;
+    delete (elements.summarySection as HTMLElement).dataset.workItemId;
+  }
+  updateComposeToggle(false);
+  updateComposeSubmitLabel();
+  updateComposeButtonVisibility();
+  setComposeStatus(null);
+  if (options?.clearDraft && elements.draftSummary) {
+    elements.draftSummary.value = '';
+  }
 }
 
 function requestWorkItems() {
@@ -723,7 +1429,12 @@ function requestWorkItems() {
 
   isLoading = true;
   showLoadingState();
-  postMessage({ type: 'getWorkItems' });
+  const query = getSelectedQueryForConnection(activeConnectionId);
+  postMessage({
+    type: 'getWorkItems',
+    query,
+    connectionId: activeConnectionId ?? undefined,
+  });
 }
 
 function showLoadingState() {
@@ -737,11 +1448,16 @@ function showLoadingState() {
   });
 }
 
-function populateFilterDropdowns() {
-  // Populate sprint filter
+function populateFilterDropdowns(connectionId?: string) {
+  const targetConnectionId = connectionId ?? activeConnectionId;
+  const itemsSource =
+    targetConnectionId && targetConnectionId !== activeConnectionId
+      ? (workItemsByConnection.get(targetConnectionId) ?? [])
+      : workItems;
+
   if (elements.sprintFilter) {
     const sprints = new Set<string>();
-    workItems.forEach((item) => {
+    itemsSource.forEach((item) => {
       const path = (item.iterationPath || item.fields?.['System.IterationPath'] || '').toString();
       if (!path) return;
       const sprintName = path.split('\\').pop() || path;
@@ -751,31 +1467,32 @@ function populateFilterDropdowns() {
     elements.sprintFilter.innerHTML =
       '<option value="">All Sprints</option>' +
       Array.from(sprints)
-        .sort()
+        .sort((a, b) => a.localeCompare(b))
         .map((sprint) => `<option value="${escapeHtml(sprint)}">${escapeHtml(sprint)}</option>`)
         .join('');
   }
 
-  // Populate type filter
   if (elements.typeFilter) {
     const types = new Set<string>();
-    workItems.forEach((item) => {
+    getTypeOptionsForConnection(targetConnectionId).forEach((type) => {
+      if (typeof type === 'string' && type.trim().length > 0) types.add(type.trim());
+    });
+    itemsSource.forEach((item) => {
       const t = (item.type || item.fields?.['System.WorkItemType'] || '').toString();
-      if (t) types.add(t);
+      if (t.trim()) types.add(t.trim());
     });
 
     elements.typeFilter.innerHTML =
       '<option value="">All Types</option>' +
       Array.from(types)
-        .sort()
+        .sort((a, b) => a.localeCompare(b))
         .map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`)
         .join('');
   }
 
-  // Populate assignee filter
   if (elements.assignedToFilter) {
     const assignees = new Set<string>();
-    workItems.forEach((item) => {
+    itemsSource.forEach((item) => {
       let a = item.assignedTo ?? item.fields?.['System.AssignedTo'];
       if (a && typeof a === 'object') {
         a = (a.displayName || a.uniqueName || a.name || '').toString();
@@ -787,7 +1504,7 @@ function populateFilterDropdowns() {
     elements.assignedToFilter.innerHTML =
       '<option value="">All Assignees</option>' +
       Array.from(assignees)
-        .sort()
+        .sort((a, b) => a.localeCompare(b))
         .map(
           (assignee) => `<option value="${escapeHtml(assignee)}">${escapeHtml(assignee)}</option>`
         )
@@ -795,13 +1512,112 @@ function populateFilterDropdowns() {
   }
 }
 
-function handleWorkItemsLoaded(items: any[]) {
-  console.log('[webview] handleWorkItemsLoaded called with', items.length, 'items:', items);
-  isLoading = false;
-  workItems = items;
-  console.log('[webview] After assignment, workItems.length:', workItems.length);
-  populateFilterDropdowns();
-  renderWorkItems();
+function handleWorkItemsLoaded(
+  items: any[],
+  connectionId?: string | null,
+  options: { fromCache?: boolean; query?: string } = {}
+) {
+  const trimmedId = typeof connectionId === 'string' ? connectionId.trim() : '';
+  const fromCache = options.fromCache === true;
+  const incomingQuery =
+    typeof options.query === 'string' && options.query.trim().length > 0
+      ? options.query.trim()
+      : undefined;
+
+  if (trimmedId) {
+    workItemsByConnection.set(trimmedId, items);
+    if (!fromCache) {
+      fallbackNotices.delete(trimmedId);
+    }
+  }
+
+  if (!activeConnectionId && trimmedId) {
+    activeConnectionId = trimmedId;
+    renderConnectionTabs();
+  }
+
+  const targetId = trimmedId || activeConnectionId || null;
+  const connectionKey = trimmedId || activeConnectionId || null;
+  if (connectionKey) {
+    setTypeOptionsForConnection(connectionKey, extractWorkItemTypes(items));
+    if (incomingQuery) {
+      setSelectedQueryForConnection(connectionKey, incomingQuery);
+    } else if (!selectedQueryByConnection.has(getQueryStorageKey(connectionKey))) {
+      setSelectedQueryForConnection(connectionKey, undefined);
+    }
+  }
+  const shouldUpdateUi = !trimmedId || targetId === activeConnectionId || !activeConnectionId;
+
+  if (shouldUpdateUi) {
+    if (!activeConnectionId && targetId) {
+      activeConnectionId = targetId;
+      renderConnectionTabs();
+    }
+    searchHaystackCache = new WeakMap();
+    workItems = items;
+    isLoading = false;
+    if (activeConnectionId) {
+      fallbackNotice = fallbackNotices.get(activeConnectionId) || null;
+    }
+    applyQuerySelectionToUi(activeConnectionId ?? null);
+    populateFilterDropdowns(activeConnectionId ?? undefined);
+    if (activeConnectionId) {
+      applyFilterStateToUi(activeConnectionId);
+    }
+    renderWorkItems();
+  }
+}
+
+function handleWorkItemsFallback(message: any) {
+  const original = message?.originalQuery ? String(message.originalQuery) : 'Configured Query';
+  const fallback = message?.fallbackQuery ? String(message.fallbackQuery) : 'My Activity';
+  const defaultQuery = message?.defaultQuery ? String(message.defaultQuery) : undefined;
+  const fetchedCount =
+    typeof message?.fetchedCount === 'number' ? Number(message.fetchedCount) : undefined;
+  const identityMeta = message?.fallbackIdentity;
+  let identity:
+    | {
+        id?: string;
+        displayName?: string;
+        uniqueName?: string;
+      }
+    | undefined;
+  if (identityMeta && typeof identityMeta === 'object') {
+    identity = {
+      id: typeof identityMeta.id === 'string' ? identityMeta.id : undefined,
+      displayName:
+        typeof identityMeta.displayName === 'string' ? identityMeta.displayName : undefined,
+      uniqueName: typeof identityMeta.uniqueName === 'string' ? identityMeta.uniqueName : undefined,
+    };
+  }
+  const assignees = Array.isArray(message?.assignees)
+    ? message.assignees
+        .map((value: any) => (typeof value === 'string' ? value.trim() : ''))
+        .filter((value: string) => value.length > 0)
+    : undefined;
+  const notice: FallbackNoticeData = {
+    originalQuery: original,
+    fallbackQuery: fallback,
+    defaultQuery,
+    fetchedCount,
+    fallbackIdentity: identity,
+    assignees,
+  };
+  const connectionId = typeof message?.connectionId === 'string' ? message.connectionId.trim() : '';
+  if (connectionId) {
+    fallbackNotices.set(connectionId, notice);
+    if (!activeConnectionId) {
+      activeConnectionId = connectionId;
+      renderConnectionTabs();
+    }
+    if (connectionId === activeConnectionId) {
+      fallbackNotice = notice;
+      renderWorkItems();
+    }
+  } else {
+    fallbackNotice = notice;
+    renderWorkItems();
+  }
 }
 
 function handleWorkItemsError(error: string) {
@@ -870,6 +1686,98 @@ function getStateClass(state: string): string {
   return stateClassMap[state] || 'state-default';
 }
 
+function buildSearchHaystack(item: any): string {
+  const parts: string[] = [];
+  const seenObjects = new WeakSet<object>();
+  const maxDepth = 5;
+
+  const pushString = (value: string) => {
+    const trimmed = value.trim();
+    if (trimmed.length > 0) {
+      parts.push(trimmed.toLowerCase());
+    }
+  };
+
+  const visit = (value: any, depth = 0) => {
+    if (value === null || value === undefined) return;
+
+    if (typeof value === 'string') {
+      pushString(value);
+      return;
+    }
+
+    if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
+      pushString(String(value));
+      return;
+    }
+
+    if (value instanceof Date) {
+      pushString(value.toISOString());
+      return;
+    }
+
+    if (typeof value === 'symbol') {
+      pushString(value.toString());
+      return;
+    }
+
+    if (typeof value === 'object') {
+      if (seenObjects.has(value)) return;
+      seenObjects.add(value);
+
+      if (depth >= maxDepth) return;
+
+      if (Array.isArray(value)) {
+        value.forEach((entry) => visit(entry, depth + 1));
+        return;
+      }
+
+      const identityKeys = [
+        'displayName',
+        'uniqueName',
+        'name',
+        'fullName',
+        'mailAddress',
+        'email',
+        'userPrincipalName',
+        'upn',
+        'descriptor',
+        'text',
+        'value',
+        'title',
+      ];
+
+      identityKeys.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          visit((value as any)[key], depth + 1);
+        }
+      });
+
+      Object.keys(value).forEach((key) => {
+        if (key === '__proto__') return;
+        visit((value as any)[key], depth + 1);
+      });
+
+      return;
+    }
+  };
+
+  visit(item);
+
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function getSearchHaystack(item: any): string {
+  if (!item || (typeof item !== 'object' && typeof item !== 'function')) {
+    return typeof item === 'string' ? item.toLowerCase() : String(item ?? '').toLowerCase();
+  }
+  const cached = searchHaystackCache.get(item);
+  if (cached) return cached;
+  const haystack = buildSearchHaystack(item);
+  searchHaystackCache.set(item, haystack);
+  return haystack;
+}
+
 function getVisibleItems(): any[] {
   const q = (elements.searchInput?.value || '').trim().toLowerCase();
   const sprint = elements.sprintFilter?.value || '';
@@ -889,16 +1797,8 @@ function getVisibleItems(): any[] {
 
   const byQuery = (item: any) => {
     if (!q) return true;
-    const id = String(item.id ?? item.fields?.['System.Id'] ?? '');
-    const title = String(item.title ?? item.fields?.['System.Title'] ?? '').toLowerCase();
-    const tags = String(
-      item.tags
-        ? Array.isArray(item.tags)
-          ? item.tags.join(';')
-          : item.tags
-        : item.fields?.['System.Tags'] || ''
-    ).toLowerCase();
-    return id.includes(q) || title.includes(q) || tags.includes(q);
+    const haystack = getSearchHaystack(item);
+    return haystack.includes(q);
   };
 
   const bySprint = (item: any) => {
@@ -932,6 +1832,7 @@ function getVisibleItems(): any[] {
 }
 
 function applyFilters() {
+  persistCurrentFilterState();
   if (currentView === 'kanban') renderKanbanView();
   else renderWorkItems();
 }
@@ -940,9 +1841,55 @@ function renderWorkItems() {
   const itemsToRender = getVisibleItems();
   console.log('[webview] renderWorkItems called, itemsToRender.length:', itemsToRender.length);
   if (!elements.workItemsContainer) return;
+  const notice = fallbackNotice;
+  let bannerHtml = '';
+  if (notice) {
+    const original = escapeHtml(String(notice.originalQuery || 'Configured Query'));
+    const fallback = escapeHtml(String(notice.fallbackQuery || 'My Activity'));
+    const defaultQueryText = notice.defaultQuery
+      ? ` (default query: ${escapeHtml(String(notice.defaultQuery))})`
+      : '';
+    const fetchedSnippet =
+      typeof notice.fetchedCount === 'number' ? ` ${notice.fetchedCount} work items loaded.` : '';
+    const identity = notice.fallbackIdentity;
+    const assignees = Array.isArray(notice.assignees)
+      ? notice.assignees.filter((value) => typeof value === 'string' && value.trim().length > 0)
+      : [];
+    let identityHtml = '';
+    if (identity && (identity.displayName || identity.uniqueName || identity.id)) {
+      const label = escapeHtml(
+        identity.displayName || identity.uniqueName || identity.id || 'the PAT owner'
+      );
+      identityHtml = `
+        <div style="margin-top: 0.5rem; font-size: 0.85em; color: var(--vscode-descriptionForeground);">
+          Results were loaded using the saved Personal Access Token for <strong>${label}</strong>.
+          If this isn't you, update the PAT under Azure DevOps Integration settings.
+        </div>`;
+    } else if (assignees.length > 0) {
+      const preview = assignees
+        .slice(0, 3)
+        .map((value) => escapeHtml(value))
+        .join(', ');
+      const overflow = assignees.length > 3 ? ', …' : '';
+      identityHtml = `
+        <div style="margin-top: 0.5rem; font-size: 0.85em; color: var(--vscode-descriptionForeground);">
+          Work items in these fallback results are assigned to: ${preview}${overflow}
+        </div>`;
+    }
+    bannerHtml = `
+      <div class="info-banner" style="margin: 0 0 0.75rem 0; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--vscode-inputValidationInfoBorder, rgba(0, 122, 204, 0.6)); background: var(--vscode-inputValidationInfoBackground, rgba(0, 122, 204, 0.1));">
+        <div style="font-weight: 600;">Showing fallback results</div>
+        <div style="margin-top: 0.25rem;">No work items matched <code>${original}</code>. Loaded <code>${fallback}</code> instead.${defaultQueryText}${fetchedSnippet}</div>
+        <div style="margin-top: 0.5rem; font-size: 0.85em; color: var(--vscode-descriptionForeground);">
+          Update <strong>Azure DevOps Integration › Default Query</strong> in settings to customize the default list.
+        </div>
+        ${identityHtml}
+      </div>`;
+  }
   if (itemsToRender.length === 0) {
     preserveScroll('y', () => {
       elements.workItemsContainer!.innerHTML = `
+        ${bannerHtml}
         <div class="status-message">
           <div>No work items found</div>
           <div style="font-size: 0.9em; color: var(--vscode-descriptionForeground); margin-top: 0.5rem;">Use the refresh button (🔄) in the header to reload work items</div>
@@ -1091,7 +2038,7 @@ function renderWorkItems() {
     .join('');
 
   preserveScroll('y', () => {
-    elements.workItemsContainer!.innerHTML = html;
+    elements.workItemsContainer!.innerHTML = `${bannerHtml}${html}`;
   });
   updateStatusOverview(itemsToRender);
 }
@@ -1346,9 +2293,11 @@ function viewWorkItemDetails(id: number) {
 }
 
 function handleTimerUpdate(timer: any) {
+  const previousTimer = currentTimer;
   currentTimer = timer;
 
   if (timer) {
+    lastTimerSnapshot = timer;
     updateTimerDisplay();
     updateTimerButtonStates();
     // Re-render work items to show timer indicators
@@ -1384,6 +2333,43 @@ function handleTimerUpdate(timer: any) {
       renderKanbanView();
     } else {
       renderWorkItems();
+    }
+    const snapshot = previousTimer || lastTimerSnapshot;
+    lastTimerSnapshot = null;
+    const id = snapshot && snapshot.workItemId ? Number(snapshot.workItemId) : null;
+    if (id && Number.isFinite(id)) {
+      let presetText: string | undefined;
+      try {
+        const persisted = loadDraftForWorkItem(id);
+        if (persisted !== null) {
+          presetText = persisted;
+        }
+      } catch {
+        // ignore persistence failures
+      }
+
+      if (!presetText) {
+        const seconds =
+          typeof snapshot?.elapsedSeconds === 'number'
+            ? snapshot.elapsedSeconds
+            : typeof snapshot?.duration === 'number'
+              ? snapshot.duration
+              : 0;
+        const hours = seconds / 3600 || 0;
+        const title = snapshot?.workItemTitle || `#${snapshot?.workItemId || id}`;
+        presetText = `Worked approximately ${hours.toFixed(
+          2
+        )} hours on ${title}. Summarize the key updates you completed.`;
+      }
+
+      showComposePanel({
+        mode: 'timerStop',
+        workItemId: id,
+        presetText,
+        message: `Timer stopped for work item #${id}. Review the comment and use Stop & Apply to post updates.`,
+      });
+    } else if (composeState?.mode === 'timerStop') {
+      hideComposePanel();
     }
   }
 }

@@ -6,6 +6,16 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.7.2] - 2025-09-24
+
+### Added
+
+- When stopping a timer, users can now choose to generate a Copilot prompt and copy it to the clipboard without stopping the timer. This allows for generating summaries of ongoing work.
+
+### Changed
+
+- The "Stop Timer" action now presents a quick pick menu with options to either stop the timer and apply time, or to generate a Copilot summary while the timer continues to run.
+
 ## [1.7.1] - 2025-09-23
 
 ### Changed
@@ -18,20 +28,29 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+### Added
+
+- **Enhanced Setup Experience**: New setup wizard that parses work item URLs and guides users through configuration
+- **Improved README**: Streamlined documentation focusing on key features and easier setup process
+- **Better Command Organization**: Simplified command palette with essential commands clearly highlighted
+
 ### Changed
 
-- Toggle Kanban toolbar button now uses a codicon at the command level; menu inherits the icon for consistent header styling
-- README screenshots switched to vertical layout for better Marketplace/Preview rendering
-- Screenshot generator now captures tightly-cropped, high-DPI images and stubs VS Code webview APIs during headless runs
+- **README Structure**: Reorganized highlights to focus on core features (Work Items, Time Tracking, Git Integration, AI Summaries)
+- **Setup Process**: Added step-by-step setup wizard as the recommended setup method
+- **Documentation**: Simplified configuration section to show only the most important settings
+- **Troubleshooting**: Added common issues table with quick solutions
 
 ### Fixed
 
-- Preserved scroll positions across renders (list vertical, Kanban horizontal)
-- Stabilized pre-commit hooks: removed deprecated Husky shim lines; lint-staged now runs eslint --fix and prettier on staged files
+- **Documentation Accuracy**: Verified all features mentioned in README are actually implemented
+- **Command References**: Updated command table to reflect actual available commands
+- **Setup Instructions**: Clarified the difference between wizard and manual setup
 
 ### Notes
 
-- No breaking changes; behavior is backward compatible
+- No breaking changes; all existing functionality remains the same
+- Documentation improvements make the extension easier to discover and use
 
 ## [1.6.3] - 2025-09-20
 
