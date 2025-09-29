@@ -22,13 +22,15 @@
   export let sortKey = 'updated-desc'; // 'updated-desc' | 'id-desc' | 'id-asc' | 'title-asc'
   export let availableStates = []; // dynamic list of normalized state keys
   export let availableTypes = [];
-  export let summaryOpen = false;
+  // Query selector
+  export let selectedQuery = 'My Activity';
+  export let queryDescription = '';
   export let summaryDraft = '';
   export let summaryStatus = '';
   export let summaryProvider = 'builtin';
   export let summaryBusy = false;
   export let summaryTargetId = 0;
-  export let summaryTargetTitle = '';
+  export let summaryWorkItemId = 0;
 
   function onRefresh() {
     dispatch('refresh');
@@ -50,9 +52,6 @@
   }
   function onToggleKanban() {
     dispatch('toggleKanban');
-  }
-  function onToggleSummary() {
-    dispatch('toggleSummary');
   }
   function onFilterInput(e) {
     dispatch('filtersChanged', {
@@ -98,6 +97,48 @@
   function onStopAndApplySummary() {
     dispatch('stopAndApplySummary');
   }
+  function onCancelSummary() {
+    dispatch('cancelSummary');
+  }
+  function onQueryChange(e) {
+    dispatch('queryChanged', { query: e.target.value });
+  }
+
+  // Query options
+  const queryOptions = [
+    {
+      value: 'My Activity',
+      label: 'My Activity',
+      description: "Work items I've created, assigned to, or recently changed",
+    },
+    {
+      value: 'My Work Items',
+      label: 'My Work Items',
+      description: 'Work items currently assigned to me',
+    },
+    {
+      value: 'Assigned to me',
+      label: 'Assigned to me',
+      description: 'Work items currently assigned to me',
+    },
+    {
+      value: 'Current Sprint',
+      label: 'Current Sprint',
+      description: 'Work items in the current iteration',
+    },
+    {
+      value: 'All Active',
+      label: 'All Active',
+      description: 'All active work items in the project',
+    },
+    {
+      value: 'Recently Updated',
+      label: 'Recently Updated',
+      description: 'Work items updated in the last 14 days',
+    },
+    { value: 'Following', label: 'Following', description: "Work items I'm following" },
+    { value: 'Mentioned', label: 'Mentioned', description: "Work items where I've been mentioned" },
+  ];
 
   $: summaryButtonLabel =
     summaryProvider === 'openai' ? 'Generate AI Summary' : 'Copy Copilot Prompt';
@@ -105,9 +146,6 @@
     summaryProvider === 'openai'
       ? 'Creates an OpenAI summary and copies it to your clipboard.'
       : 'Copies a Copilot-ready prompt to your clipboard.';
-  $: summaryTargetDisplay = summaryTargetId
-    ? `#${summaryTargetId} · ${summaryTargetTitle || `Work Item #${summaryTargetId}`}`
-    : '';
   $: summaryGenerateDisabled = summaryBusy || !summaryTargetId;
   $: summaryApplyDisabled = summaryBusy || !timerActive;
   $: summaryAreaDisabled = !summaryTargetId;
@@ -240,6 +278,29 @@
 </script>
 
 <div class="pane">
+  <!-- Query Selector Row -->
+  <div class="query-header" role="toolbar" aria-label="Query selection">
+    <div class="query-selector-container">
+      <label for="querySelect" class="query-selector-label">Query</label>
+      <select
+        id="querySelect"
+        class="query-selector"
+        bind:value={selectedQuery}
+        on:change={onQueryChange}
+        title="Select a query to filter work items"
+        aria-label="Select query"
+      >
+        {#each queryOptions as option}
+          <option value={option.value}>{option.label}</option>
+        {/each}
+      </select>
+      {#if queryDescription}
+        <div class="query-description">{queryDescription}</div>
+      {/if}
+    </div>
+  </div>
+
+  <!-- Main Controls Row -->
   <div class="pane-header" role="toolbar" aria-label="Work Items actions">
     <span style="font-weight:600;">Work Items</span>
     {#if subtitle}
@@ -263,14 +324,6 @@
       {/if}
     {/if}
     <span class="actions" style="margin-left:auto;">
-      <button
-        class="summary-toggle"
-        on:click={onToggleSummary}
-        aria-expanded={summaryOpen ? 'true' : 'false'}
-        aria-label="Toggle summary composer"
-      >
-        Compose Summary {summaryOpen ? '▴' : '▾'}
-      </button>
       <span class="filters" aria-label="Filters and sort">
         <input
           placeholder="Filter..."
@@ -317,73 +370,6 @@
   </div>
 
   <div class="pane-body">
-    {#if summaryOpen}
-      <section class="summary-panel" aria-label="Work summary composer">
-        <div class="summary-header">
-          <div class="summary-context">
-            {#if summaryTargetId}
-              <span class="summary-target-label">Target</span>
-              <span class="summary-target-value">{summaryTargetDisplay}</span>
-              <span class="summary-provider-badge"
-                >{summaryProvider === 'openai' ? 'OpenAI' : 'Copilot'}</span
-              >
-              {#if timerActive}
-                <span class="summary-target-timer"
-                  >{timerRunning ? 'Running' : 'Paused'}
-                  {#if timerElapsedLabel}
-                    ({timerElapsedLabel})
-                  {/if}</span
-                >
-              {/if}
-            {:else}
-              <span class="muted">Start a timer or select a work item to enable summaries.</span>
-            {/if}
-          </div>
-          {#if summaryBusy}
-            <span class="spinner inline" role="status" aria-label="Generating summary"></span>
-          {/if}
-        </div>
-        <textarea
-          class="summary-textarea"
-          placeholder="Draft a concise update for your work item…"
-          value={summaryDraft}
-          on:input={onSummaryInput}
-          on:blur={onSummaryBlur}
-          rows="5"
-          disabled={summaryAreaDisabled}
-        ></textarea>
-        <div class="summary-actions">
-          <div class="summary-buttons">
-            <button
-              class="action-btn summary-generate"
-              on:click|preventDefault={onGenerateSummary}
-              title={summaryButtonLabel}
-              aria-label={summaryButtonLabel}
-              disabled={summaryGenerateDisabled}
-            >
-              <span class="codicon codicon-rocket" aria-hidden="true"></span>
-              {summaryButtonLabel}
-            </button>
-            <button
-              class="action-btn summary-apply"
-              on:click|preventDefault={onStopAndApplySummary}
-              title="Stop timer and apply time entry with this summary"
-              aria-label="Stop timer and apply time entry with this summary"
-              disabled={summaryApplyDisabled}
-            >
-              <span class="codicon codicon-check" aria-hidden="true"></span>
-              Stop &amp; Apply
-            </button>
-          </div>
-          <div class="summary-helper">{summaryHelperText}</div>
-        </div>
-        {#if summaryStatus}
-          <div class="summary-status" aria-live="polite">{summaryStatus}</div>
-        {/if}
-      </section>
-    {:else if summaryStatus}
-      <div class="summary-status-inline" aria-live="polite">{summaryStatus}</div>
-    {/if}
     {#if errorMsg}
       <div class="error-banner" role="alert">{errorMsg}</div>
     {/if}
@@ -417,11 +403,6 @@
                     draggable="true"
                     on:dragstart={(e) => handleDragStart(e, it)}
                     on:keydown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        dispatch('openItem', { id: it.id });
-                        return;
-                      }
                       if (
                         kanbanView &&
                         (e.ctrlKey || e.metaKey) &&
@@ -444,9 +425,8 @@
                         }
                       }
                     }}
-                    on:click={() => dispatch('openItem', { id: it.id })}
                     role="button"
-                    aria-label={`Work item #${it.id}: ${it.fields?.['System.Title']} - press Enter to open; Ctrl+Arrow to move`}
+                    aria-label={`Work item #${it.id}: ${it.fields?.['System.Title']} - use action buttons to interact`}
                   >
                     <div class="work-item-header">
                       <span class="work-item-type-icon"
@@ -475,6 +455,96 @@
                       {#if extractDescription(it)}
                         <div class="work-item-desc" title={extractDescription(it)}>
                           {extractDescription(it)}
+                        </div>
+                      {/if}
+
+                      <!-- Summary Composer for this work item -->
+                      {#if summaryWorkItemId === Number(it.id)}
+                        <div class="work-item-summary">
+                          <div class="summary-header">
+                            <div class="summary-context">
+                              <span class="summary-target-label">Comment</span>
+                              <span class="summary-provider-badge"
+                                >{summaryProvider === 'openai' ? 'OpenAI' : 'Copilot'}</span
+                              >
+                              {#if timerActive && activeId === Number(it.id)}
+                                <span class="summary-target-timer"
+                                  >{timerRunning ? 'Running' : 'Paused'}
+                                  {#if timerElapsedLabel}
+                                    ({timerElapsedLabel})
+                                  {/if}</span
+                                >
+                              {/if}
+                            </div>
+                            <div class="summary-header-actions">
+                              {#if summaryBusy}
+                                <span
+                                  class="spinner inline"
+                                  role="status"
+                                  aria-label="Generating summary"
+                                ></span>
+                              {/if}
+                              <button
+                                class="action-btn cancel compact"
+                                on:click|preventDefault={onCancelSummary}
+                                title="Cancel"
+                                aria-label="Cancel"
+                              >
+                                <span class="codicon codicon-close" aria-hidden="true"></span>
+                              </button>
+                            </div>
+                          </div>
+                          <textarea
+                            class="summary-textarea"
+                            placeholder="Draft a concise update for this work item…"
+                            value={summaryDraft}
+                            on:input={onSummaryInput}
+                            on:blur={onSummaryBlur}
+                            rows="3"
+                            disabled={summaryAreaDisabled}
+                          ></textarea>
+                          <div class="summary-actions">
+                            <div class="summary-buttons">
+                              <button
+                                class="action-btn summary-generate"
+                                on:click|preventDefault={onGenerateSummary}
+                                title={summaryButtonLabel}
+                                aria-label={summaryButtonLabel}
+                                disabled={summaryGenerateDisabled}
+                              >
+                                <span class="codicon codicon-rocket" aria-hidden="true"></span>
+                                {summaryButtonLabel}
+                              </button>
+                              {#if timerActive && activeId === Number(it.id)}
+                                <button
+                                  class="action-btn summary-apply"
+                                  on:click|preventDefault={onStopAndApplySummary}
+                                  title="Stop timer and apply time entry with this summary"
+                                  aria-label="Stop timer and apply time entry with this summary"
+                                  disabled={summaryApplyDisabled}
+                                >
+                                  <span class="codicon codicon-check" aria-hidden="true"></span>
+                                  Stop &amp; Apply
+                                </button>
+                              {:else}
+                                <button
+                                  class="action-btn summary-apply"
+                                  on:click|preventDefault={() =>
+                                    dispatch('applySummary', { workItemId: it.id })}
+                                  title="Apply summary as comment"
+                                  aria-label="Apply summary as comment"
+                                  disabled={summaryBusy || !summaryDraft.trim()}
+                                >
+                                  <span class="codicon codicon-check" aria-hidden="true"></span>
+                                  Apply
+                                </button>
+                              {/if}
+                            </div>
+                            <div class="summary-helper">{summaryHelperText}</div>
+                          </div>
+                          {#if summaryStatus}
+                            <div class="summary-status" aria-live="polite">{summaryStatus}</div>
+                          {/if}
                         </div>
                       {/if}
 
@@ -555,15 +625,8 @@
               ? 'has-active-timer'
               : ''}"
             tabindex="0"
-            on:keydown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                dispatch('openItem', { id: it.id });
-              }
-            }}
-            on:click={() => dispatch('openItem', { id: it.id })}
             role="button"
-            aria-label={`Work item #${it.id}: ${it.fields?.['System.Title']} - press Enter to open`}
+            aria-label={`Work item #${it.id}: ${it.fields?.['System.Title']} - use action buttons to interact`}
           >
             <div class="work-item-header">
               <span class="work-item-type-icon"
@@ -592,6 +655,93 @@
               {#if extractDescription(it)}
                 <div class="work-item-desc" title={extractDescription(it)}>
                   {extractDescription(it)}
+                </div>
+              {/if}
+
+              <!-- Summary Composer for this work item -->
+              {#if summaryWorkItemId === Number(it.id)}
+                <div class="work-item-summary">
+                  <div class="summary-header">
+                    <div class="summary-context">
+                      <span class="summary-target-label">Comment</span>
+                      <span class="summary-provider-badge"
+                        >{summaryProvider === 'openai' ? 'OpenAI' : 'Copilot'}</span
+                      >
+                      {#if timerActive && activeId === Number(it.id)}
+                        <span class="summary-target-timer"
+                          >{timerRunning ? 'Running' : 'Paused'}
+                          {#if timerElapsedLabel}
+                            ({timerElapsedLabel})
+                          {/if}</span
+                        >
+                      {/if}
+                    </div>
+                    <div class="summary-header-actions">
+                      {#if summaryBusy}
+                        <span class="spinner inline" role="status" aria-label="Generating summary"
+                        ></span>
+                      {/if}
+                      <button
+                        class="action-btn cancel compact"
+                        on:click|preventDefault={onCancelSummary}
+                        title="Cancel"
+                        aria-label="Cancel"
+                      >
+                        <span class="codicon codicon-close" aria-hidden="true"></span>
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    class="summary-textarea"
+                    placeholder="Draft a concise update for this work item…"
+                    value={summaryDraft}
+                    on:input={onSummaryInput}
+                    on:blur={onSummaryBlur}
+                    rows="3"
+                    disabled={summaryAreaDisabled}
+                  ></textarea>
+                  <div class="summary-actions">
+                    <div class="summary-buttons">
+                      <button
+                        class="action-btn summary-generate"
+                        on:click|preventDefault={onGenerateSummary}
+                        title={summaryButtonLabel}
+                        aria-label={summaryButtonLabel}
+                        disabled={summaryGenerateDisabled}
+                      >
+                        <span class="codicon codicon-rocket" aria-hidden="true"></span>
+                        {summaryButtonLabel}
+                      </button>
+                      {#if timerActive && activeId === Number(it.id)}
+                        <button
+                          class="action-btn summary-apply"
+                          on:click|preventDefault={onStopAndApplySummary}
+                          title="Stop timer and apply time entry with this summary"
+                          aria-label="Stop timer and apply time entry with this summary"
+                          disabled={summaryApplyDisabled}
+                        >
+                          <span class="codicon codicon-check" aria-hidden="true"></span>
+                          Stop &amp; Apply
+                        </button>
+                      {:else}
+                        <button
+                          class="action-btn summary-apply"
+                          on:click|preventDefault={() =>
+                            dispatch('applySummary', { workItemId: it.id })}
+                          title="Apply summary as comment"
+                          aria-label="Apply summary as comment"
+                          disabled={summaryBusy || !summaryDraft.trim()}
+                        >
+                          <span class="codicon codicon-check" aria-hidden="true"></span>
+                          Apply
+                        </button>
+                      {/if}
+                    </div>
+                    <div class="summary-helper">{summaryHelperText}</div>
+                  </div>
+                  {#if summaryStatus}
+                    <div class="summary-status" aria-live="polite">{summaryStatus}</div>
+                  {/if}
                 </div>
               {/if}
 
@@ -677,6 +827,15 @@
     font-family: var(--vscode-font-family);
   }
 
+  .query-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--vscode-editorWidget-border);
+    background: var(--vscode-editorGroupHeader-tabsBackground);
+    flex-shrink: 0;
+  }
+
   .pane-header {
     display: flex;
     align-items: center;
@@ -700,24 +859,58 @@
     display: inline-flex;
     gap: 6px;
   }
-  .summary-toggle {
-    background: var(--vscode-button-secondaryBackground);
-    color: var(--vscode-button-secondaryForeground);
-    border: 1px solid var(--vscode-editorWidget-border);
-    border-radius: 3px;
-    padding: 4px 10px;
-    font-size: 11px;
-    cursor: pointer;
-  }
-  .summary-toggle:hover {
-    background: var(--vscode-button-secondaryHoverBackground);
-    border-color: var(--ado-blue);
-  }
   .filters {
     display: inline-flex;
     gap: 6px;
     align-items: center;
     margin-left: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* Query Selector Styles */
+  .query-selector-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 300px;
+    max-width: 500px;
+    width: 100%;
+  }
+
+  .query-selector-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    margin-bottom: 2px;
+  }
+
+  .query-selector {
+    font-size: 13px;
+    padding: 6px 8px;
+    border: 1px solid var(--vscode-input-border);
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border-radius: 3px;
+    transition: border-color 0.2s ease;
+  }
+
+  .query-selector:focus {
+    outline: none;
+    border-color: var(--vscode-focusBorder);
+    box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+  }
+
+  .query-selector:hover {
+    border-color: var(--vscode-inputOption-hoverBorder);
+  }
+
+  .query-description {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    line-height: 1.3;
+    margin-top: 2px;
+    min-height: 14px;
+    opacity: 0.8;
   }
   .filters input,
   .filters select {
@@ -779,6 +972,17 @@
     flex-direction: column;
   }
 
+  .work-item-summary {
+    margin: 8px 0;
+    padding: 8px;
+    border: 1px solid var(--vscode-editorWidget-border);
+    border-radius: 4px;
+    background: var(--vscode-editorWidget-background);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
   .summary-panel {
     margin: 12px;
     padding: 12px;
@@ -794,6 +998,12 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+  }
+
+  .summary-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   .summary-context {
     display: flex;
@@ -1181,6 +1391,17 @@
   }
   .action-btn.comment:hover {
     background: var(--ado-gray-light);
+  }
+
+  .action-btn.cancel {
+    background: #dc3545;
+    color: white;
+    border-color: #dc3545;
+  }
+
+  .action-btn.cancel:hover {
+    background: #c82333;
+    border-color: #bd2130;
   }
 
   /* Kanban styles */
