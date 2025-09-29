@@ -1,0 +1,5210 @@
+[
+  {
+    "timestamp": "2025-09-29T20:13:53.575Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.576Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.584Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.590Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.595Z",
+    "file": "esbuild.mjs",
+    "line": 60,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.601Z",
+    "file": "esbuild.mjs",
+    "line": 72,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.608Z",
+    "file": "esbuild.mjs",
+    "line": 87,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.615Z",
+    "file": "esbuild.mjs",
+    "line": 116,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.622Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.629Z",
+    "file": "esbuild.mjs",
+    "line": 125,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.637Z",
+    "file": "esbuild.mjs",
+    "line": 131,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.643Z",
+    "file": "esbuild.mjs",
+    "line": 132,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.873Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.874Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.883Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.889Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.895Z",
+    "file": "esbuild.mjs",
+    "line": 60,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.901Z",
+    "file": "esbuild.mjs",
+    "line": 72,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.906Z",
+    "file": "esbuild.mjs",
+    "line": 87,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.913Z",
+    "file": "esbuild.mjs",
+    "line": 116,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.919Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.925Z",
+    "file": "esbuild.mjs",
+    "line": 125,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.931Z",
+    "file": "esbuild.mjs",
+    "line": 131,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:13:53.937Z",
+    "file": "esbuild.mjs",
+    "line": 132,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.406Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.407Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.415Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.421Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.422Z",
+    "file": "esbuild.mjs",
+    "line": 60,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.429Z",
+    "file": "esbuild.mjs",
+    "line": 72,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.435Z",
+    "file": "esbuild.mjs",
+    "line": 87,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.441Z",
+    "file": "esbuild.mjs",
+    "line": 116,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.448Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.455Z",
+    "file": "esbuild.mjs",
+    "line": 125,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.461Z",
+    "file": "esbuild.mjs",
+    "line": 131,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.468Z",
+    "file": "esbuild.mjs",
+    "line": 132,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.542Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.543Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.551Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.558Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.563Z",
+    "file": "esbuild.mjs",
+    "line": 60,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.569Z",
+    "file": "esbuild.mjs",
+    "line": 72,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.574Z",
+    "file": "esbuild.mjs",
+    "line": 87,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.580Z",
+    "file": "esbuild.mjs",
+    "line": 116,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.585Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.591Z",
+    "file": "esbuild.mjs",
+    "line": 125,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.596Z",
+    "file": "esbuild.mjs",
+    "line": 131,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.602Z",
+    "file": "esbuild.mjs",
+    "line": 132,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.884Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.885Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.895Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.902Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.910Z",
+    "file": "esbuild.mjs",
+    "line": 60,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.918Z",
+    "file": "esbuild.mjs",
+    "line": 72,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.926Z",
+    "file": "esbuild.mjs",
+    "line": 87,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.933Z",
+    "file": "esbuild.mjs",
+    "line": 116,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.942Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.951Z",
+    "file": "esbuild.mjs",
+    "line": 125,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.958Z",
+    "file": "esbuild.mjs",
+    "line": 131,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:14:43.965Z",
+    "file": "esbuild.mjs",
+    "line": 132,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:01.845Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:01.847Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:01.857Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:01.865Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:01.873Z",
+    "file": "esbuild.mjs",
+    "line": 60,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:01.881Z",
+    "file": "esbuild.mjs",
+    "line": 72,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:01.890Z",
+    "file": "esbuild.mjs",
+    "line": 87,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:01.897Z",
+    "file": "esbuild.mjs",
+    "line": 116,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:01.905Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:01.913Z",
+    "file": "esbuild.mjs",
+    "line": 125,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:01.921Z",
+    "file": "esbuild.mjs",
+    "line": 131,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:01.928Z",
+    "file": "esbuild.mjs",
+    "line": 132,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.012Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.013Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.022Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.029Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.034Z",
+    "file": "esbuild.mjs",
+    "line": 60,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.040Z",
+    "file": "esbuild.mjs",
+    "line": 72,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.046Z",
+    "file": "esbuild.mjs",
+    "line": 87,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.052Z",
+    "file": "esbuild.mjs",
+    "line": 116,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.058Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.064Z",
+    "file": "esbuild.mjs",
+    "line": 125,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.071Z",
+    "file": "esbuild.mjs",
+    "line": 131,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.077Z",
+    "file": "esbuild.mjs",
+    "line": 132,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.350Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.351Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.353Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.362Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.369Z",
+    "file": "esbuild.mjs",
+    "line": 60,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.376Z",
+    "file": "esbuild.mjs",
+    "line": 72,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.382Z",
+    "file": "esbuild.mjs",
+    "line": 87,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.388Z",
+    "file": "esbuild.mjs",
+    "line": 116,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.396Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.402Z",
+    "file": "esbuild.mjs",
+    "line": 125,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.409Z",
+    "file": "esbuild.mjs",
+    "line": 131,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:02.415Z",
+    "file": "esbuild.mjs",
+    "line": 132,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.371Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.373Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.382Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.389Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.398Z",
+    "file": "esbuild.mjs",
+    "line": 60,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.405Z",
+    "file": "esbuild.mjs",
+    "line": 72,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.413Z",
+    "file": "esbuild.mjs",
+    "line": 87,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.422Z",
+    "file": "esbuild.mjs",
+    "line": 116,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.429Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.436Z",
+    "file": "esbuild.mjs",
+    "line": 125,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.443Z",
+    "file": "esbuild.mjs",
+    "line": 131,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.450Z",
+    "file": "esbuild.mjs",
+    "line": 132,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.521Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.523Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.533Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.542Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.552Z",
+    "file": "esbuild.mjs",
+    "line": 60,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.560Z",
+    "file": "esbuild.mjs",
+    "line": 72,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.567Z",
+    "file": "esbuild.mjs",
+    "line": 87,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.576Z",
+    "file": "esbuild.mjs",
+    "line": 116,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.584Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.592Z",
+    "file": "esbuild.mjs",
+    "line": 125,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.600Z",
+    "file": "esbuild.mjs",
+    "line": 131,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.607Z",
+    "file": "esbuild.mjs",
+    "line": 132,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.869Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.870Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.880Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.889Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.898Z",
+    "file": "esbuild.mjs",
+    "line": 60,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.905Z",
+    "file": "esbuild.mjs",
+    "line": 72,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.912Z",
+    "file": "esbuild.mjs",
+    "line": 87,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.919Z",
+    "file": "esbuild.mjs",
+    "line": 116,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.926Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.933Z",
+    "file": "esbuild.mjs",
+    "line": 125,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.939Z",
+    "file": "esbuild.mjs",
+    "line": 131,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:07.946Z",
+    "file": "esbuild.mjs",
+    "line": 132,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.435Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.436Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.446Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.455Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.465Z",
+    "file": "esbuild.mjs",
+    "line": 62,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.474Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.484Z",
+    "file": "esbuild.mjs",
+    "line": 89,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.493Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.502Z",
+    "file": "esbuild.mjs",
+    "line": 122,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.513Z",
+    "file": "esbuild.mjs",
+    "line": 127,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.522Z",
+    "file": "esbuild.mjs",
+    "line": 133,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.531Z",
+    "file": "esbuild.mjs",
+    "line": 134,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.685Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.686Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.696Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.703Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.712Z",
+    "file": "esbuild.mjs",
+    "line": 62,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.721Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.729Z",
+    "file": "esbuild.mjs",
+    "line": 89,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.738Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.747Z",
+    "file": "esbuild.mjs",
+    "line": 122,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.755Z",
+    "file": "esbuild.mjs",
+    "line": 127,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.764Z",
+    "file": "esbuild.mjs",
+    "line": 133,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.773Z",
+    "file": "esbuild.mjs",
+    "line": 134,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.855Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.856Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.869Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.880Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.891Z",
+    "file": "esbuild.mjs",
+    "line": 62,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.902Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.912Z",
+    "file": "esbuild.mjs",
+    "line": 89,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.921Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.929Z",
+    "file": "esbuild.mjs",
+    "line": 122,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.946Z",
+    "file": "esbuild.mjs",
+    "line": 127,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.958Z",
+    "file": "esbuild.mjs",
+    "line": 133,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:19.968Z",
+    "file": "esbuild.mjs",
+    "line": 134,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:20.312Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:20.313Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:20.323Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:20.331Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:20.338Z",
+    "file": "esbuild.mjs",
+    "line": 62,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:20.345Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:20.352Z",
+    "file": "esbuild.mjs",
+    "line": 89,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:20.359Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:20.366Z",
+    "file": "esbuild.mjs",
+    "line": 122,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:20.373Z",
+    "file": "esbuild.mjs",
+    "line": 127,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:20.381Z",
+    "file": "esbuild.mjs",
+    "line": 133,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:20.387Z",
+    "file": "esbuild.mjs",
+    "line": 134,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:21.088Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:21.089Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:21.099Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:21.107Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:21.116Z",
+    "file": "esbuild.mjs",
+    "line": 62,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:21.124Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:21.133Z",
+    "file": "esbuild.mjs",
+    "line": 89,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:21.141Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:21.148Z",
+    "file": "esbuild.mjs",
+    "line": 122,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:21.157Z",
+    "file": "esbuild.mjs",
+    "line": 127,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:21.165Z",
+    "file": "esbuild.mjs",
+    "line": 133,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:15:21.172Z",
+    "file": "esbuild.mjs",
+    "line": 134,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:16:08.144Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:16:08.145Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:16:08.154Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:16:08.161Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:16:08.168Z",
+    "file": "esbuild.mjs",
+    "line": 62,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:16:08.176Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:16:08.183Z",
+    "file": "esbuild.mjs",
+    "line": 89,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:16:08.190Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:16:08.197Z",
+    "file": "esbuild.mjs",
+    "line": 122,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:16:08.204Z",
+    "file": "esbuild.mjs",
+    "line": 127,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:16:08.211Z",
+    "file": "esbuild.mjs",
+    "line": 133,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:16:08.218Z",
+    "file": "esbuild.mjs",
+    "line": 134,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:05.439Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:05.441Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:05.450Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:05.456Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:05.464Z",
+    "file": "esbuild.mjs",
+    "line": 62,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:05.472Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:05.479Z",
+    "file": "esbuild.mjs",
+    "line": 89,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:05.485Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:05.492Z",
+    "file": "esbuild.mjs",
+    "line": 122,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:05.501Z",
+    "file": "esbuild.mjs",
+    "line": 127,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:05.508Z",
+    "file": "esbuild.mjs",
+    "line": 133,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:05.515Z",
+    "file": "esbuild.mjs",
+    "line": 134,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:40.514Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:40.515Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:40.529Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:40.537Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:40.546Z",
+    "file": "esbuild.mjs",
+    "line": 62,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:40.554Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:40.563Z",
+    "file": "esbuild.mjs",
+    "line": 89,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:40.571Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:40.579Z",
+    "file": "esbuild.mjs",
+    "line": 122,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:40.586Z",
+    "file": "esbuild.mjs",
+    "line": 127,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:40.594Z",
+    "file": "esbuild.mjs",
+    "line": 133,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:40.602Z",
+    "file": "esbuild.mjs",
+    "line": 134,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:41.611Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:41.612Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:41.624Z",
+    "file": "esbuild.mjs",
+    "line": 19,
+    "error": "'args' is defined but never used.",
+    "context": "args",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:41.631Z",
+    "file": "esbuild.mjs",
+    "line": 44,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:41.641Z",
+    "file": "esbuild.mjs",
+    "line": 62,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:41.649Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:41.657Z",
+    "file": "esbuild.mjs",
+    "line": 89,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:41.665Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:41.672Z",
+    "file": "esbuild.mjs",
+    "line": 122,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:41.680Z",
+    "file": "esbuild.mjs",
+    "line": 127,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:41.688Z",
+    "file": "esbuild.mjs",
+    "line": 133,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:17:41.695Z",
+    "file": "esbuild.mjs",
+    "line": 134,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.420Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.422Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.432Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.441Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.449Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.457Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.466Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.473Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.481Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.488Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.495Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.829Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.830Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.840Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.847Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.854Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.861Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.867Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.875Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.883Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.890Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:45.897Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.658Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.659Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.670Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.679Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.688Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.696Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.705Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.716Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.725Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.735Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.743Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.925Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.926Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.937Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.946Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.955Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.964Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.973Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.981Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:55.999Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:56.009Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:20:56.017Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:31.925Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:31.927Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:31.937Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:31.944Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:31.952Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:31.959Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:31.966Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:31.975Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:31.983Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:31.990Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:31.996Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:38.901Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:38.903Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:38.912Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:38.921Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:38.929Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:38.938Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:38.947Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:38.955Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:38.965Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:38.973Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:38.981Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:39.052Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:39.054Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:39.062Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:39.070Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:39.077Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:39.083Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:39.090Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:39.097Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:39.103Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:39.109Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:39.116Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:41.773Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:41.774Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:41.785Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:41.794Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:41.802Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:41.810Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:41.818Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:41.826Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:41.833Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:41.841Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:41.848Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.297Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.298Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.308Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.317Z",
+    "file": "esbuild.mjs",
+    "line": 49,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.324Z",
+    "file": "esbuild.mjs",
+    "line": 61,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.331Z",
+    "file": "esbuild.mjs",
+    "line": 76,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.339Z",
+    "file": "esbuild.mjs",
+    "line": 105,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.347Z",
+    "file": "esbuild.mjs",
+    "line": 109,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.354Z",
+    "file": "esbuild.mjs",
+    "line": 114,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.362Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.370Z",
+    "file": "esbuild.mjs",
+    "line": 121,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.543Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.545Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.554Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.562Z",
+    "file": "esbuild.mjs",
+    "line": 49,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.570Z",
+    "file": "esbuild.mjs",
+    "line": 61,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.577Z",
+    "file": "esbuild.mjs",
+    "line": 76,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.584Z",
+    "file": "esbuild.mjs",
+    "line": 105,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.591Z",
+    "file": "esbuild.mjs",
+    "line": 109,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.598Z",
+    "file": "esbuild.mjs",
+    "line": 114,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.605Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:25:53.612Z",
+    "file": "esbuild.mjs",
+    "line": 121,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:39.707Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:39.708Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:39.718Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:39.725Z",
+    "file": "esbuild.mjs",
+    "line": 49,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:39.732Z",
+    "file": "esbuild.mjs",
+    "line": 61,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:39.740Z",
+    "file": "esbuild.mjs",
+    "line": 76,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:39.747Z",
+    "file": "esbuild.mjs",
+    "line": 105,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:39.754Z",
+    "file": "esbuild.mjs",
+    "line": 109,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:39.761Z",
+    "file": "esbuild.mjs",
+    "line": 114,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:39.768Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:39.775Z",
+    "file": "esbuild.mjs",
+    "line": 121,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:42.333Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:42.334Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:42.342Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:42.349Z",
+    "file": "esbuild.mjs",
+    "line": 49,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:42.355Z",
+    "file": "esbuild.mjs",
+    "line": 61,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:42.361Z",
+    "file": "esbuild.mjs",
+    "line": 76,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:42.368Z",
+    "file": "esbuild.mjs",
+    "line": 105,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:42.375Z",
+    "file": "esbuild.mjs",
+    "line": 109,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:42.382Z",
+    "file": "esbuild.mjs",
+    "line": 114,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:42.389Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:42.396Z",
+    "file": "esbuild.mjs",
+    "line": 121,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:47.880Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:47.882Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:47.891Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:47.898Z",
+    "file": "esbuild.mjs",
+    "line": 49,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:47.905Z",
+    "file": "esbuild.mjs",
+    "line": 61,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:47.914Z",
+    "file": "esbuild.mjs",
+    "line": 76,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:47.920Z",
+    "file": "esbuild.mjs",
+    "line": 105,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:47.928Z",
+    "file": "esbuild.mjs",
+    "line": 109,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:47.935Z",
+    "file": "esbuild.mjs",
+    "line": 114,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:47.943Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:47.951Z",
+    "file": "esbuild.mjs",
+    "line": 121,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:48.022Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:48.023Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:48.032Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:48.040Z",
+    "file": "esbuild.mjs",
+    "line": 49,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:48.046Z",
+    "file": "esbuild.mjs",
+    "line": 61,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:48.053Z",
+    "file": "esbuild.mjs",
+    "line": 76,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:48.059Z",
+    "file": "esbuild.mjs",
+    "line": 105,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:48.066Z",
+    "file": "esbuild.mjs",
+    "line": 109,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:48.072Z",
+    "file": "esbuild.mjs",
+    "line": 114,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:48.079Z",
+    "file": "esbuild.mjs",
+    "line": 120,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:48.086Z",
+    "file": "esbuild.mjs",
+    "line": 121,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:50.752Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:50.754Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:50.763Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:50.771Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:50.776Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:50.782Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:50.788Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:50.793Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:50.798Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:50.804Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:50.809Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:51.004Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:51.005Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:51.013Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:51.020Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:51.026Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:51.032Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:51.038Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:51.044Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:51.050Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:51.056Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:27:51.063Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:28:28.802Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:28:28.803Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:28:28.812Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:28:28.820Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:28:28.828Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:28:28.835Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:28:28.841Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:28:28.847Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:28:28.854Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:28:28.861Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:28:28.866Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:24.639Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:24.640Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:24.650Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:24.657Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:24.664Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:24.670Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:24.677Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:24.683Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:24.690Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:24.697Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:24.704Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:30.958Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:30.960Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:30.968Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:30.976Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:30.983Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:30.989Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:30.996Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:31.003Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:31.010Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:31.017Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:41:31.023Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:00.454Z",
+    "file": "setupWizard.ts",
+    "line": 85,
+    "error": "Property 'getExistingConnections' does not exist on type 'SetupWizard'.",
+    "context": "getExistingConnections",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:00.455Z",
+    "file": "setupWizard.ts",
+    "line": 104,
+    "error": "Property 'modifyExistingConnection' does not exist on type 'SetupWizard'.",
+    "context": "modifyExistingConnection",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:13.382Z",
+    "file": "setupWizard.ts",
+    "line": 85,
+    "error": "Property 'getExistingConnections' does not exist on type 'SetupWizard'.",
+    "context": "getExistingConnections",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:13.383Z",
+    "file": "setupWizard.ts",
+    "line": 104,
+    "error": "Property 'modifyExistingConnection' does not exist on type 'SetupWizard'.",
+    "context": "modifyExistingConnection",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:13.447Z",
+    "file": "setupWizard.ts",
+    "line": 85,
+    "error": "Property 'getExistingConnections' does not exist on type 'SetupWizard'.",
+    "context": "getExistingConnections",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:13.448Z",
+    "file": "setupWizard.ts",
+    "line": 104,
+    "error": "Property 'modifyExistingConnection' does not exist on type 'SetupWizard'.",
+    "context": "modifyExistingConnection",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:13.790Z",
+    "file": "setupWizard.ts",
+    "line": 629,
+    "error": "Object literal may only specify known properties, and 'existingConnectionId' does not exist in type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:13.792Z",
+    "file": "setupWizard.ts",
+    "line": 654,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:13.802Z",
+    "file": "setupWizard.ts",
+    "line": 657,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:25.108Z",
+    "file": "setupWizard.ts",
+    "line": 629,
+    "error": "Object literal may only specify known properties, and 'existingConnectionId' does not exist in type 'SetupWizardData'.",
+    "context": "  apiBaseUrl: `https",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:25.110Z",
+    "file": "setupWizard.ts",
+    "line": 654,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:25.119Z",
+    "file": "setupWizard.ts",
+    "line": 657,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "= config.get<any[]>(",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:25.517Z",
+    "file": "setupWizard.ts",
+    "line": 554,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:25.519Z",
+    "file": "setupWizard.ts",
+    "line": 577,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:25.528Z",
+    "file": "setupWizard.ts",
+    "line": 634,
+    "error": "Object literal may only specify known properties, and 'existingConnectionId' does not exist in type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:25.533Z",
+    "file": "setupWizard.ts",
+    "line": 659,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:25.540Z",
+    "file": "setupWizard.ts",
+    "line": 662,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.054Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.055Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.064Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.071Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.078Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.085Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.091Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.098Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.105Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.111Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.117Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.177Z",
+    "file": "setupWizard.ts",
+    "line": 554,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.179Z",
+    "file": "setupWizard.ts",
+    "line": 577,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.188Z",
+    "file": "setupWizard.ts",
+    "line": 634,
+    "error": "Object literal may only specify known properties, and 'existingConnectionId' does not exist in type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.194Z",
+    "file": "setupWizard.ts",
+    "line": 659,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:30.199Z",
+    "file": "setupWizard.ts",
+    "line": 662,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:33.652Z",
+    "file": "setupWizard.ts",
+    "line": 554,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:33.653Z",
+    "file": "setupWizard.ts",
+    "line": 577,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:33.662Z",
+    "file": "setupWizard.ts",
+    "line": 634,
+    "error": "Object literal may only specify known properties, and 'existingConnectionId' does not exist in type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:33.668Z",
+    "file": "setupWizard.ts",
+    "line": 659,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:46:33.674Z",
+    "file": "setupWizard.ts",
+    "line": 662,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "existingConnectionId",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:13.055Z",
+    "file": "setupWizard.ts",
+    "line": 554,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": " = {",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:13.057Z",
+    "file": "setupWizard.ts",
+    "line": 577,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:13.066Z",
+    "file": "setupWizard.ts",
+    "line": 634,
+    "error": "Object literal may only specify known properties, and 'existingConnectionId' does not exist in type 'SetupWizardData'.",
+    "context": "team: selectedConnec",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:13.075Z",
+    "file": "setupWizard.ts",
+    "line": 659,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": "",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:13.082Z",
+    "file": "setupWizard.ts",
+    "line": 662,
+    "error": "Property 'existingConnectionId' does not exist on type 'SetupWizardData'.",
+    "context": " = existingConnectio",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:33.859Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:33.861Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:33.870Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:33.877Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:33.885Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:33.892Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:33.899Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:33.906Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:33.913Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:33.919Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:47:33.926Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:48:21.669Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:48:21.670Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:48:21.679Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:48:21.686Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:48:21.692Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:48:21.699Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:48:21.705Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:48:21.711Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:48:21.712Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:48:21.717Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:48:21.722Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:49:40.108Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:49:40.110Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:49:40.119Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:49:40.126Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:49:40.135Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:49:40.141Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:49:40.148Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:49:40.156Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:49:40.162Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:49:40.168Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:49:40.174Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:51:19.322Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:51:19.324Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:51:19.333Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:51:19.340Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:51:19.347Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:51:19.354Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:51:19.360Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:51:19.367Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:51:19.372Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:51:19.378Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:51:19.383Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:53:51.561Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:53:51.563Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:53:51.572Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:53:51.578Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:53:51.586Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:53:51.593Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:53:51.601Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:53:51.608Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:53:51.613Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:53:51.619Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:53:51.625Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:54:50.457Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:54:50.458Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:54:50.468Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:54:50.476Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:54:50.483Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:54:50.491Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:54:50.498Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:54:50.506Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:54:50.512Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:54:50.519Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:54:50.525Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:55:23.297Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:55:23.299Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:55:23.308Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:55:23.316Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:55:23.323Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:55:23.330Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:55:23.339Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:55:23.348Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:55:23.356Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:55:23.362Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T20:55:23.369Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:11.982Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:11.984Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:11.993Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:11.999Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:12.007Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:12.014Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:12.021Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:12.027Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:12.035Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:12.042Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:12.049Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:33.225Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:33.226Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:33.235Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:33.242Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:33.249Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:33.256Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:33.263Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:33.271Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:33.277Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:33.284Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:33.291Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:33.974Z",
+    "file": "activation.ts",
+    "line": 2039,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const selectedConnection = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to edit',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:33.975Z",
+    "file": "activation.ts",
+    "line": 2055,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const connectionToDelete = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to delete',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:34.103Z",
+    "file": "activation.ts",
+    "line": 2039,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const selectedConnection = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to edit',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:34.104Z",
+    "file": "activation.ts",
+    "line": 2055,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const connectionToDelete = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to delete',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:35.135Z",
+    "file": "activation.ts",
+    "line": 2039,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const selectedConnection = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to edit',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:35.136Z",
+    "file": "activation.ts",
+    "line": 2055,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const connectionToDelete = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to delete',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:36.833Z",
+    "file": "activation.ts",
+    "line": 2039,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const selectedConnection = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to edit',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:36.834Z",
+    "file": "activation.ts",
+    "line": 2055,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const connectionToDelete = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to delete',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:50.071Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:50.072Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:50.085Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:50.095Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:50.106Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:50.118Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:50.127Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:50.136Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:50.146Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:50.157Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:50.166Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:50.335Z",
+    "file": "activation.ts",
+    "line": 2039,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const selectedConnection = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to edit',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:10:50.337Z",
+    "file": "activation.ts",
+    "line": 2055,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const connectionToDelete = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to delete',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.576Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.578Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.589Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.597Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.606Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.616Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.625Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.632Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.640Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.648Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.656Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.665Z",
+    "file": "activation.ts",
+    "line": 2039,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const selectedConnection = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to edit',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.675Z",
+    "file": "activation.ts",
+    "line": 2055,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const connectionToDelete = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to delete',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.764Z",
+    "file": "activation.ts",
+    "line": 2039,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const selectedConnection = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to edit',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:03.766Z",
+    "file": "activation.ts",
+    "line": 2055,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const connectionToDelete = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to delete',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:06.445Z",
+    "file": "activation.ts",
+    "line": 2039,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const selectedConnection = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to edit',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:11:06.447Z",
+    "file": "activation.ts",
+    "line": 2055,
+    "error": "Unexpected lexical declaration in case block.",
+    "context": "const connectionToDelete = await vscode.window.showQuickPick(connectionItems, {\n        placeHolder: 'Select a connection to delete',\n        ignoreFocusOut: true,\n      });",
+    "language": "typescript"
+  },
+  {
+    "timestamp": "2025-09-29T21:18:08.221Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:18:08.223Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:18:08.232Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:18:08.240Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:18:08.250Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:18:08.257Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:18:08.264Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:18:08.271Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:18:08.279Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:18:08.286Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:18:08.294Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:19:00.489Z",
+    "file": "esbuild.mjs",
+    "line": 9,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:19:00.491Z",
+    "file": "esbuild.mjs",
+    "line": 10,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:19:00.500Z",
+    "file": "esbuild.mjs",
+    "line": 31,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:19:00.508Z",
+    "file": "esbuild.mjs",
+    "line": 47,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:19:00.517Z",
+    "file": "esbuild.mjs",
+    "line": 59,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:19:00.526Z",
+    "file": "esbuild.mjs",
+    "line": 74,
+    "error": "'e' is defined but never used.",
+    "context": "e",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:19:00.537Z",
+    "file": "esbuild.mjs",
+    "line": 103,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:19:00.546Z",
+    "file": "esbuild.mjs",
+    "line": 107,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:19:00.554Z",
+    "file": "esbuild.mjs",
+    "line": 112,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:19:00.561Z",
+    "file": "esbuild.mjs",
+    "line": 118,
+    "error": "'console' is not defined.",
+    "context": "console",
+    "language": "javascript"
+  },
+  {
+    "timestamp": "2025-09-29T21:19:00.567Z",
+    "file": "esbuild.mjs",
+    "line": 119,
+    "error": "'process' is not defined.",
+    "context": "process",
+    "language": "javascript"
+  }
+]

@@ -1,0 +1,205 @@
+import { describe, it } from 'mocha';
+import { expect } from 'chai';
+import {
+  parseAzureDevOpsUrl,
+  isAzureDevOpsWorkItemUrl,
+  generatePatCreationUrl,
+  generateWorkItemUrl,
+  testAzureDevOpsConnection,
+} from '../src/azureDevOpsUrlParser.ts';
+
+describe('Azure DevOps URL Parser', function () {
+  describe('parseAzureDevOpsUrl', function () {
+    it('should parse dev.azure.com URLs correctly', function () {
+      const url = 'https://dev.azure.com/myorg/myproject/_workitems/edit/12345';
+      const result = parseAzureDevOpsUrl(url);
+
+      expect(result.isValid).to.be.true;
+      expect(result.organization).to.equal('myorg');
+      expect(result.project).to.equal('myproject');
+      expect(result.baseUrl).to.equal('https://dev.azure.com/myorg');
+      expect(result.apiBaseUrl).to.equal('https://dev.azure.com/myorg/myproject/_apis');
+      expect(result.workItemId).to.equal(12345);
+      expect(result.error).to.be.undefined;
+    });
+
+    it('should parse visualstudio.com URLs correctly', function () {
+      const url = 'https://myorg.visualstudio.com/myproject/_workitems/edit/12345';
+      const result = parseAzureDevOpsUrl(url);
+
+      expect(result.isValid).to.be.true;
+      expect(result.organization).to.equal('myorg');
+      expect(result.project).to.equal('myproject');
+      expect(result.baseUrl).to.equal('https://myorg.visualstudio.com');
+      expect(result.apiBaseUrl).to.equal('https://dev.azure.com/myorg/myproject/_apis');
+      expect(result.workItemId).to.equal(12345);
+      expect(result.error).to.be.undefined;
+    });
+
+    it('should parse dev.azure.com subdomain URLs correctly', function () {
+      const url = 'https://myorg.dev.azure.com/myproject/_workitems/edit/12345';
+      const result = parseAzureDevOpsUrl(url);
+
+      expect(result.isValid).to.be.true;
+      expect(result.organization).to.equal('myorg');
+      expect(result.project).to.equal('myproject');
+      expect(result.baseUrl).to.equal('https://myorg.dev.azure.com');
+      expect(result.apiBaseUrl).to.equal('https://dev.azure.com/myorg/myproject/_apis');
+      expect(result.workItemId).to.equal(12345);
+      expect(result.error).to.be.undefined;
+    });
+
+    it('should parse vsrm.visualstudio.com URLs correctly', function () {
+      const url = 'https://myorg.vsrm.visualstudio.com/myproject/_workitems/edit/12345';
+      const result = parseAzureDevOpsUrl(url);
+
+      expect(result.isValid).to.be.true;
+      expect(result.organization).to.equal('myorg');
+      expect(result.project).to.equal('myproject');
+      expect(result.baseUrl).to.equal('https://myorg.visualstudio.com');
+      expect(result.apiBaseUrl).to.equal('https://dev.azure.com/myorg/myproject/_apis');
+      expect(result.workItemId).to.equal(12345);
+      expect(result.error).to.be.undefined;
+    });
+
+    it('should handle URLs with additional path segments', function () {
+      const url =
+        'https://dev.azure.com/myorg/myproject/_workitems/edit/12345/some/additional/path';
+      const result = parseAzureDevOpsUrl(url);
+
+      expect(result.isValid).to.be.true;
+      expect(result.organization).to.equal('myorg');
+      expect(result.project).to.equal('myproject');
+      expect(result.workItemId).to.equal(12345);
+    });
+
+    it('should handle URLs without work item ID', function () {
+      const url = 'https://dev.azure.com/myorg/myproject/_workitems/edit/';
+      const result = parseAzureDevOpsUrl(url);
+
+      expect(result.isValid).to.be.false;
+      expect(result.error).to.include('Unsupported URL format');
+    });
+
+    it('should reject invalid URLs', function () {
+      const invalidUrls = [
+        'not-a-url',
+        'https://example.com/workitems/edit/123',
+        'https://dev.azure.com',
+        'https://dev.azure.com/myorg',
+        'https://dev.azure.com/myorg/myproject',
+        '',
+        null as any,
+        undefined as any,
+      ];
+
+      for (const url of invalidUrls) {
+        const result = parseAzureDevOpsUrl(url);
+        expect(result.isValid).to.be.false;
+        expect(result.error).to.be.a('string');
+      }
+    });
+
+    it('should handle URLs with special characters in org/project names', function () {
+      const url = 'https://dev.azure.com/my-org_123/My%20Project/_workitems/edit/12345';
+      const result = parseAzureDevOpsUrl(url);
+
+      expect(result.isValid).to.be.true;
+      expect(result.organization).to.equal('my-org_123');
+      expect(result.project).to.equal('My%20Project');
+    });
+  });
+
+  describe('isAzureDevOpsWorkItemUrl', function () {
+    it('should identify valid Azure DevOps work item URLs', function () {
+      const validUrls = [
+        'https://dev.azure.com/myorg/myproject/_workitems/edit/12345',
+        'https://myorg.visualstudio.com/myproject/_workitems/edit/12345',
+        'https://myorg.dev.azure.com/myproject/_workitems/edit/12345',
+        'https://myorg.vsrm.visualstudio.com/myproject/_workitems/edit/12345',
+      ];
+
+      for (const url of validUrls) {
+        expect(isAzureDevOpsWorkItemUrl(url)).to.be.true;
+      }
+    });
+
+    it('should reject non-Azure DevOps URLs', function () {
+      const invalidUrls = [
+        'https://example.com/workitems/edit/123',
+        'https://github.com/user/repo/issues/123',
+        'https://dev.azure.com/myorg/myproject',
+        'not-a-url',
+        '',
+        null as any,
+        undefined as any,
+      ];
+
+      for (const url of invalidUrls) {
+        expect(isAzureDevOpsWorkItemUrl(url)).to.be.false;
+      }
+    });
+  });
+
+  describe('generatePatCreationUrl', function () {
+    it('should generate correct PAT creation URL for dev.azure.com', function () {
+      const url = generatePatCreationUrl('myorg', 'https://dev.azure.com/myorg');
+      expect(url).to.equal('https://dev.azure.com/myorg/_usersSettings/tokens');
+    });
+
+    it('should generate correct PAT creation URL for visualstudio.com', function () {
+      const url = generatePatCreationUrl('myorg', 'https://myorg.visualstudio.com');
+      expect(url).to.equal('https://myorg.visualstudio.com/_usersSettings/tokens');
+    });
+  });
+
+  describe('generateWorkItemUrl', function () {
+    it('should generate correct work item URL for dev.azure.com', function () {
+      const url = generateWorkItemUrl('myorg', 'myproject', 12345, 'https://dev.azure.com/myorg');
+      expect(url).to.equal('https://dev.azure.com/myorg/myproject/_workitems/edit/12345');
+    });
+
+    it('should generate correct work item URL for visualstudio.com', function () {
+      const url = generateWorkItemUrl(
+        'myorg',
+        'myproject',
+        12345,
+        'https://myorg.visualstudio.com'
+      );
+      expect(url).to.equal('https://myorg.visualstudio.com/myproject/_workitems/edit/12345');
+    });
+  });
+
+  describe('testAzureDevOpsConnection', function () {
+    it('should reject invalid URL configuration', async function () {
+      const invalidUrl = {
+        isValid: false,
+        organization: '',
+        project: '',
+        baseUrl: '',
+        apiBaseUrl: '',
+      };
+
+      const result = await testAzureDevOpsConnection(invalidUrl as any, 'some-pat');
+      expect(result.success).to.be.false;
+      expect(result.error).to.include('Invalid URL configuration');
+    });
+
+    it('should reject empty PAT', async function () {
+      const validUrl = {
+        isValid: true,
+        organization: 'myorg',
+        project: 'myproject',
+        baseUrl: 'https://dev.azure.com/myorg',
+        apiBaseUrl: 'https://dev.azure.com/myorg/myproject/_apis',
+      };
+
+      const result = await testAzureDevOpsConnection(validUrl as any, '');
+      expect(result.success).to.be.false;
+      expect(result.error).to.include('Personal Access Token is required');
+    });
+
+    // Note: We don't test actual network calls in unit tests
+    // Integration tests would cover the actual connection testing
+  });
+});

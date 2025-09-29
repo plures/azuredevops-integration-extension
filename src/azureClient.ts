@@ -8,6 +8,7 @@ interface ClientOptions {
   team?: string; // Optional team context for iteration APIs and @CurrentIteration resolution
   // If true (default), attempt to use [System.StateCategory] in WIQL filters until proven unsupported.
   wiqlPreferStateCategory?: boolean;
+  baseUrl?: string; // Custom base URL for different Azure DevOps instances
 }
 
 export class AzureDevOpsIntClient {
@@ -24,6 +25,7 @@ export class AzureDevOpsIntClient {
   // Capability cache: prefer using [System.StateCategory] unless Azure DevOps rejects it for this org/project
   private preferStateCategory: boolean;
   private cachedIdentity?: { id?: string; displayName?: string; uniqueName?: string };
+  public baseUrl: string; // Store the base URL for browser URL generation
 
   constructor(organization: string, project: string, pat: string, options: ClientOptions = {}) {
     this.organization = organization;
@@ -34,14 +36,31 @@ export class AzureDevOpsIntClient {
     this.encodedOrganization = encodeURIComponent(organization);
     this.encodedProject = encodeURIComponent(project);
     this.encodedTeam = this.team ? encodeURIComponent(this.team) : undefined;
-    const baseURL = `https://dev.azure.com/${organization}/${project}/_apis`;
-    this.axios = axios.create({
-      baseURL,
-      timeout: 30000, // 30s network timeout for slow Azure DevOps APIs
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+
+    // Determine the base URL and API base URL
+    if (options.baseUrl) {
+      this.baseUrl = options.baseUrl;
+      // For custom base URLs, use the dev.azure.com API format
+      const apiBaseURL = `https://dev.azure.com/${organization}/${project}/_apis`;
+      this.axios = axios.create({
+        baseURL: apiBaseURL,
+        timeout: 30000, // 30s network timeout for slow Azure DevOps APIs
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    } else {
+      // Default to dev.azure.com
+      this.baseUrl = `https://dev.azure.com/${organization}`;
+      const baseURL = `https://dev.azure.com/${organization}/${project}/_apis`;
+      this.axios = axios.create({
+        baseURL,
+        timeout: 30000, // 30s network timeout for slow Azure DevOps APIs
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    }
     // Rate limiter: allow configurable burst & sustained rate (defaults)
     const rps = Math.max(1, Math.min(50, options.ratePerSecond ?? 5));
     const burst = Math.max(1, Math.min(100, options.burst ?? 10));
@@ -144,7 +163,7 @@ export class AzureDevOpsIntClient {
     return `https://dev.azure.com/${this.encodedOrganization}/${this.encodedProject}/_apis${path}`;
   }
   getBrowserUrl(path: string) {
-    return `https://dev.azure.com/${this.encodedOrganization}/${this.encodedProject}${path}`;
+    return `${this.baseUrl}/${this.encodedProject}${path}`;
   }
   private buildTeamApiUrl(path: string) {
     if (!this.encodedTeam) return this.buildFullUrl(path);

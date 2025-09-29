@@ -83,19 +83,19 @@ Generate at: Azure DevOps → User Settings → Security → Personal Access Tok
 
 ## ⌨️ Essential Commands
 
-| Command | Description |
-|---------|-------------|
-| `Azure DevOps Integration: Setup Wizard (Easy)` | Guided setup with work item URL parsing |
-| `Azure DevOps Integration: Setup Connection` | Manual connection setup |
-| `Azure DevOps Integration: Show Work Items` | Open the work items view |
-| `Azure DevOps Integration: Start/Stop Timer` | Toggle timer for selected work item |
-| `Azure DevOps Integration: Show Time Report` | View time tracking reports |
-| `Azure DevOps Integration: Create Work Item` | Create a new work item |
-| `Azure DevOps Integration: Create Branch from Work Item` | Create Git branch from work item |
-| `Azure DevOps Integration: Create Pull Request` | Create PR from current branch |
-| `Azure DevOps Integration: Toggle Kanban View` | Switch between list and Kanban views |
-| `Azure DevOps Integration: Select Team` | Set team context for sprint queries |
-| `Azure DevOps Integration: Set OpenAI API Key` | Configure OpenAI integration |
+| Command                                                  | Description                             |
+| -------------------------------------------------------- | --------------------------------------- |
+| `Azure DevOps Integration: Setup Wizard (Easy)`          | Guided setup with work item URL parsing |
+| `Azure DevOps Integration: Setup Connection`             | Manual connection setup                 |
+| `Azure DevOps Integration: Show Work Items`              | Open the work items view                |
+| `Azure DevOps Integration: Start/Stop Timer`             | Toggle timer for selected work item     |
+| `Azure DevOps Integration: Show Time Report`             | View time tracking reports              |
+| `Azure DevOps Integration: Create Work Item`             | Create a new work item                  |
+| `Azure DevOps Integration: Create Branch from Work Item` | Create Git branch from work item        |
+| `Azure DevOps Integration: Create Pull Request`          | Create PR from current branch           |
+| `Azure DevOps Integration: Toggle Kanban View`           | Switch between list and Kanban views    |
+| `Azure DevOps Integration: Select Team`                  | Set team context for sprint queries     |
+| `Azure DevOps Integration: Set OpenAI API Key`           | Configure OpenAI integration            |
 
 ## 🔧 Key Settings
 
@@ -120,7 +120,7 @@ The most important settings you might want to configure:
   "azureDevOpsIntegration.enableAutoRefresh": true,
 
   // Debugging
-  "azureDevOpsIntegration.debugLogging": false
+  "azureDevOpsIntegration.debugLogging": false,
 }
 ```
 
@@ -136,11 +136,11 @@ If you encounter issues:
 
 ### Common Issues
 
-| Issue | Solution |
-|-------|----------|
-| Empty work item list | Verify organization/project settings and PAT scopes |
-| Timer not starting | Ensure a work item is selected and no timer is already active |
-| PR creation fails | Confirm PAT has Code (Read & Write) scope and repository exists |
+| Issue                | Solution                                                        |
+| -------------------- | --------------------------------------------------------------- |
+| Empty work item list | Verify organization/project settings and PAT scopes             |
+| Timer not starting   | Ensure a work item is selected and no timer is already active   |
+| PR creation fails    | Confirm PAT has Code (Read & Write) scope and repository exists |
 
 ## 📦 Development
 

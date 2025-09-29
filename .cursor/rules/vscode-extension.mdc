@@ -1,0 +1,333 @@
+---
+alwaysApply: true
+---
+###############################################################################
+# VSCode Extension Template
+# Purpose: Comprehensive template for creating production-ready VSCode extensions
+#          following modern best practices for security, performance, and UX
+# Author: Instructions-as-Code Pipeline  
+# Version: 1.0.0
+###############################################################################
+
+machine VsCodeExtensionLifecycle {
+
+  ###########################################################################
+  # STATE: Init - Project Foundation & Setup
+  ###########################################################################
+  state Init {
+    entry => [
+      action.setupProjectStructure,
+      action.createPackageJson,
+      action.configureActivationEvents
+    ]
+    guard => guard.structureValid
+    exit => action.commitFoundation
+    on => { foundation-ready -> Architecture }
+  }
+
+  ###########################################################################
+  # STATE: Architecture - Extension Host & Services
+  ###########################################################################
+  state Architecture {
+    entry => [
+      action.createActivationEntrypoint,
+      action.setupServicesLayer,
+      action.configureStateManagement,
+      action.addPerformanceOptimizations
+    ]
+    guard => guard.activationOptimal
+    exit => action.commitArchitecture
+    on => { architecture-ready -> Commands }
+  }
+
+  ###########################################################################
+  # STATE: Commands - Command Registration & Hygiene
+  ###########################################################################
+  state Commands {
+    entry => [
+      action.registerCoreCommands,
+      action.addCommandValidation,
+      action.implementProgressHandling,
+      action.setupConcurrencyGuards
+    ]
+    guard => guard.commandsSecure
+    exit => action.commitCommands
+    on => { commands-ready -> Views }
+  }
+
+  ###########################################################################
+  # STATE: Views - Tree Views & Data Management
+  ###########################################################################
+  state Views {
+    entry => [
+      action.createTreeViewProviders,
+      action.implementIncrementalRefresh,
+      action.addDataCaching,
+      action.setupApiThrottling
+    ]
+    guard => guard.viewsEfficient
+    exit => action.commitViews
+    on => { views-ready -> Webviews }
+  }
+
+  ###########################################################################
+  # STATE: Webviews - UI Components & Security
+  ###########################################################################
+  state Webviews {
+    entry => [
+      action.setupWebviewSecurity,
+      action.configureContentSecurityPolicy,
+      action.createMessageContracts,
+      action.bundleWebviewAssets,
+      action.implementAccessibility
+    ]
+    guard => guard.webviewsSecure
+    exit => action.commitWebviews
+    on => { webviews-ready -> Tooling }
+  }
+
+  ###########################################################################
+  # STATE: Tooling - Build, Test & Type Safety
+  ###########################################################################
+  state Tooling {
+    entry => [
+      action.setupBuildScripts,
+      action.configureTypeChecking,
+      action.createTestingSuite,
+      action.setupCoverageReporting,
+      action.addLintingConfiguration
+    ]
+    guard => guard.toolingComplete
+    exit => action.commitTooling
+    on => { tooling-ready -> Diagnostics }
+  }
+
+  ###########################################################################
+  # STATE: Diagnostics - Telemetry, Logging & Error Handling
+  ###########################################################################
+  state Diagnostics {
+    entry => [
+      action.setupTelemetryFramework,
+      action.createOutputChannel,
+      action.implementErrorReporting,
+      action.addDiagnosticTools,
+      action.setupSecretsManagement
+    ]
+    guard => guard.diagnosticsPrivacyCompliant
+    exit => action.commitDiagnostics
+    on => { diagnostics-ready -> Security }
+  }
+
+  ###########################################################################
+  # STATE: Security - Privacy & Dependency Management
+  ###########################################################################
+  state Security {
+    entry => [
+      action.auditDependencies,
+      action.implementContentSanitization,
+      action.configureLeastPrivilege,
+      action.setupSecretStorage,
+      action.documentSecurityMeasures
+    ]
+    guard => guard.securityAudited
+    exit => action.commitSecurity
+    on => { security-ready -> Release }
+  }
+
+  ###########################################################################
+  # STATE: Release - Packaging & Distribution
+  ###########################################################################
+  state Release {
+    entry => [
+      action.setupVersioning,
+      action.createChangelogTemplate,
+      action.configurePackagingPipeline,
+      action.setupValidationWorkflow,
+      action.addFeatureFlags
+    ]
+    guard => guard.releaseReady
+    exit => action.commitRelease
+    on => { release-ready -> Collaboration }
+  }
+
+  ###########################################################################
+  # STATE: Collaboration - Documentation & Process
+  ###########################################################################
+  state Collaboration {
+    entry => [
+      action.createContributionDocs,
+      action.setupArchitectureNotes,
+      action.addDebuggingGuides,
+      action.createIssueTemplates,
+      action.setupUserFeedbackLoop
+    ]
+    guard => guard.documentationComplete
+    exit => action.commitCollaboration
+    on => { collaboration-ready -> Ready }
+  }
+
+  ###########################################################################
+  # STATE: Ready - Extension Complete
+  ###########################################################################
+  state Ready {
+    entry => [
+      action.runFinalValidation,
+      action.generateQuickStart,
+      action.createPerformanceBenchmarks
+    ]
+    guard => guard.extensionProduction
+    exit => action.markComplete
+    on => { complete -> Ready }
+  }
+}
+
+###############################################################################
+# TEMPLATE CONFIGURATION
+###############################################################################
+
+## Project Structure Layout
+projectStructure:
+  src/
+    extension.ts           # Main activation entrypoint
+    commands/              # Command implementations
+    providers/             # Tree view and data providers
+    services/              # Business logic and API clients
+    webview/               # UI components and assets
+    utils/                 # Shared utilities
+  webview/
+    src/                   # Webview source (React/Svelte/Vanilla)
+    dist/                  # Bundled webview assets
+  tests/
+    unit/                  # Unit tests (Mocha/Jest)
+    integration/           # Extension Test Runner
+    webview/               # UI component tests
+  scripts/
+    build.js               # Build automation
+    diagnose.ts            # Debugging utilities
+  docs/
+    CONTRIBUTING.md        # Contribution guidelines
+    ARCHITECTURE.md        # System design notes
+    DEBUGGING.md           # Troubleshooting guide
+
+## Activation Events (Lazy Loading)
+activationEvents:
+  - onCommand:myext.activate
+  - onView:myext.treeView
+  - workspaceContains:**/*.myfile
+
+## Security CSP Template
+contentSecurityPolicy: |
+  default-src 'none';
+  img-src ${webview.cspSource} https:;
+  script-src 'nonce-${nonce}';
+  style-src ${webview.cspSource} 'unsafe-inline';
+  font-src ${webview.cspSource};
+
+## Performance Budgets
+performanceTargets:
+  activationTime: 100ms
+  commandResponseTime: 500ms
+  webviewLoadTime: 1000ms
+  memoryUsage: 50MB
+
+## Testing Strategy
+testingLayers:
+  unit: "Services, parsers, utilities"
+  integration: "Command registration, activation flow"
+  webview: "UI components, message contracts"
+  e2e: "Full extension workflows"
+
+## Telemetry Schema
+telemetryEvents:
+  - name: "command.executed"
+    properties: ["commandId", "duration", "success"]
+  - name: "webview.loaded"
+    properties: ["viewType", "loadTime"]
+  - name: "error.occurred"
+    properties: ["errorType", "stack", "context"]
+
+## Feature Flags
+featureFlags:
+  - experimentalFeatures: false
+  - betaWebviews: false
+  - advancedTelemetry: true
+
+## Build Configuration
+buildScripts:
+  compile: "tsc -p ./"
+  build:webview: "npm run build --prefix webview"
+  build:all: "npm run compile && npm run build:webview"
+  package: "vsce package --no-dependencies"
+  test: "npm run test:unit && npm run test:integration"
+
+## Dependencies Strategy
+dependencies:
+  production: "Minimal, audited, locked versions"
+  development: "Latest stable tooling"
+  security: "Regular npm audit, Dependabot enabled"
+
+###############################################################################
+# IMPLEMENTATION ACTIONS
+###############################################################################
+
+action.setupProjectStructure:
+  - Create directory structure following VSCode conventions
+  - Initialize package.json with extension metadata
+  - Configure TypeScript with strict settings
+  - Setup .vscodeignore and .gitignore
+
+action.createActivationEntrypoint:
+  - Implement activate() function as orchestrator
+  - Register commands via ExtensionContext
+  - Setup disposables management
+  - Add deactivate() cleanup
+
+action.setupWebviewSecurity:
+  - Configure strict CSP headers
+  - Implement nonce-based script loading
+  - Add HTML content sanitization
+  - Validate all webview messages
+
+action.setupTelemetryFramework:
+  - Respect VS Code telemetry settings
+  - Define event schemas
+  - Implement consent checking
+  - Add telemetry documentation
+
+action.configurePackagingPipeline:
+  - Setup vsce packaging automation
+  - Configure CI/CD validation
+  - Add smoke tests for packaged extension
+  - Implement signing for distribution
+
+###############################################################################
+# GUARDS & VALIDATIONS
+###############################################################################
+
+guard.activationOptimal:
+  - Activation time under 100ms
+  - No synchronous file system operations
+  - Proper error handling in activate()
+  - All services properly disposed
+
+guard.webviewsSecure:
+  - CSP headers properly configured
+  - No inline scripts or styles
+  - Message validation implemented
+  - Accessibility standards met
+
+guard.securityAudited:
+  - No high/critical vulnerabilities
+  - Secrets properly stored
+  - External API calls documented
+  - Minimal privilege permissions
+
+guard.releaseReady:
+  - All tests passing
+  - Performance budgets met
+  - Documentation up to date
+  - CHANGELOG.md updated
+
+###############################################################################
+# END OF TEMPLATE
+###############################################################################

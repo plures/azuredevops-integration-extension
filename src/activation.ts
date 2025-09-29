@@ -21,6 +21,7 @@ import {
 } from './webviewMessaging.js';
 import type { PostWorkItemsSnapshotParams } from './webviewMessaging.js';
 import type OpenAIClient from 'openai';
+import { startSetupWizard } from './setupWizard.js';
 
 // Basic state keys
 const STATE_TIMER = 'azureDevOpsInt.timer.state';
@@ -37,6 +38,8 @@ type ProjectConnection = {
   project: string;
   label?: string;
   team?: string;
+  patKey?: string; // Key for storing PAT in secrets
+  baseUrl?: string; // Base URL for the Azure DevOps instance
 };
 
 type ConnectionState = {
@@ -180,12 +183,18 @@ function sanitizeConnection(raw: any): ProjectConnection | null {
   const labelValue =
     typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : undefined;
   const teamValue = typeof raw.team === 'string' && raw.team.trim() ? raw.team.trim() : undefined;
+  const patKeyValue =
+    typeof raw.patKey === 'string' && raw.patKey.trim() ? raw.patKey.trim() : undefined;
+  const baseUrlValue =
+    typeof raw.baseUrl === 'string' && raw.baseUrl.trim() ? raw.baseUrl.trim() : undefined;
   return {
     id: idValue,
     organization,
     project,
     label: labelValue,
     team: teamValue,
+    patKey: patKeyValue,
+    baseUrl: baseUrlValue,
   };
 }
 
@@ -197,7 +206,19 @@ async function loadConnectionsFromConfig(
   const normalized: ProjectConnection[] = [];
   for (const entry of rawConnections) {
     const sanitized = sanitizeConnection(entry);
-    if (sanitized) normalized.push(sanitized);
+    if (sanitized) {
+      // Migrate existing connections to have patKey if they don't have one
+      if (!sanitized.patKey) {
+        sanitized.patKey = `azureDevOpsInt.pat.${sanitized.id}`;
+      }
+
+      // Migrate existing connections to have baseUrl if they don't have one
+      if (!sanitized.baseUrl) {
+        sanitized.baseUrl = `https://dev.azure.com/${sanitized.organization}`;
+      }
+
+      normalized.push(sanitized);
+    }
   }
 
   if (normalized.length === 0) {
@@ -216,6 +237,12 @@ async function loadConnectionsFromConfig(
   }
 
   connections = normalized;
+
+  // Migrate global PAT to first connection if needed
+  if (connections.length > 0 && connections[0].patKey) {
+    await migrateGlobalPATToConnection(context, connections[0]);
+  }
+
   verbose('[connections] Loaded connections from config', {
     count: connections.length,
     ids: connections.map((c) => c.id),
@@ -263,16 +290,19 @@ async function saveConnectionsToConfig(
   const serialized = nextConnections.map((entry) => ({ ...entry }));
   await settings.update(CONNECTIONS_CONFIG_KEY, serialized, vscode.ConfigurationTarget.Global);
 
-  if (nextConnections.length > 0) {
+  // Update legacy settings only for backward compatibility with single connection
+  if (nextConnections.length === 1) {
     const primary = nextConnections[0];
     await settings.update('organization', primary.organization, vscode.ConfigurationTarget.Global);
     await settings.update('project', primary.project, vscode.ConfigurationTarget.Global);
     await settings.update('team', primary.team, vscode.ConfigurationTarget.Global);
-  } else {
+  } else if (nextConnections.length === 0) {
+    // Clear legacy settings when no connections
     await settings.update('organization', undefined, vscode.ConfigurationTarget.Global);
     await settings.update('project', undefined, vscode.ConfigurationTarget.Global);
     await settings.update('team', undefined, vscode.ConfigurationTarget.Global);
   }
+  // For multiple connections, leave legacy settings as-is to avoid confusion
 
   const validIds = new Set(nextConnections.map((item) => item.id));
   for (const [id, state] of connectionStates.entries()) {
@@ -346,7 +376,7 @@ async function ensureActiveConnection(
     state.config = connection;
   }
 
-  const pat = await getSecretPAT(context);
+  const pat = await getSecretPAT(context, targetId);
   if (!pat) {
     verbose('[ensureActiveConnection] missing PAT, cannot create client');
     provider = undefined;
@@ -376,11 +406,13 @@ async function ensureActiveConnection(
       organization: connection.organization,
       project: connection.project,
       team,
+      baseUrl: connection.baseUrl,
     });
     state.client = new AzureDevOpsIntClient(connection.organization, connection.project, pat, {
       ratePerSecond,
       burst,
       team,
+      baseUrl: connection.baseUrl,
     });
     state.pat = pat;
     if (state.provider) state.provider.updateClient(state.client);
@@ -670,6 +702,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Core commands
   context.subscriptions.push(
     vscode.commands.registerCommand('azureDevOpsInt.setup', () => setupConnection(context)),
+    vscode.commands.registerCommand('azureDevOpsInt.setupWizard', () => setupWizard(context)),
     vscode.commands.registerCommand('azureDevOpsInt.setOpenAIApiKey', () =>
       setOpenAIApiKey(context)
     ),
@@ -823,7 +856,10 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('azureDevOpsInt.resetPreferredRepositories', () =>
       resetPreferredRepositories()
     ),
-    vscode.commands.registerCommand('azureDevOpsInt.selfTestWebview', () => selfTestWebview())
+    vscode.commands.registerCommand('azureDevOpsInt.selfTestWebview', () => selfTestWebview()),
+    vscode.commands.registerCommand('azureDevOpsInt.manageConnections', () =>
+      manageConnections(context)
+    )
   );
 
   // Attempt silent init if settings already present
@@ -837,10 +873,11 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  // React to configuration changes (org, project, PAT) to (re)initialize without requiring reload
+  // React to configuration changes (connections, org, project, PAT) to (re)initialize without requiring reload
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(async (e) => {
       if (
+        e.affectsConfiguration(`${CONFIG_NS}.connections`) ||
         e.affectsConfiguration(`${CONFIG_NS}.organization`) ||
         e.affectsConfiguration(`${CONFIG_NS}.project`) ||
         e.affectsConfiguration(`${CONFIG_NS}.personalAccessToken`)
@@ -1710,7 +1747,38 @@ async function selfTestWebview() {
   }
 }
 
-async function getSecretPAT(context: vscode.ExtensionContext): Promise<string | undefined> {
+async function migrateGlobalPATToConnection(
+  context: vscode.ExtensionContext,
+  connection: ProjectConnection
+): Promise<void> {
+  if (!connection.patKey) return;
+
+  // Check if connection already has a PAT
+  const existingPAT = await context.secrets.get(connection.patKey);
+  if (existingPAT) return; // Already migrated
+
+  // Check if global PAT exists
+  const globalPAT = await context.secrets.get(PAT_KEY);
+  if (globalPAT) {
+    // Migrate global PAT to connection-specific key
+    await context.secrets.store(connection.patKey, globalPAT);
+    console.log(`[azureDevOpsInt] Migrated global PAT to connection ${connection.id}`);
+  }
+}
+
+async function getSecretPAT(
+  context: vscode.ExtensionContext,
+  connectionId?: string
+): Promise<string | undefined> {
+  if (connectionId) {
+    // Get connection-specific PAT
+    const connection = connections.find((conn) => conn.id === connectionId);
+    if (connection?.patKey) {
+      return context.secrets.get(connection.patKey);
+    }
+  }
+
+  // Fallback to global PAT for backward compatibility
   return context.secrets.get(PAT_KEY);
 }
 
@@ -1911,6 +1979,103 @@ async function setupConnection(context: vscode.ExtensionContext) {
     const removed = await promptRemoveConnection(context);
     if (removed) {
       ensureTimer(context);
+    }
+  }
+}
+
+async function setupWizard(context: vscode.ExtensionContext) {
+  try {
+    const success = await startSetupWizard(context);
+    if (success) {
+      // Refresh the connection after successful setup
+      await ensureConnectionsInitialized(context);
+      await ensureActiveConnection(context, undefined, { refresh: true });
+      ensureTimer(context);
+    }
+  } catch (error) {
+    console.error('[setupWizard] Error:', error);
+    vscode.window.showErrorMessage(
+      `Setup wizard failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+async function manageConnections(context: vscode.ExtensionContext): Promise<void> {
+  await ensureConnectionsInitialized(context);
+
+  const connectionItems = connections.map((conn, index) => ({
+    label: conn.label || `${conn.organization}/${conn.project}`,
+    description: conn.team ? `Team: ${conn.team}` : undefined,
+    detail: `Organization: ${conn.organization}, Project: ${conn.project}`,
+    connection: conn,
+    index,
+  }));
+
+  const choices = [
+    { label: 'Add New Connection', action: 'add' as const },
+    { label: 'Edit Connection', action: 'edit' as const },
+    { label: 'Delete Connection', action: 'delete' as const },
+    { label: 'Cancel', action: 'cancel' as const },
+  ];
+
+  const action = await vscode.window.showQuickPick(choices, {
+    placeHolder: 'Manage Azure DevOps Connections',
+    ignoreFocusOut: true,
+  });
+
+  if (!action || action.action === 'cancel') {
+    return;
+  }
+
+  switch (action.action) {
+    case 'add':
+      await startSetupWizard(context);
+      break;
+    case 'edit': {
+      if (connectionItems.length === 0) {
+        vscode.window.showInformationMessage('No connections to edit. Add a connection first.');
+        return;
+      }
+      const selectedConnection = await vscode.window.showQuickPick(connectionItems, {
+        placeHolder: 'Select a connection to edit',
+        ignoreFocusOut: true,
+      });
+      if (selectedConnection) {
+        // Pre-populate wizard with existing connection data
+        // This would need to be implemented in the wizard
+        await startSetupWizard(context);
+      }
+      break;
+    }
+    case 'delete': {
+      if (connectionItems.length === 0) {
+        vscode.window.showInformationMessage('No connections to delete.');
+        return;
+      }
+      const connectionToDelete = await vscode.window.showQuickPick(connectionItems, {
+        placeHolder: 'Select a connection to delete',
+        ignoreFocusOut: true,
+      });
+      if (connectionToDelete) {
+        const confirm = await vscode.window.showWarningMessage(
+          `Are you sure you want to delete the connection "${connectionToDelete.label}"?`,
+          'Yes, Delete',
+          'Cancel'
+        );
+        if (confirm === 'Yes, Delete') {
+          // Delete the connection's PAT from secrets
+          if (connectionToDelete.connection.patKey) {
+            await context.secrets.delete(connectionToDelete.connection.patKey);
+          }
+
+          const updatedConnections = connections.filter(
+            (conn) => conn.id !== connectionToDelete.connection.id
+          );
+          await saveConnectionsToConfig(context, updatedConnections);
+          vscode.window.showInformationMessage('Connection deleted successfully.');
+        }
+      }
+      break;
     }
   }
 }
