@@ -30,23 +30,27 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ### Added
 
-- Optional OpenAI summary provider: securely store an API key, select the provider in settings, and copy generated summaries straight from the work items view.
+- **Enhanced Setup Experience**: New setup wizard that parses work item URLs and guides users through configuration
+- **Improved README**: Streamlined documentation focusing on key features and easier setup process
+- **Better Command Organization**: Simplified command palette with essential commands clearly highlighted
 
 ### Changed
 
-- Toggle Kanban toolbar button now uses a codicon at the command level; menu inherits the icon for consistent header styling
-- README screenshots switched to vertical layout for better Marketplace/Preview rendering
-- Screenshot generator now captures tightly-cropped, high-DPI images and stubs VS Code webview APIs during headless runs
-- Svelte webview summary panel now surfaces provider badges, busy states, and per-work-item draft persistence for AI summaries
+- **README Structure**: Reorganized highlights to focus on core features (Work Items, Time Tracking, Git Integration, AI Summaries)
+- **Setup Process**: Added step-by-step setup wizard as the recommended setup method
+- **Documentation**: Simplified configuration section to show only the most important settings
+- **Troubleshooting**: Added common issues table with quick solutions
 
 ### Fixed
 
-- Preserved scroll positions across renders (list vertical, Kanban horizontal)
-- Stabilized pre-commit hooks: removed deprecated Husky shim lines; lint-staged now runs eslint --fix and prettier on staged files
+- **Documentation Accuracy**: Verified all features mentioned in README are actually implemented
+- **Command References**: Updated command table to reflect actual available commands
+- **Setup Instructions**: Clarified the difference between wizard and manual setup
 
 ### Notes
 
-- No breaking changes; behavior is backward compatible
+- No breaking changes; all existing functionality remains the same
+- Documentation improvements make the extension easier to discover and use
 
 ## [1.6.3] - 2025-09-20
 
