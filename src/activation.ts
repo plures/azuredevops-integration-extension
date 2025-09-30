@@ -1849,13 +1849,8 @@ function buildMinimalWebviewHtml(
   webview: vscode.Webview,
   nonce: string
 ): string {
-  // Svelte is now the default. Fallback to legacy only if svelte assets are missing.
-  const svelteAssetsPath = path.join(context.extensionPath, 'media', 'webview', 'svelte-main.js');
-  const useSvelte = fs.existsSync(svelteAssetsPath);
-
-  // Use different HTML templates based on whether Svelte is enabled
-  const htmlFileName = useSvelte ? 'svelte.html' : 'index.html';
-  const htmlPath = path.join(context.extensionPath, 'media', 'webview', htmlFileName);
+  // Use Svelte UI exclusively - no more legacy fallback
+  const htmlPath = path.join(context.extensionPath, 'media', 'webview', 'svelte.html');
   let html: string;
 
   try {
@@ -1869,33 +1864,25 @@ function buildMinimalWebviewHtml(
   // Get media URIs for replacement
   const mediaRoot = vscode.Uri.joinPath(context.extensionUri, 'media', 'webview');
   const version = getExtensionVersion(context);
-  // When Svelte UI is enabled, attempt to load svelte-main.js. Fallback to main.js if not present.
-  const svelteCandidate = vscode.Uri.joinPath(mediaRoot, 'svelte-main.js');
-  const sveltePathFs = path.join(context.extensionPath, 'media', 'webview', 'svelte-main.js');
-  const chosenScript =
-    useSvelte && fs.existsSync(sveltePathFs)
-      ? svelteCandidate
-      : vscode.Uri.joinPath(mediaRoot, 'main.js');
-  const scriptUri = webview.asWebviewUri(chosenScript);
+  // Load svelte-main.js exclusively
+  const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'svelte-main.js'));
   // Append a cache-busting version query so VS Code doesn’t serve stale cached assets after upgrade
   const scriptUriWithVersion = scriptUri.with({ query: `v=${encodeURIComponent(version)}` });
   const scriptUriStr = scriptUriWithVersion.toString();
 
-  // If using Svelte, also include the extracted CSS bundle if present
+  // Include the extracted CSS bundle
   let cssLinkTag = '';
-  if (useSvelte) {
-    try {
-      const cssFsPath = path.join(context.extensionPath, 'media', 'webview', 'svelte-main.css');
-      if (fs.existsSync(cssFsPath)) {
-        const cssUri = webview
-          .asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'svelte-main.css'))
-          .with({ query: `v=${encodeURIComponent(version)}` })
-          .toString();
-        cssLinkTag = `<link rel="stylesheet" href="${cssUri}" />`;
-      }
-    } catch {
-      // ignore css injection errors; webview will still work but unstyled
+  try {
+    const cssFsPath = path.join(context.extensionPath, 'media', 'webview', 'svelte-main.css');
+    if (fs.existsSync(cssFsPath)) {
+      const cssUri = webview
+        .asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'svelte-main.css'))
+        .with({ query: `v=${encodeURIComponent(version)}` })
+        .toString();
+      cssLinkTag = `<link rel="stylesheet" href="${cssUri}" />`;
     }
+  } catch {
+    // ignore css injection errors; webview will still work but unstyled
   }
 
   // Update CSP and script nonces
@@ -1908,14 +1895,10 @@ function buildMinimalWebviewHtml(
     `<meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}">`
   );
 
-  // Handle different script replacement patterns for different templates
-  if (useSvelte) {
-    html = html.replace('./svelte-main.js', scriptUriStr);
-  } else {
-    html = html.replace('./main.js', scriptUriStr);
-  }
+  // Replace script source
+  html = html.replace('./svelte-main.js', scriptUriStr);
 
-  // Inject CSS link (Svelte only) just before </head> if available
+  // Inject CSS link just before </head> if available
   if (cssLinkTag) {
     html = html.replace('</head>', `${cssLinkTag}\n</head>`);
   }

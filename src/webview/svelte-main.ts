@@ -60,6 +60,8 @@ let typeFilter = '';
 let stateFilter: string = 'all';
 let sortKey: string = 'updated-desc';
 let normalizedQuery = '';
+let selectedQuery = 'My Activity';
+let queryDescription = '';
 // Track optimistic moves so we can revert on failure
 const pendingMoves = new Map<number, { prevState: string }>();
 // Available normalized states (for filter dropdown)
@@ -67,7 +69,6 @@ let stateOptions: string[] = [];
 let typeOptions: string[] = [];
 const typeOptionHints = new Set<string>();
 let searchHaystackCache = new WeakMap<any, string>();
-let summaryOpen = false;
 let summaryDraft = '';
 let summaryStatus = '';
 let summaryProvider: 'builtin' | 'openai' = 'builtin';
@@ -76,16 +77,49 @@ let summaryWorkItemId: number | null = null;
 let summaryTargetTitle = '';
 let summaryBusyTimer: ReturnType<typeof setTimeout> | undefined;
 let summaryStatusTimer: ReturnType<typeof setTimeout> | undefined;
+
+// Query options
+const queryOptions = [
+  {
+    value: 'My Activity',
+    label: 'My Activity',
+    description: "Work items I've created, assigned to, or recently changed",
+  },
+  {
+    value: 'My Work Items',
+    label: 'My Work Items',
+    description: 'Work items currently assigned to me',
+  },
+  {
+    value: 'Assigned to me',
+    label: 'Assigned to me',
+    description: 'Work items currently assigned to me',
+  },
+  {
+    value: 'Current Sprint',
+    label: 'Current Sprint',
+    description: 'Work items in the current iteration',
+  },
+  { value: 'All Active', label: 'All Active', description: 'All active work items in the project' },
+  {
+    value: 'Recently Updated',
+    label: 'Recently Updated',
+    description: 'Work items updated in the last 14 days',
+  },
+  { value: 'Following', label: 'Following', description: "Work items I'm following" },
+  { value: 'Mentioned', label: 'Mentioned', description: "Work items where I've been mentioned" },
+];
+
 // Initialize kanbanView from persisted webview state if available
 try {
   const st =
     vscode && typeof (vscode as any).getState === 'function' ? (vscode as any).getState() : null;
   if (st && typeof st.kanbanView === 'boolean') kanbanView = !!st.kanbanView;
-  if (st && typeof st.summaryOpen === 'boolean') summaryOpen = !!st.summaryOpen;
   if (st && typeof st.typeFilter === 'string') typeFilter = st.typeFilter;
-  if (st && typeof st.summaryWorkItemId === 'number') {
-    summaryWorkItemId = st.summaryWorkItemId || null;
-  }
+  // Don't restore summaryWorkItemId on initialization - only show summary when explicitly triggered
+  // if (st && typeof st.summaryWorkItemId === 'number') {
+  //   summaryWorkItemId = st.summaryWorkItemId || null;
+  // }
 } catch (e) {
   console.warn('[svelte-main] Unable to read persisted state', e);
 }
@@ -110,13 +144,14 @@ function getAppProps() {
     sortKey,
     availableStates: stateOptions,
     availableTypes: typeOptions,
-    summaryOpen,
+    selectedQuery,
+    queryDescription,
     summaryDraft,
     summaryStatus,
     summaryProvider,
     summaryBusy,
     summaryTargetId: summaryWorkItemId ?? 0,
-    summaryTargetTitle,
+    summaryWorkItemId: summaryWorkItemId ?? 0,
   };
 }
 
@@ -137,7 +172,6 @@ function persistViewState(extra?: Record<string, unknown>) {
       typeFilter,
       stateFilter,
       sortKey,
-      summaryOpen,
       summaryWorkItemId,
       ...extra,
     });
@@ -225,6 +259,29 @@ function ensureApp() {
     }
   });
   (app as any).$on('createWorkItem', () => postMessage({ type: 'createWorkItem' }));
+  (app as any).$on('cancelSummary', () => {
+    summaryWorkItemId = null;
+    summaryDraft = '';
+    summaryStatus = '';
+    persistViewState();
+    syncApp();
+  });
+  (app as any).$on('applySummary', (ev: any) => {
+    const workItemId = Number(ev?.detail?.workItemId);
+    if (workItemId && summaryDraft.trim()) {
+      postMessage({ type: 'addComment', workItemId, comment: summaryDraft.trim() });
+      summaryWorkItemId = null;
+      summaryDraft = '';
+      summaryStatus = 'Comment added successfully';
+      persistViewState();
+      syncApp();
+      // Clear status after a delay
+      setTimeout(() => {
+        summaryStatus = '';
+        syncApp();
+      }, 3000);
+    }
+  });
   (app as any).$on('toggleKanban', () => {
     kanbanView = !kanbanView;
     persistViewState();
@@ -232,7 +289,7 @@ function ensureApp() {
     // Send to extension for global persistence
     postMessage({
       type: 'uiPreferenceChanged',
-      preferences: { kanbanView, filterText, typeFilter, stateFilter, sortKey, summaryOpen },
+      preferences: { kanbanView, filterText, typeFilter, stateFilter, sortKey },
     });
   });
   (app as any).$on('filtersChanged', (ev: any) => {
@@ -246,8 +303,20 @@ function ensureApp() {
     // Send to extension for global persistence
     postMessage({
       type: 'uiPreferenceChanged',
-      preferences: { kanbanView, filterText, typeFilter, stateFilter, sortKey, summaryOpen },
+      preferences: { kanbanView, filterText, typeFilter, stateFilter, sortKey },
     });
+  });
+  (app as any).$on('queryChanged', (ev: any) => {
+    const { query } = ev.detail || {};
+    if (query && query !== selectedQuery) {
+      selectedQuery = query;
+      // Update query description
+      const queryOption = queryOptions.find((option) => option.value === query);
+      queryDescription = queryOption?.description || '';
+      syncApp();
+      // Send query change to extension
+      postMessage({ type: 'setQuery', query });
+    }
   });
   (app as any).$on('moveItem', (ev: any) => {
     const id = Number(ev?.detail?.id);
@@ -275,11 +344,6 @@ function ensureApp() {
       syncApp();
     }
     postMessage({ type: 'moveWorkItem', id, target });
-  });
-  (app as any).$on('toggleSummary', () => {
-    summaryOpen = !summaryOpen;
-    persistViewState();
-    syncApp();
   });
   const onDraftChange = (value: string) => {
     summaryDraft = value;
@@ -353,8 +417,13 @@ function setSummaryTarget(
   const id = Number(workItemId);
   if (!Number.isFinite(id) || id <= 0) return;
   const changed = summaryWorkItemId !== id;
-  if (changed) summaryWorkItemId = id;
-  updateSummaryTargetTitle();
+
+  // Only set summaryWorkItemId if ensureOpen is true
+  if (options.ensureOpen && changed) {
+    summaryWorkItemId = id;
+    updateSummaryTargetTitle();
+  }
+
   const shouldRefresh = options.refreshDraft ?? changed;
   if (shouldRefresh) {
     const persisted = loadDraftForWorkItem(id);
@@ -364,13 +433,7 @@ function setSummaryTarget(
       summaryDraft = '';
     }
   }
-  const ensureOpenRequested = options.ensureOpen || (!summaryOpen && timerActive);
-  let opened = false;
-  if (ensureOpenRequested && !summaryOpen) {
-    summaryOpen = true;
-    opened = true;
-  }
-  if (changed || shouldRefresh || opened) {
+  if (changed || shouldRefresh) {
     persistViewState();
   }
 }
@@ -431,7 +494,6 @@ function attemptSummaryGeneration() {
     syncApp();
     return;
   }
-  if (!summaryOpen) summaryOpen = true;
   setSummaryBusy(true);
   setSummaryStatus('Generating summary…');
   syncApp();
@@ -753,7 +815,7 @@ function onMessage(message: any) {
         activeTitle =
           snap.workItemTitle || getWorkItemTitle(activeId) || (activeId ? `#${activeId}` : '');
         const targetChanged = summaryWorkItemId !== activeId;
-        setSummaryTarget(activeId, { ensureOpen: true, refreshDraft: targetChanged });
+        setSummaryTarget(activeId, { ensureOpen: false, refreshDraft: targetChanged });
         if (!summaryDraft || !summaryDraft.trim()) {
           const persisted = loadDraftForWorkItem(activeId);
           if (persisted && persisted.length > 0) {
@@ -864,7 +926,6 @@ function onMessage(message: any) {
           : 'Copilot prompt copied to clipboard. Paste into Copilot chat to generate a summary.',
         { timeout: 3500 }
       );
-      summaryOpen = true;
       syncApp();
       break;
     }

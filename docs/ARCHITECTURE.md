@@ -4,8 +4,9 @@ This document captures implementation details that were trimmed from the main RE
 
 ## Webview architecture
 
-- Plain TypeScript + HTML webview with static assets committed under `media/webview/` (e.g., `main.js`, `index.html`). This keeps extension HTML simple (no runtime manifest lookup or separate build step on CI).
-- The webview and extension communicate via the VS Code `postMessage` bridge with a clear message contract (see `src/activation.ts` and `src/webview/main.ts`).
+- **Svelte-based UI** with static assets committed under `media/webview/` (e.g., `svelte-main.js`, `svelte.html`). This provides a modern, reactive UI with excellent developer experience.
+- The webview and extension communicate via the VS Code `postMessage` bridge with a clear message contract (see `src/activation.ts` and `src/webview/svelte-main.ts`).
+- **Single UI System**: Only Svelte UI is supported - no legacy fallback to ensure consistency and maintainability.
 
 ## ESM-first build
 

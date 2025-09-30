@@ -60,9 +60,13 @@ async function build() {
       // No Svelte plugin resolvable; proceed without experimental UI build
     }
 
-    const entries = [path.join(__dirname, 'src', 'webview', 'main.ts')];
+    const entries = [];
     const svelteEntry = path.join(__dirname, 'src', 'webview', 'svelte-main.ts');
-    if (sveltePluginLoaded) entries.push(svelteEntry);
+    if (sveltePluginLoaded) {
+      entries.push(svelteEntry);
+    } else {
+      console.warn('[esbuild] Svelte plugin not available - webview will not work properly');
+    }
 
     // Optional: add svelte-preprocess if available for TypeScript/SCSS in .svelte
     let sveltePreprocessFn = null;

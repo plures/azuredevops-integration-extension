@@ -68,6 +68,9 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [ ] HTML content is properly escaped
 - [ ] File paths are validated
 - [ ] SQL injection prevention is implemented
+- [x] Query selector validates user input for security
+- [x] Query selector prevents dangerous SQL operations
+- [x] Query validation provides clear error messages
 
 ### Content Security Policy
 
@@ -202,6 +205,9 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Setup wizard supports multiple connections (add new, modify existing)
 - [x] Settings use JSON connections array instead of individual fields
 - [x] Connection management commands available (add, edit, delete)
+- [x] Query selector provides easy access to all default queries
+- [x] Query selector includes descriptive text for each query option
+- [x] Query selection is persisted per connection
 
 ### Azure DevOps Integration
 
@@ -243,6 +249,8 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [ ] Form labels are associated
 - [ ] Status messages are announced
 - [ ] Error messages are accessible
+- [x] Query selector has proper ARIA labels and titles
+- [x] Query descriptions are accessible to screen readers
 
 ### Visual Accessibility
 
