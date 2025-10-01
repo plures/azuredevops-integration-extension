@@ -32,6 +32,10 @@
   export let summaryTargetId = 0;
   export let summaryWorkItemId = 0;
 
+  // Connections
+  export let connections = [];
+  export let activeConnectionId = undefined;
+
   function onRefresh() {
     dispatch('refresh');
   }
@@ -102,6 +106,9 @@
   }
   function onQueryChange(e) {
     dispatch('queryChanged', { query: e.target.value });
+  }
+  function onConnectionChange(e) {
+    dispatch('connectionChanged', { connectionId: e.target.value });
   }
 
   // Query options
@@ -278,6 +285,25 @@
 </script>
 
 <div class="pane">
+  <!-- Connection Tabs (only show if multiple connections) -->
+  {#if connections && connections.length > 1}
+    <div class="connection-tabs" role="tablist" aria-label="Project connections">
+      {#each connections as connection}
+        <button
+          class="connection-tab"
+          class:active={connection.id === activeConnectionId}
+          on:click={() => dispatch('connectionChanged', { connectionId: connection.id })}
+          role="tab"
+          aria-selected={connection.id === activeConnectionId}
+          aria-label={`Switch to ${connection.label}`}
+          title={`${connection.organization}/${connection.project}`}
+        >
+          {connection.label}
+        </button>
+      {/each}
+    </div>
+  {/if}
+
   <!-- Query Selector Row -->
   <div class="query-header" role="toolbar" aria-label="Query selection">
     <div class="query-selector-container">
@@ -825,6 +851,44 @@
     background: var(--vscode-editor-background);
     color: var(--vscode-editor-foreground);
     font-family: var(--vscode-font-family);
+  }
+
+  /* Connection Tabs */
+  .connection-tabs {
+    display: flex;
+    background: var(--vscode-tab-inactiveBackground);
+    border-bottom: 1px solid var(--vscode-editorWidget-border);
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+
+  .connection-tab {
+    padding: 8px 16px;
+    background: var(--vscode-tab-inactiveBackground);
+    color: var(--vscode-tab-inactiveForeground);
+    border: none;
+    border-right: 1px solid var(--vscode-editorWidget-border);
+    cursor: pointer;
+    font-size: 13px;
+    font-family: var(--vscode-font-family);
+    white-space: nowrap;
+    transition: all 0.2s ease;
+  }
+
+  .connection-tab:hover {
+    background: var(--vscode-tab-hoverBackground);
+    color: var(--vscode-tab-hoverForeground);
+  }
+
+  .connection-tab.active {
+    background: var(--vscode-tab-activeBackground);
+    color: var(--vscode-tab-activeForeground);
+    border-bottom: 2px solid var(--vscode-tab-activeBorder, var(--ado-blue));
+  }
+
+  .connection-tab:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
   }
 
   .query-header {

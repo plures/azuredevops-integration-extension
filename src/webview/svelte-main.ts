@@ -74,9 +74,95 @@ let summaryStatus = '';
 let summaryProvider: 'builtin' | 'openai' = 'builtin';
 let summaryBusy = false;
 let summaryWorkItemId: number | null = null;
-let summaryTargetTitle = '';
 let summaryBusyTimer: ReturnType<typeof setTimeout> | undefined;
 let summaryStatusTimer: ReturnType<typeof setTimeout> | undefined;
+
+// Connections state
+let connections: Array<{ id: string; label: string; organization: string; project: string }> = [];
+let activeConnectionId: string | undefined;
+
+// Per-connection state storage
+type ConnectionState = {
+  filterText: string;
+  typeFilter: string;
+  stateFilter: string;
+  sortKey: string;
+  selectedQuery: string;
+  kanbanView: boolean;
+};
+
+const connectionStateMap = new Map<string, ConnectionState>();
+
+function getDefaultConnectionState(): ConnectionState {
+  return {
+    filterText: '',
+    typeFilter: '',
+    stateFilter: 'all',
+    sortKey: 'updated-desc',
+    selectedQuery: 'My Activity',
+    kanbanView: false,
+  };
+}
+
+function saveConnectionState(connectionId: string) {
+  if (!connectionId) return;
+  connectionStateMap.set(connectionId, {
+    filterText,
+    typeFilter,
+    stateFilter,
+    sortKey,
+    selectedQuery,
+    kanbanView,
+  });
+  // Persist to localStorage
+  try {
+    localStorage.setItem(
+      `azuredevops.connectionState.${connectionId}`,
+      JSON.stringify(connectionStateMap.get(connectionId))
+    );
+  } catch (e) {
+    console.warn('[svelte-main] Failed to persist connection state', e);
+  }
+}
+
+function loadConnectionState(connectionId: string) {
+  if (!connectionId) return getDefaultConnectionState();
+
+  // Check in-memory cache first
+  let state = connectionStateMap.get(connectionId);
+  if (state) return state;
+
+  // Try to load from localStorage
+  try {
+    const stored = localStorage.getItem(`azuredevops.connectionState.${connectionId}`);
+    if (stored) {
+      state = JSON.parse(stored) as ConnectionState;
+      connectionStateMap.set(connectionId, state);
+      return state;
+    }
+  } catch (e) {
+    console.warn('[svelte-main] Failed to load connection state from localStorage', e);
+  }
+
+  // Return defaults
+  const defaultState = getDefaultConnectionState();
+  connectionStateMap.set(connectionId, defaultState);
+  return defaultState;
+}
+
+function applyConnectionState(connectionId: string) {
+  const state = loadConnectionState(connectionId);
+  filterText = state.filterText;
+  typeFilter = state.typeFilter;
+  stateFilter = state.stateFilter;
+  sortKey = state.sortKey;
+  selectedQuery = state.selectedQuery;
+  kanbanView = state.kanbanView;
+
+  // Update query description
+  const queryOption = queryOptions.find((option) => option.value === selectedQuery);
+  queryDescription = queryOption?.description || '';
+}
 
 // Query options
 const queryOptions = [
@@ -152,6 +238,8 @@ function getAppProps() {
     summaryBusy,
     summaryTargetId: summaryWorkItemId ?? 0,
     summaryWorkItemId: summaryWorkItemId ?? 0,
+    connections,
+    activeConnectionId,
   };
 }
 
@@ -161,6 +249,12 @@ function syncApp() {
 }
 
 function persistViewState(extra?: Record<string, unknown>) {
+  // Save current connection state if we have an active connection
+  if (activeConnectionId) {
+    saveConnectionState(activeConnectionId);
+  }
+
+  // Also save to global state for backward compatibility
   try {
     if (!vscode || typeof (vscode as any).setState !== 'function') return;
     const prev =
@@ -173,6 +267,7 @@ function persistViewState(extra?: Record<string, unknown>) {
       stateFilter,
       sortKey,
       summaryWorkItemId,
+      activeConnectionId,
       ...extra,
     });
   } catch (e) {
@@ -313,9 +408,33 @@ function ensureApp() {
       // Update query description
       const queryOption = queryOptions.find((option) => option.value === query);
       queryDescription = queryOption?.description || '';
+
+      // Save state for current connection
+      if (activeConnectionId) {
+        saveConnectionState(activeConnectionId);
+      }
+
       syncApp();
       // Send query change to extension
       postMessage({ type: 'setQuery', query });
+    }
+  });
+  (app as any).$on('connectionChanged', (ev: any) => {
+    const { connectionId } = ev.detail || {};
+    if (connectionId && connectionId !== activeConnectionId) {
+      // Save current connection's state before switching
+      if (activeConnectionId) {
+        saveConnectionState(activeConnectionId);
+      }
+
+      // Apply the new connection's state
+      applyConnectionState(connectionId);
+
+      loading = true;
+      errorMsg = '';
+      syncApp();
+      // Send connection change to extension
+      postMessage({ type: 'switchConnection', connectionId });
     }
   });
   (app as any).$on('moveItem', (ev: any) => {
@@ -377,14 +496,6 @@ function getWorkItemTitle(id: number): string {
   return `Work Item #${id}`;
 }
 
-function updateSummaryTargetTitle() {
-  if (summaryWorkItemId) {
-    summaryTargetTitle = getWorkItemTitle(summaryWorkItemId);
-  } else {
-    summaryTargetTitle = '';
-  }
-}
-
 function saveDraftForWorkItem(workItemId: number, text: string) {
   try {
     localStorage.setItem(`azuredevops.draft.${workItemId}`, text || '');
@@ -421,7 +532,6 @@ function setSummaryTarget(
   // Only set summaryWorkItemId if ensureOpen is true
   if (options.ensureOpen && changed) {
     summaryWorkItemId = id;
-    updateSummaryTargetTitle();
   }
 
   const shouldRefresh = options.refreshDraft ?? changed;
@@ -735,6 +845,8 @@ function onMessage(message: any) {
   switch (message?.type) {
     case 'workItemsLoaded': {
       const items = Array.isArray(message.workItems) ? message.workItems : [];
+      const messageConnectionId = message?.connectionId;
+
       try {
         console.log('[svelte-main] workItemsLoaded received. count=', (items || []).length);
         console.log(
@@ -748,6 +860,12 @@ function onMessage(message: any) {
           typeFilter,
           'stateFilter=',
           stateFilter
+        );
+        console.log(
+          '[svelte-main] messageConnectionId=',
+          messageConnectionId,
+          'activeConnectionId=',
+          activeConnectionId
         );
         // Additional diagnostics: if host sent zero items, log the entire message and connectionId
         if (!items || (items && items.length === 0)) {
@@ -771,6 +889,12 @@ function onMessage(message: any) {
       } catch (err) {
         void err;
       }
+
+      // If this message is for a specific connection, restore its state
+      if (messageConnectionId && messageConnectionId === activeConnectionId) {
+        applyConnectionState(messageConnectionId);
+      }
+
       searchHaystackCache = new WeakMap();
       lastWorkItems = items;
       if (typeof message.kanbanView === 'boolean') {
@@ -787,7 +911,6 @@ function onMessage(message: any) {
         }
       }
       if (summaryWorkItemId) {
-        updateSummaryTargetTitle();
         if (!summaryDraft || !summaryDraft.trim()) {
           const persisted = loadDraftForWorkItem(summaryWorkItemId);
           if (persisted !== null) summaryDraft = persisted;
@@ -941,6 +1064,41 @@ function onMessage(message: any) {
         removeDraftForWorkItem(id);
       }
       setSummaryStatus(`Applied ${hours.toFixed(2)} hours to work item #${id}.`, { timeout: 4000 });
+      syncApp();
+      break;
+    }
+    case 'connectionsUpdate': {
+      const receivedConnections = Array.isArray(message?.connections) ? message.connections : [];
+      connections = receivedConnections.map((conn: any) => ({
+        id: String(conn.id || ''),
+        label: String(conn.label || ''),
+        organization: String(conn.organization || ''),
+        project: String(conn.project || ''),
+      }));
+      const newActiveConnectionId = message?.activeConnectionId
+        ? String(message.activeConnectionId)
+        : undefined;
+
+      // If the active connection changed, apply its state
+      if (newActiveConnectionId && newActiveConnectionId !== activeConnectionId) {
+        if (activeConnectionId) {
+          saveConnectionState(activeConnectionId);
+        }
+        activeConnectionId = newActiveConnectionId;
+        applyConnectionState(activeConnectionId);
+      } else {
+        activeConnectionId = newActiveConnectionId;
+      }
+
+      try {
+        console.log('[svelte-main] connectionsUpdate received:', {
+          count: connections.length,
+          activeConnectionId,
+          connections: connections.map((c) => ({ id: c.id, label: c.label })),
+        });
+      } catch (err) {
+        void err;
+      }
       syncApp();
       break;
     }

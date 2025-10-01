@@ -2,7 +2,7 @@
   "name": "azuredevops-integration-extension",
   "displayName": "Azure DevOps Integration for VS Code",
   "description": "Integrate Azure DevOps work items, time tracking, and Git workflows directly in VS Code. Manage tasks, track time, create branches, and submit pull requests without leaving your editor.",
-  "version": "1.7.9",
+  "version": "1.7.11",
   "publisher": "PluresLLC",
   "icon": "media/icon.png",
   "repository": {
@@ -211,7 +211,7 @@
       "activitybar": [
         {
           "id": "azureDevOpsIntegration",
-          "title": "Azure DevOps",
+          "title": "Azure DevOps Integration",
           "icon": "media/workitems-icon.svg"
         }
       ]
@@ -413,8 +413,8 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run build",
-    "build:all": "npm run build",
+    "vscode:prepublish": "npm run compile",
+    "build:all": "npm run compile",
     "compile": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "pretest": "npm run compile",
@@ -429,8 +429,9 @@
     "check-format": "npx prettier --check \"**/*.{ts,js,json,md,mjs}\"",
     "prepare": "husky install",
     "postinstall": "npm run prepare",
-    "build": "npm run format && npm run compile",
-    "package": "vsce.cmd package",
+    "build": "npm run compile",
+    "build:formatted": "npm run format && npm run compile",
+    "package": "vsce package --no-dependencies",
     "screenshots:setup": "npx playwright install",
     "screenshots:build": "npm run build && npm run screenshots:capture",
     "screenshots:capture": "node scripts/screenshots/generate-screenshots.mjs",

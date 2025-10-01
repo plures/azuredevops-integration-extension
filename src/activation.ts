@@ -1202,6 +1202,7 @@ async function handleMessage(msg: any) {
       targetProvider?.refresh(storedQuery);
       break;
     }
+    case 'switchConnection':
     case 'setActiveConnection': {
       const targetId = typeof msg.connectionId === 'string' ? msg.connectionId.trim() : '';
       if (!targetId) {
