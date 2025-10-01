@@ -74,7 +74,7 @@ let summaryStatus = '';
 let summaryProvider: 'builtin' | 'openai' = 'builtin';
 let summaryBusy = false;
 let summaryWorkItemId: number | null = null;
-let summaryTargetTitle = '';
+let _summaryTargetTitle = '';
 let summaryBusyTimer: ReturnType<typeof setTimeout> | undefined;
 let summaryStatusTimer: ReturnType<typeof setTimeout> | undefined;
 
