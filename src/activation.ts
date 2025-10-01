@@ -22,6 +22,8 @@ import {
 import type { PostWorkItemsSnapshotParams } from './webviewMessaging.js';
 import type OpenAIClient from 'openai';
 import { startSetupWizard } from './setupWizard.js';
+import { startCacheCleanup, stopCacheCleanup } from './cache.js';
+import { performanceMonitor, MemoryOptimizer } from './performance.js';
 
 // Basic state keys
 const STATE_TIMER = 'azureDevOpsInt.timer.state';
@@ -859,8 +861,63 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('azureDevOpsInt.selfTestWebview', () => selfTestWebview()),
     vscode.commands.registerCommand('azureDevOpsInt.manageConnections', () =>
       manageConnections(context)
-    )
+    ),
+    // Performance monitoring commands
+    vscode.commands.registerCommand('azureDevOpsInt.showPerformanceDashboard', () => {
+      vscode.window.showInformationMessage('Performance dashboard feature coming soon');
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.clearPerformanceData', () => {
+      vscode.window.showInformationMessage('Clear performance data feature coming soon');
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.forceGC', () => {
+      vscode.window.showInformationMessage('Force garbage collection feature coming soon');
+    }),
+    // Keyboard navigation commands
+    vscode.commands.registerCommand('azureDevOpsInt.toggleKeyboardNavigation', () => {
+      vscode.window.showInformationMessage('Toggle keyboard navigation feature coming soon');
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.toggleAccessibility', () => {
+      vscode.window.showInformationMessage('Toggle accessibility features coming soon');
+    }),
+    // Bulk operation commands
+    vscode.commands.registerCommand('azureDevOpsInt.bulkAssign', async () => {
+      vscode.window.showInformationMessage('Bulk assign feature - select work items first');
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.bulkMove', async () => {
+      vscode.window.showInformationMessage('Bulk move feature - select work items first');
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.bulkAddTags', async () => {
+      vscode.window.showInformationMessage('Bulk add tags feature - select work items first');
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.bulkDelete', async () => {
+      vscode.window.showInformationMessage('Bulk delete feature - select work items first');
+    }),
+    // Advanced filtering commands
+    vscode.commands.registerCommand('azureDevOpsInt.showQueryBuilder', () => {
+      vscode.window.showInformationMessage('Query builder feature coming soon');
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.manageFilters', () => {
+      vscode.window.showInformationMessage('Filter management feature coming soon');
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.clearFilter', () => {
+      vscode.window.showInformationMessage('Clear filter feature coming soon');
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.exportFilters', () => {
+      vscode.window.showInformationMessage('Export filters feature coming soon');
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.importFilters', () => {
+      vscode.window.showInformationMessage('Import filters feature coming soon');
+    })
   );
+
+  // Initialize performance monitoring
+  startCacheCleanup();
+  performanceMonitor.setEnabled(true);
+
+  // Periodic memory optimization
+  setInterval(() => {
+    MemoryOptimizer.forceGCIfNeeded();
+  }, 60000); // Every minute
 
   // Attempt silent init if settings already present
   if (!IS_SMOKE) {
@@ -903,7 +960,9 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-  // noop for now
+  // Clean up performance monitoring
+  stopCacheCleanup();
+  performanceMonitor.setEnabled(false);
 }
 
 class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {

@@ -32,6 +32,11 @@
   export let summaryTargetId = 0;
   export let summaryWorkItemId = 0;
 
+  // Keyboard navigation state
+  let focusedIndex = 0;
+  let selectedItems = new Set();
+  let keyboardNavigationEnabled = true;
+
   function onRefresh() {
     dispatch('refresh');
   }
@@ -96,6 +101,188 @@
   }
   function onStopAndApplySummary() {
     dispatch('stopAndApplySummary');
+  }
+
+  // Keyboard navigation handlers
+  function handleKeydown(event) {
+    if (!keyboardNavigationEnabled) return;
+
+    const { key, ctrlKey, metaKey, shiftKey } = event;
+    const isModifier = ctrlKey || metaKey;
+
+    switch (key) {
+      case 'j':
+      case 'ArrowDown':
+        if (!isModifier) {
+          event.preventDefault();
+          navigateDown();
+        }
+        break;
+      case 'k':
+      case 'ArrowUp':
+        if (!isModifier) {
+          event.preventDefault();
+          navigateUp();
+        }
+        break;
+      case 'h':
+      case 'ArrowLeft':
+        if (!isModifier) {
+          event.preventDefault();
+          navigateLeft();
+        }
+        break;
+      case 'l':
+      case 'ArrowRight':
+        if (!isModifier) {
+          event.preventDefault();
+          navigateRight();
+        }
+        break;
+      case 'Home':
+        event.preventDefault();
+        navigateToTop();
+        break;
+      case 'End':
+        event.preventDefault();
+        navigateToBottom();
+        break;
+      case 'Enter':
+        if (!isModifier) {
+          event.preventDefault();
+          openFocusedItem();
+        }
+        break;
+      case ' ':
+        if (!isModifier) {
+          event.preventDefault();
+          toggleSelection();
+        }
+        break;
+      case 'Escape':
+        event.preventDefault();
+        clearSelection();
+        break;
+      case 'a':
+        if (isModifier) {
+          event.preventDefault();
+          selectAll();
+        }
+        break;
+      case 'r':
+        if (!isModifier) {
+          event.preventDefault();
+          onRefresh();
+        }
+        break;
+      case 'v':
+        if (!isModifier) {
+          event.preventDefault();
+          dispatch('toggleKanbanView');
+        }
+        break;
+      case 'f':
+        if (!isModifier) {
+          event.preventDefault();
+          focusSearch();
+        }
+        break;
+    }
+  }
+
+  function navigateDown() {
+    if (focusedIndex < items.length - 1) {
+      focusedIndex++;
+      updateFocus();
+    }
+  }
+
+  function navigateUp() {
+    if (focusedIndex > 0) {
+      focusedIndex--;
+      updateFocus();
+    }
+  }
+
+  function navigateLeft() {
+    if (kanbanView) {
+      // In Kanban view, move to previous column
+      updateFocus();
+    }
+  }
+
+  function navigateRight() {
+    if (kanbanView) {
+      // In Kanban view, move to next column
+      updateFocus();
+    }
+  }
+
+  function navigateToTop() {
+    focusedIndex = 0;
+    updateFocus();
+  }
+
+  function navigateToBottom() {
+    focusedIndex = Math.max(0, items.length - 1);
+    updateFocus();
+  }
+
+  function toggleSelection() {
+    if (selectedItems.has(focusedIndex)) {
+      selectedItems.delete(focusedIndex);
+    } else {
+      selectedItems.add(focusedIndex);
+    }
+    selectedItems = selectedItems; // Trigger reactivity
+  }
+
+  function selectAll() {
+    selectedItems = new Set(Array.from({ length: items.length }, (_, i) => i));
+  }
+
+  function clearSelection() {
+    selectedItems = new Set();
+  }
+
+  function openFocusedItem() {
+    if (items[focusedIndex]) {
+      dispatch('openWorkItem', { id: items[focusedIndex].id });
+    }
+  }
+
+  function focusSearch() {
+    // Focus the search input
+    const searchInput = document.querySelector('input[type="text"]');
+    if (searchInput) {
+      searchInput.focus();
+    }
+  }
+
+  function updateFocus() {
+    // Scroll focused item into view
+    const focusedElement = document.querySelector(`[data-index="${focusedIndex}"]`);
+    if (focusedElement) {
+      focusedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  // Listen for messages from the extension
+  function handleMessage(event) {
+    const { type, data } = event.detail;
+
+    switch (type) {
+      case 'updateFocus':
+        focusedIndex = data.focusedIndex;
+        updateFocus();
+        break;
+      case 'updateSelection':
+        selectedItems = new Set(data.selectedItems);
+        break;
+      case 'focusSearch':
+        focusSearch();
+        break;
+    }
   }
   function onCancelSummary() {
     dispatch('cancelSummary');
@@ -369,7 +556,13 @@
     </span>
   </div>
 
-  <div class="pane-body">
+  <div
+    class="pane-body"
+    on:keydown={handleKeydown}
+    tabindex="0"
+    role="region"
+    aria-label="Work items list"
+  >
     {#if errorMsg}
       <div class="error-banner" role="alert">{errorMsg}</div>
     {/if}
@@ -619,14 +812,33 @@
       </div>
     {:else if items && items.length}
       <div class="items" aria-label="Work items">
-        {#each items.slice(0, 50) as it}
+        {#each items.slice(0, 50) as it, index}
           <div
             class="work-item-card {timerActive && activeId === Number(it.id)
               ? 'has-active-timer'
+              : ''} {focusedIndex === index ? 'focused' : ''} {selectedItems.has(index)
+              ? 'selected'
               : ''}"
             tabindex="0"
             role="button"
+            data-index={index}
             aria-label={`Work item #${it.id}: ${it.fields?.['System.Title']} - use action buttons to interact`}
+            on:click={() => {
+              focusedIndex = index;
+              updateFocus();
+            }}
+            on:keydown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                focusedIndex = index;
+                updateFocus();
+                if (e.key === 'Enter') {
+                  openFocusedItem();
+                } else if (e.key === ' ') {
+                  toggleSelection();
+                }
+              }
+            }}
           >
             <div class="work-item-header">
               <span class="work-item-type-icon"
@@ -1166,6 +1378,23 @@
 
   .work-item-card.has-active-timer {
     border-left: 3px solid var(--ado-orange);
+  }
+
+  .work-item-card.focused {
+    outline: 2px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+    background: var(--vscode-list-activeSelectionBackground);
+    border-color: var(--vscode-focusBorder);
+  }
+
+  .work-item-card.selected {
+    background: var(--vscode-list-selectionBackground);
+    border-color: var(--vscode-list-selectionBackground);
+  }
+
+  .work-item-card.focused.selected {
+    background: var(--vscode-list-activeSelectionBackground);
+    border-color: var(--vscode-focusBorder);
   }
 
   .work-item-header {

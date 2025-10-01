@@ -4,8 +4,6 @@ Integrate Azure DevOps work items, time tracking, branching, and pull requests d
 
 ## 🚀 Key Features
 
-### Core Functionality
-
 - **Work Items Management**: Unified view with built-in filters (My Activity, Assigned to Me, Current Sprint, All Active, Recently Updated) and custom WIQL support
 - **Time Tracking**: Lightweight timer with inactivity auto-pause, status bar integration, and automatic work item updates
 - **Git Integration**: Create branches and pull requests directly from work items with customizable naming templates
@@ -13,16 +11,6 @@ Integrate Azure DevOps work items, time tracking, branching, and pull requests d
 - **AI-Powered Summaries**: Generate work summaries using Copilot prompts or OpenAI integration
 - **Multiple Views**: Switch between list and Kanban views with preserved scroll positions and keyboard navigation
 - **Secure Storage**: PAT tokens stored securely in VS Code's secret store with automatic migration
-
-### 🆕 Advanced Features (v1.8.0+)
-
-- **🚀 Performance Optimization**: Intelligent caching system with 60-80% faster API responses and automatic memory management
-- **⌨️ Advanced Keyboard Navigation**: Vim-style shortcuts (j/k/h/l), power user commands, and full accessibility support
-- **📊 Performance Dashboard**: Real-time performance monitoring, cache analytics, and health recommendations
-- **🔧 Bulk Operations**: Mass assign, move, tag, and delete work items with progress tracking and error handling
-- **🔍 Advanced Filtering**: Visual query builder, saved filters, complex criteria, and import/export capabilities
-- **♿ Accessibility Excellence**: Full ARIA support, screen reader compatibility, and keyboard-only operation
-- **📈 Smart Analytics**: Usage patterns, performance trends, and optimization recommendations
 
 ## 📥 Installation
 
@@ -93,35 +81,6 @@ Generate at: Azure DevOps → User Settings → Security → Personal Access Tok
 - **Smart Drafts**: Per-work-item draft persistence for refining your messages
 - **Timer Integration**: Auto-selects active work item when generating summaries
 
-## 🚀 Advanced Features (v1.8.0+)
-
-### Performance & Monitoring
-
-- **Performance Dashboard**: Real-time metrics, cache analytics, and health monitoring
-- **Intelligent Caching**: 60-80% faster API responses with automatic memory management
-- **Smart Optimization**: Automatic garbage collection and performance recommendations
-
-### Keyboard Navigation
-
-- **Vim-style Shortcuts**: `j/k` for up/down, `h/l` for left/right navigation
-- **Power User Commands**: `gg`/`G` for top/bottom, `Ctrl+A` to select all
-- **Quick Actions**: `Enter` to open, `r` to refresh, `v` to toggle view, `f` to focus search
-- **Accessibility**: Full keyboard-only operation with screen reader support
-
-### Bulk Operations
-
-- **Mass Updates**: Assign, move, tag, or delete hundreds of work items at once
-- **Progress Tracking**: Real-time progress with cancellation support
-- **Error Handling**: Detailed error reporting and recovery options
-- **Batch Processing**: Configurable batch sizes and delays
-
-### Advanced Filtering
-
-- **Query Builder**: Visual drag-and-drop interface for complex queries
-- **Saved Filters**: Create, save, and share custom filter configurations
-- **Import/Export**: Share filters across teams and environments
-- **Smart Defaults**: Pre-built filters for common scenarios
-
 ## ⌨️ Essential Commands
 
 | Command                                                  | Description                             |
@@ -137,19 +96,6 @@ Generate at: Azure DevOps → User Settings → Security → Personal Access Tok
 | `Azure DevOps Integration: Toggle Kanban View`           | Switch between list and Kanban views    |
 | `Azure DevOps Integration: Select Team`                  | Set team context for sprint queries     |
 | `Azure DevOps Integration: Set OpenAI API Key`           | Configure OpenAI integration            |
-
-### 🆕 Advanced Commands (v1.8.0+)
-
-| Command                                                | Description                           |
-| ------------------------------------------------------ | ------------------------------------- |
-| `Azure DevOps Integration: Show Performance Dashboard` | Open real-time performance monitoring |
-| `Azure DevOps Integration: Bulk Assign Work Items`     | Mass assign work items to users       |
-| `Azure DevOps Integration: Bulk Move Work Items`       | Mass move work items between states   |
-| `Azure DevOps Integration: Bulk Add Tags`              | Mass add tags to work items           |
-| `Azure DevOps Integration: Show Query Builder`         | Open visual query builder             |
-| `Azure DevOps Integration: Manage Filters`             | Manage saved filters                  |
-| `Azure DevOps Integration: Export Filters`             | Export filters to file                |
-| `Azure DevOps Integration: Import Filters`             | Import filters from file              |
 
 ## 🔧 Key Settings
 
@@ -224,7 +170,7 @@ Pull requests welcome. Please open an issue first for substantial changes. Add t
 
 ## 📄 License
 
-MIT License – see [LICENSE](./LICENSE.txt)
+MIT License – see [LICENSE](https://github.com/plures/azuredevops-integration-extension/blob/HEAD/LICENSE.txt)
 
 ---
 
@@ -236,16 +182,16 @@ Below are preview-friendly screenshots captured at a consistent size and tightly
 
 ### Work Items – List View (v1.7.0)
 
-![Work Items – List View](images/work-items-list.png)
+![Work Items – List View](https://github.com/plures/azuredevops-integration-extension/raw/HEAD/images/work-items-list.png)
 
 ### Work Items – Kanban View (v1.7.0)
 
-![Work Items – Kanban View](images/work-items-kanban.png)
+![Work Items – Kanban View](https://github.com/plures/azuredevops-integration-extension/raw/HEAD/images/work-items-kanban.png)
 
 <!-- Timer-specific screenshot removed; the timer is visible inline in the list/kanban views when active. -->
 
 ## More
 
-- Attribution and license details: see [NOTICE](./NOTICE.md) and [LICENSE](./LICENSE.txt).
-- Architecture, security notes, and CI testing details: see [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
-- What's new: see [CHANGELOG](./CHANGELOG.md) for the latest features and fixes.
+- Attribution and license details: see [NOTICE](https://github.com/plures/azuredevops-integration-extension/blob/HEAD/NOTICE.md) and [LICENSE](https://github.com/plures/azuredevops-integration-extension/blob/HEAD/LICENSE.txt).
+- Architecture, security notes, and CI testing details: see [docs/ARCHITECTURE.md](https://github.com/plures/azuredevops-integration-extension/blob/HEAD/docs/ARCHITECTURE.md).
+- What's new: see [CHANGELOG](https://github.com/plures/azuredevops-integration-extension/blob/HEAD/CHANGELOG.md) for the latest features and fixes.

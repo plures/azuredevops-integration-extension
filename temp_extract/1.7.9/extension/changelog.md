@@ -30,64 +30,27 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ### Added
 
-- **🚀 Performance Optimization**: Intelligent caching system with 60-80% faster API responses
-  - LRU + TTL caching with automatic memory management
-  - Multi-level caching for work items, API responses, and metadata
-  - Real-time performance monitoring and analytics
-  - Automatic garbage collection and memory optimization
-
-- **⌨️ Advanced Keyboard Navigation**: Vim-style shortcuts and power user features
-  - `j/k` for up/down navigation, `h/l` for left/right (Kanban view)
-  - `gg`/`G` for top/bottom, `Home`/`End` support
-  - `Space` to toggle selection, `Ctrl+A` to select all
-  - `Enter` to open, `r` to refresh, `v` to toggle view, `f` to focus search
-  - Full accessibility support with ARIA labels and screen reader compatibility
-
-- **📊 Performance Dashboard**: Real-time monitoring and health analytics
-  - Live performance metrics and cache statistics
-  - Memory usage tracking and optimization recommendations
-  - Health indicators (Excellent/Good/Warning/Critical)
-  - Force garbage collection and clear performance data commands
-
-- **🔧 Bulk Operations**: Mass work item management
-  - Bulk assign, move, tag, and delete work items
-  - Progress tracking with cancellation support
-  - Configurable batch sizes and error handling
-  - Detailed error reporting and recovery options
-
-- **🔍 Advanced Filtering**: Visual query builder and saved filters
-  - Drag-and-drop query builder interface
-  - Save, manage, and share custom filters
-  - Complex criteria support (equals, contains, between, etc.)
-  - Import/export filters across teams and environments
-
-- **♿ Accessibility Excellence**: Comprehensive accessibility features
-  - Full ARIA implementation with proper labels and roles
-  - High contrast theme support
-  - Complete keyboard-only operation
-  - Screen reader compatibility and voice control structure
+- **Enhanced Setup Experience**: New setup wizard that parses work item URLs and guides users through configuration
+- **Improved README**: Streamlined documentation focusing on key features and easier setup process
+- **Better Command Organization**: Simplified command palette with essential commands clearly highlighted
 
 ### Changed
 
-- **Performance**: 60-80% faster API responses through intelligent caching
-- **Memory Usage**: Automatic memory management with intelligent cleanup
-- **User Experience**: Enhanced keyboard navigation and accessibility
-- **Workflow Efficiency**: Bulk operations for managing large numbers of work items
-- **Filtering**: Advanced filtering capabilities with visual query builder
+- **README Structure**: Reorganized highlights to focus on core features (Work Items, Time Tracking, Git Integration, AI Summaries)
+- **Setup Process**: Added step-by-step setup wizard as the recommended setup method
+- **Documentation**: Simplified configuration section to show only the most important settings
+- **Troubleshooting**: Added common issues table with quick solutions
 
 ### Fixed
 
-- **Memory Leaks**: Automatic garbage collection and memory optimization
-- **Performance Issues**: Intelligent caching reduces API calls and improves response times
-- **Accessibility**: Full keyboard navigation and screen reader support
-- **User Experience**: Enhanced focus management and visual feedback
+- **Documentation Accuracy**: Verified all features mentioned in README are actually implemented
+- **Command References**: Updated command table to reflect actual available commands
+- **Setup Instructions**: Clarified the difference between wizard and manual setup
 
 ### Notes
 
-- **Major Version Update**: This represents a significant enhancement to the extension
-- **Backward Compatibility**: All existing functionality remains unchanged
-- **Performance**: Substantial performance improvements across all operations
-- **Accessibility**: Now fully accessible with keyboard-only operation support
+- No breaking changes; all existing functionality remains the same
+- Documentation improvements make the extension easier to discover and use
 
 ## [1.6.3] - 2025-09-20
 
@@ -161,11 +124,11 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Fix workflow automation issue preventing automatic tagging and release creation (#22)
 - Fix missing v1.3.0 release with automated recovery tools (#20)
 - Fix integration test ESM compatibility, VS Code version mismatch, and hanging issues (#18)
-- Merge pull request #16 from plures/copilot/fix-15
+- Merge pull request [#16](https://github.com/plures/azuredevops-integration-extension/issues/16) from plures/copilot/fix-15
 - Apply prettier formatting to all files
 - Fix integration tests failing due to improper setup with fallback mechanisms
 - Initial plan
-- Merge pull request #14 from plures/copilot/fix-13
+- Merge pull request [#14](https://github.com/plures/azuredevops-integration-extension/issues/14) from plures/copilot/fix-13
 - Add @vscode/vsce as dev dependency and fix packaging
 - Initial plan
 
@@ -185,7 +148,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ### Other
 
-- Merge pull request #10 from plures/feature/mcpserver
+- Merge pull request [#10](https://github.com/plures/azuredevops-integration-extension/issues/10) from plures/feature/mcpserver
 - Add comprehensive MCP server with Docker support and full Azure DevOps integration
 - add mcp server initial
 
@@ -202,7 +165,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ### Other
 
-- Merge pull request #6 from plures/copilot/add-branch-and-pr-creation
+- Merge pull request [#6](https://github.com/plures/azuredevops-integration-extension/issues/6) from plures/copilot/add-branch-and-pr-creation
 - Add branch and PR creation features with Git integration and repository management
 - plan
 
@@ -228,7 +191,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ### Other
 
-- Merge pull request #4 from plures/feature/svelte-ui-scaffold
+- Merge pull request [#4](https://github.com/plures/azuredevops-integration-extension/issues/4) from plures/feature/svelte-ui-scaffold
 - Comprehensive Svelte webview implementation with advanced features
 - plan
 
@@ -251,7 +214,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ### Other
 
-- Merge pull request #2 from plures/copilot/timer-implementation-comprehensive
+- Merge pull request [#2](https://github.com/plures/azuredevops-integration-extension/issues/2) from plures/copilot/timer-implementation-comprehensive
 - Add comprehensive time tracking with inactivity detection and reporting
 - plan
 

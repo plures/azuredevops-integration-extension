@@ -27,6 +27,10 @@ async function build() {
       format: 'esm',
       banner: { js: banner },
       logLevel: 'info',
+      // Cursor compatibility - try different module resolution
+      mainFields: ['module', 'main'],
+      conditions: ['node', 'import'],
+      resolveExtensions: ['.js', '.ts', '.json'],
     });
     console.log(`[esbuild] Built extension (ESM${isProd ? ' prod' : ''}) -> dist/extension.js`);
     // 2) Build webview scripts (browser ESM)

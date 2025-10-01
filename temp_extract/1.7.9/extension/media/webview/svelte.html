@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Azure DevOps Work Items</title>
+    <style>
+      :root {
+        --vscode-font-family: var(--vscode-font-family, 'Segoe UI', sans-serif);
+        --vscode-editor-background: var(--vscode-editor-background, #1e1e1e);
+        --vscode-editor-foreground: var(--vscode-editor-foreground, #d4d4d4);
+        --vscode-button-background: var(--vscode-button-background, #0e639c);
+        --vscode-button-foreground: var(--vscode-button-foreground, #ffffff);
+        --vscode-button-hoverBackground: var(--vscode-button-hoverBackground, #1177bb);
+        --vscode-editorWidget-border: var(--vscode-editorWidget-border, #454545);
+        --vscode-list-hoverBackground: var(--vscode-list-hoverBackground, #2a2d2e);
+        --vscode-badge-background: var(--vscode-badge-background, #4d4d4d);
+        --vscode-badge-foreground: var(--vscode-badge-foreground, #ffffff);
+        
+        /* Azure DevOps color palette */
+        --ado-blue: #0078d4;
+        --ado-blue-light: #106ebe;
+        --ado-blue-dark: #005a9e;
+        --ado-green: #107c10;
+        --ado-orange: #ff8c00;
+        --ado-red: #d13438;
+        --ado-purple: #5c2d91;
+        --ado-yellow: #ffb900;
+        --ado-gray: #605e5c;
+        --ado-gray-light: #8a8886;
+        
+        /* State colors matching Azure DevOps */
+        --state-new: var(--ado-blue);
+        --state-active: var(--ado-orange);
+        --state-inprogress: var(--ado-orange);
+        --state-resolved: var(--ado-green);
+        --state-done: var(--ado-green);
+        --state-closed: var(--ado-gray);
+        --state-removed: var(--ado-red);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: var(--vscode-font-family);
+        background: var(--vscode-editor-background);
+        color: var(--vscode-editor-foreground);
+        line-height: 1.4;
+        overflow: hidden;
+      }
+
+      /* Codicons font for VS Code icons */
+      @font-face {
+        font-family: "codicon";
+        font-display: block;
+        src: url(data:application/font-woff;charset=utf-8;base64,d09GRgABAAAAAAYwAAsAAAAACNwAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAABHU1VCAAABCAAAADsAAABUIIslek9TLzIAAAFEAAAAQwAAAFY2IUhKY21hcAAAAYgAAAFUAAACRJFN3uRnbHlmAAACvAAAAV4AAAF8aOLb5GhlYWQAAAQcAAAALwAAADZPcqayaGhlYQAABEwAAAAcAAAAJAeqA35obXR4AAAEaAAAABQAAAAUA+kAAGxvY2EAAARcAAAADAAAAAwBNAEYbWF4cAAABIAAAAAfAAAAIAEUABtuYW1lAAAEoAAAASUAAAIK1cf1oXBvc3QAAAXIAAAAZQAAAJBTcMc2eJxjYGRgYOBiMGCwY2BycfMJYeDLSSzJY5BiYGGAAJA8MpsxJzM9kYEDxgPKsYBpDiBmg4gCACY7BUgAeJxjYGQ6wTiBgZWBgaGQoRGGHoQNIMYEhhgY2BgYmBjYmJhZmFlYWFhZWVk5OFhYuVi5uXh4efl4Bfj5BQUF4QoZ8hiUGIoYyhjKGKoY6hg6GTpd+jyYF9FYaVDjYDJ4/v8/Aw4ATKsHKQAAeJx1kU1rAkEQRR8qP1ArP6LQQE5BcokgrJecgtyy5VKIIMHJeTfJJZsGJILJxn9g/IP+Bf2LNq3ObM6h36mJOmJH64Z6vaqnq6tHUcN0LjKsODTayJdC5jy4wG9wkQHDz7j5/10Pnh4kp4XLXOEG17jFHe5xjwc8+vF7rPTsXJgFPOEZL3jFGz7wia9U4s9fL6y95c8K/uKfMhWJJJFEEikik8wyk8YyKVsI0pYQSUVSo9+JLhGRQo85YYPOhE/N7vqxs+Nm/Lh7z6TBs5jIhH0h8n2hZkybPGb+8wNqA0Tl) format("woff");
+      }
+      
+      .codicon {
+        font-family: "codicon";
+        font-size: 16px;
+        font-weight: normal;
+        font-style: normal;
+        text-decoration: none;
+        text-rendering: auto;
+        text-align: center;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        user-select: none;
+        -webkit-user-select: none;
+        -ms-user-select: none;
+      }
+
+      #svelte-root {
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="svelte-root"></div>
+    <!-- The extension replaces this path at runtime -->
+    <script type="module" crossorigin src="./svelte-main.js"></script>
+  </body>
+</html>
