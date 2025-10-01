@@ -6,6 +6,26 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.7.11] - 2025-10-01
+
+### Changed
+
+- **Activity Bar Icon Label**: Updated the Activity Bar icon title from "Azure DevOps" to "Azure DevOps Integration" for better clarity and consistency with the extension name.
+
+## [1.7.10] - 2025-10-01
+
+### Fixed
+
+- **Connection Tabs Display**: Fixed bug where connection tabs were not appearing in the webview when multiple Azure DevOps connections/projects were configured. The webview now properly receives and displays connection tabs for switching between projects.
+- **Per-Connection State Isolation**: Implemented connection-specific state management so each connection/project maintains its own independent query, filters (text, type, state, sort), and Kanban/List view preference. Switching between tabs now preserves the context for each connection.
+
+### Technical
+
+- Added `connectionsUpdate` message handler in webview to receive connection list from extension
+- Implemented per-connection state storage using localStorage with in-memory caching
+- Connection state persists across sessions and survives extension reloads
+- Added visual tab UI matching VS Code's native tab styling when multiple connections exist
+
 ## [1.7.2] - 2025-09-24
 
 ### Added

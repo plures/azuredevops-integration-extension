@@ -36,6 +36,9 @@
   let focusedIndex = 0;
   let selectedItems = new Set();
   let keyboardNavigationEnabled = true;
+  // Connections
+  export let connections = [];
+  export let activeConnectionId = undefined;
 
   function onRefresh() {
     dispatch('refresh');
@@ -102,6 +105,51 @@
   function onStopAndApplySummary() {
     dispatch('stopAndApplySummary');
   }
+  function onCancelSummary() {
+    dispatch('cancelSummary');
+  }
+  function onQueryChange(e) {
+    dispatch('queryChanged', { query: e.target.value });
+  }
+  function onConnectionChange(e) {
+    dispatch('connectionChanged', { connectionId: e.target.value });
+  }
+
+  // Query options
+  const queryOptions = [
+    {
+      value: 'My Activity',
+      label: 'My Activity',
+      description: "Work items I've created, assigned to, or recently changed",
+    },
+    {
+      value: 'My Work Items',
+      label: 'My Work Items',
+      description: 'Work items currently assigned to me',
+    },
+    {
+      value: 'Assigned to me',
+      label: 'Assigned to me',
+      description: 'Work items currently assigned to me',
+    },
+    {
+      value: 'Current Sprint',
+      label: 'Current Sprint',
+      description: 'Work items in the current iteration',
+    },
+    {
+      value: 'All Active',
+      label: 'All Active',
+      description: 'All active work items in the project',
+    },
+    {
+      value: 'Recently Updated',
+      label: 'Recently Updated',
+      description: 'Work items updated in the last 14 days',
+    },
+    { value: 'Following', label: 'Following', description: "Work items I'm following" },
+    { value: 'Mentioned', label: 'Mentioned', description: "Work items where I've been mentioned" },
+  ];
 
   // Keyboard navigation handlers
   function handleKeydown(event) {
@@ -284,48 +332,6 @@
         break;
     }
   }
-  function onCancelSummary() {
-    dispatch('cancelSummary');
-  }
-  function onQueryChange(e) {
-    dispatch('queryChanged', { query: e.target.value });
-  }
-
-  // Query options
-  const queryOptions = [
-    {
-      value: 'My Activity',
-      label: 'My Activity',
-      description: "Work items I've created, assigned to, or recently changed",
-    },
-    {
-      value: 'My Work Items',
-      label: 'My Work Items',
-      description: 'Work items currently assigned to me',
-    },
-    {
-      value: 'Assigned to me',
-      label: 'Assigned to me',
-      description: 'Work items currently assigned to me',
-    },
-    {
-      value: 'Current Sprint',
-      label: 'Current Sprint',
-      description: 'Work items in the current iteration',
-    },
-    {
-      value: 'All Active',
-      label: 'All Active',
-      description: 'All active work items in the project',
-    },
-    {
-      value: 'Recently Updated',
-      label: 'Recently Updated',
-      description: 'Work items updated in the last 14 days',
-    },
-    { value: 'Following', label: 'Following', description: "Work items I'm following" },
-    { value: 'Mentioned', label: 'Mentioned', description: "Work items where I've been mentioned" },
-  ];
 
   $: summaryButtonLabel =
     summaryProvider === 'openai' ? 'Generate AI Summary' : 'Copy Copilot Prompt';
@@ -465,6 +471,25 @@
 </script>
 
 <div class="pane">
+  <!-- Connection Tabs (only show if multiple connections) -->
+  {#if connections && connections.length > 1}
+    <div class="connection-tabs" role="tablist" aria-label="Project connections">
+      {#each connections as connection}
+        <button
+          class="connection-tab"
+          class:active={connection.id === activeConnectionId}
+          on:click={() => dispatch('connectionChanged', { connectionId: connection.id })}
+          role="tab"
+          aria-selected={connection.id === activeConnectionId}
+          aria-label={`Switch to ${connection.label}`}
+          title={`${connection.organization}/${connection.project}`}
+        >
+          {connection.label}
+        </button>
+      {/each}
+    </div>
+  {/if}
+
   <!-- Query Selector Row -->
   <div class="query-header" role="toolbar" aria-label="Query selection">
     <div class="query-selector-container">
@@ -560,7 +585,7 @@
     class="pane-body"
     on:keydown={handleKeydown}
     tabindex="0"
-    role="region"
+    role="listbox"
     aria-label="Work items list"
   >
     {#if errorMsg}
@@ -1037,6 +1062,44 @@
     background: var(--vscode-editor-background);
     color: var(--vscode-editor-foreground);
     font-family: var(--vscode-font-family);
+  }
+
+  /* Connection Tabs */
+  .connection-tabs {
+    display: flex;
+    background: var(--vscode-tab-inactiveBackground);
+    border-bottom: 1px solid var(--vscode-editorWidget-border);
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+
+  .connection-tab {
+    padding: 8px 16px;
+    background: var(--vscode-tab-inactiveBackground);
+    color: var(--vscode-tab-inactiveForeground);
+    border: none;
+    border-right: 1px solid var(--vscode-editorWidget-border);
+    cursor: pointer;
+    font-size: 13px;
+    font-family: var(--vscode-font-family);
+    white-space: nowrap;
+    transition: all 0.2s ease;
+  }
+
+  .connection-tab:hover {
+    background: var(--vscode-tab-hoverBackground);
+    color: var(--vscode-tab-hoverForeground);
+  }
+
+  .connection-tab.active {
+    background: var(--vscode-tab-activeBackground);
+    color: var(--vscode-tab-activeForeground);
+    border-bottom: 2px solid var(--vscode-tab-activeBorder, var(--ado-blue));
+  }
+
+  .connection-tab:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
   }
 
   .query-header {
