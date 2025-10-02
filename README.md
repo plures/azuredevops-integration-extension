@@ -51,10 +51,22 @@ Command palette quick install:
 
 Marketplace page: [Azure DevOps Integration – VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=PluresLLC.azure-devops-integration-extension)
 
-## 🔐 Create a Personal Access Token
+## 🔐 Authentication
+
+### Microsoft Entra ID (Recommended) 🆕
+
+Sign in with your Microsoft account - no token creation needed:
+- **OAuth 2.0 Authentication**: Modern, secure authentication flow
+- **Automatic Token Refresh**: Tokens refresh automatically in the background
+- **Enterprise Compatible**: Works with your organization's security policies
+- **Device Code Flow**: Simple browser-based sign-in process
+- **No Manual Setup**: No need to create or manage Personal Access Tokens
+
+### Personal Access Token (Traditional)
+
+If you prefer or need PAT authentication:
 
 Required scopes (minimum recommended):
-
 - Work Items (Read & Write)
 - User Profile (Read)
 - Team (Read)
@@ -71,8 +83,10 @@ Generate at: Azure DevOps → User Settings → Security → Personal Access Tok
 2. Run: `Azure DevOps Integration: Setup Wizard (Easy)`
 3. Paste a work item URL from your Azure DevOps organization
 4. The wizard will auto-detect your organization and project
-5. Follow the guided steps to create a Personal Access Token
-6. Test your connection and you're ready to go!
+5. **Choose Authentication Method**: Microsoft Entra ID (recommended) or Personal Access Token
+6. **For Entra ID**: Follow the device code flow to sign in with your Microsoft account
+7. **For PAT**: Follow the guided steps to create a Personal Access Token
+8. Test your connection and you're ready to go!
 
 ### Manual Setup
 
@@ -154,6 +168,9 @@ Generate at: Azure DevOps → User Settings → Security → Personal Access Tok
 | -------------------------------------------------------- | --------------------------------------- |
 | `Azure DevOps Integration: Setup Wizard (Easy)`          | Guided setup with work item URL parsing |
 | `Azure DevOps Integration: Setup Connection`             | Manual connection setup                 |
+| `Azure DevOps Integration: Sign In with Microsoft Entra ID` 🆕 | Sign in using OAuth 2.0 device code flow |
+| `Azure DevOps Integration: Sign Out from Entra ID` 🆕     | Sign out and clear Entra ID tokens     |
+| `Azure DevOps Integration: Convert Connection to Entra ID` 🆕 | Switch from PAT to Entra ID authentication |
 | `Azure DevOps Integration: Show Work Items`              | Open the work items view                |
 | `Azure DevOps Integration: Start/Stop Timer`             | Toggle timer for selected work item     |
 | `Azure DevOps Integration: Show Time Report`             | View time tracking reports              |

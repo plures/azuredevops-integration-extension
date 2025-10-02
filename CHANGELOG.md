@@ -6,6 +6,55 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.9.0] - 2025-01-XX
+
+### Added
+
+- **🔐 Microsoft Entra ID Authentication (OAuth 2.0)**: Modern, secure authentication as an alternative to Personal Access Tokens
+  - **Device Code Flow**: Simple browser-based sign-in with your Microsoft account
+  - **Automatic Token Refresh**: Tokens refresh automatically in the background every 30 minutes
+  - **Enterprise Compatible**: Works seamlessly with your organization's security policies
+  - **No Manual Setup**: No need to create or manage Personal Access Tokens
+  - **Secure Token Storage**: Refresh tokens encrypted using VS Code's SecretStorage API
+  - **Dual Authentication Support**: Seamlessly coexist with existing PAT connections
+
+- **🚀 Enhanced Setup Wizard**: Streamlined onboarding with authentication choice
+  - **Authentication Method Selection**: Choose between Entra ID (recommended) or PAT
+  - **Integrated Device Code Flow**: Complete OAuth 2.0 sign-in within the wizard
+  - **Smart Guidance**: Clear recommendations for authentication method selection
+  - **Connection Testing**: Validate both authentication types during setup
+
+- **📊 Authentication Status Indicators**: Real-time authentication monitoring
+  - **Status Bar Integration**: Visual indicators showing current authentication state
+  - **Token Health Monitoring**: Display token expiration and refresh status
+  - **Connection Manager Enhancement**: Auth method and status display in connection overview
+  - **Interactive Status**: Click status bar to access authentication commands
+
+- **⚡ Background Token Management**: Seamless authentication experience
+  - **Automatic Refresh**: Background service refreshes tokens before expiration
+  - **Proactive Handling**: Prevents authentication interruptions during work
+  - **Error Recovery**: Automatic retry and fallback mechanisms
+  - **Resource Cleanup**: Proper cleanup of background timers and resources
+
+### New Commands
+
+- `Azure DevOps Integration: Sign In with Microsoft Entra ID`: OAuth 2.0 device code authentication
+- `Azure DevOps Integration: Sign Out from Entra ID`: Sign out and clear stored tokens
+- `Azure DevOps Integration: Convert Connection to Entra ID`: Migrate existing PAT connection to Entra ID
+
+### Changed
+
+- **Setup Wizard**: Enhanced from 5 to 6 steps with authentication method selection
+- **Connection Manager**: Now displays authentication method and token status
+- **Azure DevOps Client**: Enhanced with dual authentication support and automatic token refresh on API failures
+
+### Technical Improvements
+
+- **MSAL Integration**: Official Microsoft Authentication Library (MSAL) for Node.js
+- **Secure Architecture**: Proper separation of authentication providers with unified interface
+- **Background Services**: Efficient token refresh with configurable intervals and cleanup
+- **Error Handling**: Enhanced error recovery for authentication failures and token expiration
+
 ## [1.8.2] - 2025-10-02
 
 ### Added
