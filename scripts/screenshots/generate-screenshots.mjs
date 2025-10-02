@@ -59,10 +59,10 @@ async function main() {
   const baseUrl = `http://127.0.0.1:${server.port}/${path.basename(builtIndex)}`;
 
   const browser = await chromium.launch({ headless: true });
-  // Use a viewport that yields images that render nicely in VS Code's Markdown preview
+  // Use a larger viewport with higher DPI for better quality screenshots
   const context = await browser.newContext({
-    viewport: { width: 1200, height: 720 },
-    deviceScaleFactor: 2,
+    viewport: { width: 1400, height: 900 },
+    deviceScaleFactor: 2, // Retina display quality
   });
   const page = await context.newPage();
 
@@ -114,10 +114,23 @@ async function main() {
                   },
                 }));
                 setTimeout(() => {
-                  window.postMessage({ type: 'workItemsLoaded', workItems: mapped }, '*');
+                  window.postMessage({ type: 'workItemsLoaded', workItems: mapped, kanbanView: (window.__AZDO_FIXTURE__ || {}).view === 'kanban' }, '*');
                   // If kanban requested, persisted state already returns kanbanView true via getState().
                   // No toggle message needed; sending it would flip back to list view.
                 }, 10);
+              }
+              // Handle webviewReady to send connections
+              if (isSvelte && msg && msg.type === 'webviewReady') {
+                const fixture = window.__AZDO_FIXTURE__ || {};
+                if (fixture.connections && fixture.connections.length > 0) {
+                  setTimeout(() => {
+                    window.postMessage({
+                      type: 'connectionsUpdate',
+                      connections: fixture.connections,
+                      activeConnectionId: fixture.activeConnectionId,
+                    }, '*');
+                  }, 5);
+                }
               }
             } catch (e) {
               console.error('[screenshots] stub postMessage error', e);
@@ -137,43 +150,56 @@ async function main() {
     await page.goto(fileUrl);
     // Wait until bootstrap has fed data and content renders
     const wantKanban = fixture.view === 'kanban';
+    const hasConnections = fixture.connections && fixture.connections.length > 1;
+    
     // Wait for Svelte root or legacy container
     try {
       await page.waitForSelector('#svelte-root, #workItemsContainer', { timeout: 10000 });
     } catch {
       // continue; more specific waits below will throw if truly broken
     }
+    
+    // Wait for connection tabs if multiple connections exist
+    if (hasConnections) {
+      try {
+        await page.waitForSelector('.connection-tabs', { timeout: 5000 });
+        console.log('[screenshots] Connection tabs rendered');
+      } catch {
+        console.warn('[screenshots] Connection tabs not found (expected with multiple connections)');
+      }
+    }
+    
     // Then, wait for a concrete UI signal of rendering
     if (wantKanban) {
       await page.waitForSelector('.kanban-board .kanban-column', { timeout: 30000 });
     } else {
       await page.waitForSelector('.work-item-card', { timeout: 30000 });
     }
-    // Allow layout to settle a bit
-    await page.waitForTimeout(150);
+    // Allow layout to settle and animations to complete
+    await page.waitForTimeout(300);
     // Minimize whitespace: relax fixed heights so the element shrinks to content
     if (wantKanban) {
-      await page.addStyleTag({ content: `.kanban-board{min-height:auto !important;}` });
+      await page.addStyleTag({ content: `.kanban-board{min-height:auto !important;} .pane{height:auto !important;}` });
     } else {
-      await page.addStyleTag({ content: `#workItemsContainer{max-height:none !important;}` });
+      await page.addStyleTag({ content: `#workItemsContainer{max-height:none !important;} .pane{height:auto !important;}` });
     }
+    
     if (dumpHtml) {
       const html = await page.content();
       await fs.writeFile(path.join(outDir, `${name}.html`), html, 'utf8');
     }
-    // Prefer an element-level screenshot to keep dimensions friendly for previews
-    // Prefer Svelte containers when present
-    const selector = wantKanban ? '.kanban-board' : '.items, #workItemsContainer';
+    
+    // Capture the entire pane to include connection tabs and headers
+    const selector = '.pane';
+    
     // If a target width is requested, apply it before selecting/screenshotting
     if (typeof widthPx === 'number' && widthPx > 0) {
       const css = `${selector}{width:${widthPx}px !important; max-width:${widthPx}px !important;}`;
       await page.addStyleTag({ content: css });
     }
-    // Query the first matching element among selector parts
+    
+    // Query the pane element
     let target = await page.$(selector);
-    if (!target && !wantKanban) {
-      target = await page.$('.work-item-card');
-    }
     if (target) {
       await target.screenshot({ path: path.join(outDir, `${name}.png`) });
     } else {
@@ -184,26 +210,32 @@ async function main() {
   }
 
   const baseItems = sample.workItems || [];
+  const connections = sample.connections || [];
+  const activeConnectionId = sample.activeConnectionId;
 
   await capture(
     'work-items-list',
     {
       workItems: baseItems,
+      connections: connections,
+      activeConnectionId: activeConnectionId,
       view: 'list',
       selectWorkItemId: 101,
     },
     true,
-    { widthPx: 300 }
+    { widthPx: 380 }
   );
 
   await capture(
     'work-items-kanban',
     {
       workItems: baseItems,
+      connections: connections,
+      activeConnectionId: activeConnectionId,
       view: 'kanban',
     },
     true,
-    { widthPx: 600 }
+    { widthPx: 800 }
   );
 
   // Timer-specific screenshot removed; timer visibility is demonstrated inline when active.
