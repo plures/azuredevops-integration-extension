@@ -13,6 +13,10 @@ Integrate Azure DevOps work items, time tracking, branching, and pull requests d
 - **AI-Powered Summaries**: Generate work summaries using Copilot prompts or OpenAI integration
 - **Multiple Views**: Switch between list and Kanban views with preserved scroll positions and keyboard navigation
 - **Secure Storage**: PAT tokens stored securely in VS Code's secret store with automatic migration
+  
+### Security & Trust
+
+For details on how this extension handles authentication, data access, and runtime security, please read our full [Security & Trust Notice](SECURITY.md).
 
 ### 🆕 Advanced Features (v1.8.2+)
 
