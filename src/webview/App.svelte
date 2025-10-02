@@ -32,9 +32,41 @@
   export let summaryTargetId = 0;
   export let summaryWorkItemId = 0;
 
+  // Keyboard navigation state
+  let focusedIndex = 0;
+  let selectedItems = new Set();
+  let keyboardNavigationEnabled = true;
   // Connections
   export let connections = [];
   export let activeConnectionId = undefined;
+
+  // Multi-select mode
+  let multiSelectMode = false;
+
+  function toggleItemSelection(id) {
+    if (selectedItems.has(id)) {
+      selectedItems.delete(id);
+    } else {
+      selectedItems.add(id);
+    }
+    selectedItems = new Set(selectedItems); // Trigger reactivity
+    dispatch('selectionChanged', { selectedIds: Array.from(selectedItems) });
+  }
+
+  function clearSelection() {
+    selectedItems.clear();
+    selectedItems = new Set(); // Trigger reactivity
+    dispatch('selectionChanged', { selectedIds: [] });
+  }
+
+  function selectAll() {
+    items.forEach((item) => {
+      const id = Number(item.id || item.fields?.['System.Id']);
+      if (id) selectedItems.add(id);
+    });
+    selectedItems = new Set(selectedItems); // Trigger reactivity
+    dispatch('selectionChanged', { selectedIds: Array.from(selectedItems) });
+  }
 
   function onRefresh() {
     dispatch('refresh');
@@ -146,6 +178,182 @@
     { value: 'Following', label: 'Following', description: "Work items I'm following" },
     { value: 'Mentioned', label: 'Mentioned', description: "Work items where I've been mentioned" },
   ];
+
+  // Keyboard navigation handlers
+  function handleKeydown(event) {
+    if (!keyboardNavigationEnabled) return;
+
+    const { key, ctrlKey, metaKey, shiftKey } = event;
+    const isModifier = ctrlKey || metaKey;
+
+    switch (key) {
+      case 'j':
+      case 'ArrowDown':
+        if (!isModifier) {
+          event.preventDefault();
+          navigateDown();
+        }
+        break;
+      case 'k':
+      case 'ArrowUp':
+        if (!isModifier) {
+          event.preventDefault();
+          navigateUp();
+        }
+        break;
+      case 'h':
+      case 'ArrowLeft':
+        if (!isModifier) {
+          event.preventDefault();
+          navigateLeft();
+        }
+        break;
+      case 'l':
+      case 'ArrowRight':
+        if (!isModifier) {
+          event.preventDefault();
+          navigateRight();
+        }
+        break;
+      case 'Home':
+        event.preventDefault();
+        navigateToTop();
+        break;
+      case 'End':
+        event.preventDefault();
+        navigateToBottom();
+        break;
+      case 'Enter':
+        if (!isModifier) {
+          event.preventDefault();
+          openFocusedItem();
+        }
+        break;
+      case ' ':
+        if (!isModifier) {
+          event.preventDefault();
+          toggleSelection();
+        }
+        break;
+      case 'Escape':
+        event.preventDefault();
+        clearSelection();
+        break;
+      case 'a':
+        if (isModifier) {
+          event.preventDefault();
+          selectAll();
+        }
+        break;
+      case 'r':
+        if (!isModifier) {
+          event.preventDefault();
+          onRefresh();
+        }
+        break;
+      case 'v':
+        if (!isModifier) {
+          event.preventDefault();
+          dispatch('toggleKanbanView');
+        }
+        break;
+      case 'f':
+        if (!isModifier) {
+          event.preventDefault();
+          focusSearch();
+        }
+        break;
+    }
+  }
+
+  function navigateDown() {
+    if (focusedIndex < items.length - 1) {
+      focusedIndex++;
+      updateFocus();
+    }
+  }
+
+  function navigateUp() {
+    if (focusedIndex > 0) {
+      focusedIndex--;
+      updateFocus();
+    }
+  }
+
+  function navigateLeft() {
+    if (kanbanView) {
+      // In Kanban view, move to previous column
+      updateFocus();
+    }
+  }
+
+  function navigateRight() {
+    if (kanbanView) {
+      // In Kanban view, move to next column
+      updateFocus();
+    }
+  }
+
+  function navigateToTop() {
+    focusedIndex = 0;
+    updateFocus();
+  }
+
+  function navigateToBottom() {
+    focusedIndex = Math.max(0, items.length - 1);
+    updateFocus();
+  }
+
+  function toggleSelection() {
+    // Get ID of focused item
+    if (focusedIndex >= 0 && focusedIndex < items.length) {
+      const item = items[focusedIndex];
+      const id = Number(item.id || item.fields?.['System.Id']);
+      if (id) {
+        toggleItemSelection(id);
+      }
+    }
+  }
+
+  function openFocusedItem() {
+    if (items[focusedIndex]) {
+      dispatch('openWorkItem', { id: items[focusedIndex].id });
+    }
+  }
+
+  function focusSearch() {
+    // Focus the search input
+    const searchInput = document.querySelector('input[type="text"]');
+    if (searchInput) {
+      searchInput.focus();
+    }
+  }
+
+  function updateFocus() {
+    // Scroll focused item into view
+    const focusedElement = document.querySelector(`[data-index="${focusedIndex}"]`);
+    if (focusedElement) {
+      focusedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  // Listen for messages from the extension
+  function handleMessage(event) {
+    const { type, data } = event.detail;
+
+    switch (type) {
+      case 'updateFocus':
+        focusedIndex = data.focusedIndex;
+        updateFocus();
+        break;
+      case 'updateSelection':
+        selectedItems = new Set(data.selectedItems);
+        break;
+      case 'focusSearch':
+        focusSearch();
+        break;
+    }
+  }
 
   $: summaryButtonLabel =
     summaryProvider === 'openai' ? 'Generate AI Summary' : 'Copy Copilot Prompt';
@@ -326,6 +534,28 @@
     </div>
   </div>
 
+  <!-- Bulk Actions Toolbar (shown when items selected) -->
+  {#if selectedItems.size > 0}
+    <div class="bulk-actions-toolbar" role="toolbar" aria-label="Bulk actions">
+      <span class="selected-count">{selectedItems.size} selected</span>
+      <button class="bulk-btn" on:click={() => dispatch('bulkAssign')} title="Bulk Assign">
+        <span class="codicon codicon-person-add"></span> Assign
+      </button>
+      <button class="bulk-btn" on:click={() => dispatch('bulkMove')} title="Bulk Move">
+        <span class="codicon codicon-arrow-right"></span> Move
+      </button>
+      <button class="bulk-btn" on:click={() => dispatch('bulkAddTags')} title="Bulk Add Tags">
+        <span class="codicon codicon-tag"></span> Tags
+      </button>
+      <button class="bulk-btn danger" on:click={() => dispatch('bulkDelete')} title="Bulk Delete">
+        <span class="codicon codicon-trash"></span> Delete
+      </button>
+      <button class="bulk-btn secondary" on:click={clearSelection} title="Clear Selection (Esc)">
+        <span class="codicon codicon-close"></span> Clear
+      </button>
+    </div>
+  {/if}
+
   <!-- Main Controls Row -->
   <div class="pane-header" role="toolbar" aria-label="Work Items actions">
     <span style="font-weight:600;">Work Items</span>
@@ -395,9 +625,18 @@
     </span>
   </div>
 
-  <div class="pane-body">
+  <div
+    class="pane-body"
+    on:keydown={handleKeydown}
+    tabindex="0"
+    role="listbox"
+    aria-label="Work items list"
+  >
     {#if errorMsg}
-      <div class="error-banner" role="alert">{errorMsg}</div>
+      <div class="error-banner" role="alert">
+        <div style="font-weight: 600; margin-bottom: 4px;">⚠️ Error Loading Work Items</div>
+        <div>{errorMsg}</div>
+      </div>
     {/if}
     {#if loading}
       <div class="loading">
@@ -424,7 +663,9 @@
                   <div
                     class="work-item-card kanban-card state-{normalizeState(
                       it.fields?.['System.State']
-                    )} {timerActive && activeId === Number(it.id) ? 'has-active-timer' : ''}"
+                    )} {timerActive && activeId === Number(it.id)
+                      ? 'has-active-timer'
+                      : ''} {selectedItems.has(Number(it.id)) ? 'selected' : ''}"
                     tabindex="0"
                     draggable="true"
                     on:dragstart={(e) => handleDragStart(e, it)}
@@ -455,6 +696,13 @@
                     aria-label={`Work item #${it.id}: ${it.fields?.['System.Title']} - use action buttons to interact`}
                   >
                     <div class="work-item-header">
+                      <input
+                        type="checkbox"
+                        class="work-item-checkbox"
+                        checked={selectedItems.has(Number(it.id))}
+                        on:click|stopPropagation={() => toggleItemSelection(Number(it.id))}
+                        aria-label="Select work item #{it.id}"
+                      />
                       <span class="work-item-type-icon"
                         >{getWorkItemTypeIcon(it.fields?.['System.WorkItemType'])}</span
                       >
@@ -645,16 +893,47 @@
       </div>
     {:else if items && items.length}
       <div class="items" aria-label="Work items">
-        {#each items.slice(0, 50) as it}
+        {#each items.slice(0, 50) as it, index}
           <div
             class="work-item-card {timerActive && activeId === Number(it.id)
               ? 'has-active-timer'
+              : ''} {focusedIndex === index ? 'focused' : ''} {selectedItems.has(Number(it.id))
+              ? 'selected'
               : ''}"
             tabindex="0"
             role="button"
+            data-index={index}
             aria-label={`Work item #${it.id}: ${it.fields?.['System.Title']} - use action buttons to interact`}
+            on:click={(e) => {
+              focusedIndex = index;
+              updateFocus();
+              // Ctrl/Cmd+Click for multi-select
+              if (e.ctrlKey || e.metaKey) {
+                e.stopPropagation();
+                toggleItemSelection(Number(it.id));
+              }
+            }}
+            on:keydown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                focusedIndex = index;
+                updateFocus();
+                if (e.key === 'Enter') {
+                  openFocusedItem();
+                } else if (e.key === ' ') {
+                  toggleSelection();
+                }
+              }
+            }}
           >
             <div class="work-item-header">
+              <input
+                type="checkbox"
+                class="work-item-checkbox"
+                checked={selectedItems.has(Number(it.id))}
+                on:click|stopPropagation={() => toggleItemSelection(Number(it.id))}
+                aria-label="Select work item #{it.id}"
+              />
               <span class="work-item-type-icon"
                 >{getWorkItemTypeIcon(it.fields?.['System.WorkItemType'])}</span
               >
@@ -1192,12 +1471,106 @@
 
   .error-banner {
     margin: 8px;
-    padding: 8px;
-    border: 1px solid var(--ado-red);
-    background: rgba(209, 52, 56, 0.1);
+    padding: 12px;
+    border: 2px solid var(--ado-red);
+    border-radius: 4px;
+    background: rgba(209, 52, 56, 0.15);
     color: var(--ado-red);
+    font-weight: 500;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-width: 100%;
     border-radius: 4px;
     font-size: 12px;
+  }
+
+  /* Bulk Actions Toolbar */
+  .bulk-actions-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--ado-blue-dark);
+    border-bottom: 2px solid var(--ado-blue);
+    animation: slideDown 0.2s ease-out;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .selected-count {
+    font-weight: 600;
+    color: white;
+    margin-right: 8px;
+  }
+
+  .bulk-btn {
+    padding: 4px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+  }
+
+  .bulk-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+
+  .bulk-btn.danger {
+    background: rgba(209, 52, 56, 0.2);
+    border-color: var(--ado-red);
+  }
+
+  .bulk-btn.danger:hover {
+    background: rgba(209, 52, 56, 0.4);
+  }
+
+  .bulk-btn.secondary {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .selected-badge {
+    background: var(--ado-orange);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+
+  /* Work Item Checkbox */
+  .work-item-checkbox {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    cursor: pointer;
+    accent-color: var(--ado-blue);
+  }
+
+  .work-item-card.selected {
+    background: rgba(0, 120, 212, 0.1);
+    border-left: 3px solid var(--ado-blue);
+  }
+
+  .kanban-card.selected {
+    box-shadow: 0 0 0 2px var(--ado-blue);
   }
 
   /* Work Item Cards */
@@ -1230,6 +1603,23 @@
 
   .work-item-card.has-active-timer {
     border-left: 3px solid var(--ado-orange);
+  }
+
+  .work-item-card.focused {
+    outline: 2px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+    background: var(--vscode-list-activeSelectionBackground);
+    border-color: var(--vscode-focusBorder);
+  }
+
+  .work-item-card.selected {
+    background: var(--vscode-list-selectionBackground);
+    border-color: var(--vscode-list-selectionBackground);
+  }
+
+  .work-item-card.focused.selected {
+    background: var(--vscode-list-activeSelectionBackground);
+    border-color: var(--vscode-focusBorder);
   }
 
   .work-item-header {

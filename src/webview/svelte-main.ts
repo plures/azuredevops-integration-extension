@@ -62,6 +62,8 @@ let sortKey: string = 'updated-desc';
 let normalizedQuery = '';
 let selectedQuery = 'My Activity';
 let queryDescription = '';
+// Selection tracking for bulk operations
+let selectedWorkItemIds = new Set<number>();
 // Track optimistic moves so we can revert on failure
 const pendingMoves = new Map<number, { prevState: string }>();
 // Available normalized states (for filter dropdown)
@@ -74,8 +76,41 @@ let summaryStatus = '';
 let summaryProvider: 'builtin' | 'openai' = 'builtin';
 let summaryBusy = false;
 let summaryWorkItemId: number | null = null;
+let _summaryTargetTitle = '';
 let summaryBusyTimer: ReturnType<typeof setTimeout> | undefined;
 let summaryStatusTimer: ReturnType<typeof setTimeout> | undefined;
+
+// Query options
+const queryOptions = [
+  {
+    value: 'My Activity',
+    label: 'My Activity',
+    description: "Work items I've created, assigned to, or recently changed",
+  },
+  {
+    value: 'My Work Items',
+    label: 'My Work Items',
+    description: 'Work items currently assigned to me',
+  },
+  {
+    value: 'Assigned to me',
+    label: 'Assigned to me',
+    description: 'Work items currently assigned to me',
+  },
+  {
+    value: 'Current Sprint',
+    label: 'Current Sprint',
+    description: 'Work items in the current iteration',
+  },
+  { value: 'All Active', label: 'All Active', description: 'All active work items in the project' },
+  {
+    value: 'Recently Updated',
+    label: 'Recently Updated',
+    description: 'Work items updated in the last 14 days',
+  },
+  { value: 'Following', label: 'Following', description: "Work items I'm following" },
+  { value: 'Mentioned', label: 'Mentioned', description: "Work items where I've been mentioned" },
+];
 
 // Connections state
 let connections: Array<{ id: string; label: string; organization: string; project: string }> = [];
@@ -164,44 +199,16 @@ function applyConnectionState(connectionId: string) {
   queryDescription = queryOption?.description || '';
 }
 
-// Query options
-const queryOptions = [
-  {
-    value: 'My Activity',
-    label: 'My Activity',
-    description: "Work items I've created, assigned to, or recently changed",
-  },
-  {
-    value: 'My Work Items',
-    label: 'My Work Items',
-    description: 'Work items currently assigned to me',
-  },
-  {
-    value: 'Assigned to me',
-    label: 'Assigned to me',
-    description: 'Work items currently assigned to me',
-  },
-  {
-    value: 'Current Sprint',
-    label: 'Current Sprint',
-    description: 'Work items in the current iteration',
-  },
-  { value: 'All Active', label: 'All Active', description: 'All active work items in the project' },
-  {
-    value: 'Recently Updated',
-    label: 'Recently Updated',
-    description: 'Work items updated in the last 14 days',
-  },
-  { value: 'Following', label: 'Following', description: "Work items I'm following" },
-  { value: 'Mentioned', label: 'Mentioned', description: "Work items where I've been mentioned" },
-];
-
 // Initialize kanbanView from persisted webview state if available
 try {
   const st =
     vscode && typeof (vscode as any).getState === 'function' ? (vscode as any).getState() : null;
   if (st && typeof st.kanbanView === 'boolean') kanbanView = !!st.kanbanView;
   if (st && typeof st.typeFilter === 'string') typeFilter = st.typeFilter;
+  // Don't restore summaryWorkItemId on initialization - only show summary when explicitly triggered
+  // if (st && typeof st.summaryWorkItemId === 'number') {
+  //   summaryWorkItemId = st.summaryWorkItemId || null;
+  // }
   // Don't restore summaryWorkItemId on initialization - only show summary when explicitly triggered
   // if (st && typeof st.summaryWorkItemId === 'number') {
   //   summaryWorkItemId = st.summaryWorkItemId || null;
@@ -240,6 +247,7 @@ function getAppProps() {
     summaryWorkItemId: summaryWorkItemId ?? 0,
     connections,
     activeConnectionId,
+    selectedItems: selectedWorkItemIds,
   };
 }
 
@@ -377,6 +385,29 @@ function ensureApp() {
       }, 3000);
     }
   });
+  (app as any).$on('cancelSummary', () => {
+    summaryWorkItemId = null;
+    summaryDraft = '';
+    summaryStatus = '';
+    persistViewState();
+    syncApp();
+  });
+  (app as any).$on('applySummary', (ev: any) => {
+    const workItemId = Number(ev?.detail?.workItemId);
+    if (workItemId && summaryDraft.trim()) {
+      postMessage({ type: 'addComment', workItemId, comment: summaryDraft.trim() });
+      summaryWorkItemId = null;
+      summaryDraft = '';
+      summaryStatus = 'Comment added successfully';
+      persistViewState();
+      syncApp();
+      // Clear status after a delay
+      setTimeout(() => {
+        summaryStatus = '';
+        syncApp();
+      }, 3000);
+    }
+  });
   (app as any).$on('toggleKanban', () => {
     kanbanView = !kanbanView;
     persistViewState();
@@ -437,6 +468,24 @@ function ensureApp() {
       postMessage({ type: 'switchConnection', connectionId });
     }
   });
+  (app as any).$on('selectionChanged', (ev: any) => {
+    const { selectedIds } = ev.detail || {};
+    if (Array.isArray(selectedIds)) {
+      selectedWorkItemIds = new Set(selectedIds.map((id: any) => Number(id)));
+    }
+  });
+  (app as any).$on('bulkAssign', () => {
+    postMessage({ type: 'bulkAssign' });
+  });
+  (app as any).$on('bulkMove', () => {
+    postMessage({ type: 'bulkMove' });
+  });
+  (app as any).$on('bulkAddTags', () => {
+    postMessage({ type: 'bulkAddTags' });
+  });
+  (app as any).$on('bulkDelete', () => {
+    postMessage({ type: 'bulkDelete' });
+  });
   (app as any).$on('moveItem', (ev: any) => {
     const id = Number(ev?.detail?.id);
     const target = String(ev?.detail?.target || '');
@@ -476,10 +525,10 @@ function ensureApp() {
     onDraftChange(String(ev?.detail?.value ?? ''));
   });
   (app as any).$on('generateSummary', () => {
-    attemptSummaryGeneration();
+    _attemptSummaryGeneration();
   });
   (app as any).$on('stopAndApplySummary', () => {
-    attemptStopAndApply();
+    _attemptStopAndApply();
   });
   return app;
 }
@@ -532,6 +581,11 @@ function setSummaryTarget(
   // Only set summaryWorkItemId if ensureOpen is true
   if (options.ensureOpen && changed) {
     summaryWorkItemId = id;
+    // Update the title from the work item
+    const item = findWorkItemById(id);
+    if (item) {
+      _summaryTargetTitle = getWorkItemTitle(id);
+    }
   }
 
   const shouldRefresh = options.refreshDraft ?? changed;
@@ -544,7 +598,9 @@ function setSummaryTarget(
     }
   }
   if (changed || shouldRefresh) {
-    persistViewState();
+    if (changed || shouldRefresh) {
+      persistViewState();
+    }
   }
 }
 
@@ -595,7 +651,7 @@ function determineSummaryTargetId(): number | null {
   return null;
 }
 
-function attemptSummaryGeneration() {
+function _attemptSummaryGeneration() {
   const targetId = determineSummaryTargetId();
   if (!targetId) {
     const message = 'Select a work item or start a timer to generate a summary.';
@@ -614,7 +670,7 @@ function attemptSummaryGeneration() {
   });
 }
 
-function attemptStopAndApply() {
+function _attemptStopAndApply() {
   if (!timerActive) {
     const message = 'Start a timer before applying time to the work item.';
     setSummaryStatus(message, { timeout: 3500 });
@@ -939,6 +995,7 @@ function onMessage(message: any) {
           snap.workItemTitle || getWorkItemTitle(activeId) || (activeId ? `#${activeId}` : '');
         const targetChanged = summaryWorkItemId !== activeId;
         setSummaryTarget(activeId, { ensureOpen: false, refreshDraft: targetChanged });
+        setSummaryTarget(activeId, { ensureOpen: false, refreshDraft: targetChanged });
         if (!summaryDraft || !summaryDraft.trim()) {
           const persisted = loadDraftForWorkItem(activeId);
           if (persisted && persisted.length > 0) {
@@ -1063,8 +1120,39 @@ function onMessage(message: any) {
       if (Number.isFinite(id) && id > 0) {
         removeDraftForWorkItem(id);
       }
-      setSummaryStatus(`Applied ${hours.toFixed(2)} hours to work item #${id}.`, { timeout: 4000 });
+      setSummaryStatus(`Applied ${hours.toFixed(2)} hours to work item #${id}.`, {
+        timeout: 4000,
+      });
       syncApp();
+      break;
+    }
+    case 'clearFilters': {
+      filterText = '';
+      typeFilter = '';
+      stateFilter = 'all';
+      recomputeItemsForView();
+      persistViewState();
+      syncApp();
+		addToast('Filters cleared', { type: 'info', timeout: 2000 });
+      break;
+    }
+    case 'focusSearch': {
+      // Focus the search input - handled in App.svelte
+      try {
+        const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+          searchInput.select();
+        }
+      } catch (err) {
+        console.warn('[svelte-main] Failed to focus search', err);
+      }
+      break;
+    }
+    case 'requestSelection': {
+      // Extension is requesting currently selected work item IDs
+      const ids = Array.from(selectedWorkItemIds);
+      postMessage({ type: 'selectedWorkItems', ids });
       break;
     }
     case 'connectionsUpdate': {

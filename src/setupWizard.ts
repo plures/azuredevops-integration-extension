@@ -567,20 +567,6 @@ export class SetupWizard {
     // Set as active connection
     await this.context.globalState.update('azureDevOpsInt.activeConnectionId', connection.id);
 
-    // Update legacy settings for backward compatibility (only for the primary connection)
-    const config = vscode.workspace.getConfiguration('azureDevOpsIntegration');
-    const existingConnections = await this.getExistingConnections();
-    if (existingConnections.length === 1) {
-      // Only update legacy settings if this is the only connection
-      await config.update(
-        'organization',
-        connection.organization,
-        vscode.ConfigurationTarget.Global
-      );
-      await config.update('project', connection.project, vscode.ConfigurationTarget.Global);
-      await config.update('team', connection.team, vscode.ConfigurationTarget.Global);
-    }
-
     const action = this.data.existingConnectionId ? 'updated' : 'configured and saved';
     vscode.window
       .showInformationMessage(

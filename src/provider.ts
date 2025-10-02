@@ -102,13 +102,15 @@ export class WorkItemsProvider {
       return;
     }
     this._refreshInFlight = true;
-    try {
-      const normalizedQuery =
-        typeof query === 'string' && query.trim().length > 0
-          ? query.trim()
-          : this._currentQuery || DEFAULT_QUERY;
-      this._currentQuery = normalizedQuery;
 
+    // Define normalizedQuery outside try block so it's accessible in catch
+    const normalizedQuery =
+      typeof query === 'string' && query.trim().length > 0
+        ? query.trim()
+        : this._currentQuery || DEFAULT_QUERY;
+    this._currentQuery = normalizedQuery;
+
+    try {
       const shouldFetchTypes =
         this._workItemTypes.length === 0 &&
         typeof (this.client as any).getWorkItemTypes === 'function';
@@ -157,11 +159,24 @@ export class WorkItemsProvider {
         });
       }
     } catch (err: any) {
+      const errorMessage = err?.message || String(err);
       this.log('error', 'Failed to refresh work items', {
         connectionId: this.connectionId,
-        error: err?.message || String(err),
+        query: normalizedQuery,
+        error: errorMessage,
+        stack: err?.stack,
       });
-      this._error(err.message || 'Failed to load work items');
+
+      // Show error to user in webview
+      this._error(errorMessage);
+
+      // Also log to console for Developer Tools
+      console.error('[WorkItemsProvider] Refresh failed:', {
+        connectionId: this.connectionId,
+        query: normalizedQuery,
+        error: errorMessage,
+        fullError: err,
+      });
     } finally {
       this._refreshInFlight = false;
       this._lastRefreshTs = Date.now();
@@ -296,7 +311,7 @@ export class WorkItemsProvider {
     }
   }
   private _error(message: string) {
-    this._post({ type: 'error', message });
+    this._post({ type: 'workItemsError', error: message });
   }
 
   private log(level: 'debug' | 'info' | 'warn' | 'error', message: string, meta?: any) {

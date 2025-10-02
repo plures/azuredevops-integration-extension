@@ -146,5 +146,9 @@ vite.config.ts.timestamp-*
 *.vsix
 *.bundle
 
+# Generated webview files
+media/webview
+
+
 # Demo files (for testing only)
 demo/

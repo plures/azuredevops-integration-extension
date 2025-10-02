@@ -91,3 +91,71 @@ export function getLogBufferLength(): number {
 export function clearLogBuffer() {
   logBuffer.splice(0, logBuffer.length);
 }
+
+/**
+ * Bridges console.log and console.error to the Output Channel
+ * This ensures all console logging appears in the extension logs
+ */
+export function bridgeConsoleToOutputChannel() {
+  const originalConsoleLog = console.log;
+  const originalConsoleError = console.error;
+  const originalConsoleWarn = console.warn;
+
+  console.log = function (...args: any[]) {
+    try {
+      const message = args
+        .map((arg) => {
+          if (typeof arg === 'string') return arg;
+          try {
+            return JSON.stringify(arg);
+          } catch {
+            return String(arg);
+          }
+        })
+        .join(' ');
+      logLine(`[console.log] ${message}`);
+    } catch {
+      /* ignore */
+    }
+    return originalConsoleLog.apply(console, args);
+  };
+
+  console.error = function (...args: any[]) {
+    try {
+      const message = args
+        .map((arg) => {
+          if (typeof arg === 'string') return arg;
+          if (arg instanceof Error) return `${arg.message}\n${arg.stack}`;
+          try {
+            return JSON.stringify(arg);
+          } catch {
+            return String(arg);
+          }
+        })
+        .join(' ');
+      logLine(`[console.error] ${message}`);
+    } catch {
+      /* ignore */
+    }
+    return originalConsoleError.apply(console, args);
+  };
+
+  console.warn = function (...args: any[]) {
+    try {
+      const message = args
+        .map((arg) => {
+          if (typeof arg === 'string') return arg;
+          try {
+            return JSON.stringify(arg);
+          } catch {
+            return String(arg);
+          }
+        })
+        .join(' ');
+      logLine(`[console.warn] ${message}`);
+    } catch {
+      /* ignore */
+    }
+    return originalConsoleWarn.apply(console, args);
+  };
+}

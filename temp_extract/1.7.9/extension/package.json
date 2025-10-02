@@ -2,7 +2,7 @@
   "name": "azuredevops-integration-extension",
   "displayName": "Azure DevOps Integration for VS Code",
   "description": "Integrate Azure DevOps work items, time tracking, and Git workflows directly in VS Code. Manage tasks, track time, create branches, and submit pull requests without leaving your editor.",
-  "version": "1.8.2",
+  "version": "1.7.9",
   "publisher": "PluresLLC",
   "icon": "media/icon.png",
   "repository": {
@@ -19,8 +19,8 @@
     "theme": "dark"
   },
   "engines": {
-      "vscode": "^1.99.0"
-    },
+    "vscode": "^1.99.0"
+  },
   "categories": [
     "Other"
   ],
@@ -41,6 +41,7 @@
     "onCommand:azureDevOpsInt.setup",
     "onCommand:azureDevOpsInt.setupWizard"
   ],
+  "type": "module",
   "main": "./dist/extension.js",
   "files": [
     "dist/**",
@@ -80,12 +81,6 @@
         "command": "azureDevOpsInt.copyLogsToClipboard",
         "title": "Copy Logs to Clipboard",
         "category": "Azure DevOps Int"
-      },
-      {
-        "command": "azureDevOpsInt.diagnoseWorkItems",
-        "title": "Diagnose Work Items Issue",
-        "category": "Azure DevOps Int",
-        "icon": "$(search)"
       },
       {
         "command": "azureDevOpsInt.openLogsFolder",
@@ -199,101 +194,6 @@
         "command": "azureDevOpsInt.setOpenAIApiKey",
         "title": "Set OpenAI API Key",
         "category": "Azure DevOps Int"
-      },
-      {
-        "command": "azureDevOpsInt.clearFilter",
-        "title": "Clear All Filters",
-        "category": "Azure DevOps Int",
-        "icon": "$(clear-all)"
-      },
-      {
-        "command": "azureDevOpsInt.focusSearch",
-        "title": "Focus Search Box",
-        "category": "Azure DevOps Int",
-        "icon": "$(search)"
-      },
-      {
-        "command": "azureDevOpsInt.showPerformanceDashboard",
-        "title": "Show Performance Dashboard",
-        "category": "Azure DevOps Int",
-        "icon": "$(graph)"
-      },
-      {
-        "command": "azureDevOpsInt.clearPerformanceData",
-        "title": "Clear Performance Data",
-        "category": "Azure DevOps Int",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "azureDevOpsInt.forceGC",
-        "title": "Force Garbage Collection",
-        "category": "Azure DevOps Int",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "azureDevOpsInt.bulkAssign",
-        "title": "Bulk Assign Work Items",
-        "category": "Azure DevOps Int",
-        "icon": "$(person-add)"
-      },
-      {
-        "command": "azureDevOpsInt.bulkMove",
-        "title": "Bulk Move Work Items",
-        "category": "Azure DevOps Int",
-        "icon": "$(arrow-right)"
-      },
-      {
-        "command": "azureDevOpsInt.bulkAddTags",
-        "title": "Bulk Add Tags",
-        "category": "Azure DevOps Int",
-        "icon": "$(tag)"
-      },
-      {
-        "command": "azureDevOpsInt.bulkDelete",
-        "title": "Bulk Delete Work Items",
-        "category": "Azure DevOps Int",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "azureDevOpsInt.exportFilters",
-        "title": "Export Filters to File",
-        "category": "Azure DevOps Int",
-        "icon": "$(export)"
-      },
-      {
-        "command": "azureDevOpsInt.importFilters",
-        "title": "Import Filters from File",
-        "category": "Azure DevOps Int",
-        "icon": "$(import)"
-      },
-      {
-        "command": "azureDevOpsInt.manageFilters",
-        "title": "Manage Saved Filters",
-        "category": "Azure DevOps Int",
-        "icon": "$(filter)"
-      },
-      {
-        "command": "azureDevOpsInt.showQueryBuilder",
-        "title": "Query Builder",
-        "category": "Azure DevOps Int",
-        "icon": "$(search)"
-      }
-    ],
-    "keybindings": [
-      {
-        "command": "azureDevOpsInt.refreshWorkItems",
-        "key": "r",
-        "when": "view == azureDevOpsWorkItems"
-      },
-      {
-        "command": "azureDevOpsInt.toggleKanbanView",
-        "key": "v",
-        "when": "view == azureDevOpsWorkItems"
-      },
-      {
-        "command": "azureDevOpsInt.focusSearch",
-        "key": "/",
-        "when": "view == azureDevOpsWorkItems"
       }
     ],
     "views": {
@@ -311,7 +211,7 @@
       "activitybar": [
         {
           "id": "azureDevOpsIntegration",
-          "title": "Azure DevOps Integration",
+          "title": "Azure DevOps",
           "icon": "media/workitems-icon.svg"
         }
       ]
@@ -513,8 +413,8 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "build:all": "npm run compile",
+    "vscode:prepublish": "npm run build",
+    "build:all": "npm run build",
     "compile": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "pretest": "npm run compile",
@@ -529,9 +429,8 @@
     "check-format": "npx prettier --check \"**/*.{ts,js,json,md,mjs}\"",
     "prepare": "husky install",
     "postinstall": "npm run prepare",
-    "build": "npm run compile",
-    "build:formatted": "npm run format && npm run compile",
-    "package": "vsce package --no-dependencies",
+    "build": "npm run format && npm run compile",
+    "package": "vsce.cmd package",
     "screenshots:setup": "npx playwright install",
     "screenshots:build": "npm run build && npm run screenshots:capture",
     "screenshots:capture": "node scripts/screenshots/generate-screenshots.mjs",
