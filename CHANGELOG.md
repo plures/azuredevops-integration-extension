@@ -119,7 +119,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   - Webview bundle grew from 12kb to 203kb (proper size)
   - Boot function and app initialization now execute correctly
 
-- **Critical: Variable Scope Error**: Fixed `normalizedQuery is not defined` 
+- **Critical: Variable Scope Error**: Fixed `normalizedQuery is not defined`
   - Moved variable declaration outside try block for proper error handling
   - Error logging now works correctly with full context
 

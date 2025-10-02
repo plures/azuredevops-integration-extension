@@ -56,6 +56,7 @@ Marketplace page: [Azure DevOps Integration – VS Code Marketplace](https://mar
 ### Microsoft Entra ID (Recommended) 🆕
 
 Sign in with your Microsoft account - no token creation needed:
+
 - **OAuth 2.0 Authentication**: Modern, secure authentication flow
 - **Automatic Token Refresh**: Tokens refresh automatically in the background
 - **Enterprise Compatible**: Works with your organization's security policies
@@ -67,6 +68,7 @@ Sign in with your Microsoft account - no token creation needed:
 If you prefer or need PAT authentication:
 
 Required scopes (minimum recommended):
+
 - Work Items (Read & Write)
 - User Profile (Read)
 - Team (Read)
@@ -164,43 +166,43 @@ Generate at: Azure DevOps → User Settings → Security → Personal Access Tok
 
 ## ⌨️ Essential Commands
 
-| Command                                                  | Description                             |
-| -------------------------------------------------------- | --------------------------------------- |
-| `Azure DevOps Integration: Setup Wizard (Easy)`          | Guided setup with work item URL parsing |
-| `Azure DevOps Integration: Setup Connection`             | Manual connection setup                 |
-| `Azure DevOps Integration: Sign In with Microsoft Entra ID` 🆕 | Sign in using OAuth 2.0 device code flow |
-| `Azure DevOps Integration: Sign Out from Entra ID` 🆕     | Sign out and clear Entra ID tokens     |
-| `Azure DevOps Integration: Convert Connection to Entra ID` 🆕 | Switch from PAT to Entra ID authentication |
-| `Azure DevOps Integration: Show Work Items`              | Open the work items view                |
-| `Azure DevOps Integration: Start/Stop Timer`             | Toggle timer for selected work item     |
-| `Azure DevOps Integration: Show Time Report`             | View time tracking reports              |
-| `Azure DevOps Integration: Create Work Item`             | Create a new work item                  |
-| `Azure DevOps Integration: Create Branch from Work Item` | Create Git branch from work item        |
-| `Azure DevOps Integration: Create Pull Request`          | Create PR from current branch           |
-| `Azure DevOps Integration: Toggle Kanban View`           | Switch between list and Kanban views    |
-| `Azure DevOps Integration: Select Team`                  | Set team context for sprint queries     |
-| `Azure DevOps Integration: Set OpenAI API Key`           | Configure OpenAI integration            |
+| Command                                                        | Description                                |
+| -------------------------------------------------------------- | ------------------------------------------ |
+| `Azure DevOps Integration: Setup Wizard (Easy)`                | Guided setup with work item URL parsing    |
+| `Azure DevOps Integration: Setup Connection`                   | Manual connection setup                    |
+| `Azure DevOps Integration: Sign In with Microsoft Entra ID` 🆕 | Sign in using OAuth 2.0 device code flow   |
+| `Azure DevOps Integration: Sign Out from Entra ID` 🆕          | Sign out and clear Entra ID tokens         |
+| `Azure DevOps Integration: Convert Connection to Entra ID` 🆕  | Switch from PAT to Entra ID authentication |
+| `Azure DevOps Integration: Show Work Items`                    | Open the work items view                   |
+| `Azure DevOps Integration: Start/Stop Timer`                   | Toggle timer for selected work item        |
+| `Azure DevOps Integration: Show Time Report`                   | View time tracking reports                 |
+| `Azure DevOps Integration: Create Work Item`                   | Create a new work item                     |
+| `Azure DevOps Integration: Create Branch from Work Item`       | Create Git branch from work item           |
+| `Azure DevOps Integration: Create Pull Request`                | Create PR from current branch              |
+| `Azure DevOps Integration: Toggle Kanban View`                 | Switch between list and Kanban views       |
+| `Azure DevOps Integration: Select Team`                        | Set team context for sprint queries        |
+| `Azure DevOps Integration: Set OpenAI API Key`                 | Configure OpenAI integration               |
 
 ### 🆕 Advanced Commands (v1.8.2+)
 
-| Command                                                | Description                                     | Keybinding |
-| ------------------------------------------------------ | ----------------------------------------------- | ---------- |
-| **Bulk Operations**                                    |                                                 |            |
-| `Azure DevOps Integration: Bulk Assign Work Items`     | Assign selected items to any user               |            |
-| `Azure DevOps Integration: Bulk Move Work Items`       | Change state for selected items                 |            |
-| `Azure DevOps Integration: Bulk Add Tags`              | Add tags to selected items (smart merge)        |            |
-| `Azure DevOps Integration: Bulk Delete Work Items`     | Soft delete selected items (double-confirmation)|            |
-| **Filter & Query Management**                          |                                                 |            |
-| `Azure DevOps Integration: Query Builder`              | Build WIQL queries with templates & validation  |            |
-| `Azure DevOps Integration: Manage Saved Filters`       | Save, load, delete named filter sets            |            |
-| `Azure DevOps Integration: Export Filters to File`     | Export current filters to JSON                  |            |
-| `Azure DevOps Integration: Import Filters from File`   | Import filters from JSON                        |            |
-| `Azure DevOps Integration: Clear All Filters`          | Reset all active filters                        |            |
-| `Azure DevOps Integration: Focus Search Box`           | Jump to search input                            | `/`        |
-| **Performance Monitoring**                             |                                                 |            |
-| `Azure DevOps Integration: Show Performance Dashboard` | View metrics, memory, cache stats, & tips       |            |
-| `Azure DevOps Integration: Clear Performance Data`     | Reset performance metrics                       |            |
-| `Azure DevOps Integration: Force Garbage Collection`   | Manually trigger GC (if --expose-gc enabled)    |            |
+| Command                                                | Description                                      | Keybinding |
+| ------------------------------------------------------ | ------------------------------------------------ | ---------- |
+| **Bulk Operations**                                    |                                                  |            |
+| `Azure DevOps Integration: Bulk Assign Work Items`     | Assign selected items to any user                |            |
+| `Azure DevOps Integration: Bulk Move Work Items`       | Change state for selected items                  |            |
+| `Azure DevOps Integration: Bulk Add Tags`              | Add tags to selected items (smart merge)         |            |
+| `Azure DevOps Integration: Bulk Delete Work Items`     | Soft delete selected items (double-confirmation) |            |
+| **Filter & Query Management**                          |                                                  |            |
+| `Azure DevOps Integration: Query Builder`              | Build WIQL queries with templates & validation   |            |
+| `Azure DevOps Integration: Manage Saved Filters`       | Save, load, delete named filter sets             |            |
+| `Azure DevOps Integration: Export Filters to File`     | Export current filters to JSON                   |            |
+| `Azure DevOps Integration: Import Filters from File`   | Import filters from JSON                         |            |
+| `Azure DevOps Integration: Clear All Filters`          | Reset all active filters                         |            |
+| `Azure DevOps Integration: Focus Search Box`           | Jump to search input                             | `/`        |
+| **Performance Monitoring**                             |                                                  |            |
+| `Azure DevOps Integration: Show Performance Dashboard` | View metrics, memory, cache stats, & tips        |            |
+| `Azure DevOps Integration: Clear Performance Data`     | Reset performance metrics                        |            |
+| `Azure DevOps Integration: Force Garbage Collection`   | Manually trigger GC (if --expose-gc enabled)     |            |
 
 ## 🔧 Key Settings
 

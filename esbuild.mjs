@@ -26,7 +26,9 @@ async function build() {
       mainFields: ['main', 'module'],
       resolveExtensions: ['.ts', '.js', '.json'],
     });
-    console.log(`[esbuild] Built extension (CommonJS${isProd ? ' prod' : ''}) -> dist/extension.js`);
+    console.log(
+      `[esbuild] Built extension (CommonJS${isProd ? ' prod' : ''}) -> dist/extension.js`
+    );
     // 2) Build webview scripts (browser ESM)
     const webviewOutDir = path.join(__dirname, 'media', 'webview');
     // Attempt to load a Svelte esbuild plugin; try official first, then community, else skip

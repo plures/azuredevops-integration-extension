@@ -357,11 +357,3 @@ export type { WorkItem, WorkItemType } from './types.js';
 - `media/webview/` → `src/webview/`
 
 This structure follows VSCode extension best practices and supports the project's ESM-first architecture while maintaining clear separation of concerns and modularity.
-
-
-
-
-
-
-
-

@@ -19,8 +19,8 @@
     "theme": "dark"
   },
   "engines": {
-      "vscode": "^1.99.0"
-    },
+    "vscode": "^1.99.0"
+  },
   "categories": [
     "Other"
   ],
@@ -578,6 +578,7 @@
     "postinstall": "npm run prepare",
     "build": "npm run compile",
     "build:formatted": "npm run format && npm run compile",
+    "prepackage": "npm install && npm run format && npm run lint && npm run build:all && npm run screenshots:capture",
     "package": "vsce package --no-dependencies",
     "screenshots:setup": "npx playwright install",
     "screenshots:build": "npm run build && npm run screenshots:capture",
