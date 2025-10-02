@@ -6,6 +6,105 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.8.2] - 2025-10-02
+
+### Added
+
+- **🎯 Bulk Operations**: Professional multi-select work item management
+  - Bulk Assign: Assign multiple work items to any user with progress tracking
+  - Bulk Move: Change state for multiple items simultaneously
+  - Bulk Add Tags: Add tags to multiple items with smart deduplication
+  - Bulk Delete: Soft delete with double-confirmation for safety
+  - Multi-select UI with checkboxes on all work items
+  - Ctrl/Cmd+Click for quick selection
+  - Animated bulk actions toolbar with visual feedback
+  - Real-time progress notifications and detailed error reporting
+
+- **🔍 Filter & Query Management**: Complete filtering system
+  - Clear All Filters: Reset all active filters with one click (keybinding: `/`)
+  - Focus Search: Keyboard shortcut to jump to search box
+  - Export/Import Filters: Share configurations via JSON files
+  - Saved Filters Management: Save, load, delete, and list named filter sets
+  - Query Builder: Interactive WIQL construction with templates and validation
+    - 5 pre-built query templates (My Items, Recent, Bugs, Sprint, Unassigned)
+    - Live syntax validation and comprehensive help reference
+    - Macro support (@Me, @Today, @Project, @CurrentIteration)
+
+- **📊 Performance Monitoring**: Complete observability suite
+  - Performance Dashboard: Comprehensive metrics display
+    - Operation statistics (total, avg/min/max duration, error/cache rates)
+    - Memory usage tracking (heap, RSS, peak usage)
+    - Cache statistics and efficiency metrics
+    - Smart recommendations for optimization
+  - Clear Performance Data: Reset metrics baseline
+  - Force Garbage Collection: Manual memory cleanup (requires --expose-gc)
+
+### Changed
+
+- **Enhanced Error Handling**: Transformed from silent failures to actionable guidance
+  - Context-specific error messages (401/403/404/5xx/network)
+  - Detailed troubleshooting steps for common issues
+  - Prominent error banner in webview with warning icon
+  - All errors logged to Output Channel for debugging
+  - Console bridging: All console.log/error/warn routed to Output Channel
+
+- **UI/UX Improvements**: Professional, intuitive interface
+  - Multi-select checkboxes on every work item (list & Kanban views)
+  - Visual selection indicators (blue border & background)
+  - Selected count badge in header
+  - Animated bulk actions toolbar with contextual buttons
+  - Keyboard shortcuts help and discovery
+
+### Fixed
+
+- **Critical: Module Format**: Changed from ESM to CommonJS for Cursor compatibility
+  - Extension now works in both VSCode and Cursor
+  - Fixed "Cannot find package 'vscode'" error in Cursor
+
+- **Critical: Configuration Properties**: Removed writes to non-existent config properties
+  - Fixed "Unable to write to User Settings" error in Setup Wizard
+  - Removed legacy organization/project/team config writes
+
+- **Critical: Webview Scope Bug**: Recovered 600+ lines of missing code
+  - Fixed missing closing brace that nested all webview logic
+  - Webview bundle grew from 12kb to 203kb (proper size)
+  - Boot function and app initialization now execute correctly
+
+- **Critical: Variable Scope Error**: Fixed `normalizedQuery is not defined` 
+  - Moved variable declaration outside try block for proper error handling
+  - Error logging now works correctly with full context
+
+- **Performance Dashboard**: Fixed cache stats property access
+  - Changed from non-existent properties to correct structure
+  - Dashboard now displays accurate cache metrics
+
+### Removed
+
+- **14 Stub Commands**: Removed all "coming soon" placeholder commands
+  - No more fake/incomplete features visible to users
+  - Professional, honest feature set
+  - All remaining 38 commands are fully functional
+
+- **11 Non-functional Keybindings**: Removed shortcuts with no implementations
+  - Only working keybindings remain (r, v, /)
+
+### Technical
+
+- **Build System**: ESM → CommonJS migration for extension host
+  - Webview remains ESM for browser compatibility
+  - Proper externalization of 'vscode' module
+- **Console Bridging**: All console output captured to Output Channel when debug logging enabled
+- **Selection Infrastructure**: ID-based selection tracking with Set efficiency
+- **Error Propagation**: Errors now throw instead of returning empty arrays
+- **Type Safety**: Fixed TypeScript compilation errors
+
+### Developer Experience
+
+- **Zero Linter Errors**: Clean build with no warnings
+- **Complete Feature Set**: No stubs, all commands production-ready
+- **Enhanced Logging**: Comprehensive error context and stack traces
+- **Better Debugging**: Console bridging provides full visibility
+
 ## [1.7.11] - 2025-10-01
 
 ### Changed

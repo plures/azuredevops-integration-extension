@@ -515,18 +515,49 @@ export class AzureDevOpsIntClient {
         return items;
       } catch (err: any) {
         console.error('[azureDevOpsInt][GETWI][ERROR]', err?.message || err);
+
+        // Build detailed error message for users
+        let errorMessage = 'Failed to fetch work items';
+        const status = err?.response?.status;
+
+        if (status === 401 || status === 403) {
+          errorMessage =
+            `Authentication failed (${status}). Please check:\n` +
+            '• Your Personal Access Token (PAT) is valid and not expired\n' +
+            '• The PAT has "Work Items (Read)" permission\n' +
+            '• You have access to this project';
+        } else if (status === 404) {
+          errorMessage =
+            `Project not found (404). Please verify:\n` +
+            `• Organization: "${this.organization}"\n` +
+            `• Project: "${this.project}"\n` +
+            '• The project name matches exactly (case-sensitive)';
+        } else if (status >= 500) {
+          errorMessage = `Azure DevOps server error (${status}). The service may be temporarily unavailable.`;
+        } else if (err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED') {
+          errorMessage =
+            `Network error: Cannot reach Azure DevOps.\n` +
+            '• Check your internet connection\n' +
+            '• Verify your base URL is correct\n' +
+            `• Current URL: ${this.axios.defaults.baseURL}`;
+        } else if (err?.message) {
+          errorMessage = `${errorMessage}: ${err.message}`;
+        }
+
         if (err?.response) {
-          console.error('[azureDevOpsInt][GETWI][ERROR] status:', err.response.status);
+          console.error('[azureDevOpsInt][GETWI][ERROR] HTTP status:', status);
           try {
             console.error(
-              '[azureDevOpsInt][GETWI][ERROR] data snippet:',
+              '[azureDevOpsInt][GETWI][ERROR] Response data:',
               JSON.stringify(err.response.data).slice(0, 600)
             );
           } catch {
             /* ignore */
           }
         }
-        return [];
+
+        // Re-throw with detailed message instead of silently returning []
+        throw new Error(errorMessage);
       }
     });
   }

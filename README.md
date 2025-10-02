@@ -14,15 +14,30 @@ Integrate Azure DevOps work items, time tracking, branching, and pull requests d
 - **Multiple Views**: Switch between list and Kanban views with preserved scroll positions and keyboard navigation
 - **Secure Storage**: PAT tokens stored securely in VS Code's secret store with automatic migration
 
-### 🆕 Advanced Features (v1.8.0+)
+### 🆕 Advanced Features (v1.8.2+)
 
-- **🚀 Performance Optimization**: Intelligent caching system with 60-80% faster API responses and automatic memory management
-- **⌨️ Advanced Keyboard Navigation**: Vim-style shortcuts (j/k/h/l), power user commands, and full accessibility support
-- **📊 Performance Dashboard**: Real-time performance monitoring, cache analytics, and health recommendations
-- **🔧 Bulk Operations**: Mass assign, move, tag, and delete work items with progress tracking and error handling
-- **🔍 Advanced Filtering**: Visual query builder, saved filters, complex criteria, and import/export capabilities
-- **♿ Accessibility Excellence**: Full ARIA support, screen reader compatibility, and keyboard-only operation
-- **📈 Smart Analytics**: Usage patterns, performance trends, and optimization recommendations
+- **🎯 Bulk Operations**: Multi-select work items and apply changes in batch
+  - Select with Ctrl/Cmd+Click or checkboxes
+  - Bulk assign, move states, add tags, or delete
+  - Real-time progress tracking with error handling
+  - Animated toolbar appears when items selected
+
+- **🔍 Filter & Query Management**: Complete filtering system
+  - Interactive Query Builder with 5 pre-built templates
+  - Save and manage named filter sets
+  - Export/import filter configurations as JSON
+  - WIQL syntax help and validation
+
+- **📊 Performance Monitoring**: Real-time observability
+  - Performance Dashboard with operation metrics
+  - Memory usage tracking and optimization tips
+  - Cache statistics and hit rates
+  - Manual garbage collection
+
+- **🚀 Performance Optimization**: Intelligent caching system with 60-80% faster API responses
+- **⌨️ Keyboard Navigation**: Vim-style shortcuts (r, v, /), multi-select with Space/Esc/Ctrl+A
+- **♿ Accessibility**: Full ARIA support, screen reader compatibility, keyboard-only operation
+- **🔧 Enhanced Error Handling**: Detailed, actionable error messages with troubleshooting steps
 
 ## 📥 Installation
 
@@ -93,34 +108,45 @@ Generate at: Azure DevOps → User Settings → Security → Personal Access Tok
 - **Smart Drafts**: Per-work-item draft persistence for refining your messages
 - **Timer Integration**: Auto-selects active work item when generating summaries
 
-## 🚀 Advanced Features (v1.8.0+)
-
-### Performance & Monitoring
-
-- **Performance Dashboard**: Real-time metrics, cache analytics, and health monitoring
-- **Intelligent Caching**: 60-80% faster API responses with automatic memory management
-- **Smart Optimization**: Automatic garbage collection and performance recommendations
-
-### Keyboard Navigation
-
-- **Vim-style Shortcuts**: `j/k` for up/down, `h/l` for left/right navigation
-- **Power User Commands**: `gg`/`G` for top/bottom, `Ctrl+A` to select all
-- **Quick Actions**: `Enter` to open, `r` to refresh, `v` to toggle view, `f` to focus search
-- **Accessibility**: Full keyboard-only operation with screen reader support
+## 🚀 Advanced Features (v1.8.2+)
 
 ### Bulk Operations
 
-- **Mass Updates**: Assign, move, tag, or delete hundreds of work items at once
-- **Progress Tracking**: Real-time progress with cancellation support
-- **Error Handling**: Detailed error reporting and recovery options
-- **Batch Processing**: Configurable batch sizes and delays
+- **Multi-Select UI**: Click checkboxes or Ctrl/Cmd+Click to select multiple work items
+- **Bulk Assign**: Assign multiple work items to any user at once
+- **Bulk Move**: Change state for multiple items simultaneously
+- **Bulk Add Tags**: Add tags to multiple items with smart merge (no duplicates)
+- **Bulk Delete**: Soft delete with double-confirmation for safety
+- **Visual Feedback**: Animated toolbar, progress tracking, and selection count
 
-### Advanced Filtering
+### Filter & Query Management
 
-- **Query Builder**: Visual drag-and-drop interface for complex queries
-- **Saved Filters**: Create, save, and share custom filter configurations
-- **Import/Export**: Share filters across teams and environments
-- **Smart Defaults**: Pre-built filters for common scenarios
+- **Query Builder**: Interactive WIQL construction with 5 pre-built templates
+  - My Work Items, Recently Changed, Active Bugs, Current Sprint, Unassigned Items
+  - Live syntax validation with helpful error messages
+  - Comprehensive WIQL help reference
+- **Saved Filters**: Save, load, delete, and manage named filter sets
+- **Export/Import**: Share filter configurations as JSON files
+- **Quick Actions**: Clear all filters (`/`), focus search, manage saved queries
+
+### Performance & Monitoring
+
+- **Performance Dashboard**: Comprehensive metrics and health analytics
+  - Operation statistics (duration, error rate, cache hit rate)
+  - Memory usage tracking (current, peak, RSS)
+  - Cache statistics and optimization recommendations
+- **Clear Performance Data**: Reset baseline metrics
+- **Force Garbage Collection**: Manual memory cleanup (if --expose-gc enabled)
+- **Intelligent Caching**: 60-80% faster API responses with automatic memory management
+- **Smart Optimization**: Automatic garbage collection and performance recommendations
+
+### Keyboard Shortcuts
+
+- **Navigation**: `r` to refresh, `v` to toggle Kanban view
+- **Search**: `/` to focus search box
+- **Selection**: `Space` to toggle selection, `Esc` to clear, `Ctrl+A` to select all
+- **Multi-Select**: `Ctrl/Cmd+Click` on work items to build selection
+- **Accessibility**: Full keyboard-only operation with screen reader support
 
 ## ⌨️ Essential Commands
 
@@ -138,18 +164,26 @@ Generate at: Azure DevOps → User Settings → Security → Personal Access Tok
 | `Azure DevOps Integration: Select Team`                  | Set team context for sprint queries     |
 | `Azure DevOps Integration: Set OpenAI API Key`           | Configure OpenAI integration            |
 
-### 🆕 Advanced Commands (v1.8.0+)
+### 🆕 Advanced Commands (v1.8.2+)
 
-| Command                                                | Description                           |
-| ------------------------------------------------------ | ------------------------------------- |
-| `Azure DevOps Integration: Show Performance Dashboard` | Open real-time performance monitoring |
-| `Azure DevOps Integration: Bulk Assign Work Items`     | Mass assign work items to users       |
-| `Azure DevOps Integration: Bulk Move Work Items`       | Mass move work items between states   |
-| `Azure DevOps Integration: Bulk Add Tags`              | Mass add tags to work items           |
-| `Azure DevOps Integration: Show Query Builder`         | Open visual query builder             |
-| `Azure DevOps Integration: Manage Filters`             | Manage saved filters                  |
-| `Azure DevOps Integration: Export Filters`             | Export filters to file                |
-| `Azure DevOps Integration: Import Filters`             | Import filters from file              |
+| Command                                                | Description                                     | Keybinding |
+| ------------------------------------------------------ | ----------------------------------------------- | ---------- |
+| **Bulk Operations**                                    |                                                 |            |
+| `Azure DevOps Integration: Bulk Assign Work Items`     | Assign selected items to any user               |            |
+| `Azure DevOps Integration: Bulk Move Work Items`       | Change state for selected items                 |            |
+| `Azure DevOps Integration: Bulk Add Tags`              | Add tags to selected items (smart merge)        |            |
+| `Azure DevOps Integration: Bulk Delete Work Items`     | Soft delete selected items (double-confirmation)|            |
+| **Filter & Query Management**                          |                                                 |            |
+| `Azure DevOps Integration: Query Builder`              | Build WIQL queries with templates & validation  |            |
+| `Azure DevOps Integration: Manage Saved Filters`       | Save, load, delete named filter sets            |            |
+| `Azure DevOps Integration: Export Filters to File`     | Export current filters to JSON                  |            |
+| `Azure DevOps Integration: Import Filters from File`   | Import filters from JSON                        |            |
+| `Azure DevOps Integration: Clear All Filters`          | Reset all active filters                        |            |
+| `Azure DevOps Integration: Focus Search Box`           | Jump to search input                            | `/`        |
+| **Performance Monitoring**                             |                                                 |            |
+| `Azure DevOps Integration: Show Performance Dashboard` | View metrics, memory, cache stats, & tips       |            |
+| `Azure DevOps Integration: Clear Performance Data`     | Reset performance metrics                       |            |
+| `Azure DevOps Integration: Force Garbage Collection`   | Manually trigger GC (if --expose-gc enabled)    |            |
 
 ## 🔧 Key Settings
 

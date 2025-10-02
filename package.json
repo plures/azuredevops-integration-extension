@@ -2,7 +2,7 @@
   "name": "azuredevops-integration-extension",
   "displayName": "Azure DevOps Integration for VS Code",
   "description": "Integrate Azure DevOps work items, time tracking, and Git workflows directly in VS Code. Manage tasks, track time, create branches, and submit pull requests without leaving your editor.",
-  "version": "1.7.11",
+  "version": "1.8.2",
   "publisher": "PluresLLC",
   "icon": "media/icon.png",
   "repository": {
@@ -19,8 +19,8 @@
     "theme": "dark"
   },
   "engines": {
-    "vscode": "^1.99.0"
-  },
+      "vscode": "^1.99.0"
+    },
   "categories": [
     "Other"
   ],
@@ -41,7 +41,6 @@
     "onCommand:azureDevOpsInt.setup",
     "onCommand:azureDevOpsInt.setupWizard"
   ],
-  "type": "module",
   "main": "./dist/extension.js",
   "files": [
     "dist/**",
@@ -81,6 +80,12 @@
         "command": "azureDevOpsInt.copyLogsToClipboard",
         "title": "Copy Logs to Clipboard",
         "category": "Azure DevOps Int"
+      },
+      {
+        "command": "azureDevOpsInt.diagnoseWorkItems",
+        "title": "Diagnose Work Items Issue",
+        "category": "Azure DevOps Int",
+        "icon": "$(search)"
       },
       {
         "command": "azureDevOpsInt.openLogsFolder",
@@ -196,6 +201,18 @@
         "category": "Azure DevOps Int"
       },
       {
+        "command": "azureDevOpsInt.clearFilter",
+        "title": "Clear All Filters",
+        "category": "Azure DevOps Int",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "azureDevOpsInt.focusSearch",
+        "title": "Focus Search Box",
+        "category": "Azure DevOps Int",
+        "icon": "$(search)"
+      },
+      {
         "command": "azureDevOpsInt.showPerformanceDashboard",
         "title": "Show Performance Dashboard",
         "category": "Azure DevOps Int",
@@ -212,18 +229,6 @@
         "title": "Force Garbage Collection",
         "category": "Azure DevOps Int",
         "icon": "$(refresh)"
-      },
-      {
-        "command": "azureDevOpsInt.toggleKeyboardNavigation",
-        "title": "Toggle Keyboard Navigation",
-        "category": "Azure DevOps Int",
-        "icon": "$(keyboard)"
-      },
-      {
-        "command": "azureDevOpsInt.toggleAccessibility",
-        "title": "Toggle Accessibility Features",
-        "category": "Azure DevOps Int",
-        "icon": "$(accessibility)"
       },
       {
         "command": "azureDevOpsInt.bulkAssign",
@@ -250,87 +255,31 @@
         "icon": "$(trash)"
       },
       {
-        "command": "azureDevOpsInt.showQueryBuilder",
-        "title": "Show Query Builder",
-        "category": "Azure DevOps Int",
-        "icon": "$(search)"
-      },
-      {
-        "command": "azureDevOpsInt.manageFilters",
-        "title": "Manage Filters",
-        "category": "Azure DevOps Int",
-        "icon": "$(filter)"
-      },
-      {
-        "command": "azureDevOpsInt.clearFilter",
-        "title": "Clear Filter",
-        "category": "Azure DevOps Int",
-        "icon": "$(clear-all)"
-      },
-      {
         "command": "azureDevOpsInt.exportFilters",
-        "title": "Export Filters",
+        "title": "Export Filters to File",
         "category": "Azure DevOps Int",
         "icon": "$(export)"
       },
       {
         "command": "azureDevOpsInt.importFilters",
-        "title": "Import Filters",
+        "title": "Import Filters from File",
         "category": "Azure DevOps Int",
         "icon": "$(import)"
+      },
+      {
+        "command": "azureDevOpsInt.manageFilters",
+        "title": "Manage Saved Filters",
+        "category": "Azure DevOps Int",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "azureDevOpsInt.showQueryBuilder",
+        "title": "Query Builder",
+        "category": "Azure DevOps Int",
+        "icon": "$(search)"
       }
     ],
     "keybindings": [
-      {
-        "command": "azureDevOpsInt.navigateDown",
-        "key": "j",
-        "when": "view == azureDevOpsWorkItems"
-      },
-      {
-        "command": "azureDevOpsInt.navigateUp",
-        "key": "k",
-        "when": "view == azureDevOpsWorkItems"
-      },
-      {
-        "command": "azureDevOpsInt.navigateLeft",
-        "key": "h",
-        "when": "view == azureDevOpsWorkItems"
-      },
-      {
-        "command": "azureDevOpsInt.navigateRight",
-        "key": "l",
-        "when": "view == azureDevOpsWorkItems"
-      },
-      {
-        "command": "azureDevOpsInt.navigateToTop",
-        "key": "g g",
-        "when": "view == azureDevOpsWorkItems"
-      },
-      {
-        "command": "azureDevOpsInt.navigateToBottom",
-        "key": "G",
-        "when": "view == azureDevOpsWorkItems"
-      },
-      {
-        "command": "azureDevOpsInt.openWorkItem",
-        "key": "Enter",
-        "when": "view == azureDevOpsWorkItems"
-      },
-      {
-        "command": "azureDevOpsInt.toggleSelection",
-        "key": "space",
-        "when": "view == azureDevOpsWorkItems"
-      },
-      {
-        "command": "azureDevOpsInt.clearSelection",
-        "key": "escape",
-        "when": "view == azureDevOpsWorkItems"
-      },
-      {
-        "command": "azureDevOpsInt.selectAll",
-        "key": "ctrl+a",
-        "when": "view == azureDevOpsWorkItems"
-      },
       {
         "command": "azureDevOpsInt.refreshWorkItems",
         "key": "r",
@@ -343,7 +292,7 @@
       },
       {
         "command": "azureDevOpsInt.focusSearch",
-        "key": "f",
+        "key": "/",
         "when": "view == azureDevOpsWorkItems"
       }
     ],

@@ -7,6 +7,7 @@ import { WorkItemsProvider } from './provider.js';
 import { WorkItemTimer } from './timer.js';
 import { SessionTelemetryManager } from './sessionTelemetry.js';
 import {
+  bridgeConsoleToOutputChannel,
   createScopedLogger,
   getLogBufferSnapshot,
   getOutputChannel,
@@ -291,20 +292,6 @@ async function saveConnectionsToConfig(
   connections = nextConnections;
   const serialized = nextConnections.map((entry) => ({ ...entry }));
   await settings.update(CONNECTIONS_CONFIG_KEY, serialized, vscode.ConfigurationTarget.Global);
-
-  // Update legacy settings only for backward compatibility with single connection
-  if (nextConnections.length === 1) {
-    const primary = nextConnections[0];
-    await settings.update('organization', primary.organization, vscode.ConfigurationTarget.Global);
-    await settings.update('project', primary.project, vscode.ConfigurationTarget.Global);
-    await settings.update('team', primary.team, vscode.ConfigurationTarget.Global);
-  } else if (nextConnections.length === 0) {
-    // Clear legacy settings when no connections
-    await settings.update('organization', undefined, vscode.ConfigurationTarget.Global);
-    await settings.update('project', undefined, vscode.ConfigurationTarget.Global);
-    await settings.update('team', undefined, vscode.ConfigurationTarget.Global);
-  }
-  // For multiple connections, leave legacy settings as-is to avoid confusion
 
   const validIds = new Set(nextConnections.map((item) => item.id));
   for (const [id, state] of connectionStates.entries()) {
@@ -679,6 +666,8 @@ export function activate(context: vscode.ExtensionContext) {
       getOutputChannel() ?? vscode.window.createOutputChannel('Azure DevOps Integration');
     setOutputChannel(channel);
     logLine('[activate] Debug logging enabled');
+    // Bridge console logging to Output Channel for better debugging
+    bridgeConsoleToOutputChannel();
   }
   // Status bar (hidden until connected or timer active)
   statusBarItem = vscode.window.createStatusBarItem(
@@ -746,6 +735,13 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showErrorMessage(
           'Failed to copy logs to clipboard: ' + (e?.message || String(e))
         );
+      }
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.diagnoseWorkItems', async () => {
+      try {
+        await diagnoseWorkItemsIssue(context);
+      } catch (e: any) {
+        vscode.window.showErrorMessage('Diagnostic failed: ' + (e?.message || String(e)));
       }
     }),
     vscode.commands.registerCommand('azureDevOpsInt.openLogsFolder', async () => {
@@ -862,51 +858,45 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('azureDevOpsInt.manageConnections', () =>
       manageConnections(context)
     ),
-    // Performance monitoring commands
+    vscode.commands.registerCommand('azureDevOpsInt.clearFilter', () => {
+      sendToWebview({ type: 'clearFilters' });
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.focusSearch', () => {
+      sendToWebview({ type: 'focusSearch' });
+    }),
     vscode.commands.registerCommand('azureDevOpsInt.showPerformanceDashboard', () => {
-      vscode.window.showInformationMessage('Performance dashboard feature coming soon');
+      showPerformanceDashboard();
     }),
     vscode.commands.registerCommand('azureDevOpsInt.clearPerformanceData', () => {
-      vscode.window.showInformationMessage('Clear performance data feature coming soon');
+      performanceMonitor.clear();
+      vscode.window.showInformationMessage('Performance data cleared successfully');
     }),
     vscode.commands.registerCommand('azureDevOpsInt.forceGC', () => {
-      vscode.window.showInformationMessage('Force garbage collection feature coming soon');
+      forceGarbageCollection();
     }),
-    // Keyboard navigation commands
-    vscode.commands.registerCommand('azureDevOpsInt.toggleKeyboardNavigation', () => {
-      vscode.window.showInformationMessage('Toggle keyboard navigation feature coming soon');
+    vscode.commands.registerCommand('azureDevOpsInt.bulkAssign', () => {
+      bulkAssignWorkItems();
     }),
-    vscode.commands.registerCommand('azureDevOpsInt.toggleAccessibility', () => {
-      vscode.window.showInformationMessage('Toggle accessibility features coming soon');
+    vscode.commands.registerCommand('azureDevOpsInt.bulkMove', () => {
+      bulkMoveWorkItems();
     }),
-    // Bulk operation commands
-    vscode.commands.registerCommand('azureDevOpsInt.bulkAssign', async () => {
-      vscode.window.showInformationMessage('Bulk assign feature - select work items first');
+    vscode.commands.registerCommand('azureDevOpsInt.bulkAddTags', () => {
+      bulkAddTags();
     }),
-    vscode.commands.registerCommand('azureDevOpsInt.bulkMove', async () => {
-      vscode.window.showInformationMessage('Bulk move feature - select work items first');
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.bulkAddTags', async () => {
-      vscode.window.showInformationMessage('Bulk add tags feature - select work items first');
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.bulkDelete', async () => {
-      vscode.window.showInformationMessage('Bulk delete feature - select work items first');
-    }),
-    // Advanced filtering commands
-    vscode.commands.registerCommand('azureDevOpsInt.showQueryBuilder', () => {
-      vscode.window.showInformationMessage('Query builder feature coming soon');
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.manageFilters', () => {
-      vscode.window.showInformationMessage('Filter management feature coming soon');
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.clearFilter', () => {
-      vscode.window.showInformationMessage('Clear filter feature coming soon');
+    vscode.commands.registerCommand('azureDevOpsInt.bulkDelete', () => {
+      bulkDeleteWorkItems();
     }),
     vscode.commands.registerCommand('azureDevOpsInt.exportFilters', () => {
-      vscode.window.showInformationMessage('Export filters feature coming soon');
+      exportFiltersToFile();
     }),
     vscode.commands.registerCommand('azureDevOpsInt.importFilters', () => {
-      vscode.window.showInformationMessage('Import filters feature coming soon');
+      importFiltersFromFile();
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.manageFilters', () => {
+      manageSavedFilters();
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.showQueryBuilder', () => {
+      showQueryBuilder();
     })
   );
 
@@ -1073,6 +1063,24 @@ async function handleMessage(msg: any) {
     if (typeof id === 'number' && provider) {
       editWorkItemInEditor(id);
     }
+    return;
+  }
+
+  // Handle bulk operations
+  if (msg?.type === 'bulkAssign') {
+    await bulkAssignWorkItems();
+    return;
+  }
+  if (msg?.type === 'bulkMove') {
+    await bulkMoveWorkItems();
+    return;
+  }
+  if (msg?.type === 'bulkAddTags') {
+    await bulkAddTags();
+    return;
+  }
+  if (msg?.type === 'bulkDelete') {
+    await bulkDeleteWorkItems();
     return;
   }
 
@@ -2834,6 +2842,828 @@ function showTimeReport() {
   });
 }
 
+function showPerformanceDashboard() {
+  try {
+    const report = performanceMonitor.getPerformanceReport();
+    const { stats, cacheStats, memoryUsage, recommendations } = report;
+
+    // Format memory in MB
+    const formatMemory = (bytes: number) => (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+
+    const dashboard = [
+      '=== Performance Dashboard ===\n',
+      '📊 Operation Statistics:',
+      `  Total Operations: ${stats.totalOperations}`,
+      `  Average Duration: ${stats.averageDuration.toFixed(2)}ms`,
+      `  Min Duration: ${stats.minDuration.toFixed(2)}ms`,
+      `  Max Duration: ${stats.maxDuration.toFixed(2)}ms`,
+      `  Error Rate: ${(stats.errorRate * 100).toFixed(1)}%`,
+      `  Cache Hit Rate: ${(stats.cacheHitRate * 100).toFixed(1)}%\n`,
+      '💾 Memory Usage:',
+      `  Current Heap: ${formatMemory(memoryUsage.heapUsed)}`,
+      `  Total Heap: ${formatMemory(memoryUsage.heapTotal)}`,
+      `  Peak Usage: ${formatMemory(stats.memoryUsage.peak)}`,
+      `  RSS: ${formatMemory(memoryUsage.rss)}\n`,
+      '🗄️ Cache Statistics:',
+      `  Work Items Cached: ${cacheStats.workItems?.topKeys?.length || 0}`,
+      `  API Calls Cached: ${cacheStats.api?.topKeys?.length || 0}`,
+      `  Total Memory: ${formatMemory(cacheStats.totalMemoryUsage)}\n`,
+    ];
+
+    if (recommendations.length > 0) {
+      dashboard.push('💡 Recommendations:');
+      recommendations.forEach((rec) => dashboard.push(`  • ${rec}`));
+    } else {
+      dashboard.push('✅ Performance looks good!');
+    }
+
+    vscode.window.showInformationMessage(dashboard.join('\n'), { modal: true });
+  } catch (error) {
+    vscode.window.showErrorMessage(
+      `Failed to show performance dashboard: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+function forceGarbageCollection() {
+  try {
+    // Check if GC is exposed
+    if (global.gc) {
+      const before = process.memoryUsage();
+      global.gc();
+      const after = process.memoryUsage();
+      const freed = (before.heapUsed - after.heapUsed) / (1024 * 1024);
+      vscode.window.showInformationMessage(
+        `Garbage collection completed. Freed ${freed.toFixed(2)} MB of memory.`
+      );
+    } else {
+      vscode.window.showWarningMessage(
+        'Garbage collection is not exposed. To enable, start VS Code with --expose-gc flag.'
+      );
+    }
+  } catch (error) {
+    vscode.window.showErrorMessage(
+      `Failed to force garbage collection: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+async function bulkAssignWorkItems() {
+  try {
+    if (!client) {
+      vscode.window.showErrorMessage('No active Azure DevOps connection');
+      return;
+    }
+
+    // Request selected work items from webview
+    const selectedIds = await requestSelectedWorkItems();
+    if (!selectedIds || selectedIds.length === 0) {
+      vscode.window.showWarningMessage(
+        'No work items selected. Use Ctrl+Click to select multiple items.'
+      );
+      return;
+    }
+
+    // Get assignee
+    const assignee = await vscode.window.showInputBox({
+      prompt: `Assign ${selectedIds.length} work item(s) to:`,
+      placeHolder: 'Enter display name or email',
+      ignoreFocusOut: true,
+    });
+
+    if (!assignee) return;
+
+    // Confirm
+    const confirm = await vscode.window.showWarningMessage(
+      `Assign ${selectedIds.length} work item(s) to "${assignee}"?`,
+      { modal: true },
+      'Yes',
+      'No'
+    );
+    if (confirm !== 'Yes') return;
+
+    // Execute bulk operation
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Bulk Assign',
+        cancellable: false,
+      },
+      async (progress) => {
+        let completed = 0;
+        const errors: string[] = [];
+
+        for (const id of selectedIds) {
+          try {
+            await client!.updateWorkItem(id, [
+              {
+                op: 'add',
+                path: '/fields/System.AssignedTo',
+                value: assignee,
+              },
+            ]);
+            completed++;
+            progress.report({
+              increment: 100 / selectedIds.length,
+              message: `${completed}/${selectedIds.length} completed`,
+            });
+          } catch (error: any) {
+            errors.push(`#${id}: ${error.message || 'Failed'}`);
+          }
+        }
+
+        if (errors.length > 0) {
+          vscode.window.showWarningMessage(
+            `Bulk assign completed with ${errors.length} error(s). Check Output Channel for details.`
+          );
+          errors.forEach((err) => logLine(`[bulkAssign] ${err}`));
+        } else {
+          vscode.window.showInformationMessage(
+            `Successfully assigned ${completed} work item(s) to ${assignee}`
+          );
+        }
+
+        // Refresh work items
+        const refreshQuery = getQueryForProvider(provider, activeConnectionId);
+        provider?.refresh(refreshQuery);
+      }
+    );
+  } catch (error: any) {
+    vscode.window.showErrorMessage(`Bulk assign failed: ${error.message || 'Unknown error'}`);
+  }
+}
+
+async function bulkMoveWorkItems() {
+  try {
+    if (!client) {
+      vscode.window.showErrorMessage('No active Azure DevOps connection');
+      return;
+    }
+
+    const selectedIds = await requestSelectedWorkItems();
+    if (!selectedIds || selectedIds.length === 0) {
+      vscode.window.showWarningMessage(
+        'No work items selected. Use Ctrl+Click to select multiple items.'
+      );
+      return;
+    }
+
+    // Get available states (simplified - using common states)
+    const states = ['New', 'Active', 'Resolved', 'Closed', 'Removed'];
+    const selectedState = await vscode.window.showQuickPick(states, {
+      placeHolder: `Move ${selectedIds.length} work item(s) to state:`,
+      ignoreFocusOut: true,
+    });
+
+    if (!selectedState) return;
+
+    // Confirm
+    const confirm = await vscode.window.showWarningMessage(
+      `Move ${selectedIds.length} work item(s) to "${selectedState}"?`,
+      { modal: true },
+      'Yes',
+      'No'
+    );
+    if (confirm !== 'Yes') return;
+
+    // Execute bulk operation
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Bulk Move',
+        cancellable: false,
+      },
+      async (progress) => {
+        let completed = 0;
+        const errors: string[] = [];
+
+        for (const id of selectedIds) {
+          try {
+            await client!.updateWorkItem(id, [
+              {
+                op: 'replace',
+                path: '/fields/System.State',
+                value: selectedState,
+              },
+            ]);
+            completed++;
+            progress.report({
+              increment: 100 / selectedIds.length,
+              message: `${completed}/${selectedIds.length} completed`,
+            });
+          } catch (error: any) {
+            errors.push(`#${id}: ${error.message || 'Failed'}`);
+          }
+        }
+
+        if (errors.length > 0) {
+          vscode.window.showWarningMessage(
+            `Bulk move completed with ${errors.length} error(s). Check Output Channel for details.`
+          );
+          errors.forEach((err) => logLine(`[bulkMove] ${err}`));
+        } else {
+          vscode.window.showInformationMessage(
+            `Successfully moved ${completed} work item(s) to ${selectedState}`
+          );
+        }
+
+        // Refresh work items
+        const refreshQuery = getQueryForProvider(provider, activeConnectionId);
+        provider?.refresh(refreshQuery);
+      }
+    );
+  } catch (error: any) {
+    vscode.window.showErrorMessage(`Bulk move failed: ${error.message || 'Unknown error'}`);
+  }
+}
+
+async function bulkAddTags() {
+  try {
+    if (!client) {
+      vscode.window.showErrorMessage('No active Azure DevOps connection');
+      return;
+    }
+
+    const selectedIds = await requestSelectedWorkItems();
+    if (!selectedIds || selectedIds.length === 0) {
+      vscode.window.showWarningMessage(
+        'No work items selected. Use Ctrl+Click to select multiple items.'
+      );
+      return;
+    }
+
+    // Get tags
+    const tagsInput = await vscode.window.showInputBox({
+      prompt: `Add tags to ${selectedIds.length} work item(s):`,
+      placeHolder: 'Enter tags separated by semicolons (e.g., bug; high-priority; customer)',
+      ignoreFocusOut: true,
+    });
+
+    if (!tagsInput) return;
+
+    const newTags = tagsInput
+      .split(';')
+      .map((t) => t.trim())
+      .filter((t) => t);
+    if (newTags.length === 0) {
+      vscode.window.showWarningMessage('No valid tags entered');
+      return;
+    }
+
+    // Confirm
+    const confirm = await vscode.window.showWarningMessage(
+      `Add tag(s) "${newTags.join('; ')}" to ${selectedIds.length} work item(s)?`,
+      { modal: true },
+      'Yes',
+      'No'
+    );
+    if (confirm !== 'Yes') return;
+
+    // Execute bulk operation
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Bulk Add Tags',
+        cancellable: false,
+      },
+      async (progress) => {
+        let completed = 0;
+        const errors: string[] = [];
+
+        for (const id of selectedIds) {
+          try {
+            // Get existing tags
+            const workItem = await client!.getWorkItemById(id);
+            const existingTags = (workItem?.fields?.['System.Tags'] as string) || '';
+            const existingTagArray = existingTags
+              .split(';')
+              .map((t) => t.trim())
+              .filter((t) => t);
+
+            // Merge with new tags (avoid duplicates)
+            const mergedTags = Array.from(new Set([...existingTagArray, ...newTags]));
+
+            await client!.updateWorkItem(id, [
+              {
+                op: 'add',
+                path: '/fields/System.Tags',
+                value: mergedTags.join('; '),
+              },
+            ]);
+            completed++;
+            progress.report({
+              increment: 100 / selectedIds.length,
+              message: `${completed}/${selectedIds.length} completed`,
+            });
+          } catch (error: any) {
+            errors.push(`#${id}: ${error.message || 'Failed'}`);
+          }
+        }
+
+        if (errors.length > 0) {
+          vscode.window.showWarningMessage(
+            `Bulk add tags completed with ${errors.length} error(s). Check Output Channel for details.`
+          );
+          errors.forEach((err) => logLine(`[bulkAddTags] ${err}`));
+        } else {
+          vscode.window.showInformationMessage(
+            `Successfully added tags to ${completed} work item(s)`
+          );
+        }
+
+        // Refresh work items
+        const refreshQuery = getQueryForProvider(provider, activeConnectionId);
+        provider?.refresh(refreshQuery);
+      }
+    );
+  } catch (error: any) {
+    vscode.window.showErrorMessage(`Bulk add tags failed: ${error.message || 'Unknown error'}`);
+  }
+}
+
+async function bulkDeleteWorkItems() {
+  try {
+    if (!client) {
+      vscode.window.showErrorMessage('No active Azure DevOps connection');
+      return;
+    }
+
+    const selectedIds = await requestSelectedWorkItems();
+    if (!selectedIds || selectedIds.length === 0) {
+      vscode.window.showWarningMessage(
+        'No work items selected. Use Ctrl+Click to select multiple items.'
+      );
+      return;
+    }
+
+    // Strong confirmation for delete
+    const confirm1 = await vscode.window.showWarningMessage(
+      `⚠️ DELETE ${selectedIds.length} work item(s)? This action cannot be undone!`,
+      { modal: true },
+      'Delete',
+      'Cancel'
+    );
+    if (confirm1 !== 'Delete') return;
+
+    // Second confirmation
+    const confirm2 = await vscode.window.showWarningMessage(
+      `Are you absolutely sure? Type 'DELETE' to confirm deletion of ${selectedIds.length} work item(s).`,
+      { modal: true },
+      'I understand, delete them',
+      'Cancel'
+    );
+    if (confirm2 !== 'I understand, delete them') return;
+
+    // Execute bulk delete
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Bulk Delete',
+        cancellable: false,
+      },
+      async (progress) => {
+        let completed = 0;
+        const errors: string[] = [];
+
+        for (const id of selectedIds) {
+          try {
+            // Move to "Removed" state instead of permanent delete
+            await client!.updateWorkItem(id, [
+              {
+                op: 'replace',
+                path: '/fields/System.State',
+                value: 'Removed',
+              },
+            ]);
+            completed++;
+            progress.report({
+              increment: 100 / selectedIds.length,
+              message: `${completed}/${selectedIds.length} completed`,
+            });
+          } catch (error: any) {
+            errors.push(`#${id}: ${error.message || 'Failed'}`);
+          }
+        }
+
+        if (errors.length > 0) {
+          vscode.window.showWarningMessage(
+            `Bulk delete completed with ${errors.length} error(s). Check Output Channel for details.`
+          );
+          errors.forEach((err) => logLine(`[bulkDelete] ${err}`));
+        } else {
+          vscode.window.showInformationMessage(`Successfully removed ${completed} work item(s)`);
+        }
+
+        // Refresh work items
+        const refreshQuery = getQueryForProvider(provider, activeConnectionId);
+        provider?.refresh(refreshQuery);
+      }
+    );
+  } catch (error: any) {
+    vscode.window.showErrorMessage(`Bulk delete failed: ${error.message || 'Unknown error'}`);
+  }
+}
+
+async function requestSelectedWorkItems(): Promise<number[] | null> {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      resolve(null);
+    }, 5000);
+
+    const handler = (msg: any) => {
+      if (msg?.type === 'selectedWorkItems') {
+        clearTimeout(timeout);
+        const ids = Array.isArray(msg.ids)
+          ? msg.ids.map((id: any) => Number(id)).filter((id: number) => id > 0)
+          : [];
+        resolve(ids);
+      }
+    };
+
+    // Temporarily listen for response
+    if (panel) {
+      panel.webview.onDidReceiveMessage(handler);
+      sendToWebview({ type: 'requestSelection' });
+    } else {
+      clearTimeout(timeout);
+      resolve(null);
+    }
+  });
+}
+
+async function exportFiltersToFile() {
+  try {
+    // Get current filter state
+    const config = getConfig();
+    const filterData = {
+      version: '1.0',
+      exported: new Date().toISOString(),
+      filters: {
+        workItemQuery: config.get<string>('workItemQuery'),
+        showCompletedWorkItems: config.get<boolean>('showCompletedWorkItems'),
+        defaultWorkItemType: config.get<string>('defaultWorkItemType'),
+      },
+    };
+
+    // Prompt for file location
+    const uri = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file('azuredevops-filters.json'),
+      filters: {
+        'JSON Files': ['json'],
+        'All Files': ['*'],
+      },
+    });
+
+    if (!uri) return;
+
+    // Write to file
+    const fs = await import('fs/promises');
+    await fs.writeFile(uri.fsPath, JSON.stringify(filterData, null, 2), 'utf8');
+
+    vscode.window.showInformationMessage(`Filters exported to ${uri.fsPath}`);
+  } catch (error: any) {
+    vscode.window.showErrorMessage(`Failed to export filters: ${error.message || 'Unknown error'}`);
+  }
+}
+
+async function importFiltersFromFile() {
+  try {
+    // Prompt for file
+    const uris = await vscode.window.showOpenDialog({
+      canSelectMany: false,
+      filters: {
+        'JSON Files': ['json'],
+        'All Files': ['*'],
+      },
+    });
+
+    if (!uris || uris.length === 0) return;
+
+    // Read file
+    const fs = await import('fs/promises');
+    const content = await fs.readFile(uris[0].fsPath, 'utf8');
+    const filterData = JSON.parse(content);
+
+    if (!filterData.version || !filterData.filters) {
+      throw new Error('Invalid filter file format');
+    }
+
+    // Confirm import
+    const confirm = await vscode.window.showWarningMessage(
+      `Import filters from ${uris[0].fsPath}? This will overwrite your current filter settings.`,
+      { modal: true },
+      'Import',
+      'Cancel'
+    );
+
+    if (confirm !== 'Import') return;
+
+    // Apply filters
+    const config = getConfig();
+    const filters = filterData.filters;
+
+    if (filters.workItemQuery) {
+      await config.update(
+        'workItemQuery',
+        filters.workItemQuery,
+        vscode.ConfigurationTarget.Global
+      );
+    }
+    if (typeof filters.showCompletedWorkItems === 'boolean') {
+      await config.update(
+        'showCompletedWorkItems',
+        filters.showCompletedWorkItems,
+        vscode.ConfigurationTarget.Global
+      );
+    }
+    if (filters.defaultWorkItemType) {
+      await config.update(
+        'defaultWorkItemType',
+        filters.defaultWorkItemType,
+        vscode.ConfigurationTarget.Global
+      );
+    }
+
+    vscode.window.showInformationMessage('Filters imported successfully');
+
+    // Refresh work items with new filters
+    const refreshQuery = getQueryForProvider(provider, activeConnectionId);
+    provider?.refresh(refreshQuery);
+  } catch (error: any) {
+    vscode.window.showErrorMessage(`Failed to import filters: ${error.message || 'Unknown error'}`);
+  }
+}
+
+async function manageSavedFilters() {
+  try {
+    const SAVED_FILTERS_KEY = 'azureDevOpsInt.savedFilters';
+    const savedFilters =
+      extensionContextRef?.globalState.get<
+        Array<{ name: string; query: string; description?: string }>
+      >(SAVED_FILTERS_KEY) || [];
+
+    const actions = [
+      { label: '$(add) Save Current Query', value: 'save' },
+      { label: '$(list-unordered) Load Saved Query', value: 'load' },
+      { label: '$(trash) Delete Saved Query', value: 'delete' },
+      { label: '$(list-flat) List All Saved Queries', value: 'list' },
+    ];
+
+    const action = await vscode.window.showQuickPick(actions, {
+      placeHolder: `Manage Saved Filters (${savedFilters.length} saved)`,
+      ignoreFocusOut: true,
+    });
+
+    if (!action) return;
+
+    switch (action.value) {
+      case 'save': {
+        const name = await vscode.window.showInputBox({
+          prompt: 'Enter a name for this filter',
+          placeHolder: 'e.g., "My Active Bugs", "Sprint Tasks"',
+          ignoreFocusOut: true,
+        });
+
+        if (!name) return;
+
+        const config = getConfig();
+        const currentQuery = config.get<string>('workItemQuery') || '';
+
+        const description = await vscode.window.showInputBox({
+          prompt: 'Enter a description (optional)',
+          placeHolder: 'Describe what this filter shows',
+          ignoreFocusOut: true,
+        });
+
+        const newFilter = { name, query: currentQuery, description: description || undefined };
+        const updated = [...savedFilters, newFilter];
+        await extensionContextRef?.globalState.update(SAVED_FILTERS_KEY, updated);
+
+        vscode.window.showInformationMessage(`Filter "${name}" saved successfully`);
+        break;
+      }
+
+      case 'load': {
+        if (savedFilters.length === 0) {
+          vscode.window.showInformationMessage('No saved filters. Save one first!');
+          return;
+        }
+
+        const filterItems = savedFilters.map((f) => ({
+          label: f.name,
+          description: f.description,
+          detail: f.query,
+          filter: f,
+        }));
+
+        const selected = await vscode.window.showQuickPick(filterItems, {
+          placeHolder: 'Select a filter to load',
+          ignoreFocusOut: true,
+        });
+
+        if (!selected) return;
+
+        const config = getConfig();
+        await config.update(
+          'workItemQuery',
+          selected.filter.query,
+          vscode.ConfigurationTarget.Global
+        );
+
+        vscode.window.showInformationMessage(`Filter "${selected.filter.name}" loaded`);
+
+        // Refresh with new query
+        const refreshQuery = getQueryForProvider(provider, activeConnectionId);
+        provider?.refresh(refreshQuery);
+        break;
+      }
+
+      case 'delete': {
+        if (savedFilters.length === 0) {
+          vscode.window.showInformationMessage('No saved filters to delete');
+          return;
+        }
+
+        const filterItems = savedFilters.map((f, index) => ({
+          label: f.name,
+          description: f.description,
+          index,
+        }));
+
+        const selected = await vscode.window.showQuickPick(filterItems, {
+          placeHolder: 'Select a filter to delete',
+          ignoreFocusOut: true,
+        });
+
+        if (!selected) return;
+
+        const confirm = await vscode.window.showWarningMessage(
+          `Delete filter "${selected.label}"?`,
+          'Delete',
+          'Cancel'
+        );
+
+        if (confirm === 'Delete') {
+          const updated = savedFilters.filter((_, i) => i !== selected.index);
+          await extensionContextRef?.globalState.update(SAVED_FILTERS_KEY, updated);
+          vscode.window.showInformationMessage(`Filter "${selected.label}" deleted`);
+        }
+        break;
+      }
+
+      case 'list': {
+        if (savedFilters.length === 0) {
+          vscode.window.showInformationMessage('No saved filters yet');
+          return;
+        }
+
+        const list = savedFilters
+          .map((f, i) => `${i + 1}. ${f.name}${f.description ? ` - ${f.description}` : ''}`)
+          .join('\n');
+
+        vscode.window.showInformationMessage(`Saved Filters (${savedFilters.length}):\n\n${list}`, {
+          modal: true,
+        });
+        break;
+      }
+    }
+  } catch (error: any) {
+    vscode.window.showErrorMessage(`Filter management failed: ${error.message || 'Unknown error'}`);
+  }
+}
+
+async function showQueryBuilder() {
+  try {
+    const config = getConfig();
+    const currentQuery = config.get<string>('workItemQuery') || '';
+
+    // Show interactive query builder
+    const buildAction = await vscode.window.showQuickPick(
+      [
+        { label: '$(edit) Edit Current Query', value: 'edit' },
+        { label: '$(sparkle) Build from Template', value: 'template' },
+        { label: '$(info) View Query Help', value: 'help' },
+      ],
+      {
+        placeHolder: 'Query Builder',
+        ignoreFocusOut: true,
+      }
+    );
+
+    if (!buildAction) return;
+
+    switch (buildAction.value) {
+      case 'edit': {
+        const newQuery = await vscode.window.showInputBox({
+          prompt: 'Edit WIQL Query',
+          value: currentQuery,
+          placeHolder: 'SELECT [System.Id], [System.Title] FROM WorkItems WHERE...',
+          ignoreFocusOut: true,
+          validateInput: (value) => {
+            if (!value.trim()) return 'Query cannot be empty';
+            if (!value.toUpperCase().includes('SELECT')) return 'Query must include SELECT';
+            if (!value.toUpperCase().includes('FROM')) return 'Query must include FROM';
+            return null;
+          },
+        });
+
+        if (!newQuery) return;
+
+        await config.update('workItemQuery', newQuery, vscode.ConfigurationTarget.Global);
+        vscode.window.showInformationMessage('Query updated successfully');
+
+        // Refresh with new query
+        const refreshQuery = getQueryForProvider(provider, activeConnectionId);
+        provider?.refresh(refreshQuery);
+        break;
+      }
+
+      case 'template': {
+        const templates = [
+          {
+            label: 'My Work Items',
+            detail: 'Items assigned to me',
+            query:
+              "SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.AssignedTo] = @Me AND [System.State] <> 'Closed' ORDER BY [System.ChangedDate] DESC",
+          },
+          {
+            label: 'Recently Changed',
+            detail: 'Items changed in last 7 days',
+            query:
+              'SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.ChangedDate] >= @Today-7 ORDER BY [System.ChangedDate] DESC',
+          },
+          {
+            label: 'Active Bugs',
+            detail: 'All active bugs in project',
+            query:
+              "SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.WorkItemType] = 'Bug' AND [System.State] = 'Active' ORDER BY [Microsoft.VSTS.Common.Priority] ASC",
+          },
+          {
+            label: 'Current Sprint',
+            detail: 'Items in current iteration',
+            query:
+              'SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.IterationPath] = @CurrentIteration ORDER BY [Microsoft.VSTS.Common.Priority] ASC',
+          },
+          {
+            label: 'Unassigned Items',
+            detail: 'Items with no assignee',
+            query:
+              "SELECT [System.Id], [System.Title], [System.State], [System.WorkItemType] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.AssignedTo] = '' AND [System.State] <> 'Closed' ORDER BY [System.CreatedDate] DESC",
+          },
+        ];
+
+        const selected = await vscode.window.showQuickPick(templates, {
+          placeHolder: 'Select a query template',
+          ignoreFocusOut: true,
+        });
+
+        if (!selected) return;
+
+        await config.update('workItemQuery', selected.query, vscode.ConfigurationTarget.Global);
+        vscode.window.showInformationMessage(`Query set to: ${selected.label}`);
+
+        // Refresh with new query
+        const refreshQuery = getQueryForProvider(provider, activeConnectionId);
+        provider?.refresh(refreshQuery);
+        break;
+      }
+
+      case 'help': {
+        const helpText = [
+          '=== WIQL Query Builder Help ===\n',
+          '📝 Basic Structure:',
+          'SELECT [fields] FROM WorkItems WHERE [conditions] ORDER BY [field]\n',
+          '🔍 Common Fields:',
+          '  [System.Id] - Work Item ID',
+          '  [System.Title] - Title',
+          '  [System.State] - Current state',
+          '  [System.AssignedTo] - Assigned user',
+          '  [System.WorkItemType] - Type (Bug, Task, etc.)',
+          '  [System.CreatedDate] - Creation date',
+          '  [System.ChangedDate] - Last modified date',
+          '  [System.Tags] - Tags\n',
+          '⚡ Macros:',
+          '  @Me - Current user',
+          "  @Today - Today's date",
+          '  @Project - Current project',
+          '  @CurrentIteration - Current sprint\n',
+          '🎯 Example:',
+          'SELECT [System.Id], [System.Title]',
+          'FROM WorkItems',
+          'WHERE [System.AssignedTo] = @Me',
+          "AND [System.State] <> 'Closed'",
+          'ORDER BY [System.ChangedDate] DESC',
+        ].join('\n');
+
+        vscode.window.showInformationMessage(helpText, { modal: true });
+        break;
+      }
+    }
+  } catch (error: any) {
+    vscode.window.showErrorMessage(`Query builder failed: ${error.message || 'Unknown error'}`);
+  }
+}
+
 function updateTimerContext(s: any) {
   const running = !!s && !s.isPaused;
   const paused = !!s && s.isPaused;
@@ -3621,4 +4451,170 @@ function buildCopilotPrompt(entry: any, workItem: any) {
   const end = entry.endTime ? new Date(entry.endTime).toLocaleString() : '';
   const hrs = Number(entry.hoursDecimal || entry.duration / 3600 || 0).toFixed(2);
   return `You are my assistant. Summarize the work I performed on work item #${entry.workItemId} entitled "${title}" between ${start} and ${end} (total ${hrs} hours). Produce a concise 1-2 sentence summary suitable as a comment on the work item that highlights the outcome, key changes, and suggested next steps.`;
+}
+
+async function diagnoseWorkItemsIssue(context: vscode.ExtensionContext) {
+  const outputChannel =
+    getOutputChannel() || vscode.window.createOutputChannel('Azure DevOps Integration');
+  outputChannel.show(true);
+
+  logLine('[DIAGNOSIS] Starting work items diagnostic...');
+
+  try {
+    // Ensure we have an active connection
+    await ensureConnectionsInitialized(context);
+
+    if (connections.length === 0) {
+      logLine('[DIAGNOSIS] ❌ No connections configured');
+      vscode.window.showErrorMessage(
+        'No Azure DevOps connections found. Please run the Setup Wizard first.'
+      );
+      return;
+    }
+
+    logLine(`[DIAGNOSIS] Found ${connections.length} connection(s)`);
+    connections.forEach((conn, i) => {
+      logLine(`[DIAGNOSIS]   ${i + 1}. ${conn.organization}/${conn.project} (ID: ${conn.id})`);
+    });
+
+    // Test the active connection
+    const state = await ensureActiveConnection(context, activeConnectionId, { refresh: false });
+    if (!state) {
+      logLine('[DIAGNOSIS] ❌ Failed to establish active connection');
+      vscode.window.showErrorMessage('Failed to establish connection to Azure DevOps');
+      return;
+    }
+
+    logLine(
+      `[DIAGNOSIS] ✅ Active connection: ${state.config.organization}/${state.config.project}`
+    );
+
+    if (!state.client) {
+      logLine('[DIAGNOSIS] ❌ No client available - check PAT configuration');
+      vscode.window.showErrorMessage(
+        'No Azure DevOps client available. Check your Personal Access Token.'
+      );
+      return;
+    }
+
+    // Test authentication
+    logLine('[DIAGNOSIS] Testing authentication...');
+    try {
+      const userId = await state.client.getAuthenticatedUserId();
+      logLine(`[DIAGNOSIS] ✅ Authentication successful. User ID: ${userId || 'unknown'}`);
+    } catch (error: any) {
+      logLine(`[DIAGNOSIS] ❌ Authentication failed: ${error.message}`);
+      vscode.window.showErrorMessage('Authentication failed. Check your Personal Access Token.');
+      return;
+    }
+
+    // Test simple work item query
+    logLine('[DIAGNOSIS] Testing simple work item query...');
+    try {
+      const simpleQuery =
+        'SELECT [System.Id], [System.Title] FROM WorkItems ORDER BY [System.Id] DESC';
+      const simpleResults = await state.client.runWIQL(simpleQuery);
+      logLine(`[DIAGNOSIS] ✅ Simple query returned ${simpleResults.length} work items`);
+
+      if (simpleResults.length === 0) {
+        logLine('[DIAGNOSIS] ⚠️  Project has no work items at all');
+        vscode.window.showWarningMessage(
+          'This project appears to have no work items. Try creating a work item first.'
+        );
+        return;
+      } else {
+        const sample = simpleResults[0];
+        logLine(
+          `[DIAGNOSIS]     Sample: #${sample.id} - ${sample.fields?.['System.Title'] || 'No title'}`
+        );
+      }
+    } catch (error: any) {
+      logLine(`[DIAGNOSIS] ❌ Simple query failed: ${error.message}`);
+      vscode.window.showErrorMessage('Failed to query work items. Check your PAT permissions.');
+      return;
+    }
+
+    // Test each of the main queries used by the extension
+    const testQueries = [
+      { name: 'My Activity', query: 'My Activity' },
+      { name: 'All Active', query: 'All Active' },
+      { name: 'Assigned to me', query: 'Assigned to me' },
+    ];
+
+    for (const test of testQueries) {
+      logLine(`[DIAGNOSIS] Testing "${test.name}" query...`);
+      try {
+        const results = await state.client.getWorkItems(test.query);
+        logLine(`[DIAGNOSIS] ✅ "${test.name}" returned ${results.length} work items`);
+
+        if (results.length > 0) {
+          const sample = results[0];
+          logLine(
+            `[DIAGNOSIS]     Sample: #${sample.id} - ${sample.fields?.['System.Title'] || 'No title'}`
+          );
+        }
+      } catch (error: any) {
+        logLine(`[DIAGNOSIS] ❌ "${test.name}" failed: ${error.message}`);
+      }
+    }
+
+    // Test work item types
+    logLine('[DIAGNOSIS] Testing work item types...');
+    try {
+      const workItemTypes = await state.client.getWorkItemTypes();
+      logLine(`[DIAGNOSIS] ✅ Found ${workItemTypes.length} work item types:`);
+      workItemTypes.slice(0, 5).forEach((type) => {
+        logLine(`[DIAGNOSIS]     - ${type.name || type}`);
+      });
+    } catch (error: any) {
+      logLine(`[DIAGNOSIS] ❌ Failed to get work item types: ${error.message}`);
+    }
+
+    // Test current provider state
+    if (provider) {
+      const cachedItems = provider.getWorkItems();
+      logLine(`[DIAGNOSIS] ✅ Provider has ${cachedItems.length} cached work items`);
+
+      if (cachedItems.length === 0) {
+        logLine('[DIAGNOSIS] ⚠️  Provider cache is empty - this is likely the issue');
+        logLine('[DIAGNOSIS] Triggering manual refresh...');
+
+        const defaultQuery = getDefaultQuery(getConfig());
+        await provider.refresh(defaultQuery);
+
+        // Wait a moment for the refresh to complete
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        const refreshedItems = provider.getWorkItems();
+        logLine(`[DIAGNOSIS] After refresh: ${refreshedItems.length} work items`);
+
+        if (refreshedItems.length > 0) {
+          logLine('[DIAGNOSIS] ✅ Refresh successful! Work items should now appear in the UI.');
+          vscode.window.showInformationMessage(
+            'Diagnostic completed successfully. Work items should now be visible.'
+          );
+        } else {
+          logLine(
+            '[DIAGNOSIS] ❌ Refresh returned no items. This may be normal if you have no work items matching the default query.'
+          );
+          vscode.window.showWarningMessage(
+            'No work items match the current query. Try changing the query or creating work items.'
+          );
+        }
+      } else {
+        logLine('[DIAGNOSIS] ✅ Provider cache has items - they should be visible in the UI');
+        vscode.window.showInformationMessage(
+          'Diagnostic completed. Work items are cached and should be visible.'
+        );
+      }
+    } else {
+      logLine('[DIAGNOSIS] ❌ No provider available');
+      vscode.window.showErrorMessage('No work items provider available. Try reloading the window.');
+    }
+
+    logLine('[DIAGNOSIS] Diagnostic completed. Check the log above for details.');
+  } catch (error: any) {
+    logLine(`[DIAGNOSIS] ❌ Diagnostic failed: ${error.message}`);
+    vscode.window.showErrorMessage(`Diagnostic failed: ${error.message}`);
+  }
 }

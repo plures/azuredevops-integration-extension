@@ -40,6 +40,34 @@
   export let connections = [];
   export let activeConnectionId = undefined;
 
+  // Multi-select mode
+  let multiSelectMode = false;
+
+  function toggleItemSelection(id) {
+    if (selectedItems.has(id)) {
+      selectedItems.delete(id);
+    } else {
+      selectedItems.add(id);
+    }
+    selectedItems = new Set(selectedItems); // Trigger reactivity
+    dispatch('selectionChanged', { selectedIds: Array.from(selectedItems) });
+  }
+
+  function clearSelection() {
+    selectedItems.clear();
+    selectedItems = new Set(); // Trigger reactivity
+    dispatch('selectionChanged', { selectedIds: [] });
+  }
+
+  function selectAll() {
+    items.forEach((item) => {
+      const id = Number(item.id || item.fields?.['System.Id']);
+      if (id) selectedItems.add(id);
+    });
+    selectedItems = new Set(selectedItems); // Trigger reactivity
+    dispatch('selectionChanged', { selectedIds: Array.from(selectedItems) });
+  }
+
   function onRefresh() {
     dispatch('refresh');
   }
@@ -277,20 +305,14 @@
   }
 
   function toggleSelection() {
-    if (selectedItems.has(focusedIndex)) {
-      selectedItems.delete(focusedIndex);
-    } else {
-      selectedItems.add(focusedIndex);
+    // Get ID of focused item
+    if (focusedIndex >= 0 && focusedIndex < items.length) {
+      const item = items[focusedIndex];
+      const id = Number(item.id || item.fields?.['System.Id']);
+      if (id) {
+        toggleItemSelection(id);
+      }
     }
-    selectedItems = selectedItems; // Trigger reactivity
-  }
-
-  function selectAll() {
-    selectedItems = new Set(Array.from({ length: items.length }, (_, i) => i));
-  }
-
-  function clearSelection() {
-    selectedItems = new Set();
   }
 
   function openFocusedItem() {
@@ -512,6 +534,28 @@
     </div>
   </div>
 
+  <!-- Bulk Actions Toolbar (shown when items selected) -->
+  {#if selectedItems.size > 0}
+    <div class="bulk-actions-toolbar" role="toolbar" aria-label="Bulk actions">
+      <span class="selected-count">{selectedItems.size} selected</span>
+      <button class="bulk-btn" on:click={() => dispatch('bulkAssign')} title="Bulk Assign">
+        <span class="codicon codicon-person-add"></span> Assign
+      </button>
+      <button class="bulk-btn" on:click={() => dispatch('bulkMove')} title="Bulk Move">
+        <span class="codicon codicon-arrow-right"></span> Move
+      </button>
+      <button class="bulk-btn" on:click={() => dispatch('bulkAddTags')} title="Bulk Add Tags">
+        <span class="codicon codicon-tag"></span> Tags
+      </button>
+      <button class="bulk-btn danger" on:click={() => dispatch('bulkDelete')} title="Bulk Delete">
+        <span class="codicon codicon-trash"></span> Delete
+      </button>
+      <button class="bulk-btn secondary" on:click={clearSelection} title="Clear Selection (Esc)">
+        <span class="codicon codicon-close"></span> Clear
+      </button>
+    </div>
+  {/if}
+
   <!-- Main Controls Row -->
   <div class="pane-header" role="toolbar" aria-label="Work Items actions">
     <span style="font-weight:600;">Work Items</span>
@@ -589,7 +633,10 @@
     aria-label="Work items list"
   >
     {#if errorMsg}
-      <div class="error-banner" role="alert">{errorMsg}</div>
+      <div class="error-banner" role="alert">
+        <div style="font-weight: 600; margin-bottom: 4px;">⚠️ Error Loading Work Items</div>
+        <div>{errorMsg}</div>
+      </div>
     {/if}
     {#if loading}
       <div class="loading">
@@ -616,7 +663,9 @@
                   <div
                     class="work-item-card kanban-card state-{normalizeState(
                       it.fields?.['System.State']
-                    )} {timerActive && activeId === Number(it.id) ? 'has-active-timer' : ''}"
+                    )} {timerActive && activeId === Number(it.id)
+                      ? 'has-active-timer'
+                      : ''} {selectedItems.has(Number(it.id)) ? 'selected' : ''}"
                     tabindex="0"
                     draggable="true"
                     on:dragstart={(e) => handleDragStart(e, it)}
@@ -647,6 +696,13 @@
                     aria-label={`Work item #${it.id}: ${it.fields?.['System.Title']} - use action buttons to interact`}
                   >
                     <div class="work-item-header">
+                      <input
+                        type="checkbox"
+                        class="work-item-checkbox"
+                        checked={selectedItems.has(Number(it.id))}
+                        on:click|stopPropagation={() => toggleItemSelection(Number(it.id))}
+                        aria-label="Select work item #{it.id}"
+                      />
                       <span class="work-item-type-icon"
                         >{getWorkItemTypeIcon(it.fields?.['System.WorkItemType'])}</span
                       >
@@ -841,16 +897,21 @@
           <div
             class="work-item-card {timerActive && activeId === Number(it.id)
               ? 'has-active-timer'
-              : ''} {focusedIndex === index ? 'focused' : ''} {selectedItems.has(index)
+              : ''} {focusedIndex === index ? 'focused' : ''} {selectedItems.has(Number(it.id))
               ? 'selected'
               : ''}"
             tabindex="0"
             role="button"
             data-index={index}
             aria-label={`Work item #${it.id}: ${it.fields?.['System.Title']} - use action buttons to interact`}
-            on:click={() => {
+            on:click={(e) => {
               focusedIndex = index;
               updateFocus();
+              // Ctrl/Cmd+Click for multi-select
+              if (e.ctrlKey || e.metaKey) {
+                e.stopPropagation();
+                toggleItemSelection(Number(it.id));
+              }
             }}
             on:keydown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
@@ -866,6 +927,13 @@
             }}
           >
             <div class="work-item-header">
+              <input
+                type="checkbox"
+                class="work-item-checkbox"
+                checked={selectedItems.has(Number(it.id))}
+                on:click|stopPropagation={() => toggleItemSelection(Number(it.id))}
+                aria-label="Select work item #{it.id}"
+              />
               <span class="work-item-type-icon"
                 >{getWorkItemTypeIcon(it.fields?.['System.WorkItemType'])}</span
               >
@@ -1403,12 +1471,106 @@
 
   .error-banner {
     margin: 8px;
-    padding: 8px;
-    border: 1px solid var(--ado-red);
-    background: rgba(209, 52, 56, 0.1);
+    padding: 12px;
+    border: 2px solid var(--ado-red);
+    border-radius: 4px;
+    background: rgba(209, 52, 56, 0.15);
     color: var(--ado-red);
+    font-weight: 500;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-width: 100%;
     border-radius: 4px;
     font-size: 12px;
+  }
+
+  /* Bulk Actions Toolbar */
+  .bulk-actions-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--ado-blue-dark);
+    border-bottom: 2px solid var(--ado-blue);
+    animation: slideDown 0.2s ease-out;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .selected-count {
+    font-weight: 600;
+    color: white;
+    margin-right: 8px;
+  }
+
+  .bulk-btn {
+    padding: 4px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+  }
+
+  .bulk-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+
+  .bulk-btn.danger {
+    background: rgba(209, 52, 56, 0.2);
+    border-color: var(--ado-red);
+  }
+
+  .bulk-btn.danger:hover {
+    background: rgba(209, 52, 56, 0.4);
+  }
+
+  .bulk-btn.secondary {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .selected-badge {
+    background: var(--ado-orange);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+
+  /* Work Item Checkbox */
+  .work-item-checkbox {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    cursor: pointer;
+    accent-color: var(--ado-blue);
+  }
+
+  .work-item-card.selected {
+    background: rgba(0, 120, 212, 0.1);
+    border-left: 3px solid var(--ado-blue);
+  }
+
+  .kanban-card.selected {
+    box-shadow: 0 0 0 2px var(--ado-blue);
   }
 
   /* Work Item Cards */
