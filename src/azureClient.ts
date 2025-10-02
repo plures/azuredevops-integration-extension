@@ -1,6 +1,8 @@
 import axios, { AxiosInstance } from 'axios';
 import { WorkItem } from './types.js';
 import { RateLimiter } from './rateLimiter.js';
+import { workItemCache, WorkItemCache } from './cache.js';
+import { measureAsync } from './performance.js';
 
 type AuthType = 'pat' | 'bearer';
 
@@ -442,113 +444,168 @@ export class AzureDevOpsIntClient {
   }
 
   async getWorkItems(query: string): Promise<WorkItem[]> {
-    try {
-      if (query === 'Following') {
-        return await this._getFollowedWorkItems();
-      }
-      if (query === 'Mentioned') {
-        return await this._getMentionedWorkItems();
-      }
-      let wiql = this.buildWIQL(query);
-      // If querying Current Sprint, prefer resolving the explicit current iteration path for configured team
-      if (query === 'Current Sprint') {
-        try {
-          const cur = await this.getCurrentIteration();
-          const iterPath = cur?.path;
-          if (iterPath && typeof iterPath === 'string') {
-            const safePath = this._escapeWIQL(iterPath);
-            wiql = `SELECT [System.Id], [System.Title], [System.State], [System.WorkItemType], [System.AssignedTo], [System.CreatedDate], [System.ChangedDate], [System.IterationPath], [System.Tags], [Microsoft.VSTS.Common.Priority] FROM WorkItems WHERE [System.IterationPath] UNDER '${safePath}' AND [System.State] <> 'Closed' AND [System.State] <> 'Removed' ORDER BY [Microsoft.VSTS.Common.Priority] ASC, [System.Id] ASC`;
-          }
-        } catch (e) {
-          // Fallback to @CurrentIteration-based WIQL already produced
-          console.warn(
-            '[azureDevOpsInt][GETWI] getCurrentIteration failed, using @CurrentIteration',
-            e
-          );
-        }
-      }
-      console.log('[azureDevOpsInt][GETWI] Fetching work items with query:', wiql);
-      console.log('[azureDevOpsInt][GETWI] API Base URL:', this.axios.defaults.baseURL);
-
-      // First, try the WIQL query
-      let wiqlResp;
+    return await measureAsync('getWorkItems', async () => {
       try {
-        wiqlResp = await this.axios.post('/wit/wiql?api-version=7.0', { query: wiql });
-      } catch (err: any) {
-        if (this._isMissingStateCategoryError(err)) {
-          console.warn(
-            '[azureDevOpsInt][GETWI] StateCategory unsupported in WIQL. Retrying with legacy state filters.'
-          );
-          // Update capability cache so future queries avoid the failing path for this client lifetime
-          this.preferStateCategory = false;
-          // Rebuild the WIQL with legacy state filters and retry
-          const wiqlLegacy = this._buildWIQL(query, false);
-          console.log('[azureDevOpsInt][GETWI] Fallback WIQL:', wiqlLegacy);
-          wiqlResp = await this.axios.post('/wit/wiql?api-version=7.0', { query: wiqlLegacy });
-          // Also update wiql for subsequent logs/context
-          wiql = wiqlLegacy;
-        } else {
-          throw err;
-        }
-      }
-      console.log('[azureDevOpsInt][GETWI] WIQL response status:', wiqlResp.status);
-
-      const refs = wiqlResp.data?.workItems || [];
-      console.log(`[azureDevOpsInt][GETWI] WIQL reference count: ${refs.length}`);
-
-      if (refs.length === 0) {
-        console.log('[azureDevOpsInt][GETWI] No work items matched query. Trying simpler query...');
-
-        // Try a simpler query to test authentication
-        const simpleWiql =
-          'SELECT [System.Id], [System.Title] FROM WorkItems ORDER BY [System.Id] DESC';
-        const simpleResp = await this.axios.post('/wit/wiql?api-version=7.0', {
-          query: simpleWiql,
-        });
-        const simpleRefs = simpleResp.data?.workItems || [];
-        console.log(
-          `[azureDevOpsInt][GETWI] Simple query returned ${simpleRefs.length} work items`
+        // Check cache first
+        const cacheKey = WorkItemCache.generateWorkItemsKey(
+          `${this.organization}-${this.project}`,
+          query,
+          { team: this.team }
         );
 
-        if (simpleRefs.length === 0) {
-          console.log('[azureDevOpsInt][GETWI] No work items in project at all.');
-        } else {
-          console.log(
-            '[azureDevOpsInt][GETWI] Work items exist, but original query has no matches.'
-          );
+        const cached = workItemCache.get(cacheKey);
+        if (cached) {
+          console.log('[azureDevOpsInt][GETWI] Cache hit for query:', query);
+          return cached;
         }
 
-        return [];
-      }
+        if (query === 'Following') {
+          const result = await this._getFollowedWorkItems();
+          workItemCache.setWorkItems(cacheKey, result);
+          return result;
+        }
+        if (query === 'Mentioned') {
+          const result = await this._getMentionedWorkItems();
+          workItemCache.setWorkItems(cacheKey, result);
+          return result;
+        }
+        let wiql = this.buildWIQL(query);
+        // If querying Current Sprint, prefer resolving the explicit current iteration path for configured team
+        if (query === 'Current Sprint') {
+          try {
+            const cur = await this.getCurrentIteration();
+            const iterPath = cur?.path;
+            if (iterPath && typeof iterPath === 'string') {
+              const safePath = this._escapeWIQL(iterPath);
+              wiql = `SELECT [System.Id], [System.Title], [System.State], [System.WorkItemType], [System.AssignedTo], [System.CreatedDate], [System.ChangedDate], [System.IterationPath], [System.Tags], [Microsoft.VSTS.Common.Priority] FROM WorkItems WHERE [System.IterationPath] UNDER '${safePath}' AND [System.State] <> 'Closed' AND [System.State] <> 'Removed' ORDER BY [Microsoft.VSTS.Common.Priority] ASC, [System.Id] ASC`;
+            }
+          } catch (e) {
+            // Fallback to @CurrentIteration-based WIQL already produced
+            console.warn(
+              '[azureDevOpsInt][GETWI] getCurrentIteration failed, using @CurrentIteration',
+              e
+            );
+          }
+        }
+        console.log('[azureDevOpsInt][GETWI] Fetching work items with query:', wiql);
+        console.log('[azureDevOpsInt][GETWI] API Base URL:', this.axios.defaults.baseURL);
 
-      const ids = refs.map((w: any) => w.id).join(',');
-      console.log('[azureDevOpsInt][GETWI] Expanding IDs:', ids);
-
-      const itemsResp = await this.axios.get(
-        `/wit/workitems?ids=${ids}&$expand=all&api-version=7.0`
-      );
-      const rawItems: any[] = itemsResp.data?.value || [];
-      console.log('[azureDevOpsInt][GETWI] Raw expanded item count:', rawItems.length);
-
-      const items: WorkItem[] = this._mapRawWorkItems(rawItems);
-
-      console.log(`[azureDevOpsInt][GETWI] Returning ${items.length} mapped work items.`);
-      return items;
-    } catch (err: any) {
-      console.error('[azureDevOpsInt][GETWI][ERROR]', err?.message || err);
-      if (err?.response) {
-        console.error('[azureDevOpsInt][GETWI][ERROR] status:', err.response.status);
+        // First, try the WIQL query
+        let wiqlResp;
         try {
-          console.error(
-            '[azureDevOpsInt][GETWI][ERROR] data snippet:',
-            JSON.stringify(err.response.data).slice(0, 600)
-          );
-        } catch {
-          /* ignore */
+          wiqlResp = await this.axios.post('/wit/wiql?api-version=7.0', { query: wiql });
+        } catch (err: any) {
+          if (this._isMissingStateCategoryError(err)) {
+            console.warn(
+              '[azureDevOpsInt][GETWI] StateCategory unsupported in WIQL. Retrying with legacy state filters.'
+            );
+            // Update capability cache so future queries avoid the failing path for this client lifetime
+            this.preferStateCategory = false;
+            // Rebuild the WIQL with legacy state filters and retry
+            const wiqlLegacy = this._buildWIQL(query, false);
+            console.log('[azureDevOpsInt][GETWI] Fallback WIQL:', wiqlLegacy);
+            wiqlResp = await this.axios.post('/wit/wiql?api-version=7.0', { query: wiqlLegacy });
+            // Also update wiql for subsequent logs/context
+            wiql = wiqlLegacy;
+          } else {
+            throw err;
+          }
         }
+        console.log('[azureDevOpsInt][GETWI] WIQL response status:', wiqlResp.status);
+
+        const refs = wiqlResp.data?.workItems || [];
+        console.log(`[azureDevOpsInt][GETWI] WIQL reference count: ${refs.length}`);
+
+        if (refs.length === 0) {
+          console.log(
+            '[azureDevOpsInt][GETWI] No work items matched query. Trying simpler query...'
+          );
+
+          // Try a simpler query to test authentication
+          const simpleWiql =
+            'SELECT [System.Id], [System.Title] FROM WorkItems ORDER BY [System.Id] DESC';
+          const simpleResp = await this.axios.post('/wit/wiql?api-version=7.0', {
+            query: simpleWiql,
+          });
+          const simpleRefs = simpleResp.data?.workItems || [];
+          console.log(
+            `[azureDevOpsInt][GETWI] Simple query returned ${simpleRefs.length} work items`
+          );
+
+          if (simpleRefs.length === 0) {
+            console.log('[azureDevOpsInt][GETWI] No work items in project at all.');
+          } else {
+            console.log(
+              '[azureDevOpsInt][GETWI] Work items exist, but original query has no matches.'
+            );
+          }
+
+          return [];
+        }
+
+        const ids = refs.map((w: any) => w.id).join(',');
+        console.log('[azureDevOpsInt][GETWI] Expanding IDs:', ids);
+
+        const itemsResp = await this.axios.get(
+          `/wit/workitems?ids=${ids}&$expand=all&api-version=7.0`
+        );
+        const rawItems: any[] = itemsResp.data?.value || [];
+        console.log('[azureDevOpsInt][GETWI] Raw expanded item count:', rawItems.length);
+
+        const items: WorkItem[] = this._mapRawWorkItems(rawItems);
+
+        console.log(`[azureDevOpsInt][GETWI] Returning ${items.length} mapped work items.`);
+
+        // Cache the result
+        workItemCache.setWorkItems(cacheKey, items);
+        return items;
+      } catch (err: any) {
+        console.error('[azureDevOpsInt][GETWI][ERROR]', err?.message || err);
+
+        // Build detailed error message for users
+        let errorMessage = 'Failed to fetch work items';
+        const status = err?.response?.status;
+
+        if (status === 401 || status === 403) {
+          errorMessage =
+            `Authentication failed (${status}). Please check:\n` +
+            '• Your Personal Access Token (PAT) is valid and not expired\n' +
+            '• The PAT has "Work Items (Read)" permission\n' +
+            '• You have access to this project';
+        } else if (status === 404) {
+          errorMessage =
+            `Project not found (404). Please verify:\n` +
+            `• Organization: "${this.organization}"\n` +
+            `• Project: "${this.project}"\n` +
+            '• The project name matches exactly (case-sensitive)';
+        } else if (status >= 500) {
+          errorMessage = `Azure DevOps server error (${status}). The service may be temporarily unavailable.`;
+        } else if (err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED') {
+          errorMessage =
+            `Network error: Cannot reach Azure DevOps.\n` +
+            '• Check your internet connection\n' +
+            '• Verify your base URL is correct\n' +
+            `• Current URL: ${this.axios.defaults.baseURL}`;
+        } else if (err?.message) {
+          errorMessage = `${errorMessage}: ${err.message}`;
+        }
+
+        if (err?.response) {
+          console.error('[azureDevOpsInt][GETWI][ERROR] HTTP status:', status);
+          try {
+            console.error(
+              '[azureDevOpsInt][GETWI][ERROR] Response data:',
+              JSON.stringify(err.response.data).slice(0, 600)
+            );
+          } catch {
+            /* ignore */
+          }
+        }
+
+        // Re-throw with detailed message instead of silently returning []
+        throw new Error(errorMessage);
       }
-      return [];
-    }
+    });
   }
 
   private _isMissingStateCategoryError(err: any) {
@@ -698,16 +755,33 @@ export class AzureDevOpsIntClient {
   }
 
   async getCurrentIteration() {
-    try {
-      const url = this.buildTeamApiUrl(
-        '/work/teamsettings/iterations?$timeframe=current&api-version=7.0'
-      );
-      const resp = await this.axios.get(url);
-      return resp.data.value?.[0] || null;
-    } catch (err) {
-      console.error('Error fetching current iteration:', err);
-      return null;
-    }
+    return await measureAsync('getCurrentIteration', async () => {
+      try {
+        // Check cache first
+        const cacheKey = WorkItemCache.generateMetadataKey(
+          `${this.organization}-${this.project}`,
+          `currentIteration-${this.team || 'default'}`
+        );
+
+        const cached = workItemCache.get(cacheKey);
+        if (cached) {
+          return cached;
+        }
+
+        const url = this.buildTeamApiUrl(
+          '/work/teamsettings/iterations?$timeframe=current&api-version=7.0'
+        );
+        const resp = await this.axios.get(url);
+        const result = resp.data.value?.[0] || null;
+
+        // Cache the result
+        workItemCache.setMetadata(cacheKey, result);
+        return result;
+      } catch (err) {
+        console.error('Error fetching current iteration:', err);
+        return null;
+      }
+    });
   }
 
   private _escapeWIQL(value: string) {
@@ -716,25 +790,62 @@ export class AzureDevOpsIntClient {
 
   // ---------------- Git & PR Helpers ----------------
   async getTeams() {
-    try {
-      const url = `https://dev.azure.com/${this.encodedOrganization}/_apis/projects/${this.encodedProject}/teams?api-version=7.0`;
-      const resp = await this.axios.get(url);
-      return resp.data?.value || [];
-    } catch (e) {
-      console.error('Error fetching teams', e);
-      return [];
-    }
+    return await measureAsync('getTeams', async () => {
+      try {
+        // Check cache first
+        const cacheKey = WorkItemCache.generateMetadataKey(
+          `${this.organization}-${this.project}`,
+          'teams'
+        );
+
+        const cached = workItemCache.get(cacheKey);
+        if (cached) {
+          return cached;
+        }
+
+        const url = `https://dev.azure.com/${this.encodedOrganization}/_apis/projects/${this.encodedProject}/teams?api-version=7.0`;
+        const resp = await this.axios.get(url);
+        const result = resp.data?.value || [];
+
+        // Cache the result
+        workItemCache.setMetadata(cacheKey, result);
+        return result;
+      } catch (e) {
+        console.error('Error fetching teams', e);
+        return [];
+      }
+    });
   }
   async getRepositories(force = false) {
-    if (this._repoCache && !force) return this._repoCache;
-    try {
-      const resp = await this.axios.get(`/git/repositories`);
-      this._repoCache = resp.data.value || [];
-      return this._repoCache;
-    } catch (e) {
-      console.error('Error fetching repositories', e);
-      return [];
-    }
+    return await measureAsync('getRepositories', async () => {
+      if (this._repoCache && !force) return this._repoCache;
+
+      // Check cache first
+      const cacheKey = WorkItemCache.generateMetadataKey(
+        `${this.organization}-${this.project}`,
+        'repositories'
+      );
+
+      if (!force) {
+        const cached = workItemCache.get(cacheKey);
+        if (cached) {
+          this._repoCache = cached;
+          return cached;
+        }
+      }
+
+      try {
+        const resp = await this.axios.get(`/git/repositories`);
+        this._repoCache = resp.data.value || [];
+
+        // Cache the result
+        workItemCache.setMetadata(cacheKey, this._repoCache);
+        return this._repoCache;
+      } catch (e) {
+        console.error('Error fetching repositories', e);
+        return [];
+      }
+    });
   }
 
   async getDefaultRepository() {
