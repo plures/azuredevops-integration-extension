@@ -439,18 +439,6 @@ function ensureApp() {
       // Update query description
       const queryOption = queryOptions.find((option) => option.value === query);
       queryDescription = queryOption?.description || '';
-      syncApp();
-      // Send query change to extension
-      postMessage({ type: 'setQuery', query });
-    }
-  });
-  (app as any).$on('queryChanged', (ev: any) => {
-    const { query } = ev.detail || {};
-    if (query && query !== selectedQuery) {
-      selectedQuery = query;
-      // Update query description
-      const queryOption = queryOptions.find((option) => option.value === query);
-      queryDescription = queryOption?.description || '';
 
       // Save state for current connection
       if (activeConnectionId) {
@@ -1145,7 +1133,7 @@ function onMessage(message: any) {
       recomputeItemsForView();
       persistViewState();
       syncApp();
-      addToast({ message: 'Filters cleared', type: 'info', timeout: 2000 });
+		addToast('Filters cleared', { type: 'info', timeout: 2000 });
       break;
     }
     case 'focusSearch': {
