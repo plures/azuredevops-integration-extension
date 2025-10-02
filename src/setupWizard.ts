@@ -25,11 +25,14 @@ export interface SetupWizardStep {
 export interface SetupWizardData {
   workItemUrl?: string;
   parsedUrl?: ReturnType<typeof parseAzureDevOpsUrl>;
+  authMethod?: 'pat' | 'entra'; // Authentication method selection
   pat?: string;
   connectionTested?: boolean;
   team?: string;
   label?: string;
   existingConnectionId?: string;
+  clientId?: string; // Entra ID client ID
+  tenantId?: string; // Entra ID tenant ID
 }
 
 export class SetupWizard {
@@ -45,24 +48,30 @@ export class SetupWizard {
     },
     {
       step: 2,
-      title: 'Personal Access Token',
-      description: 'Create and enter your Personal Access Token',
+      title: 'Authentication Method',
+      description: 'Choose between Personal Access Token or Microsoft Entra ID',
       completed: false,
     },
     {
       step: 3,
+      title: 'Authentication Setup',
+      description: 'Configure your chosen authentication method',
+      completed: false,
+    },
+    {
+      step: 4,
       title: 'Test Connection',
       description: 'Verify your connection works correctly',
       completed: false,
     },
     {
-      step: 4,
+      step: 5,
       title: 'Optional Settings',
       description: 'Configure team and connection label',
       completed: false,
     },
     {
-      step: 5,
+      step: 6,
       title: 'Complete Setup',
       description: 'Save your connection configuration',
       completed: false,
@@ -147,13 +156,15 @@ export class SetupWizard {
       case 1:
         return await this.step1_WorkItemUrl();
       case 2:
-        return await this.step2_PersonalAccessToken();
+        return await this.step2_AuthMethodSelection();
       case 3:
-        return await this.step3_TestConnection();
+        return await this.step3_AuthenticationSetup();
       case 4:
-        return await this.step4_OptionalSettings();
+        return await this.step4_TestConnection();
       case 5:
-        return await this.step5_CompleteSetup();
+        return await this.step5_OptionalSettings();
+      case 6:
+        return await this.step6_CompleteSetup();
       default:
         return false;
     }
@@ -334,7 +345,198 @@ export class SetupWizard {
   }
 
   /**
-   * Step 2: Get Personal Access Token
+   * Step 2: Select authentication method
+   */
+  private async step2_AuthMethodSelection(): Promise<boolean> {
+    const step = this.steps[1];
+
+    const authMethodChoice = await vscode.window.showQuickPick(
+      [
+        {
+          label: 'Microsoft Entra ID (Recommended)',
+          description: 'Sign in with your Microsoft account - no token creation needed',
+          detail:
+            'Uses OAuth 2.0 authentication. Tokens refresh automatically. Recommended for enterprise environments.',
+          value: 'entra',
+        },
+        {
+          label: 'Personal Access Token (PAT)',
+          description: 'Traditional token-based authentication',
+          detail:
+            'Requires manual PAT creation and periodic rotation. Works for all Azure DevOps configurations.',
+          value: 'pat',
+        },
+      ],
+      {
+        placeHolder: `Step ${this.currentStep}: ${step.title}`,
+        ignoreFocusOut: true,
+      }
+    );
+
+    if (!authMethodChoice) return false;
+
+    this.data.authMethod = authMethodChoice.value as 'pat' | 'entra';
+    step.completed = true;
+    return true;
+  }
+
+  /**
+   * Step 3: Setup authentication based on selected method
+   */
+  private async step3_AuthenticationSetup(): Promise<boolean> {
+    if (this.data.authMethod === 'entra') {
+      return await this.step3_EntraIDSetup();
+    } else {
+      return await this.step3_PATSetup();
+    }
+  }
+
+  /**
+   * Step 3a: Entra ID authentication setup
+   */
+  private async step3_EntraIDSetup(): Promise<boolean> {
+    const step = this.steps[2];
+
+    if (!this.data.parsedUrl) return false;
+
+    // Get Entra ID configuration from settings
+    const config = vscode.workspace.getConfiguration('azureDevOpsIntegration');
+    const defaultClientId =
+      config.get<string>('entra.defaultClientId') || '872cd9fa-d31f-45e0-9eab-6e460a02d1f1';
+    const defaultTenantId = config.get<string>('entra.defaultTenantId') || 'organizations';
+
+    // Show information about Entra ID auth
+    const choice = await vscode.window.showInformationMessage(
+      `Step ${this.currentStep}: ${step.title}\n\n` +
+        `Microsoft Entra ID authentication will:\n` +
+        `• Open a browser window for you to sign in\n` +
+        `• Display a device code to enter\n` +
+        `• Automatically handle token refresh\n` +
+        `• Work with your organization's security policies\n\n` +
+        `Using default settings:\n` +
+        `• Client ID: Visual Studio IDE (Microsoft)\n` +
+        `• Tenant: ${defaultTenantId}\n\n` +
+        `You can customize these settings later if needed.`,
+      'Continue',
+      'Use Custom Configuration',
+      'Cancel'
+    );
+
+    if (choice === 'Cancel') return false;
+
+    if (choice === 'Use Custom Configuration') {
+      // Allow user to customize client ID and tenant ID
+      const customClientId = await vscode.window.showInputBox({
+        prompt: 'Enter Azure AD Application (Client) ID',
+        value: defaultClientId,
+        placeHolder: '872cd9fa-d31f-45e0-9eab-6e460a02d1f1',
+        validateInput: (value) => {
+          if (!value || !value.trim()) {
+            return 'Client ID is required';
+          }
+          // Basic UUID validation
+          if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+            return 'Client ID must be a valid GUID';
+          }
+          return null;
+        },
+        ignoreFocusOut: true,
+      });
+
+      if (!customClientId) return false;
+
+      const customTenantId = await vscode.window.showInputBox({
+        prompt: 'Enter Azure AD Tenant ID or domain',
+        value: defaultTenantId,
+        placeHolder: 'organizations, common, or your-tenant-id',
+        validateInput: (value) => {
+          if (!value || !value.trim()) {
+            return 'Tenant ID is required';
+          }
+          return null;
+        },
+        ignoreFocusOut: true,
+      });
+
+      if (!customTenantId) return false;
+
+      this.data.clientId = customClientId;
+      this.data.tenantId = customTenantId;
+    } else {
+      this.data.clientId = defaultClientId;
+      this.data.tenantId = defaultTenantId;
+    }
+
+    // Note: We won't actually authenticate here - that will happen in the test connection step
+    // or after saving the connection. This just configures the Entra ID settings.
+    step.completed = true;
+    return true;
+  }
+
+  /**
+   * Step 3b: PAT authentication setup
+   */
+  private async step3_PATSetup(): Promise<boolean> {
+    const step = this.steps[2];
+
+    if (!this.data.parsedUrl) return false;
+
+    // Show PAT creation guide
+    const patCreationUrl = generatePatCreationUrl(
+      this.data.parsedUrl.organization,
+      this.data.parsedUrl.baseUrl
+    );
+
+    const guideChoice = await vscode.window.showInformationMessage(
+      `Step ${this.currentStep}: ${step.title}\n\n` +
+        `You need to create a Personal Access Token (PAT) with the following scopes:\n` +
+        `• Work Items (Read & Write)\n` +
+        `• User Profile (Read)\n` +
+        `• Team (Read)\n` +
+        `• Code (Read & Write) - optional, for PRs\n` +
+        `• Build (Read) - optional, for build status\n\n` +
+        `Click "Open PAT Creation" to open the token creation page.`,
+      'Open PAT Creation',
+      'I Have a Token',
+      'Cancel'
+    );
+
+    if (guideChoice === 'Cancel') return false;
+
+    if (guideChoice === 'Open PAT Creation') {
+      await vscode.env.openExternal(vscode.Uri.parse(patCreationUrl));
+
+      // Wait a moment for user to create the token
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    // Get PAT from user
+    const pat = await vscode.window.showInputBox({
+      prompt: 'Enter your Personal Access Token',
+      password: true,
+      placeHolder: 'Paste your PAT here...',
+      validateInput: (value) => {
+        if (!value || !value.trim()) {
+          return 'Personal Access Token is required';
+        }
+        if (value.length < 10) {
+          return 'Personal Access Token appears to be too short';
+        }
+        return null;
+      },
+      ignoreFocusOut: true,
+    });
+
+    if (!pat) return false;
+
+    this.data.pat = pat;
+    step.completed = true;
+    return true;
+  }
+
+  /**
+   * Step 2 (old): Get Personal Access Token
+   * @deprecated - Now handled by step3_PATSetup
    */
   private async step2_PersonalAccessToken(): Promise<boolean> {
     const step = this.steps[1];
@@ -395,10 +597,10 @@ export class SetupWizard {
   }
 
   /**
-   * Step 3: Test connection
+   * Step 4: Test connection
    */
-  private async step3_TestConnection(): Promise<boolean> {
-    const step = this.steps[2];
+  private async step4_TestConnection(): Promise<boolean> {
+    const step = this.steps[3];
 
     if (!this.data.parsedUrl || !this.data.pat) return false;
 
@@ -428,10 +630,10 @@ export class SetupWizard {
   }
 
   /**
-   * Step 4: Optional settings
+   * Step 5: Optional settings
    */
-  private async step4_OptionalSettings(): Promise<boolean> {
-    const step = this.steps[3];
+  private async step5_OptionalSettings(): Promise<boolean> {
+    const step = this.steps[4];
 
     if (!this.data.parsedUrl || !this.data.pat) return false;
 
@@ -502,10 +704,10 @@ export class SetupWizard {
   }
 
   /**
-   * Step 5: Complete setup
+   * Step 6: Complete setup
    */
-  private async step5_CompleteSetup(): Promise<boolean> {
-    const step = this.steps[4];
+  private async step6_CompleteSetup(): Promise<boolean> {
+    const step = this.steps[5];
 
     if (!this.data.parsedUrl || !this.data.pat) return false;
 
@@ -528,7 +730,7 @@ export class SetupWizard {
 
     if (confirmChoice === 'Cancel') return false;
     if (confirmChoice === 'Go Back') {
-      return await this.step4_OptionalSettings();
+      return await this.step5_OptionalSettings();
     }
 
     step.completed = true;
@@ -539,27 +741,43 @@ export class SetupWizard {
    * Completes the setup by saving the connection
    */
   private async completeSetup(): Promise<void> {
-    if (!this.data.parsedUrl || !this.data.pat) {
+    if (!this.data.parsedUrl) {
       throw new Error('Setup data is incomplete');
     }
 
-    // Create connection object with PAT key
-    const connectionId = this.data.existingConnectionId || randomUUID();
-    const patKey = `azureDevOpsInt.pat.${connectionId}`;
-
-    // Save PAT with connection-specific key
-    await this.context.secrets.store(patKey, this.data.pat);
+    // Validate based on auth method
+    if (this.data.authMethod === 'pat' && !this.data.pat) {
+      throw new Error('PAT is required for PAT authentication');
+    }
 
     // Create connection object
-    const connection = {
+    const connectionId = this.data.existingConnectionId || randomUUID();
+
+    let connection: any = {
       id: connectionId,
       organization: this.data.parsedUrl.organization,
       project: this.data.parsedUrl.project,
       label: this.data.label,
       team: this.data.team,
-      patKey: patKey,
       baseUrl: this.data.parsedUrl.baseUrl,
+      authMethod: this.data.authMethod || 'pat',
     };
+
+    // Handle PAT authentication
+    if (this.data.authMethod === 'pat' || !this.data.authMethod) {
+      const patKey = `azureDevOpsInt.pat.${connectionId}`;
+      // Save PAT with connection-specific key
+      await this.context.secrets.store(patKey, this.data.pat!);
+      connection.patKey = patKey;
+    }
+
+    // Handle Entra ID authentication
+    if (this.data.authMethod === 'entra') {
+      connection.clientId = this.data.clientId;
+      connection.tenantId = this.data.tenantId;
+      // Note: Actual authentication will happen when the connection is activated
+      // via the signInWithEntra command or automatically when ensureActiveConnection is called
+    }
 
     // Save connection to configuration
     await this.saveConnectionToConfig(connection);
@@ -581,12 +799,18 @@ export class SetupWizard {
       await config.update('team', connection.team, vscode.ConfigurationTarget.Global);
     }
 
+    const authMethodName = this.data.authMethod === 'entra' ? 'Entra ID' : 'PAT';
     const action = this.data.existingConnectionId ? 'updated' : 'configured and saved';
+    const entraNote =
+      this.data.authMethod === 'entra'
+        ? '\n\nYou will be prompted to sign in with Microsoft Entra ID when you first access this connection.'
+        : '';
+
     vscode.window
       .showInformationMessage(
         `Setup completed successfully!\n\n` +
-          `Your Azure DevOps connection has been ${action}. ` +
-          `You can now use the extension to view and manage work items.`,
+          `Your Azure DevOps connection has been ${action} with ${authMethodName} authentication. ` +
+          `You can now use the extension to view and manage work items.${entraNote}`,
         'Open Work Items View'
       )
       .then((choice) => {
