@@ -208,6 +208,8 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ### Added
 
+- **Microsoft Entra reminders**: Work Items view now surfaces sign-in reminder cards with one-click reconnect or a 30-minute snooze when a connection loses access.
+
 - **🚀 Performance Optimization**: Intelligent caching system with 60-80% faster API responses
   - LRU + TTL caching with automatic memory management
   - Multi-level caching for work items, API responses, and metadata
@@ -246,6 +248,9 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   - Screen reader compatibility and voice control structure
 
 ### Changed
+
+- **Entra status bar cycling**: The Microsoft Entra status bar button now displays the remaining token lifetime and cycles through every connection that needs attention when clicked.
+- **Device code convenience**: Choosing “Open Browser” during Entra sign-in now copies the device code to your clipboard before launching the Microsoft sign-in page.
 
 - **Performance**: 60-80% faster API responses through intelligent caching
 - **Memory Usage**: Automatic memory management with intelligent cleanup

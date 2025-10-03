@@ -9,6 +9,17 @@
 import App from './App.svelte';
 import { addToast } from './toastStore.js';
 
+type AuthMethod = 'pat' | 'entra';
+
+type AuthReminder = {
+  connectionId: string;
+  label: string;
+  message: string;
+  detail?: string;
+  reason?: string;
+  authMethod?: AuthMethod;
+};
+
 declare global {
   interface Window {
     vscode?: any;
@@ -79,6 +90,9 @@ let summaryWorkItemId: number | null = null;
 let _summaryTargetTitle = '';
 let summaryBusyTimer: ReturnType<typeof setTimeout> | undefined;
 let summaryStatusTimer: ReturnType<typeof setTimeout> | undefined;
+
+const authReminderMap = new Map<string, AuthReminder>();
+let authReminders: AuthReminder[] = [];
 
 // Query options
 const queryOptions = [
@@ -248,6 +262,7 @@ function getAppProps() {
     connections,
     activeConnectionId,
     selectedItems: selectedWorkItemIds,
+    authReminders,
   };
 }
 
@@ -529,6 +544,19 @@ function ensureApp() {
   });
   (app as any).$on('stopAndApplySummary', () => {
     _attemptStopAndApply();
+  });
+  (app as any).$on('authReminderAction', (ev: any) => {
+    const connectionId =
+      typeof ev?.detail?.connectionId === 'string' ? ev.detail.connectionId.trim() : '';
+    const action = typeof ev?.detail?.action === 'string' ? ev.detail.action : '';
+    if (!connectionId || !action) return;
+    postMessage({ type: 'authReminderAction', connectionId, action });
+    if (action === 'dismiss' || action === 'signIn') {
+      if (authReminderMap.delete(connectionId)) {
+        authReminders = Array.from(authReminderMap.values());
+        syncApp();
+      }
+    }
   });
   return app;
 }
@@ -979,6 +1007,55 @@ function onMessage(message: any) {
       loading = false;
       errorMsg = String(message?.error || 'Failed to load work items.');
       syncApp();
+      break;
+    }
+    case 'authReminder': {
+      const connectionId =
+        typeof message?.connectionId === 'string' ? message.connectionId.trim() : '';
+      if (!connectionId) break;
+      const labelRaw = typeof message?.connectionLabel === 'string' ? message.connectionLabel : '';
+      const label =
+        labelRaw && labelRaw.trim().length > 0 ? labelRaw.trim() : 'Azure DevOps connection';
+      const reminderMessage =
+        typeof message?.message === 'string' && message.message.trim().length > 0
+          ? message.message.trim()
+          : `Microsoft Entra sign-in required for ${label}.`;
+      const detail =
+        typeof message?.detail === 'string' && message.detail.trim().length > 0
+          ? message.detail.trim()
+          : undefined;
+      const reason = typeof message?.reason === 'string' ? message.reason : undefined;
+      const authMethod: AuthMethod | undefined =
+        message?.authMethod === 'entra'
+          ? 'entra'
+          : message?.authMethod === 'pat'
+            ? 'pat'
+            : undefined;
+
+      const wasNew = !authReminderMap.has(connectionId);
+      authReminderMap.set(connectionId, {
+        connectionId,
+        label,
+        message: reminderMessage,
+        detail,
+        reason,
+        authMethod,
+      });
+      authReminders = Array.from(authReminderMap.values());
+      syncApp();
+      if (wasNew) {
+        addToast(reminderMessage, { type: 'warning', timeout: 6000 });
+      }
+      break;
+    }
+    case 'authReminderClear': {
+      const connectionId =
+        typeof message?.connectionId === 'string' ? message.connectionId.trim() : '';
+      if (!connectionId) break;
+      if (authReminderMap.delete(connectionId)) {
+        authReminders = Array.from(authReminderMap.values());
+        syncApp();
+      }
       break;
     }
     case 'timerUpdate': {

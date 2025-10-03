@@ -22,7 +22,6 @@ import {
 } from './webviewMessaging.js';
 import type { PostWorkItemsSnapshotParams } from './webviewMessaging.js';
 import type OpenAIClient from 'openai';
-import { startSetupWizard } from './setupWizard.js';
 import { startCacheCleanup, stopCacheCleanup } from './cache.js';
 import { performanceMonitor, MemoryOptimizer } from './performance.js';
 import { AuthService, createAuthService } from './auth/index.js';
@@ -93,6 +92,258 @@ let timerConnectionInfo: TimerConnectionInfo = {};
 const DEFAULT_QUERY = 'My Activity';
 const activeQueryByConnection = new Map<string, string>();
 
+type AuthReminderState = {
+  status: 'pending' | 'dismissed';
+  snoozeUntil?: number;
+  reason?: AuthReminderReason;
+  detail?: string;
+  message?: string;
+  label?: string;
+  authMethod?: AuthMethod;
+  deliveredToWebview?: boolean;
+};
+
+const AUTH_REMINDER_SNOOZE_MS = 30 * 60 * 1000; // 30 minutes
+const pendingAuthReminders = new Map<string, AuthReminderState>();
+let nextAuthConnectionIndex = 0;
+
+type EnsureEntraAuthResult = {
+  state: ConnectionState;
+  success: boolean;
+  token?: string;
+  error?: string;
+};
+
+let entraAuthProvider: EntraAuthenticationProvider | undefined;
+
+function describeConnection(connection: ProjectConnection): string {
+  if (connection.label && connection.label.trim().length > 0) {
+    return connection.label;
+  }
+
+  const parts: string[] = [];
+  if (connection.organization) parts.push(connection.organization);
+  if (connection.project) parts.push(connection.project);
+
+  if (parts.length > 0) {
+    return parts.join('/');
+  }
+
+  return connection.id;
+}
+
+async function ensureEntraAuthService(
+  context: vscode.ExtensionContext,
+  connection: ProjectConnection,
+  options: { interactive?: boolean } = {}
+): Promise<EnsureEntraAuthResult> {
+  const interactive = options.interactive !== false;
+  let state = connectionStates.get(connection.id);
+  if (!state) {
+    state = { id: connection.id, config: connection, authMethod: connection.authMethod || 'pat' };
+    connectionStates.set(connection.id, state);
+  } else {
+    state.config = connection;
+    state.authMethod = connection.authMethod || 'pat';
+  }
+
+  if ((state.authMethod ?? 'pat') !== 'entra') {
+    return {
+      state,
+      success: false,
+      error: 'Connection is not configured for Entra authentication.',
+    };
+  }
+
+  if (!state.authService) {
+    const settings = getConfig();
+    const defaultClientId =
+      settings.get<string>('entra.defaultClientId') || '872cd9fa-d31f-45e0-9eab-6e460a02d1f1';
+    const defaultTenantId = settings.get<string>('entra.defaultTenantId') || 'organizations';
+
+    try {
+      state.authService = await createAuthService('entra', context.secrets, connection.id, {
+        entraConfig: {
+          clientId: connection.clientId || defaultClientId,
+          tenantId: connection.tenantId || defaultTenantId,
+          scopes: ['499b84ac-1321-427f-aa17-267ca6975798/.default'],
+        },
+        deviceCodeCallback: createDeviceCodeCallback(context, connection),
+      });
+    } catch (error: any) {
+      console.error('[ensureEntraAuthService] Failed to create auth service', error);
+      return { state, success: false, error: error?.message || 'Failed to create auth service' };
+    }
+  }
+
+  if (!state.authService) {
+    return { state, success: false, error: 'Auth service unavailable' };
+  }
+
+  try {
+    let token = await state.authService.getAccessToken();
+
+    if (!token && interactive) {
+      const result = await state.authService.authenticate();
+      if (!result.success) {
+        return { state, success: false, error: result.error || 'Authentication failed' };
+      }
+      token = await state.authService.getAccessToken();
+    }
+
+    if (token) {
+      state.accessToken = token;
+      return { state, success: true, token };
+    }
+
+    return { state, success: false, error: 'Unable to acquire access token' };
+  } catch (error: any) {
+    console.error('[ensureEntraAuthService] Failed to ensure access token', error);
+    return { state, success: false, error: error?.message || 'Failed to acquire access token' };
+  }
+}
+
+class EntraAuthenticationProvider implements vscode.AuthenticationProvider, vscode.Disposable {
+  private readonly sessions = new Map<string, vscode.AuthenticationSession>();
+  private readonly onDidChangeSessionsEmitter =
+    new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
+
+  readonly onDidChangeSessions = this.onDidChangeSessionsEmitter.event;
+
+  constructor(private readonly context: vscode.ExtensionContext) {}
+
+  dispose(): void {
+    this.onDidChangeSessionsEmitter.dispose();
+    this.sessions.clear();
+  }
+
+  async initialize(): Promise<void> {
+    await this.getSessions();
+  }
+
+  async getSessions(): Promise<vscode.AuthenticationSession[]> {
+    await ensureConnectionsInitialized(this.context);
+    for (const connection of connections) {
+      if (connection.authMethod === 'entra') {
+        await this.updateSessionForConnection(connection.id, { fireEvent: false });
+      }
+    }
+    return Array.from(this.sessions.values());
+  }
+
+  async createSession(_scopes: readonly string[]): Promise<vscode.AuthenticationSession> {
+    await ensureConnectionsInitialized(this.context);
+
+    const connection = await this.pickConnection();
+    if (!connection) {
+      throw new Error('No connection selected');
+    }
+
+    await signInWithEntra(this.context, connection.id, { showSuccessMessage: false });
+    const session = await this.updateSessionForConnection(connection.id, { fireEvent: false });
+    if (!session) {
+      throw new Error('Failed to create authentication session');
+    }
+
+    this.onDidChangeSessionsEmitter.fire({ added: [session], changed: [], removed: [] });
+    return session;
+  }
+
+  async removeSession(sessionId: string): Promise<void> {
+    await signOutEntra(this.context, sessionId, { showSuccessMessage: false });
+    await this.removeSessionForConnection(sessionId);
+  }
+
+  async updateSessionForConnection(
+    connectionId: string,
+    options: { fireEvent?: boolean } = {}
+  ): Promise<vscode.AuthenticationSession | undefined> {
+    const connection = connections.find((conn) => conn.id === connectionId);
+    if (!connection || connection.authMethod !== 'entra') {
+      await this.removeSessionForConnection(connectionId, options);
+      return undefined;
+    }
+
+    const result = await ensureEntraAuthService(this.context, connection, { interactive: false });
+    if (!result.success || !result.token) {
+      await this.removeSessionForConnection(connectionId, options);
+      return undefined;
+    }
+
+    const session = this.createSessionObject(connection, result.token);
+    const existing = this.sessions.get(connectionId);
+    this.sessions.set(connectionId, session);
+
+    if (options.fireEvent !== false) {
+      this.onDidChangeSessionsEmitter.fire({
+        added: existing ? [] : [session],
+        changed: existing ? [session] : [],
+        removed: [],
+      });
+    }
+
+    return session;
+  }
+
+  async removeSessionForConnection(
+    connectionId: string,
+    options: { fireEvent?: boolean } = {}
+  ): Promise<void> {
+    const existing = this.sessions.get(connectionId);
+    if (existing) {
+      this.sessions.delete(connectionId);
+      if (options.fireEvent !== false) {
+        this.onDidChangeSessionsEmitter.fire({ added: [], changed: [], removed: [existing] });
+      }
+    }
+  }
+
+  async manageSessions(_scopes?: readonly string[]): Promise<void> {
+    try {
+      await vscode.commands.executeCommand('azureDevOpsInt.setup');
+    } catch (error) {
+      console.error(
+        '[EntraAuthenticationProvider] Failed to open setup command from Accounts menu',
+        error
+      );
+      vscode.window.showErrorMessage(
+        'Unable to open Azure DevOps connection setup. Please run “Azure DevOps Int: Setup Connection” manually.'
+      );
+    }
+  }
+
+  private createSessionObject(
+    connection: ProjectConnection,
+    accessToken: string
+  ): vscode.AuthenticationSession {
+    return {
+      id: connection.id,
+      accessToken,
+      account: {
+        id: connection.id,
+        label: describeConnection(connection),
+      },
+      scopes: ['499b84ac-1321-427f-aa17-267ca6975798/.default', 'offline_access'],
+    };
+  }
+
+  private async pickConnection(): Promise<ProjectConnection | undefined> {
+    const items = connections.map((conn) => ({
+      label: conn.label || `${conn.organization}/${conn.project}`,
+      description: conn.authMethod === 'entra' ? '(Entra ID)' : '(PAT)',
+      detail: `Organization: ${conn.organization}, Project: ${conn.project}`,
+      connection: conn,
+    }));
+
+    const selection = await vscode.window.showQuickPick(items, {
+      placeHolder: 'Select a connection to authenticate with Microsoft Entra ID',
+      ignoreFocusOut: true,
+    });
+
+    return selection?.connection;
+  }
+}
+
 function shouldLogDebug(): boolean {
   try {
     return !!getConfig().get<boolean>('debugLogging');
@@ -119,27 +370,38 @@ async function updateAuthStatusBar() {
 
   // Only show for Entra ID connections
   if (!activeConnectionId) {
+    clearAuthReminder(activeConnectionId);
     authStatusBarItem.hide();
     return;
   }
 
   const state = connectionStates.get(activeConnectionId);
   if (!state || state.authMethod !== 'entra' || !state.authService) {
+    clearAuthReminder(activeConnectionId);
     authStatusBarItem.hide();
     return;
   }
 
+  authStatusBarItem.command = {
+    title: 'Sign in with Microsoft Entra',
+    command: 'azureDevOpsInt.signInWithEntraCycle',
+  };
+
   try {
     const tokenInfo = await state.authService.getTokenInfo();
     const isAuthenticated = await state.authService.isAuthenticated();
+    const connectionLabel = describeConnection(state.config);
 
     if (!isAuthenticated || !tokenInfo) {
       authStatusBarItem.text = '$(warning) Sign In Required';
-      authStatusBarItem.tooltip = 'Click to sign in with Microsoft Entra ID';
+      authStatusBarItem.tooltip = `Click to sign in to ${connectionLabel} with Microsoft Entra ID`;
       authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
       authStatusBarItem.show();
+      ensureAuthReminder(state.config.id, 'expired');
       return;
     }
+
+    clearAuthReminder(state.config.id);
 
     const now = Date.now();
     const expiresAt = tokenInfo.expiresAt.getTime();
@@ -169,7 +431,7 @@ async function updateAuthStatusBar() {
     }
 
     authStatusBarItem.text = `${icon} Entra: ${timeText}`;
-    authStatusBarItem.tooltip = `Microsoft Entra ID authentication\nToken expires in ${timeText}\nClick to refresh or sign in`;
+    authStatusBarItem.tooltip = `Microsoft Entra ID authentication for ${connectionLabel}\nToken expires in ${timeText}\nClick to refresh or sign in`;
     authStatusBarItem.backgroundColor = backgroundColor;
     authStatusBarItem.show();
   } catch (error: any) {
@@ -185,6 +447,162 @@ function notifyConnectionsList() {
     activeConnectionId,
     logger: verbose,
   });
+}
+
+type AuthReminderReason = 'expired' | 'refreshFailed' | 'authFailed';
+
+type SetupWizardAction =
+  | 'add'
+  | 'remove'
+  | 'switch'
+  | 'entraSignIn'
+  | 'entraSignOut'
+  | 'convertToEntra';
+
+function clearAuthReminder(connectionId: string | undefined) {
+  if (!connectionId) return;
+  pendingAuthReminders.delete(connectionId);
+  sendToWebview({
+    type: 'authReminderClear',
+    connectionId,
+  });
+  if (pendingAuthReminders.size === 0) {
+    nextAuthConnectionIndex = 0;
+  }
+}
+
+function postAuthReminderToWebview(
+  connectionId: string,
+  connectionState: ConnectionState,
+  reminder: AuthReminderState
+) {
+  if (!panel) return;
+  const label = reminder.label ?? describeConnection(connectionState.config);
+  sendToWebview({
+    type: 'authReminder',
+    connectionId,
+    connectionLabel: label,
+    reason: reminder.reason ?? 'authFailed',
+    message: reminder.message,
+    detail: reminder.detail,
+    authMethod: reminder.authMethod ?? connectionState.config.authMethod ?? 'pat',
+  });
+  reminder.deliveredToWebview = true;
+}
+
+function resendPendingAuthReminders() {
+  if (!panel) return;
+  for (const [connectionId, reminder] of pendingAuthReminders.entries()) {
+    if (reminder.status !== 'pending') continue;
+    const state = connectionStates.get(connectionId);
+    if (!state) continue;
+    postAuthReminderToWebview(connectionId, state, reminder);
+  }
+}
+
+function getPendingAuthConnectionIds(): string[] {
+  const ordered: string[] = [];
+
+  for (const connection of connections) {
+    const reminder = pendingAuthReminders.get(connection.id);
+    if (reminder?.status === 'pending') {
+      ordered.push(connection.id);
+    }
+  }
+
+  for (const [connectionId, reminder] of pendingAuthReminders.entries()) {
+    if (reminder?.status === 'pending' && !ordered.includes(connectionId)) {
+      ordered.push(connectionId);
+    }
+  }
+
+  return ordered;
+}
+
+async function cycleAuthSignIn(context: vscode.ExtensionContext): Promise<void> {
+  const pendingIds = getPendingAuthConnectionIds();
+
+  if (pendingIds.length === 0) {
+    if (activeConnectionId) {
+      await signInWithEntra(context, activeConnectionId);
+    } else {
+      await signInWithEntra(context);
+    }
+    return;
+  }
+
+  if (nextAuthConnectionIndex >= pendingIds.length) {
+    nextAuthConnectionIndex = 0;
+  }
+
+  const targetId = pendingIds[nextAuthConnectionIndex];
+  nextAuthConnectionIndex = (nextAuthConnectionIndex + 1) % pendingIds.length;
+
+  clearAuthReminder(targetId);
+  await signInWithEntra(context, targetId, { showSuccessMessage: true });
+}
+
+function ensureAuthReminder(
+  connectionId: string,
+  reason: AuthReminderReason,
+  options: { detail?: string } = {}
+) {
+  const state = connectionStates.get(connectionId);
+  if (!state) return;
+
+  const now = Date.now();
+  const existing = pendingAuthReminders.get(connectionId);
+  if (existing) {
+    if (existing.status === 'pending') {
+      if (panel && !existing.deliveredToWebview) {
+        postAuthReminderToWebview(connectionId, state, existing);
+      }
+      return;
+    }
+
+    if (existing.status === 'dismissed') {
+      if (existing.snoozeUntil && existing.snoozeUntil > now) {
+        return; // Snoozed
+      }
+      pendingAuthReminders.delete(connectionId);
+    }
+  }
+
+  const label = describeConnection(state.config);
+  let message: string;
+  switch (reason) {
+    case 'refreshFailed':
+      message = `Microsoft Entra sign-in required for ${label}: token refresh failed.`;
+      break;
+    case 'authFailed':
+      message = `Microsoft Entra sign-in required for ${label}.`;
+      break;
+    default:
+      message = `Microsoft Entra access expired for ${label}.`;
+      break;
+  }
+
+  const baseDetails: string[] = [];
+  if (options.detail) baseDetails.push(options.detail.trim());
+  const webviewDetails = [
+    ...baseDetails,
+    'Use Sign In here or select the authentication status bar item to reconnect.',
+  ];
+
+  const reminderState: AuthReminderState = {
+    status: 'pending',
+    reason,
+    detail: webviewDetails.join('\n\n'),
+    message,
+    label,
+    authMethod: state.config.authMethod ?? 'pat',
+    deliveredToWebview: false,
+  };
+  pendingAuthReminders.set(connectionId, reminderState);
+
+  if (panel) {
+    postAuthReminderToWebview(connectionId, state, reminderState);
+  }
 }
 
 function normalizeQuery(value: unknown): string | undefined {
@@ -419,22 +837,28 @@ async function ensureConnectionsInitialized(context: vscode.ExtensionContext) {
  * Device code callback for Entra ID authentication
  * Shows VS Code notification with device code and verification URL
  */
-const createDeviceCodeCallback: (context: vscode.ExtensionContext) => DeviceCodeCallback =
-  (_context) => async (_deviceCode, userCode, verificationUrl, expiresIn) => {
+const createDeviceCodeCallback =
+  (_context: vscode.ExtensionContext, connection?: ProjectConnection): DeviceCodeCallback =>
+  async (_deviceCode, userCode, verificationUrl, expiresIn) => {
     verbose('[EntraAuth] Device code received', { userCode, verificationUrl, expiresIn });
 
+    const connectionLabel = connection ? describeConnection(connection) : 'Microsoft Entra ID';
     const action = await vscode.window.showInformationMessage(
-      `Sign in to Microsoft Entra ID:\n\nGo to ${verificationUrl} and enter code:\n\n${userCode}\n\nCode expires in ${Math.floor(expiresIn / 60)} minutes.`,
+      `Sign in to ${connectionLabel} with Microsoft Entra ID. Selecting “Open Browser” copies the code to your clipboard automatically.\n\nGo to ${verificationUrl} and enter code:\n\n${userCode}\n\nCode expires in ${Math.floor(expiresIn / 60)} minutes.`,
       { modal: false },
-      'Open Browser',
-      'Copy Code'
+      'Open Browser'
     );
 
     if (action === 'Open Browser') {
+      try {
+        await vscode.env.clipboard.writeText(userCode);
+      } catch (error) {
+        console.warn('[EntraAuth] Failed to copy device code to clipboard', error);
+      }
       await vscode.env.openExternal(vscode.Uri.parse(verificationUrl));
-    } else if (action === 'Copy Code') {
-      await vscode.env.clipboard.writeText(userCode);
-      vscode.window.showInformationMessage(`Code ${userCode} copied to clipboard!`);
+      vscode.window.showInformationMessage(
+        `Device code ${userCode} copied to clipboard. Paste it into the browser to finish signing in.`
+      );
     }
   };
 
@@ -495,74 +919,29 @@ async function ensureActiveConnection(
   let credential: string | undefined;
 
   if (authMethod === 'entra') {
-    // Entra ID authentication
     verbose('[ensureActiveConnection] using Entra ID authentication', { id: targetId });
+    const entraResult = await ensureEntraAuthService(context, connection, { interactive: false });
 
-    if (!state.authService) {
-      // Create new Entra ID auth service
-      const defaultClientId =
-        settings.get<string>('entra.defaultClientId') || '872cd9fa-d31f-45e0-9eab-6e460a02d1f1';
-      const defaultTenantId = settings.get<string>('entra.defaultTenantId') || 'organizations';
+    state = entraResult.state;
+    credential = entraResult.token;
 
-      try {
-        state.authService = await createAuthService('entra', context.secrets, targetId, {
-          entraConfig: {
-            clientId: connection.clientId || defaultClientId,
-            tenantId: connection.tenantId || defaultTenantId,
-            scopes: ['499b84ac-1321-427f-aa17-267ca6975798/.default'],
-          },
-          deviceCodeCallback: createDeviceCodeCallback(context),
-        });
-        verbose('[ensureActiveConnection] created Entra ID auth service', { id: targetId });
-      } catch (error: any) {
-        console.error('[azureDevOpsInt] Failed to create Entra ID auth service:', error);
-        vscode.window.showErrorMessage(
-          `Failed to initialize Entra ID authentication: ${error.message}`
-        );
-        return state;
-      }
-    }
-
-    // Try to get access token
-    credential = await state.authService.getAccessToken();
-
-    if (!credential) {
-      // Need to authenticate
-      verbose('[ensureActiveConnection] no access token, starting authentication', {
-        id: targetId,
+    if (!entraResult.success || !credential) {
+      verbose('[azureDevOpsInt] Entra ID token unavailable; deferring to reminder flow', {
+        connectionId: targetId,
+        error: entraResult.error,
       });
-
-      const result = await state.authService.authenticate();
-      if (!result.success) {
-        console.error('[azureDevOpsInt] Entra ID authentication failed:', result.error);
-        vscode.window.showErrorMessage(
-          `Authentication failed: ${result.error || 'Unknown error'}. Please try again.`
-        );
-        provider = undefined;
-        client = undefined;
-        state.client = undefined;
-        state.provider = undefined;
-        await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
-        return state;
-      }
-
-      credential = await state.authService.getAccessToken();
-      if (!credential) {
-        console.error('[azureDevOpsInt] No access token after successful authentication');
-        vscode.window.showErrorMessage(
-          'Authentication succeeded but no access token was received.'
-        );
-        provider = undefined;
-        client = undefined;
-        state.client = undefined;
-        state.provider = undefined;
-        await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
-        return state;
-      }
-
-      vscode.window.showInformationMessage('Successfully authenticated with Microsoft Entra ID!');
+      ensureAuthReminder(targetId, 'authFailed', {
+        detail: entraResult.error ? `Details: ${entraResult.error}` : undefined,
+      });
+      provider = undefined;
+      client = undefined;
+      state.client = undefined;
+      state.provider = undefined;
+      await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
+      return state;
     }
 
+    clearAuthReminder(targetId);
     state.accessToken = credential;
   } else {
     // PAT authentication (existing logic)
@@ -887,7 +1266,7 @@ export function activate(context: vscode.ExtensionContext) {
       /* ignore */
     }
     // Do not register views/commands or initialize any domain objects in smoke mode.
-    return;
+    return undefined;
   }
   const cfg = getConfig();
   if (cfg.get<boolean>('debugLogging')) {
@@ -917,6 +1296,25 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(authStatusBarItem);
   authStatusBarItem.hide(); // Hidden by default, shown only for Entra ID connections
 
+  const authenticationProvider = new EntraAuthenticationProvider(context);
+  entraAuthProvider = authenticationProvider;
+  context.subscriptions.push(authenticationProvider);
+  const authenticationProviderOptions: vscode.AuthenticationProviderOptions & {
+    supportsAccountManagement?: boolean;
+  } = {
+    supportsMultipleAccounts: true,
+    supportsAccountManagement: true,
+  };
+  context.subscriptions.push(
+    vscode.authentication.registerAuthenticationProvider(
+      'azureDevOpsInt.entra',
+      'Azure DevOps (Entra)',
+      authenticationProvider,
+      authenticationProviderOptions
+    )
+  );
+  void authenticationProvider.initialize();
+
   // Register the work items webview view resolver (guard against duplicate registration)
   if (!viewProviderRegistered) {
     console.log('[azureDevOpsInt] Registering webview view provider: azureDevOpsWorkItems');
@@ -932,7 +1330,6 @@ export function activate(context: vscode.ExtensionContext) {
   // Core commands
   context.subscriptions.push(
     vscode.commands.registerCommand('azureDevOpsInt.setup', () => setupConnection(context)),
-    vscode.commands.registerCommand('azureDevOpsInt.setupWizard', () => setupWizard(context)),
     vscode.commands.registerCommand('azureDevOpsInt.setOpenAIApiKey', () =>
       setOpenAIApiKey(context)
     ),
@@ -1094,13 +1491,18 @@ export function activate(context: vscode.ExtensionContext) {
       resetPreferredRepositories()
     ),
     vscode.commands.registerCommand('azureDevOpsInt.selfTestWebview', () => selfTestWebview()),
-    vscode.commands.registerCommand('azureDevOpsInt.manageConnections', () =>
-      manageConnections(context)
+    vscode.commands.registerCommand('azureDevOpsInt.signInWithEntra', (target?: unknown) =>
+      signInWithEntra(
+        context,
+        typeof target === 'string' ? target : (target as ProjectConnection | undefined)?.id
+      )
     ),
-    vscode.commands.registerCommand('azureDevOpsInt.signInWithEntra', () =>
-      signInWithEntra(context)
+    vscode.commands.registerCommand('azureDevOpsInt.signOutEntra', (target?: unknown) =>
+      signOutEntra(
+        context,
+        typeof target === 'string' ? target : (target as ProjectConnection | undefined)?.id
+      )
     ),
-    vscode.commands.registerCommand('azureDevOpsInt.signOutEntra', () => signOutEntra(context)),
     vscode.commands.registerCommand('azureDevOpsInt.convertConnectionToEntra', () =>
       convertConnectionToEntra(context)
     ),
@@ -1176,7 +1578,10 @@ export function activate(context: vscode.ExtensionContext) {
         e.affectsConfiguration(`${CONFIG_NS}.personalAccessToken`)
       ) {
         try {
-          await migrateLegacyPAT(context);
+          (vscode.commands.registerCommand('azureDevOpsInt.signInWithEntraCycle', async () =>
+            cycleAuthSignIn(context)
+          ),
+            await migrateLegacyPAT(context));
         } catch {
           /* ignore */
         }
@@ -1233,9 +1638,15 @@ export function activate(context: vscode.ExtensionContext) {
                   }
                   verbose('[TokenRefresh] Successfully refreshed token', { connectionId });
 
+                  clearAuthReminder(connectionId);
+
                   // Update status bar if this is the active connection
                   if (connectionId === activeConnectionId) {
                     await updateAuthStatusBar();
+                  }
+
+                  if (entraAuthProvider) {
+                    await entraAuthProvider.updateSessionForConnection(connectionId);
                   }
                 }
               } else {
@@ -1244,18 +1655,12 @@ export function activate(context: vscode.ExtensionContext) {
                   result.error
                 );
 
-                // If this is the active connection, show a notification
-                if (connectionId === activeConnectionId) {
-                  vscode.window
-                    .showWarningMessage(
-                      `Authentication token expired for "${state.config.label || state.config.organization}". Please sign in again.`,
-                      'Sign In'
-                    )
-                    .then((action) => {
-                      if (action === 'Sign In') {
-                        vscode.commands.executeCommand('azureDevOpsInt.signInWithEntra');
-                      }
-                    });
+                ensureAuthReminder(connectionId, 'refreshFailed', {
+                  detail: result.error ? `Refresh failed: ${result.error}` : undefined,
+                });
+
+                if (entraAuthProvider) {
+                  await entraAuthProvider.removeSessionForConnection(connectionId);
                 }
               }
             }
@@ -1285,7 +1690,33 @@ export function activate(context: vscode.ExtensionContext) {
             verbose('[TokenRefresh] Initial token check - refreshing for connection', {
               connectionId,
             });
-            await state.authService.refreshAccessToken();
+            const result = await state.authService.refreshAccessToken();
+            if (result.success) {
+              const refreshedToken = await state.authService.getAccessToken();
+              if (refreshedToken) {
+                state.accessToken = refreshedToken;
+                if (state.client) {
+                  state.client.updateCredential(refreshedToken);
+                }
+                clearAuthReminder(connectionId);
+
+                if (connectionId === activeConnectionId) {
+                  await updateAuthStatusBar();
+                }
+
+                if (entraAuthProvider) {
+                  await entraAuthProvider.updateSessionForConnection(connectionId);
+                }
+              }
+            } else {
+              ensureAuthReminder(connectionId, 'refreshFailed', {
+                detail: result.error ? `Refresh failed: ${result.error}` : undefined,
+              });
+
+              if (entraAuthProvider) {
+                await entraAuthProvider.removeSessionForConnection(connectionId);
+              }
+            }
           }
         }
       }
@@ -1320,7 +1751,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
       } catch {
         /* ignore */
       }
-      return;
+      return undefined;
     }
     console.log('[azureDevOpsInt] resolveWebviewView invoked for view:', webviewView.viewType);
     panel = webviewView;
@@ -1337,6 +1768,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
 
     const html = buildMinimalWebviewHtml(this.ctx, webview, nonce);
     webview.html = html;
+    resendPendingAuthReminders();
     if (!IS_SMOKE) {
       initDomainObjects(this.ctx).catch((err) =>
         console.error('[azureDevOpsInt] Failed to initialize domain objects', err)
@@ -1414,13 +1846,13 @@ async function handleMessage(msg: any) {
     if (typeof id === 'number' && provider) {
       editWorkItemInEditor(id);
     }
-    return;
+    return undefined;
   }
 
   // Handle bulk operations
   if (msg?.type === 'bulkAssign') {
     await bulkAssignWorkItems();
-    return;
+    return undefined;
   }
   if (msg?.type === 'bulkMove') {
     await bulkMoveWorkItems();
@@ -1436,6 +1868,40 @@ async function handleMessage(msg: any) {
   }
 
   switch (msg?.type) {
+    case 'authReminderAction': {
+      const connectionId = typeof msg.connectionId === 'string' ? msg.connectionId.trim() : '';
+      if (!connectionId) {
+        break;
+      }
+      const action = typeof msg.action === 'string' ? msg.action : '';
+      if (!action) {
+        break;
+      }
+
+      if (action === 'signIn') {
+        clearAuthReminder(connectionId);
+        if (extensionContextRef) {
+          await signInWithEntra(extensionContextRef, connectionId, { showSuccessMessage: true });
+        } else {
+          await vscode.commands.executeCommand('azureDevOpsInt.signInWithEntra', connectionId);
+        }
+        break;
+      }
+
+      if (action === 'dismiss') {
+        const reminder = pendingAuthReminders.get(connectionId) ?? {
+          status: 'dismissed' as const,
+        };
+        reminder.status = 'dismissed';
+        reminder.snoozeUntil = Date.now() + AUTH_REMINDER_SNOOZE_MS;
+        reminder.deliveredToWebview = false;
+        pendingAuthReminders.set(connectionId, reminder);
+        sendToWebview({ type: 'authReminderClear', connectionId });
+        break;
+      }
+
+      break;
+    }
     case 'webviewReady': {
       // Re-send current cached state (avoid race where initial post happened before listener attached)
       if (panel) {
@@ -2346,30 +2812,71 @@ async function setupConnection(context: vscode.ExtensionContext) {
   await migrateLegacyPAT(context);
 
   const hasExistingConnections = connections.length > 0;
-  let action: 'add' | 'remove' | undefined;
+  let action: SetupWizardAction | undefined;
 
   if (!hasExistingConnections) {
     action = 'add';
   } else {
-    const pick = await vscode.window.showQuickPick(
-      [
-        {
-          label: 'Add project connection…',
-          description: 'Connect to another organization/project',
-          action: 'add' as const,
-        },
-        {
-          label: 'Remove project connection…',
-          description: 'Disconnect an existing project',
-          action: 'remove' as const,
-        },
-      ],
+    const canSwitch = connections.length > 1;
+    const hasPatConnections = connections.some(
+      (connection) => !connection.authMethod || connection.authMethod === 'pat'
+    );
+    const hasEntraConnections = connections.some((connection) => connection.authMethod === 'entra');
+
+    const quickPickItems: Array<vscode.QuickPickItem & { action: SetupWizardAction }> = [];
+
+    if (canSwitch) {
+      quickPickItems.push({
+        label: 'Switch active project…',
+        description: 'Choose which connection the sidebar uses by default',
+        action: 'switch',
+      });
+    }
+
+    quickPickItems.push(
       {
-        placeHolder: 'Manage Azure DevOps project connections',
-        ignoreFocusOut: true,
+        label: 'Add project connection…',
+        description: 'Connect to another organization/project',
+        action: 'add',
+      },
+      {
+        label: 'Remove project connection…',
+        description: 'Disconnect an existing project',
+        action: 'remove',
       }
     );
+
+    quickPickItems.push({
+      label: 'Sign in with Microsoft Entra ID…',
+      description: 'Authenticate a connection using Entra ID',
+      action: 'entraSignIn',
+    });
+
+    if (hasEntraConnections) {
+      quickPickItems.push({
+        label: 'Sign out from Microsoft Entra ID…',
+        description: 'Remove cached tokens for an Entra-enabled connection',
+        action: 'entraSignOut',
+      });
+    }
+
+    if (hasPatConnections) {
+      quickPickItems.push({
+        label: 'Convert a PAT connection to Entra ID…',
+        description: 'Upgrade authentication for an existing PAT project',
+        action: 'convertToEntra',
+      });
+    }
+
+    const pick = await vscode.window.showQuickPick(quickPickItems, {
+      placeHolder: 'Manage Azure DevOps project connections',
+      ignoreFocusOut: true,
+    });
     action = pick?.action;
+  }
+
+  if (!action) {
+    return;
   }
 
   if (action === 'add') {
@@ -2382,141 +2889,28 @@ async function setupConnection(context: vscode.ExtensionContext) {
     if (removed) {
       ensureTimer(context);
     }
-  }
-}
-
-async function setupWizard(context: vscode.ExtensionContext) {
-  try {
-    const success = await startSetupWizard(context);
-    if (success) {
-      // Refresh the connection after successful setup
-      await ensureConnectionsInitialized(context);
-      await ensureActiveConnection(context, undefined, { refresh: true });
+  } else if (action === 'switch') {
+    const switched = await promptSwitchActiveConnection(context);
+    if (switched) {
       ensureTimer(context);
     }
-  } catch (error) {
-    console.error('[setupWizard] Error:', error);
-    vscode.window.showErrorMessage(
-      `Setup wizard failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
-}
-
-async function manageConnections(context: vscode.ExtensionContext): Promise<void> {
-  await ensureConnectionsInitialized(context);
-
-  const connectionItems = await Promise.all(
-    connections.map(async (conn, index) => {
-      let authStatus = '';
-      const authMethod = conn.authMethod || 'pat';
-
-      if (authMethod === 'entra') {
-        const state = connectionStates.get(conn.id);
-        if (state && state.authService) {
-          try {
-            const isAuthenticated = await state.authService.isAuthenticated();
-            if (isAuthenticated) {
-              const tokenInfo = await state.authService.getTokenInfo();
-              if (tokenInfo) {
-                const expirationStatus = await state.authService.getTokenExpirationStatus();
-                authStatus = ` | Token: ${expirationStatus}`;
-              } else {
-                authStatus = ' | Signed in';
-              }
-            } else {
-              authStatus = ' | Not signed in';
-            }
-          } catch {
-            authStatus = ' | Unknown status';
-          }
-        } else {
-          authStatus = ' | Not configured';
-        }
-      }
-
-      return {
-        label: `${conn.label || `${conn.organization}/${conn.project}`}${authMethod === 'entra' ? ' 🔐' : ''}`,
-        description: `${authMethod.toUpperCase()}${conn.team ? ` | Team: ${conn.team}` : ''}${authStatus}`,
-        detail: `Organization: ${conn.organization}, Project: ${conn.project}`,
-        connection: conn,
-        index,
-      };
-    })
-  );
-
-  const choices = [
-    { label: 'Add New Connection', action: 'add' as const },
-    { label: 'Edit Connection', action: 'edit' as const },
-    { label: 'Delete Connection', action: 'delete' as const },
-    { label: 'Cancel', action: 'cancel' as const },
-  ];
-
-  const action = await vscode.window.showQuickPick(choices, {
-    placeHolder: 'Manage Azure DevOps Connections',
-    ignoreFocusOut: true,
-  });
-
-  if (!action || action.action === 'cancel') {
-    return;
-  }
-
-  switch (action.action) {
-    case 'add':
-      await startSetupWizard(context);
-      break;
-    case 'edit': {
-      if (connectionItems.length === 0) {
-        vscode.window.showInformationMessage('No connections to edit. Add a connection first.');
-        return;
-      }
-      const selectedConnection = await vscode.window.showQuickPick(connectionItems, {
-        placeHolder: 'Select a connection to edit',
-        ignoreFocusOut: true,
-      });
-      if (selectedConnection) {
-        // Pre-populate wizard with existing connection data
-        // This would need to be implemented in the wizard
-        await startSetupWizard(context);
-      }
-      break;
-    }
-    case 'delete': {
-      if (connectionItems.length === 0) {
-        vscode.window.showInformationMessage('No connections to delete.');
-        return;
-      }
-      const connectionToDelete = await vscode.window.showQuickPick(connectionItems, {
-        placeHolder: 'Select a connection to delete',
-        ignoreFocusOut: true,
-      });
-      if (connectionToDelete) {
-        const confirm = await vscode.window.showWarningMessage(
-          `Are you sure you want to delete the connection "${connectionToDelete.label}"?`,
-          'Yes, Delete',
-          'Cancel'
-        );
-        if (confirm === 'Yes, Delete') {
-          // Delete the connection's PAT from secrets
-          if (connectionToDelete.connection.patKey) {
-            await context.secrets.delete(connectionToDelete.connection.patKey);
-          }
-
-          const updatedConnections = connections.filter(
-            (conn) => conn.id !== connectionToDelete.connection.id
-          );
-          await saveConnectionsToConfig(context, updatedConnections);
-          vscode.window.showInformationMessage('Connection deleted successfully.');
-        }
-      }
-      break;
-    }
+  } else if (action === 'entraSignIn') {
+    await signInWithEntra(context);
+  } else if (action === 'entraSignOut') {
+    await signOutEntra(context);
+  } else if (action === 'convertToEntra') {
+    await convertConnectionToEntra(context);
   }
 }
 
 /**
  * Sign in to an existing connection using Microsoft Entra ID
  */
-async function signInWithEntra(context: vscode.ExtensionContext): Promise<void> {
+async function signInWithEntra(
+  context: vscode.ExtensionContext,
+  targetConnectionId?: string,
+  options: { showSuccessMessage?: boolean } = {}
+): Promise<void> {
   await ensureConnectionsInitialized(context);
 
   if (connections.length === 0) {
@@ -2526,54 +2920,62 @@ async function signInWithEntra(context: vscode.ExtensionContext): Promise<void> 
     return;
   }
 
-  // Let user pick a connection
-  const connectionItems = connections.map((conn) => ({
-    label: conn.label || `${conn.organization}/${conn.project}`,
-    description: conn.authMethod === 'entra' ? '(Entra ID)' : '(PAT)',
-    detail: `Organization: ${conn.organization}, Project: ${conn.project}`,
-    connection: conn,
-  }));
+  let connection: ProjectConnection | undefined;
+  if (targetConnectionId) {
+    connection = connections.find((conn) => conn.id === targetConnectionId);
+    if (!connection) {
+      vscode.window.showWarningMessage('Selected connection is no longer available.');
+      return undefined;
+    }
+  } else {
+    // Let user pick a connection
+    const entraEligible = connections.filter((conn) => conn.authMethod === 'entra');
 
-  const selected = await vscode.window.showQuickPick(connectionItems, {
-    placeHolder: 'Select a connection to sign in with Entra ID',
-    ignoreFocusOut: true,
-  });
+    if (entraEligible.length === 0) {
+      vscode.window.showInformationMessage(
+        'No connections configured for Microsoft Entra ID. Convert or add a connection first.'
+      );
+      return;
+    }
 
-  if (!selected) {
+    if (entraEligible.length === 1) {
+      connection = entraEligible[0];
+    } else {
+      const connectionItems = entraEligible.map((conn) => ({
+        label: conn.label || `${conn.organization}/${conn.project}`,
+        description: conn.authMethod === 'entra' ? '(Entra ID)' : '(PAT)',
+        detail: `Organization: ${conn.organization}, Project: ${conn.project}`,
+        connection: conn,
+      }));
+
+      const selected = await vscode.window.showQuickPick(connectionItems, {
+        placeHolder: 'Select a connection to sign in with Microsoft Entra ID',
+        ignoreFocusOut: true,
+      });
+
+      if (!selected) {
+        return undefined;
+      }
+
+      connection = selected.connection;
+    }
+  }
+
+  if (!connection) {
     return;
   }
 
-  const connection = selected.connection;
-  const settings = getConfig();
-  const defaultClientId =
-    settings.get<string>('entra.defaultClientId') || '872cd9fa-d31f-45e0-9eab-6e460a02d1f1';
-  const defaultTenantId = settings.get<string>('entra.defaultTenantId') || 'organizations';
-
-  // Create or get auth service
-  let state = connectionStates.get(connection.id);
-  if (!state) {
-    state = { id: connection.id, config: connection, authMethod: 'entra' };
-    connectionStates.set(connection.id, state);
-  }
-
+  const connectionLabel = describeConnection(connection);
   try {
-    if (!state.authService) {
-      state.authService = await createAuthService('entra', context.secrets, connection.id, {
-        entraConfig: {
-          clientId: connection.clientId || defaultClientId,
-          tenantId: connection.tenantId || defaultTenantId,
-          scopes: ['499b84ac-1321-427f-aa17-267ca6975798/.default'],
-        },
-        deviceCodeCallback: createDeviceCodeCallback(context),
-      });
-    }
+    const result = await ensureEntraAuthService(context, connection, { interactive: true });
 
-    // Authenticate
-    const result = await state.authService.authenticate();
-    if (!result.success) {
+    if (!result.success || !result.token) {
       vscode.window.showErrorMessage(
         `Authentication failed: ${result.error || 'Unknown error'}. Please try again.`
       );
+      ensureAuthReminder(connection.id, 'authFailed', {
+        detail: result.error ? `Details: ${result.error}` : undefined,
+      });
       return;
     }
 
@@ -2583,22 +2985,36 @@ async function signInWithEntra(context: vscode.ExtensionContext): Promise<void> 
       await saveConnectionsToConfig(context, connections);
     }
 
-    vscode.window.showInformationMessage(
-      `Successfully signed in to "${connection.label || connection.organization}" with Microsoft Entra ID!`
-    );
+    clearAuthReminder(connection.id);
+
+    if (options.showSuccessMessage !== false) {
+      vscode.window.showInformationMessage(
+        `Successfully signed in to "${connectionLabel}" with Microsoft Entra ID!`
+      );
+    }
 
     // Refresh connection to use new auth
     await ensureActiveConnection(context, connection.id, { refresh: true });
+
+    await updateAuthStatusBar();
+    if (entraAuthProvider) {
+      await entraAuthProvider.updateSessionForConnection(connection.id);
+    }
   } catch (error: any) {
     console.error('[azureDevOpsInt] Sign in with Entra ID failed:', error);
     vscode.window.showErrorMessage(`Sign in failed: ${error.message}`);
+    return;
   }
 }
 
 /**
  * Sign out from Entra ID for a connection
  */
-async function signOutEntra(context: vscode.ExtensionContext): Promise<void> {
+async function signOutEntra(
+  context: vscode.ExtensionContext,
+  targetConnectionId?: string,
+  options: { showSuccessMessage?: boolean } = {}
+): Promise<void> {
   await ensureConnectionsInitialized(context);
 
   const entraConnections = connections.filter((conn) => conn.authMethod === 'entra');
@@ -2607,23 +3023,36 @@ async function signOutEntra(context: vscode.ExtensionContext): Promise<void> {
     return;
   }
 
-  const connectionItems = entraConnections.map((conn) => ({
-    label: conn.label || `${conn.organization}/${conn.project}`,
-    description: '(Entra ID)',
-    detail: `Organization: ${conn.organization}, Project: ${conn.project}`,
-    connection: conn,
-  }));
+  let connection: ProjectConnection | undefined;
+  if (targetConnectionId) {
+    connection = entraConnections.find((conn) => conn.id === targetConnectionId);
+    if (!connection) {
+      vscode.window.showWarningMessage('Selected connection is no longer available.');
+      return;
+    }
+  } else {
+    const connectionItems = entraConnections.map((conn) => ({
+      label: conn.label || `${conn.organization}/${conn.project}`,
+      description: '(Entra ID)',
+      detail: `Organization: ${conn.organization}, Project: ${conn.project}`,
+      connection: conn,
+    }));
 
-  const selected = await vscode.window.showQuickPick(connectionItems, {
-    placeHolder: 'Select a connection to sign out from',
-    ignoreFocusOut: true,
-  });
+    const selected = await vscode.window.showQuickPick(connectionItems, {
+      placeHolder: 'Select a connection to sign out from',
+      ignoreFocusOut: true,
+    });
 
-  if (!selected) {
-    return;
+    if (!selected) {
+      return;
+    }
+
+    connection = selected.connection;
   }
 
-  const connection = selected.connection;
+  if (!connection) {
+    return;
+  }
   const state = connectionStates.get(connection.id);
 
   try {
@@ -2637,15 +3066,23 @@ async function signOutEntra(context: vscode.ExtensionContext): Promise<void> {
       state.accessToken = undefined;
     }
 
-    vscode.window.showInformationMessage(
-      `Successfully signed out from "${connection.label || connection.organization}".`
-    );
+    if (options.showSuccessMessage !== false) {
+      vscode.window.showInformationMessage(
+        `Successfully signed out from "${connection.label || connection.organization}".`
+      );
+    }
+
+    clearAuthReminder(connection.id);
 
     // If this was the active connection, clear it
     if (connection.id === activeConnectionId) {
       provider = undefined;
       client = undefined;
       await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
+    }
+
+    if (entraAuthProvider) {
+      await entraAuthProvider.removeSessionForConnection(connection.id);
     }
   } catch (error: any) {
     console.error('[azureDevOpsInt] Sign out failed:', error);
@@ -2709,7 +3146,7 @@ async function convertConnectionToEntra(context: vscode.ExtensionContext): Promi
         tenantId: connection.tenantId || defaultTenantId,
         scopes: ['499b84ac-1321-427f-aa17-267ca6975798/.default'],
       },
-      deviceCodeCallback: createDeviceCodeCallback(context),
+      deviceCodeCallback: createDeviceCodeCallback(context, connection),
     });
 
     // Authenticate
@@ -2758,10 +3195,72 @@ async function convertConnectionToEntra(context: vscode.ExtensionContext): Promi
     if (connection.id === activeConnectionId) {
       await ensureActiveConnection(context, connection.id, { refresh: true });
     }
+
+    if (entraAuthProvider) {
+      await entraAuthProvider.updateSessionForConnection(connection.id);
+    }
   } catch (error: any) {
     console.error('[azureDevOpsInt] Conversion to Entra ID failed:', error);
     vscode.window.showErrorMessage(`Conversion failed: ${error.message}`);
   }
+}
+
+async function promptSwitchActiveConnection(context: vscode.ExtensionContext): Promise<boolean> {
+  await ensureConnectionsInitialized(context);
+
+  if (connections.length === 0) {
+    vscode.window.showInformationMessage('No project connections configured yet.');
+    return false;
+  }
+
+  if (connections.length === 1) {
+    vscode.window.showInformationMessage(
+      `Only ${getConnectionLabel(connections[0])} is configured. Add another project to switch.`
+    );
+    return false;
+  }
+
+  const items: Array<vscode.QuickPickItem & { connection: ProjectConnection }> = connections.map(
+    (connection) => {
+      const description = connection.team
+        ? `${connection.organization}/${connection.project} • ${connection.team}`
+        : `${connection.organization}/${connection.project}`;
+      const labelBase = getConnectionLabel(connection);
+      const label = connection.id === activeConnectionId ? `$(check) ${labelBase}` : labelBase;
+      const detail =
+        connection.authMethod === 'entra' ? 'Microsoft Entra ID' : 'Personal Access Token';
+      return {
+        label,
+        description,
+        detail,
+        connection,
+      };
+    }
+  );
+
+  const pick = await vscode.window.showQuickPick(items, {
+    placeHolder: 'Select the connection to make active',
+    ignoreFocusOut: true,
+  });
+
+  if (!pick) {
+    return false;
+  }
+
+  if (pick.connection.id === activeConnectionId) {
+    vscode.window.showInformationMessage(
+      `${getConnectionLabel(pick.connection)} is already the active connection.`
+    );
+    return false;
+  }
+
+  await ensureActiveConnection(context, pick.connection.id, { refresh: true });
+  await updateAuthStatusBar();
+
+  vscode.window.showInformationMessage(
+    `Switched active project to ${getConnectionLabel(pick.connection)}.`
+  );
+  return true;
 }
 
 async function promptAddConnection(context: vscode.ExtensionContext): Promise<boolean> {

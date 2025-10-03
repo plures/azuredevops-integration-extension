@@ -30,12 +30,14 @@ This extension's source code is fully published on GitHub for your review:
 
 - **Authentication Implementation**: [`src/auth/`](https://github.com/plures/azuredevops-integration-extension/tree/main/src/auth)
 - **API Client Security**: [`src/azureClient.ts`](https://github.com/plures/azuredevops-integration-extension/blob/main/src/azureClient.ts)
-- **Webview Security**: [`src/webview/`](https://github.com/plures/azuredevops-integration-extension/tree/main/src/webview)ecure Token Management
+- **Webview Security**: [`src/webview/`](https://github.com/plures/azuredevops-integration-extension/tree/main/src/webview)
+- **Secure Token Management**: [`src/activation.ts`](https://github.com/plures/azuredevops-integration-extension/blob/main/src/activation.ts)
 
 - **Encrypted Storage**: Access tokens and refresh tokens are encrypted in VS Code's SecretStorage API
 - **Per-Connection Storage**: Tokens are isolated per Azure DevOps connection
 - **No Long-lived Secrets**: MSAL automatically refreshes tokens; no permanent credentials stored
 - **Background Refresh**: Tokens refresh automatically every 30 minutes to prevent interruptions
+- **Clipboard Handling**: Device codes are only copied to your clipboard if you choose **Open Browser**, letting you paste the short-lived code directly into the Microsoft verification page.
 
 ### Token Cleanup Commands
 
@@ -48,7 +50,8 @@ This extension's source code is fully published on GitHub for your review:
 Token storage security is implemented in:
 
 - **Secure Storage**: [`src/auth/EntraAuthProvider.ts#L223-L248`](https://github.com/plures/azuredevops-integration-extension/blob/main/src/auth/EntraAuthProvider.ts#L223-L248)
-- **Background Refresh**: [`src/activation.ts#L180-L203`](https://github.com/plures/azuredevops-integration-extension/blob/main/src/activation.ts#L180-L203) **Device Code Flow**: Uses MSAL (Microsoft Authentication Library) for secure OAuth 2.0 authentication
+- **Background Refresh**: [`src/activation.ts#L180-L203`](https://github.com/plures/azuredevops-integration-extension/blob/main/src/activation.ts#L180-L203)
+- **Device Code Flow & Clipboard Safety**: [`src/activation.ts#L830-L880`](https://github.com/plures/azuredevops-integration-extension/blob/main/src/activation.ts#L830-L880) – copies the device code only after you choose **Open Browser**, then launches the Microsoft sign-in page.
 - **Limited Scope**: Requests only Azure DevOps access (`499b84ac-1321-427f-aa17-267ca6975798/.default`)
 - **No Broad Permissions**: Does not request Microsoft Graph, email, or directory access
 - **Automatic Token Refresh**: Background refresh every 30 minutes prevents interruptions
@@ -66,7 +69,7 @@ Token storage security is implemented in:
 - **Authentication Interface**: [`src/auth/types.ts`](https://github.com/plures/azuredevops-integration-extension/blob/main/src/auth/types.ts)
 - **Auth Service**: [`src/auth/AuthService.ts`](https://github.com/plures/azuredevops-integration-extension/blob/main/src/auth/AuthService.ts)
 
-You will be prompted before any authentication or token refresh operation. Trust Notice
+You will be prompted before any authentication or token refresh operation.
 
 ## 2. Permissions & Least Privilege
 
@@ -155,7 +158,7 @@ Enhanced Permissions (Read-Write, when needed):
 
 To know exactly what `.default` will grant our extension, you need to check what permissions have been configured for Azure DevOps in your Azure AD tenant:
 
-**Option 1: Azure Portal (Enterprise Applications)**
+#### Option 1: Azure Portal (Enterprise Applications)
 
 1. Go to [Azure Portal](https://portal.azure.com) → Microsoft Entra ID → Enterprise Applications
 2. Search for "Azure DevOps" or filter by "Microsoft Applications"
@@ -163,7 +166,7 @@ To know exactly what `.default` will grant our extension, you need to check what
 4. Go to "Permissions" tab to see all granted permissions
 5. Look for **Delegated permissions** - these are what `.default` will include
 
-**Option 2: PowerShell Query**
+#### Option 2: PowerShell Query
 
 ```powershell
 # Connect to Microsoft Graph
@@ -175,7 +178,7 @@ $servicePrincipal = Get-MgServicePrincipal -Filter "appId eq '$azureDevOpsAppId'
 Get-MgServicePrincipalOauth2PermissionGrant -ServicePrincipalId $servicePrincipal.Id
 ```
 
-**Option 3: Microsoft Graph API**
+#### Option 3: Microsoft Graph API
 
 ```bash
 # GET request to check delegated permissions
@@ -234,7 +237,7 @@ const SPECIFIC_SCOPES = [
 const DEFAULT_SCOPE = ['499b84ac-1321-427f-aa17-267ca6975798/.default'];
 ```
 
-### Code Implementation
+### Scope Configuration Reference
 
 You can review the exact scope configuration in:
 
@@ -266,6 +269,7 @@ You can review and consent to these scopes during the login prompt.
 - Before performing any sensitive action (e.g., creating builds, modifying work items), the extension will prompt for your approval.
 - A dedicated **Output Channel** (`Azure DevOps Integration`) logs each significant step (authentication, API calls, errors).
 - You can enable **Privacy Mode** to restrict the extension to read-only operations.
+- Microsoft Entra reminders appear in the Work Items view whenever a token expires or refresh fails, offering one-click reconnect or a 30-minute snooze; the status bar indicator mirrors the remaining token lifetime and cycles through each affected connection so you always know which environment needs attention.
 
 ## 6. Runtime Security & Marketplace Protections
 
@@ -274,7 +278,7 @@ You can review and consent to these scopes during the login prompt.
   - Extension permission transparency
   - Marketplace protections against malicious updates
 - This extension’s source code is fully published on GitHub for your review:
-  https://github.com/plures/azuredevops-integration-extension
+  <https://github.com/plures/azuredevops-integration-extension>
 
 ### External Resources
 

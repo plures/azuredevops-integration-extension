@@ -59,12 +59,13 @@ Marketplace page: [Azure DevOps Integration – VS Code Marketplace](https://mar
 
 ### Microsoft Entra ID (Recommended) 🆕
 
-Sign in with your Microsoft account - no token creation needed:
+Sign in with your Microsoft account—no token creation needed:
 
 - **OAuth 2.0 Authentication**: Modern, secure authentication flow
 - **Automatic Token Refresh**: Tokens refresh automatically in the background
-- **Enterprise Compatible**: Works with your organization's security policies
-- **Device Code Flow**: Simple browser-based sign-in process
+- **Status Bar Expiration Indicator**: See how long each token has left and click to reconnect; the button automatically cycles through every connection that needs attention
+- **Webview Reminders**: Work Items view surfaces sign-in reminders with one-click reconnect or a 30-minute snooze
+- **Device Code Flow**: Simple browser-based sign-in, with the device code automatically copied to your clipboard when you choose **Open Browser**
 - **No Manual Setup**: No need to create or manage Personal Access Tokens
 
 ### Personal Access Token (Traditional)
@@ -90,9 +91,11 @@ Generate at: Azure DevOps → User Settings → Security → Personal Access Tok
 3. Paste a work item URL from your Azure DevOps organization
 4. The wizard will auto-detect your organization and project
 5. **Choose Authentication Method**: Microsoft Entra ID (recommended) or Personal Access Token
-6. **For Entra ID**: Follow the device code flow to sign in with your Microsoft account
+6. **For Entra ID**: Follow the device code flow to sign in; selecting **Open Browser** copies the device code to your clipboard and opens the Microsoft sign-in page
 7. **For PAT**: Follow the guided steps to create a Personal Access Token
 8. Test your connection and you're ready to go!
+
+> **Tip**: If a Microsoft Entra connection loses access, the Work Items view shows a reminder banner and the status bar button cycles through each affected connection so you can reconnect quickly.
 
 ### Manual Setup
 
@@ -170,22 +173,22 @@ Generate at: Azure DevOps → User Settings → Security → Personal Access Tok
 
 ## ⌨️ Essential Commands
 
-| Command                                                        | Description                                |
-| -------------------------------------------------------------- | ------------------------------------------ |
-| `Azure DevOps Integration: Setup Wizard (Easy)`                | Guided setup with work item URL parsing    |
-| `Azure DevOps Integration: Setup Connection`                   | Manual connection setup                    |
-| `Azure DevOps Integration: Sign In with Microsoft Entra ID` 🆕 | Sign in using OAuth 2.0 device code flow   |
-| `Azure DevOps Integration: Sign Out from Entra ID` 🆕          | Sign out and clear Entra ID tokens         |
-| `Azure DevOps Integration: Convert Connection to Entra ID` 🆕  | Switch from PAT to Entra ID authentication |
-| `Azure DevOps Integration: Show Work Items`                    | Open the work items view                   |
-| `Azure DevOps Integration: Start/Stop Timer`                   | Toggle timer for selected work item        |
-| `Azure DevOps Integration: Show Time Report`                   | View time tracking reports                 |
-| `Azure DevOps Integration: Create Work Item`                   | Create a new work item                     |
-| `Azure DevOps Integration: Create Branch from Work Item`       | Create Git branch from work item           |
-| `Azure DevOps Integration: Create Pull Request`                | Create PR from current branch              |
-| `Azure DevOps Integration: Toggle Kanban View`                 | Switch between list and Kanban views       |
-| `Azure DevOps Integration: Select Team`                        | Set team context for sprint queries        |
-| `Azure DevOps Integration: Set OpenAI API Key`                 | Configure OpenAI integration               |
+| Command                                                        | Description                                                                                                        |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `Azure DevOps Integration: Setup Wizard (Easy)`                | Guided setup with work item URL parsing                                                                            |
+| `Azure DevOps Integration: Setup Connection`                   | Manual connection setup                                                                                            |
+| `Azure DevOps Integration: Sign In with Microsoft Entra ID` 🆕 | Sign in using OAuth 2.0 device code flow (also available from the status bar, cycling through pending connections) |
+| `Azure DevOps Integration: Sign Out from Entra ID` 🆕          | Sign out and clear Entra ID tokens                                                                                 |
+| `Azure DevOps Integration: Convert Connection to Entra ID` 🆕  | Switch from PAT to Entra ID authentication                                                                         |
+| `Azure DevOps Integration: Show Work Items`                    | Open the work items view                                                                                           |
+| `Azure DevOps Integration: Start/Stop Timer`                   | Toggle timer for selected work item                                                                                |
+| `Azure DevOps Integration: Show Time Report`                   | View time tracking reports                                                                                         |
+| `Azure DevOps Integration: Create Work Item`                   | Create a new work item                                                                                             |
+| `Azure DevOps Integration: Create Branch from Work Item`       | Create Git branch from work item                                                                                   |
+| `Azure DevOps Integration: Create Pull Request`                | Create PR from current branch                                                                                      |
+| `Azure DevOps Integration: Toggle Kanban View`                 | Switch between list and Kanban views                                                                               |
+| `Azure DevOps Integration: Select Team`                        | Set team context for sprint queries                                                                                |
+| `Azure DevOps Integration: Set OpenAI API Key`                 | Configure OpenAI integration                                                                                       |
 
 ### 🆕 Advanced Commands (v1.8.2+)
 

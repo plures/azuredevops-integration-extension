@@ -1,14 +1,3 @@
-/**
- * Azure DevOps URL Parser
- *
- * Parses Azure DevOps URLs to extract organization, project, and base URL information.
- * Supports multiple Azure DevOps URL formats:
- * - https://dev.azure.com/{org}/{project}/_workitems/edit/{id}
- * - https://{org}.visualstudio.com/{project}/_workitems/edit/{id}
- * - https://{org}.dev.azure.com/{project}/_workitems/edit/{id}
- * - https://{org}.vsrm.visualstudio.com/{project}/_workitems/edit/{id}
- */
-
 export interface ParsedAzureDevOpsUrl {
   organization: string;
   project: string;
@@ -19,88 +8,59 @@ export interface ParsedAzureDevOpsUrl {
   error?: string;
 }
 
-export interface AzureDevOpsUrlPattern {
-  pattern: RegExp;
-  extractGroups: (match: RegExpMatchArray) => {
-    organization: string;
-    project: string;
-    baseUrl: string;
-    workItemId?: number;
-  };
+function buildApiBaseUrl(baseUrl: string, organization: string, project: string): string {
+  const trimmedBase = baseUrl.replace(/\/$/, '');
+  const lowerBase = trimmedBase.toLowerCase();
+
+  if (lowerBase.includes('visualstudio.com')) {
+    return `https://dev.azure.com/${organization}/${project}/_apis`;
+  }
+
+  if (lowerBase.includes('dev.azure.com')) {
+    return `${trimmedBase}/${project}/_apis`;
+  }
+
+  return `${trimmedBase}/${project}/_apis`;
 }
 
-const URL_PATTERNS: AzureDevOpsUrlPattern[] = [
-  // Pattern 1: https://dev.azure.com/{org}/{project}/_workitems/edit/{id}
-  {
-    pattern: /^https:\/\/dev\.azure\.com\/([^/]+)\/([^/]+)\/_workitems\/edit\/(\d+)(?:\/.*)?$/i,
-    extractGroups: (match) => ({
-      organization: match[1],
-      project: match[2],
-      baseUrl: `https://dev.azure.com/${match[1]}`,
-      workItemId: parseInt(match[3], 10),
-    }),
-  },
-  // Pattern 2: https://{org}.visualstudio.com/{project}/_workitems/edit/{id}
-  {
-    pattern: /^https:\/\/([^/]+)\.visualstudio\.com\/([^/]+)\/_workitems\/edit\/(\d+)(?:\/.*)?$/i,
-    extractGroups: (match) => ({
-      organization: match[1],
-      project: match[2],
-      baseUrl: `https://${match[1]}.visualstudio.com`,
-      workItemId: parseInt(match[3], 10),
-    }),
-  },
-  // Pattern 3: https://{org}.dev.azure.com/{project}/_workitems/edit/{id}
-  {
-    pattern: /^https:\/\/([^/]+)\.dev\.azure\.com\/([^/]+)\/_workitems\/edit\/(\d+)(?:\/.*)?$/i,
-    extractGroups: (match) => ({
-      organization: match[1],
-      project: match[2],
-      baseUrl: `https://${match[1]}.dev.azure.com`,
-      workItemId: parseInt(match[3], 10),
-    }),
-  },
-  // Pattern 4: https://{org}.vsrm.visualstudio.com/{project}/_workitems/edit/{id}
-  {
-    pattern:
-      /^https:\/\/([^/]+)\.vsrm\.visualstudio\.com\/([^/]+)\/_workitems\/edit\/(\d+)(?:\/.*)?$/i,
-    extractGroups: (match) => ({
-      organization: match[1],
-      project: match[2],
-      baseUrl: `https://${match[1]}.visualstudio.com`,
-      workItemId: parseInt(match[3], 10),
-    }),
-  },
-  // Pattern 5: https://dev.azure.com/{org}/{project}/_workitems/edit/{id} (with additional path)
-  {
-    pattern: /^https:\/\/dev\.azure\.com\/([^/]+)\/([^/]+)\/_workitems\/edit\/(\d+)\/.*$/i,
-    extractGroups: (match) => ({
-      organization: match[1],
-      project: match[2],
-      baseUrl: `https://dev.azure.com/${match[1]}`,
-      workItemId: parseInt(match[3], 10),
-    }),
-  },
-  // Pattern 6: https://{org}.visualstudio.com/{project}/_workitems/edit/{id} (with additional path)
-  {
-    pattern: /^https:\/\/([^/]+)\.visualstudio\.com\/([^/]+)\/_workitems\/edit\/(\d+)\/.*$/i,
-    extractGroups: (match) => ({
-      organization: match[1],
-      project: match[2],
-      baseUrl: `https://${match[1]}.visualstudio.com`,
-      workItemId: parseInt(match[3], 10),
-    }),
-  },
-];
+function normalizeProjectSegment(segment: string | undefined): string {
+  if (!segment) {
+    return '';
+  }
+
+  return decodeURIComponent(segment.trim());
+}
+
+function extractWorkItemId(segments: string[], searchParams: URLSearchParams): number | undefined {
+  const workItemsIndex = segments.findIndex((segment) => segment.toLowerCase() === '_workitems');
+  if (workItemsIndex >= 0) {
+    const next = segments[workItemsIndex + 1]?.toLowerCase();
+    if (next === 'edit' || next === 'view') {
+      const idSegment = segments[workItemsIndex + 2];
+      const parsed = Number(idSegment);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  const queryId = searchParams.get('id');
+  if (queryId) {
+    const parsed = Number(queryId);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
 
 /**
- * Parses an Azure DevOps work item URL to extract organization, project, and base URL information.
- *
- * @param url - The Azure DevOps work item URL
- * @returns Parsed URL information or error details
+ * Parses an Azure DevOps URL to extract organization, project, and base URL information.
+ * Accepts work item URLs as well as broader project URLs (boards, repos, etc.).
  */
 export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
-  if (!url || typeof url !== 'string') {
+  if (!url || typeof url !== 'string' || !url.trim()) {
     return {
       organization: '',
       project: '',
@@ -111,63 +71,73 @@ export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
     };
   }
 
-  // Clean up the URL
   const cleanUrl = url.trim();
+  let parsed: URL;
 
-  if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+  try {
+    parsed = new URL(cleanUrl);
+  } catch (_error) {
+    void _error;
     return {
       organization: '',
       project: '',
       baseUrl: '',
       apiBaseUrl: '',
       isValid: false,
-      error: 'Invalid URL: URL must start with http:// or https://',
+      error: 'Invalid URL: URL must include a valid protocol (http or https)',
     };
   }
 
-  // Try to match against known patterns
-  for (const pattern of URL_PATTERNS) {
-    const match = cleanUrl.match(pattern.pattern);
-    if (match) {
-      try {
-        const extracted = pattern.extractGroups(match);
+  const host = parsed.hostname.toLowerCase();
+  const segments = parsed.pathname
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
 
-        // Validate extracted values
-        if (!extracted.organization || !extracted.project) {
-          continue; // Try next pattern
-        }
+  let organization = '';
+  let project = '';
+  let baseUrl = '';
 
-        // Determine the correct API base URL
-        let apiBaseUrl: string;
-        if (extracted.baseUrl.includes('dev.azure.com')) {
-          apiBaseUrl = `${extracted.baseUrl}/${extracted.project}/_apis`;
-        } else {
-          // For visualstudio.com URLs, use the dev.azure.com API format
-          apiBaseUrl = `https://dev.azure.com/${extracted.organization}/${extracted.project}/_apis`;
-        }
-
-        return {
-          organization: extracted.organization,
-          project: extracted.project,
-          baseUrl: extracted.baseUrl,
-          apiBaseUrl,
-          workItemId: extracted.workItemId,
-          isValid: true,
-        };
-      } catch {
-        // Continue to next pattern if this one fails
-        continue;
-      }
+  if (host === 'dev.azure.com' || host === 'vsrm.dev.azure.com') {
+    organization = normalizeProjectSegment(segments[0]);
+    project = normalizeProjectSegment(segments[1]);
+    if (organization) {
+      baseUrl = `https://dev.azure.com/${organization}`;
     }
+  } else if (host.endsWith('.dev.azure.com')) {
+    const parts = host.split('.');
+    organization = decodeURIComponent(parts[0]);
+    project = normalizeProjectSegment(segments[0]);
+    baseUrl = `https://${parts[0]}.dev.azure.com`;
+  } else if (host.endsWith('.visualstudio.com') || host.endsWith('.vsrm.visualstudio.com')) {
+    const parts = host.split('.');
+    organization = decodeURIComponent(parts[0]);
+    project = normalizeProjectSegment(segments[0]);
+    baseUrl = `https://${parts[0]}.visualstudio.com`;
   }
 
+  if (!organization || !project) {
+    return {
+      organization: '',
+      project: '',
+      baseUrl: '',
+      apiBaseUrl: '',
+      isValid: false,
+      error:
+        'Unsupported URL format. Provide an Azure DevOps URL that includes the organization and project.',
+    };
+  }
+
+  const apiBaseUrl = buildApiBaseUrl(baseUrl, organization, project);
+  const workItemId = extractWorkItemId(segments, parsed.searchParams);
+
   return {
-    organization: '',
-    project: '',
-    baseUrl: '',
-    apiBaseUrl: '',
-    isValid: false,
-    error: 'Unsupported URL format. Please provide a valid Azure DevOps work item URL.',
+    organization,
+    project,
+    baseUrl,
+    apiBaseUrl,
+    workItemId,
+    isValid: true,
   };
 }
 
@@ -178,16 +148,7 @@ export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
  * @returns True if the URL appears to be an Azure DevOps work item URL
  */
 export function isAzureDevOpsWorkItemUrl(url: string): boolean {
-  if (!url || typeof url !== 'string') {
-    return false;
-  }
-
-  const cleanUrl = url.trim().toLowerCase();
-
-  return (
-    (cleanUrl.includes('dev.azure.com') || cleanUrl.includes('visualstudio.com')) &&
-    cleanUrl.includes('_workitems/edit/')
-  );
+  return parseAzureDevOpsUrl(url).isValid;
 }
 
 /**

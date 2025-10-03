@@ -38,7 +38,10 @@
   let keyboardNavigationEnabled = true;
   // Connections
   export let connections = [];
+  /** @type {string | undefined} */
   export let activeConnectionId = undefined;
+  /** @type {Array<{ connectionId: string; label: string; message: string; detail?: string }>} */
+  export let authReminders = [];
 
   // Multi-select mode
   let multiSelectMode = false;
@@ -88,6 +91,12 @@
   }
   function onToggleKanban() {
     dispatch('toggleKanban');
+  }
+  function onReminderSignIn(connectionId) {
+    dispatch('authReminderAction', { connectionId, action: 'signIn' });
+  }
+  function onReminderDismiss(connectionId) {
+    dispatch('authReminderAction', { connectionId, action: 'dismiss' });
   }
   function onFilterInput(e) {
     dispatch('filtersChanged', {
@@ -508,6 +517,36 @@
         >
           {connection.label}
         </button>
+      {/each}
+    </div>
+  {/if}
+
+  {#if authReminders && authReminders.length}
+    <div class="auth-reminders" role="region" aria-label="Authentication reminders">
+      {#each authReminders as reminder (reminder.connectionId)}
+        <div class="auth-reminder" role="alert">
+          <div class="auth-reminder-icon" aria-hidden="true">⚠️</div>
+          <div class="auth-reminder-body">
+            <div class="auth-reminder-title">
+              {reminder.message || `Microsoft Entra sign-in required for ${reminder.label}`}
+            </div>
+            <div class="auth-reminder-detail">
+              {#if reminder.detail}
+                {reminder.detail}
+              {:else}
+                Sign in to refresh {reminder.label} and resume work item syncing.
+              {/if}
+            </div>
+          </div>
+          <div class="auth-reminder-actions">
+            <button class="primary" on:click={() => onReminderSignIn(reminder.connectionId)}>
+              Sign In
+            </button>
+            <button class="secondary" on:click={() => onReminderDismiss(reminder.connectionId)}>
+              Dismiss
+            </button>
+          </div>
+        </div>
       {/each}
     </div>
   {/if}
@@ -1482,6 +1521,92 @@
     max-width: 100%;
     border-radius: 4px;
     font-size: 12px;
+  }
+
+  .auth-reminders {
+    margin: 12px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .auth-reminder {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    border: 1px solid var(--vscode-editorWidget-border);
+    border-radius: 6px;
+    background: var(--vscode-editorWidget-background);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  }
+
+  .auth-reminder-icon {
+    font-size: 20px;
+    line-height: 1;
+    margin-top: 2px;
+  }
+
+  .auth-reminder-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .auth-reminder-title {
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .auth-reminder-detail {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--vscode-editor-foreground);
+    opacity: 0.9;
+    white-space: pre-wrap;
+  }
+
+  .auth-reminder-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .auth-reminder-actions .primary,
+  .auth-reminder-actions .secondary {
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 120ms ease;
+  }
+
+  .auth-reminder-actions .primary {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+  }
+
+  .auth-reminder-actions .primary:hover {
+    background: var(--vscode-button-hoverBackground);
+  }
+
+  .auth-reminder-actions .secondary {
+    background: transparent;
+    color: var(--vscode-editor-foreground);
+    border: 1px solid var(--vscode-editorWidget-border);
+  }
+
+  .auth-reminder-actions .secondary:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+  }
+
+  @media (min-width: 800px) {
+    .auth-reminder-actions {
+      flex-direction: row;
+      align-items: center;
+    }
   }
 
   /* Bulk Actions Toolbar */

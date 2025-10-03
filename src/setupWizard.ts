@@ -33,116 +33,157 @@ export interface SetupWizardData {
   existingConnectionId?: string;
   clientId?: string; // Entra ID client ID
   tenantId?: string; // Entra ID tenant ID
+  mode?: 'create' | 'edit' | 'replace';
+  existingConnection?: StoredConnection;
+  requireBaseUpdate?: boolean;
+  keepExistingPat?: boolean;
+  keepExistingEntraConfig?: boolean;
+}
+
+export interface StoredConnection {
+  id: string;
+  organization: string;
+  project: string;
+  label?: string;
+  team?: string;
+  baseUrl?: string;
+  authMethod?: 'pat' | 'entra';
+  patKey?: string;
+  tenantId?: string;
+  clientId?: string;
+}
+
+export interface SetupWizardResult {
+  status: 'success' | 'removed' | 'cancelled';
+  connectionId?: string;
+  removedConnectionId?: string;
 }
 
 export class SetupWizard {
-  private context: vscode.ExtensionContext;
-  private currentStep: number = 1;
+  private readonly context: vscode.ExtensionContext;
+  private currentStep = 1;
   private data: SetupWizardData = {};
-  private steps: SetupWizardStep[] = [
-    {
-      step: 1,
-      title: 'Work Item URL',
-      description: 'Provide a work item URL to auto-configure your connection',
-      completed: false,
-    },
-    {
-      step: 2,
-      title: 'Authentication Method',
-      description: 'Choose between Personal Access Token or Microsoft Entra ID',
-      completed: false,
-    },
-    {
-      step: 3,
-      title: 'Authentication Setup',
-      description: 'Configure your chosen authentication method',
-      completed: false,
-    },
-    {
-      step: 4,
-      title: 'Test Connection',
-      description: 'Verify your connection works correctly',
-      completed: false,
-    },
-    {
-      step: 5,
-      title: 'Optional Settings',
-      description: 'Configure team and connection label',
-      completed: false,
-    },
-    {
-      step: 6,
-      title: 'Complete Setup',
-      description: 'Save your connection configuration',
-      completed: false,
-    },
-  ];
+  private steps: SetupWizardStep[];
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
+    this.steps = this.createSteps();
+  }
+
+  private createSteps(): SetupWizardStep[] {
+    return [
+      {
+        step: 1,
+        title: 'Work Item URL',
+        description: 'Provide a work item URL to auto-configure your connection',
+        completed: false,
+      },
+      {
+        step: 2,
+        title: 'Authentication Method',
+        description: 'Choose between Personal Access Token or Microsoft Entra ID',
+        completed: false,
+      },
+      {
+        step: 3,
+        title: 'Authentication Setup',
+        description: 'Configure your chosen authentication method',
+        completed: false,
+      },
+      {
+        step: 4,
+        title: 'Test Connection',
+        description: 'Verify your connection works correctly',
+        completed: false,
+      },
+      {
+        step: 5,
+        title: 'Optional Settings',
+        description: 'Configure team and connection label',
+        completed: false,
+      },
+      {
+        step: 6,
+        title: 'Complete Setup',
+        description: 'Save your connection configuration',
+        completed: false,
+      },
+    ];
+  }
+
+  private resetSteps(): void {
+    this.steps = this.createSteps();
+  }
+
+  private resetWizardState(): void {
+    this.currentStep = 1;
+    this.data = {};
+    this.resetSteps();
   }
 
   /**
    * Starts the setup wizard
    */
-  async start(): Promise<boolean> {
+  async start(): Promise<SetupWizardResult> {
     try {
-      // Reset wizard state
-      this.currentStep = 1;
-      this.data = {};
+      this.resetWizardState();
 
-      // Check for existing connections
       const existingConnections = await this.getExistingConnections();
 
-      let startChoice: string | undefined;
-      if (existingConnections.length > 0) {
-        // Show options for existing connections
-        const choices = ['Add New Connection', 'Modify Existing Connection', 'Cancel'];
+      if (existingConnections.length === 0) {
+        this.data.mode = 'create';
+        return await this.runWizardFlow();
+      }
 
-        startChoice = await vscode.window.showInformationMessage(
-          `Welcome to the Azure DevOps Integration Setup Wizard!\n\n` +
-            `You currently have ${existingConnections.length} connection(s) configured.\n` +
-            `What would you like to do?`,
-          ...choices
-        );
-
-        if (startChoice === 'Modify Existing Connection') {
-          return await this.modifyExistingConnection(existingConnections);
+      const initialChoice = await vscode.window.showQuickPick(
+        [
+          {
+            label: 'Add New Connection',
+            description: 'Create a new Azure DevOps connection',
+            value: 'add',
+          },
+          {
+            label: 'Manage Existing Connections',
+            description: 'Edit, replace, or remove an existing connection',
+            value: 'manage',
+          },
+          { label: 'Cancel', value: 'cancel' },
+        ],
+        {
+          placeHolder: 'Azure DevOps Integration setup',
+          ignoreFocusOut: true,
         }
-      } else {
-        // Show welcome message for new setup
-        startChoice = await vscode.window.showInformationMessage(
-          'Welcome to the Azure DevOps Integration Setup Wizard! This will help you configure your first connection step by step.',
-          'Start Setup',
-          'Cancel'
-        );
+      );
+
+      if (!initialChoice || initialChoice.value === 'cancel') {
+        return { status: 'cancelled' };
       }
 
-      if (startChoice !== 'Start Setup' && startChoice !== 'Add New Connection') {
-        return false;
+      if (initialChoice.value === 'add') {
+        this.data.mode = 'create';
+        return await this.runWizardFlow();
       }
 
-      // Execute each step
-      for (let i = 0; i < this.steps.length; i++) {
-        this.currentStep = i + 1;
-        const stepResult = await this.executeStep(this.currentStep);
-
-        if (!stepResult) {
-          // User cancelled or step failed
-          return false;
-        }
-      }
-
-      // All steps completed successfully
-      await this.completeSetup();
-      return true;
+      return await this.manageExistingConnections(existingConnections);
     } catch (error) {
       console.error('[SetupWizard] Error during setup:', error);
       vscode.window.showErrorMessage(
         `Setup failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
-      return false;
+      return { status: 'cancelled' };
     }
+  }
+
+  private async runWizardFlow(): Promise<SetupWizardResult> {
+    for (let i = 0; i < this.steps.length; i++) {
+      this.currentStep = i + 1;
+      const stepCompleted = await this.executeStep(this.currentStep);
+      if (!stepCompleted) {
+        return { status: 'cancelled' };
+      }
+    }
+
+    return await this.completeSetup();
   }
 
   /**
@@ -754,7 +795,7 @@ export class SetupWizard {
   /**
    * Completes the setup by saving the connection
    */
-  private async completeSetup(): Promise<void> {
+  private async completeSetup(): Promise<SetupWizardResult> {
     if (!this.data.parsedUrl) {
       throw new Error('Setup data is incomplete');
     }
@@ -767,7 +808,7 @@ export class SetupWizard {
     // Create connection object
     const connectionId = this.data.existingConnectionId || randomUUID();
 
-    let connection: any = {
+    const connection: StoredConnection = {
       id: connectionId,
       organization: this.data.parsedUrl.organization,
       project: this.data.parsedUrl.project,
@@ -832,77 +873,143 @@ export class SetupWizard {
           vscode.commands.executeCommand('azureDevOpsInt.showWorkItems');
         }
       });
+
+    return { status: 'success', connectionId: connection.id };
   }
 
   /**
    * Gets existing connections from configuration
    */
-  private async getExistingConnections(): Promise<any[]> {
+  private async getExistingConnections(): Promise<StoredConnection[]> {
     const config = vscode.workspace.getConfiguration('azureDevOpsIntegration');
-    return config.get<any[]>('connections') ?? [];
+    return config.get<StoredConnection[]>('connections') ?? [];
   }
 
   /**
-   * Modifies an existing connection
+   * Handles managing an existing connection (edit/replace/remove)
    */
-  private async modifyExistingConnection(existingConnections: any[]): Promise<boolean> {
-    // Show list of existing connections to modify
-    const connectionItems = existingConnections.map((conn, index) => ({
+  private async manageExistingConnections(
+    existingConnections: StoredConnection[]
+  ): Promise<SetupWizardResult> {
+    const connectionItems = existingConnections.map((conn) => ({
       label: conn.label || `${conn.organization}/${conn.project}`,
       description: conn.team ? `Team: ${conn.team}` : undefined,
       detail: `Organization: ${conn.organization}, Project: ${conn.project}`,
       connection: conn,
-      index,
     }));
 
     const selectedConnection = await vscode.window.showQuickPick(connectionItems, {
-      placeHolder: 'Select a connection to modify',
+      placeHolder: 'Select a connection to manage',
       ignoreFocusOut: true,
     });
 
     if (!selectedConnection) {
+      return { status: 'cancelled' };
+    }
+
+    const action = await vscode.window.showQuickPick(
+      [
+        {
+          label: 'Edit Connection',
+          description: 'Review and update the existing configuration',
+          value: 'edit',
+        },
+        {
+          label: 'Replace with New Details',
+          description: 'Start from a fresh work item URL and overwrite this connection',
+          value: 'replace',
+        },
+        {
+          label: 'Remove Connection',
+          description: 'Delete this connection from the extension',
+          value: 'remove',
+        },
+        { label: 'Cancel', value: 'cancel' },
+      ],
+      {
+        placeHolder: `Manage “${selectedConnection.label}”`,
+        ignoreFocusOut: true,
+      }
+    );
+
+    if (!action || action.value === 'cancel') {
+      return { status: 'cancelled' };
+    }
+
+    if (action.value === 'remove') {
+      const confirmed = await this.confirmRemoveConnection(selectedConnection.connection);
+      return confirmed
+        ? { status: 'removed', removedConnectionId: selectedConnection.connection.id }
+        : { status: 'cancelled' };
+    }
+
+    const target = selectedConnection.connection;
+    const baseUrl = target.baseUrl || `https://dev.azure.com/${target.organization}`;
+
+    this.data = {
+      existingConnectionId: target.id,
+      existingConnection: target,
+      workItemUrl: `${baseUrl}/${target.project}/_workitems`,
+      parsedUrl: {
+        organization: target.organization,
+        project: target.project,
+        baseUrl,
+        apiBaseUrl: `https://dev.azure.com/${target.organization}/${target.project}/_apis`,
+        isValid: true,
+      },
+      label: target.label,
+      team: target.team,
+      authMethod: target.authMethod,
+      clientId: target.clientId,
+      tenantId: target.tenantId,
+      mode: action.value === 'replace' ? 'replace' : 'edit',
+      keepExistingPat: action.value === 'edit',
+      keepExistingEntraConfig: action.value === 'edit',
+    };
+
+    return await this.runWizardFlow();
+  }
+
+  private async confirmRemoveConnection(connection: StoredConnection): Promise<boolean> {
+    const label = connection.label || `${connection.organization}/${connection.project}`;
+    const confirmation = await vscode.window.showWarningMessage(
+      `Remove the connection “${label}”?`,
+      { modal: true },
+      'Remove'
+    );
+
+    if (confirmation !== 'Remove') {
       return false;
     }
 
-    // Pre-populate the wizard data with existing connection
-    const baseUrl =
-      selectedConnection.connection.baseUrl ||
-      `https://dev.azure.com/${selectedConnection.connection.organization}`;
-    this.data = {
-      workItemUrl: `${baseUrl}/${selectedConnection.connection.project}/_workitems`,
-      parsedUrl: {
-        organization: selectedConnection.connection.organization,
-        project: selectedConnection.connection.project,
-        baseUrl: baseUrl,
-        apiBaseUrl: `https://dev.azure.com/${selectedConnection.connection.organization}/${selectedConnection.connection.project}/_apis`,
-        isValid: true,
-      },
-      label: selectedConnection.connection.label,
-      team: selectedConnection.connection.team,
-      existingConnectionId: selectedConnection.connection.id,
-    };
+    const existingConnections = await this.getExistingConnections();
+    const remaining = existingConnections.filter((item) => item.id !== connection.id);
 
-    // Execute the wizard steps
-    for (let i = 0; i < this.steps.length; i++) {
-      this.currentStep = i + 1;
-      const stepResult = await this.executeStep(this.currentStep);
+    const config = vscode.workspace.getConfiguration('azureDevOpsIntegration');
+    await config.update('connections', remaining, vscode.ConfigurationTarget.Global);
 
-      if (!stepResult) {
-        return false;
+    if (connection.patKey) {
+      try {
+        await this.context.secrets.delete(connection.patKey);
+      } catch (error) {
+        console.warn('[SetupWizard] Failed to delete PAT secret during removal', error);
       }
     }
 
-    // Complete the modification
-    await this.completeSetup();
+    const activeId = this.context.globalState.get<string>('azureDevOpsInt.activeConnectionId');
+    const nextActiveId = activeId === connection.id ? remaining[0]?.id : activeId;
+    await this.context.globalState.update('azureDevOpsInt.activeConnectionId', nextActiveId);
+
+    vscode.window.showInformationMessage(`Removed connection ${label}.`);
     return true;
   }
 
   /**
    * Saves a connection to the VS Code configuration
    */
-  private async saveConnectionToConfig(connection: any): Promise<void> {
+  private async saveConnectionToConfig(connection: StoredConnection): Promise<void> {
     const config = vscode.workspace.getConfiguration('azureDevOpsIntegration');
-    const existingConnections = config.get<any[]>('connections') ?? [];
+    const existingConnections = config.get<StoredConnection[]>('connections') ?? [];
 
     if (this.data.existingConnectionId) {
       // Update existing connection
@@ -921,7 +1028,9 @@ export class SetupWizard {
 /**
  * Starts the setup wizard
  */
-export async function startSetupWizard(context: vscode.ExtensionContext): Promise<boolean> {
+export async function startSetupWizard(
+  context: vscode.ExtensionContext
+): Promise<SetupWizardResult> {
   const wizard = new SetupWizard(context);
   return await wizard.start();
 }
