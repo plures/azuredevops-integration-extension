@@ -6,6 +6,16 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.9.3] - 2025-10-03
+
+### Changed
+
+- **Documentation screenshots**: Regenerated list and Kanban captures with a light theme backdrop so text remains readable and the README shows consistent framing across both views.
+
+### Technical
+
+- **Screenshot generator styling**: Updated the Playwright capture script to enforce light foreground/background colors, refreshed card styling, and standardized padding for future documentation assets.
+
 ## [1.9.1] - 2025-10-03
 
 ### Changed
