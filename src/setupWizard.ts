@@ -602,7 +602,15 @@ export class SetupWizard {
   private async step4_TestConnection(): Promise<boolean> {
     const step = this.steps[3];
 
-    if (!this.data.parsedUrl || !this.data.pat) return false;
+    if (!this.data.parsedUrl) return false;
+
+    // For PAT auth, perform a token-based connection test. For Entra ID, we
+    // defer interactive auth to first use and mark this step as completed.
+    if (this.data.authMethod === 'entra') {
+      this.data.connectionTested = true;
+      step.completed = true;
+      return true;
+    }
 
     // Show progress
     await vscode.window.withProgress(
@@ -635,7 +643,7 @@ export class SetupWizard {
   private async step5_OptionalSettings(): Promise<boolean> {
     const step = this.steps[4];
 
-    if (!this.data.parsedUrl || !this.data.pat) return false;
+    if (!this.data.parsedUrl) return false;
 
     // Ask about team selection
     const teamChoice = await vscode.window.showQuickPick(
@@ -650,40 +658,46 @@ export class SetupWizard {
     );
 
     if (teamChoice?.value === 'now') {
-      // Test connection first to get teams
-      try {
-        const client = new AzureDevOpsIntClient(
-          this.data.parsedUrl!.organization,
-          this.data.parsedUrl!.project,
-          this.data.pat!,
-          { baseUrl: this.data.parsedUrl!.baseUrl }
-        );
+      if (this.data.authMethod === 'pat' && this.data.pat) {
+        // Test connection first to get teams (PAT flow only)
+        try {
+          const client = new AzureDevOpsIntClient(
+            this.data.parsedUrl!.organization,
+            this.data.parsedUrl!.project,
+            this.data.pat!,
+            { baseUrl: this.data.parsedUrl!.baseUrl }
+          );
 
-        const teams = await (client as any).getTeams?.();
-        if (teams && Array.isArray(teams) && teams.length > 0) {
-          const teamPicks = teams.map((t: any) => ({
-            label: t.name,
-            description: t.id,
-            value: t.name,
-          }));
+          const teams = await (client as any).getTeams?.();
+          if (teams && Array.isArray(teams) && teams.length > 0) {
+            const teamPicks = teams.map((t: any) => ({
+              label: t.name,
+              description: t.id,
+              value: t.name,
+            }));
 
-          const selectedTeam = await vscode.window.showQuickPick(teamPicks, {
-            placeHolder: 'Select your team for sprint queries',
-            ignoreFocusOut: true,
-          });
+            const selectedTeam = await vscode.window.showQuickPick(teamPicks, {
+              placeHolder: 'Select your team for sprint queries',
+              ignoreFocusOut: true,
+            });
 
-          if (selectedTeam) {
-            this.data.team = selectedTeam.value;
+            if (selectedTeam) {
+              this.data.team = selectedTeam.value;
+            }
+          } else {
+            vscode.window.showInformationMessage(
+              'No teams found for this project. You can configure this later.'
+            );
           }
-        } else {
+        } catch (error) {
+          console.warn('[SetupWizard] Could not fetch teams:', error);
           vscode.window.showInformationMessage(
-            'No teams found for this project. You can configure this later.'
+            'Could not fetch teams. You can configure this later.'
           );
         }
-      } catch (error) {
-        console.warn('[SetupWizard] Could not fetch teams:', error);
+      } else {
         vscode.window.showInformationMessage(
-          'Could not fetch teams. You can configure this later.'
+          'Team configuration requires additional permissions. You can configure this after signing in.'
         );
       }
     }
@@ -709,7 +723,7 @@ export class SetupWizard {
   private async step6_CompleteSetup(): Promise<boolean> {
     const step = this.steps[5];
 
-    if (!this.data.parsedUrl || !this.data.pat) return false;
+    if (!this.data.parsedUrl) return false;
 
     // Show summary
     const summary =
