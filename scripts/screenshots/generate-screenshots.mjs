@@ -15,6 +15,17 @@ import http from 'node:http';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const CAPTURE_WIDTH = 1200;
+const CAPTURE_MAX_HEIGHT = 780;
+const CAPTURE_BACKGROUND = '#f4f6fb';
+const CAPTURE_PADDING = 32;
+const CAPTURE_BORDER_RADIUS = 16;
+const CAPTURE_BORDER = '1px solid rgba(15, 23, 42, 0.08)';
+const CAPTURE_SHADOW = '0 18px 48px rgba(15, 23, 42, 0.14)';
+const CAPTURE_TEXT_COLOR = '#0f172a';
+const CAPTURE_PANE_GRADIENT =
+  'linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(236, 241, 249, 0.96))';
+
 async function readJson(p) {
   const raw = await fs.readFile(p, 'utf8');
   return JSON.parse(raw);
@@ -61,7 +72,7 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   // Use a larger viewport with higher DPI for better quality screenshots
   const context = await browser.newContext({
-    viewport: { width: 1400, height: 900 },
+    viewport: { width: 1600, height: 1000 },
     deviceScaleFactor: 2, // Retina display quality
   });
   const page = await context.newPage();
@@ -84,7 +95,7 @@ async function main() {
 
   // Helper to capture a screenshot with a given fixture
   async function capture(name, fixture, dumpHtml = false, options = {}) {
-    const { widthPx } = options; // optional target width for the captured element
+    const { widthPx, maxHeightPx } = options; // optional sizing overrides
     // Ensure init script is in place before navigation so fixture is applied before any scripts run
     await page.addInitScript((f) => {
       // Provide fixture data for the webview bootstrap to pick up
@@ -210,7 +221,21 @@ async function main() {
 
     // If a target width is requested, apply it before selecting/screenshotting
     if (typeof widthPx === 'number' && widthPx > 0) {
-      const css = `${selector}{width:${widthPx}px !important; max-width:${widthPx}px !important;}`;
+      const cssParts = [
+        `${selector}{width:${widthPx}px !important; max-width:${widthPx}px !important; margin:0 auto !important; border-radius:${CAPTURE_BORDER_RADIUS}px !important; border:${CAPTURE_BORDER} !important; box-shadow:${CAPTURE_SHADOW} !important; overflow:hidden !important; background:${CAPTURE_PANE_GRADIENT} !important; color:${CAPTURE_TEXT_COLOR} !important;}`,
+        `body,html{background:${CAPTURE_BACKGROUND} !important; padding:${CAPTURE_PADDING}px !important; margin:0 !important; display:flex !important; justify-content:center !important; align-items:flex-start !important;}`,
+        `.pane, .pane .pane-content{background:transparent !important; color:${CAPTURE_TEXT_COLOR} !important;}`,
+        `.pane .work-item-card, .pane .kanban-card{background-color:rgba(255,255,255,0.92) !important; color:${CAPTURE_TEXT_COLOR} !important; box-shadow:0 4px 14px rgba(15,23,42,0.08) !important;}`,
+        `.pane .kanban-column{background-color:rgba(248,250,255,0.9) !important;}`,
+        `.pane .status-label{color:${CAPTURE_TEXT_COLOR} !important;}`,
+        `.pane .connection-tabs{background:rgba(255,255,255,0.85) !important; border-bottom:1px solid rgba(15,23,42,0.08) !important;}
+         .pane .connection-tab{color:${CAPTURE_TEXT_COLOR} !important;}`,
+      ];
+      await page.addStyleTag({ content: cssParts.join('\n') });
+    }
+
+    if (typeof maxHeightPx === 'number' && maxHeightPx > 0) {
+      const css = `${selector}{max-height:${maxHeightPx}px !important; overflow:hidden !important;}`;
       await page.addStyleTag({ content: css });
     }
 
@@ -239,7 +264,7 @@ async function main() {
       selectWorkItemId: 101,
     },
     true,
-    { widthPx: 380 }
+    { widthPx: CAPTURE_WIDTH, maxHeightPx: CAPTURE_MAX_HEIGHT }
   );
 
   await capture(
@@ -251,7 +276,7 @@ async function main() {
       view: 'kanban',
     },
     true,
-    { widthPx: 800 }
+    { widthPx: CAPTURE_WIDTH, maxHeightPx: CAPTURE_MAX_HEIGHT }
   );
 
   // Timer-specific screenshot removed; timer visibility is demonstrated inline when active.
