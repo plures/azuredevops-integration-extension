@@ -178,7 +178,23 @@ export class AzureDevOpsIntClient {
    * Falls back to null on error.
    */
   async getAuthenticatedUserId(): Promise<string | null> {
+    console.log('[AzureClient] 🔍 Testing authentication...');
     const identity = await this._getAuthenticatedIdentity();
+
+    if (identity?.id) {
+      console.log('[AzureClient] ✅ Authentication successful!');
+      console.log(
+        `[AzureClient] 👤 User: ${identity.displayName || 'Unknown'} (${identity.uniqueName || 'Unknown'})`
+      );
+      console.log(`[AzureClient] 🔑 Authentication method: Personal Access Token (PAT)`);
+      console.log(`[AzureClient] 📋 Your PAT has at least basic read permissions`);
+      console.log(
+        `[AzureClient] 💡 If work item creation works, your PAT also has work item write permissions`
+      );
+    } else {
+      console.log('[AzureClient] ❌ Authentication failed - no user identity returned');
+    }
+
     return identity?.id ?? null;
   }
 
@@ -635,6 +651,11 @@ export class AzureDevOpsIntClient {
     assignedTo?: string,
     extraFields?: Record<string, unknown>
   ): Promise<WorkItem> {
+    console.log('[AzureClient] 🔍 Creating work item:', {
+      type,
+      title: title.substring(0, 50) + '...',
+    });
+
     const patch: any[] = [{ op: 'add', path: '/fields/System.Title', value: title }];
     if (description)
       patch.push({ op: 'add', path: '/fields/System.Description', value: description });
@@ -645,10 +666,36 @@ export class AzureDevOpsIntClient {
         patch.push({ op: 'add', path: `/fields/${field}`, value });
       }
     }
-    const resp = await this.axios.post(`/wit/workitems/$${type}?api-version=7.0`, patch, {
-      headers: { 'Content-Type': 'application/json-patch+json' },
-    });
-    return { id: resp.data.id, fields: resp.data.fields } as WorkItem;
+
+    try {
+      const resp = await this.axios.post(`/wit/workitems/$${type}?api-version=7.0`, patch, {
+        headers: { 'Content-Type': 'application/json-patch+json' },
+      });
+
+      console.log('[AzureClient] ✅ Work item created successfully!');
+      console.log(`[AzureClient] 📋 Work Item ID: ${resp.data.id}`);
+      console.log(
+        `[AzureClient] 🔑 This confirms your authentication has work item WRITE permissions`
+      );
+      console.log(
+        `[AzureClient] 🎯 Required permission: vso.work_write (for PAT) or equivalent scope (for OAuth)`
+      );
+
+      return { id: resp.data.id, fields: resp.data.fields } as WorkItem;
+    } catch (error: any) {
+      console.error(
+        '[AzureClient] ❌ Work item creation failed:',
+        error.response?.status,
+        error.response?.statusText
+      );
+      if (error.response?.status === 403) {
+        console.error(
+          '[AzureClient] 🚫 Permission denied - your authentication lacks work item write permissions'
+        );
+        console.error('[AzureClient] 💡 Check your PAT scopes or Azure AD permissions');
+      }
+      throw error;
+    }
   }
 
   async updateWorkItem(id: number, patchOps: any[]): Promise<WorkItem> {
