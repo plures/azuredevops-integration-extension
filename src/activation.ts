@@ -271,14 +271,31 @@ function sanitizeConnection(raw: any): ProjectConnection | null {
     typeof raw.patKey === 'string' && raw.patKey.trim() ? raw.patKey.trim() : undefined;
   const baseUrlValue =
     typeof raw.baseUrl === 'string' && raw.baseUrl.trim() ? raw.baseUrl.trim() : undefined;
+  const tenantIdValue =
+    typeof raw.tenantId === 'string' && raw.tenantId.trim() ? raw.tenantId.trim() : undefined;
+  const clientIdValue =
+    typeof raw.clientId === 'string' && raw.clientId.trim() ? raw.clientId.trim() : undefined;
+  let authMethodValue: AuthMethod | undefined;
+  const authMethodRaw =
+    typeof raw.authMethod === 'string' && raw.authMethod.trim()
+      ? raw.authMethod.trim().toLowerCase()
+      : undefined;
+  if (authMethodRaw === 'entra' || authMethodRaw === 'pat') {
+    authMethodValue = authMethodRaw;
+  } else if (clientIdValue || tenantIdValue) {
+    authMethodValue = 'entra';
+  }
   return {
     id: idValue,
     organization,
     project,
     label: labelValue,
     team: teamValue,
+    authMethod: authMethodValue,
     patKey: patKeyValue,
     baseUrl: baseUrlValue,
+    tenantId: tenantIdValue,
+    clientId: clientIdValue,
   };
 }
 

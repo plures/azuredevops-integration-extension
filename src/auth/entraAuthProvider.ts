@@ -28,7 +28,8 @@ const AZURE_DEVOPS_RESOURCE_ID = '499b84ac-1321-427f-aa17-267ca6975798';
 /**
  * Default scopes for Azure DevOps access
  */
-const DEFAULT_SCOPES = [`${AZURE_DEVOPS_RESOURCE_ID}/.default`];
+const DEFAULT_BASE_SCOPES = [`${AZURE_DEVOPS_RESOURCE_ID}/.default`];
+const OFFLINE_ACCESS_SCOPE = 'offline_access';
 
 export class EntraAuthProvider implements IAuthProvider {
   private config: EntraAuthConfig;
@@ -38,6 +39,7 @@ export class EntraAuthProvider implements IAuthProvider {
   private msalClient: msal.PublicClientApplication;
   private cachedToken?: TokenInfo;
   private refreshTokenKey: string;
+  private tokenCacheKey: string;
 
   constructor(options: EntraAuthProviderOptions) {
     this.config = options.config;
@@ -45,12 +47,16 @@ export class EntraAuthProvider implements IAuthProvider {
     this.connectionId = options.connectionId;
     this.deviceCodeCallback = options.deviceCodeCallback;
     this.refreshTokenKey = `azureDevOpsInt.entra.refreshToken.${this.connectionId}`;
+    this.tokenCacheKey = `azureDevOpsInt.entra.tokenCache.${this.connectionId}`;
 
     // Initialize MSAL with device code flow configuration
     const msalConfig: msal.Configuration = {
       auth: {
         clientId: this.config.clientId,
         authority: this.getAuthority(),
+      },
+      cache: {
+        cachePlugin: this.createCachePlugin(),
       },
       system: {
         loggerOptions: {
@@ -76,11 +82,64 @@ export class EntraAuthProvider implements IAuthProvider {
   }
 
   /**
+   * Resolve requested scopes, ensuring offline_access is always included
+   */
+  private resolveScopes(): string[] {
+    const configuredScopes =
+      Array.isArray(this.config.scopes) && this.config.scopes.length > 0
+        ? this.config.scopes
+        : DEFAULT_BASE_SCOPES;
+
+    const scopeSet = new Set<string>();
+    for (const scope of configuredScopes) {
+      if (typeof scope === 'string') {
+        const trimmed = scope.trim();
+        if (trimmed.length > 0) {
+          scopeSet.add(trimmed);
+        }
+      }
+    }
+
+    scopeSet.add(OFFLINE_ACCESS_SCOPE);
+
+    return Array.from(scopeSet);
+  }
+
+  /**
+   * Create a cache plugin that persists the MSAL token cache in secret storage
+   */
+  private createCachePlugin(): msal.ICachePlugin {
+    return {
+      beforeCacheAccess: async (context: msal.TokenCacheContext) => {
+        try {
+          const serialized = await this.secretStorage.get(this.tokenCacheKey);
+          if (serialized) {
+            context.tokenCache.deserialize(serialized);
+          }
+        } catch (error) {
+          console.error('[EntraAuthProvider] Failed to load token cache:', error);
+        }
+      },
+      afterCacheAccess: async (context: msal.TokenCacheContext) => {
+        if (!context.cacheHasChanged) {
+          return;
+        }
+        try {
+          const serialized = context.tokenCache.serialize();
+          await this.secretStorage.store(this.tokenCacheKey, serialized);
+        } catch (error) {
+          console.error('[EntraAuthProvider] Failed to persist token cache:', error);
+        }
+      },
+    } satisfies msal.ICachePlugin;
+  }
+
+  /**
    * Authenticate using device code flow
    */
   async authenticate(): Promise<AuthenticationResult> {
     try {
-      const scopes = this.config.scopes?.length > 0 ? this.config.scopes : DEFAULT_SCOPES;
+      const scopes = this.resolveScopes();
 
       // First, try silent authentication with cached refresh token
       const silentResult = await this.trySilentAuthentication(scopes);
@@ -145,7 +204,15 @@ export class EntraAuthProvider implements IAuthProvider {
    */
   private async trySilentAuthentication(scopes: string[]): Promise<AuthenticationResult> {
     try {
-      const account = await this.getStoredAccount();
+      let account = await this.getStoredAccount();
+      if (!account) {
+        try {
+          const accounts = await this.msalClient.getTokenCache().getAllAccounts();
+          account = accounts[0];
+        } catch (cacheError) {
+          console.error('[EntraAuthProvider] Failed to read accounts from cache:', cacheError);
+        }
+      }
       if (!account) {
         return { success: false, error: 'No cached account found' };
       }
@@ -203,7 +270,7 @@ export class EntraAuthProvider implements IAuthProvider {
    * Refresh the access token using silent flow
    */
   async refreshAccessToken(): Promise<AuthenticationResult> {
-    const scopes = this.config.scopes?.length > 0 ? this.config.scopes : DEFAULT_SCOPES;
+    const scopes = this.resolveScopes();
     return this.trySilentAuthentication(scopes);
   }
 
@@ -216,6 +283,7 @@ export class EntraAuthProvider implements IAuthProvider {
 
     // Clear stored account
     await this.secretStorage.delete(this.refreshTokenKey);
+    await this.secretStorage.delete(this.tokenCacheKey);
 
     // Remove account from MSAL cache
     const accounts = await this.msalClient.getTokenCache().getAllAccounts();

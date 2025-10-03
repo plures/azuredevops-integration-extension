@@ -6,6 +6,16 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.9.1] - 2025-10-03
+
+### Changed
+
+- **Entra ID scope updates**: Every Microsoft Entra connection now requests `offline_access` alongside the Azure DevOps resource scope so refresh tokens are issued for long-lived sessions.
+
+### Fixed
+
+- **Persistent token cache**: MSAL’s token cache is serialized to VS Code secret storage, allowing silent token renewal to survive window reloads and reducing repeat sign-in prompts.
+
 ## [1.9.0] - 2025-01-XX
 
 ### Added

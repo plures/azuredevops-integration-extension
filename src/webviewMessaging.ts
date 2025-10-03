@@ -3,11 +3,14 @@ import type { WorkItemsProvider } from './provider.js';
 
 export type LoggerFn = (message: string, extra?: unknown) => void;
 
+type AuthMethod = 'pat' | 'entra';
+
 export type ConnectionLike = {
   id: string;
   organization: string;
   project: string;
   label?: string;
+  authMethod?: AuthMethod;
 };
 
 export type PostToWebviewParams = {
@@ -113,6 +116,7 @@ export function postConnectionsUpdate({
     label: getConnectionLabel(connection),
     organization: connection.organization,
     project: connection.project,
+    authMethod: connection.authMethod,
   }));
 
   postToWebview({

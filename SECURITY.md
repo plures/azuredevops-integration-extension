@@ -55,11 +55,13 @@ Token storage security is implemented in:
 - **Enterprise Compatible**: Works with your organization's conditional access and MFA policies
 
 ### Personal Access Token (PAT) - Legacy Support
+
 - Traditional token-based authentication for backwards compatibility
 - Tokens stored securely using VS Code's SecretStorage API
 - No secrets or passwords are ever stored in plain text
 
 ### Code References
+
 - **Entra ID Implementation**: [`src/auth/EntraAuthProvider.ts`](https://github.com/plures/azuredevops-integration-extension/blob/main/src/auth/EntraAuthProvider.ts)
 - **Authentication Interface**: [`src/auth/types.ts`](https://github.com/plures/azuredevops-integration-extension/blob/main/src/auth/types.ts)
 - **Auth Service**: [`src/auth/AuthService.ts`](https://github.com/plures/azuredevops-integration-extension/blob/main/src/auth/AuthService.ts)
@@ -101,7 +103,7 @@ This ensures tokens can **only** access Azure DevOps APIs and cannot access user
 
 #### Understanding `.default` Scope
 
-The `.default` scope is a special OAuth 2.0 scope that means **"grant all permissions that have been pre-configured for this app in Azure AD"**. 
+The `.default` scope is a special OAuth 2.0 scope that means **"grant all permissions that have been pre-configured for this app in Azure AD"**.
 
 **What `.default` provides today:**
 
@@ -119,7 +121,7 @@ The `.default` scope grants **ONLY the permissions that have been explicitly con
 When administrators configure Azure DevOps access, they typically assign these **delegated permissions**:
 
 - **`vso.work`** - Work items (read): Read work items, queries, boards, and execute queries
-- **`vso.work_write`** - Work items (read and write): Create and update work items and queries  
+- **`vso.work_write`** - Work items (read and write): Create and update work items and queries
 - **`vso.code`** - Code (read): Read source code, commits, branches, and version control artifacts
 - **`vso.project`** - Project and team (read): Read projects and teams information
 - **`vso.profile`** - User profile (read): Read basic profile information
@@ -154,6 +156,7 @@ Enhanced Permissions (Read-Write, when needed):
 To know exactly what `.default` will grant our extension, you need to check what permissions have been configured for Azure DevOps in your Azure AD tenant:
 
 **Option 1: Azure Portal (Enterprise Applications)**
+
 1. Go to [Azure Portal](https://portal.azure.com) → Microsoft Entra ID → Enterprise Applications
 2. Search for "Azure DevOps" or filter by "Microsoft Applications"
 3. Click on the Azure DevOps service principal (App ID: `499b84ac-1321-427f-aa17-267ca6975798`)
@@ -161,6 +164,7 @@ To know exactly what `.default` will grant our extension, you need to check what
 5. Look for **Delegated permissions** - these are what `.default` will include
 
 **Option 2: PowerShell Query**
+
 ```powershell
 # Connect to Microsoft Graph
 Connect-MgGraph -Scopes "Application.Read.All"
@@ -172,6 +176,7 @@ Get-MgServicePrincipalOauth2PermissionGrant -ServicePrincipalId $servicePrincipa
 ```
 
 **Option 3: Microsoft Graph API**
+
 ```bash
 # GET request to check delegated permissions
 GET https://graph.microsoft.com/v1.0/servicePrincipals?$filter=appId eq '499b84ac-1321-427f-aa17-267ca6975798'&$expand=oauth2PermissionGrants
@@ -180,12 +185,14 @@ GET https://graph.microsoft.com/v1.0/servicePrincipals?$filter=appId eq '499b84a
 **What You'll Find:**
 
 Most enterprises configure these **standard delegated permissions** for Azure DevOps:
+
 - `vso.project` - Read projects and teams
-- `vso.work` - Read work items, queries, boards  
+- `vso.work` - Read work items, queries, boards
 - `vso.code` - Read source code and repositories
 - `vso.profile` - Read user profile information
 
 **Enhanced permissions** (if configured):
+
 - `vso.work_write` - Create/update work items
 - `vso.code_write` - Create branches/PRs
 
@@ -220,12 +227,13 @@ const ALL_SCOPES = ['499b84ac-1321-427f-aa17-267ca6975798/user_impersonation'];
 // ❌ Too specific - requires managing multiple individual scopes in code
 const SPECIFIC_SCOPES = [
   '499b84ac-1321-427f-aa17-267ca6975798/vso.work',
-  '499b84ac-1321-427f-aa17-267ca6975798/vso.code'
+  '499b84ac-1321-427f-aa17-267ca6975798/vso.code',
 ];
 
 // ✅ Perfect balance - admin-controlled, enterprise-friendly
 const DEFAULT_SCOPE = ['499b84ac-1321-427f-aa17-267ca6975798/.default'];
 ```
+
 ### Code Implementation
 
 You can review the exact scope configuration in:
@@ -267,7 +275,6 @@ You can review and consent to these scopes during the login prompt.
   - Marketplace protections against malicious updates
 - This extension’s source code is fully published on GitHub for your review:
   https://github.com/plures/azuredevops-integration-extension
-
 
 ### External Resources
 

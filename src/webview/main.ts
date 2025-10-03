@@ -42,11 +42,14 @@ function postMessage(msg: any) {
 }
 
 // State management
+type AuthMethod = 'pat' | 'entra';
+
 type ConnectionEntry = {
   id: string;
   label: string;
   organization?: string;
   project?: string;
+  authMethod?: AuthMethod;
 };
 
 let connections: ConnectionEntry[] = [];
@@ -1239,6 +1242,12 @@ function setupMessageHandling() {
                     : typeof entry?.project === 'string' && entry.project.trim().length > 0
                       ? entry.project.trim()
                       : id;
+                const authMethod =
+                  entry?.authMethod === 'entra'
+                    ? 'entra'
+                    : entry?.authMethod === 'pat'
+                      ? 'pat'
+                      : undefined;
                 return {
                   id,
                   label: labelCandidate,
@@ -1250,6 +1259,7 @@ function setupMessageHandling() {
                     typeof entry?.project === 'string' && entry.project.trim().length > 0
                       ? entry.project.trim()
                       : undefined,
+                  authMethod,
                 } satisfies ConnectionEntry;
               })
               .filter((entry: ConnectionEntry | null): entry is ConnectionEntry => entry !== null)
@@ -1851,6 +1861,18 @@ function renderWorkItems() {
       : '';
     const fetchedSnippet =
       typeof notice.fetchedCount === 'number' ? ` ${notice.fetchedCount} work items loaded.` : '';
+    const activeConnection = activeConnectionId
+      ? connections.find((conn) => conn.id === activeConnectionId)
+      : null;
+    const fallbackAuthMethod = activeConnection?.authMethod === 'entra' ? 'entra' : 'pat';
+    const fallbackAuthDescription =
+      fallbackAuthMethod === 'entra'
+        ? 'the Microsoft Entra ID connection'
+        : 'the saved Personal Access Token';
+    const fallbackRemediation =
+      fallbackAuthMethod === 'entra'
+        ? "If this isn't you, sign out and sign in with the correct Microsoft Entra ID account under Azure DevOps Integration settings."
+        : "If this isn't you, update the PAT under Azure DevOps Integration settings.";
     const identity = notice.fallbackIdentity;
     const assignees = Array.isArray(notice.assignees)
       ? notice.assignees.filter((value) => typeof value === 'string' && value.trim().length > 0)
@@ -1858,12 +1880,12 @@ function renderWorkItems() {
     let identityHtml = '';
     if (identity && (identity.displayName || identity.uniqueName || identity.id)) {
       const label = escapeHtml(
-        identity.displayName || identity.uniqueName || identity.id || 'the PAT owner'
+        identity.displayName || identity.uniqueName || identity.id || 'this connection'
       );
       identityHtml = `
           <div style="margin-top: 0.5rem; font-size: 0.85em; color: var(--vscode-descriptionForeground);">
-            Results were loaded using the saved Personal Access Token for <strong>${label}</strong>.
-            If this isn't you, update the PAT under Azure DevOps Integration settings.
+            Results were loaded using ${fallbackAuthDescription} for <strong>${label}</strong>.
+            ${escapeHtml(fallbackRemediation)}
           </div>`;
     } else if (assignees.length > 0) {
       const preview = assignees
