@@ -2,7 +2,7 @@
   "name": "azuredevops-integration-extension",
   "displayName": "Azure DevOps Integration for VS Code",
   "description": "Integrate Azure DevOps work items, time tracking, and Git workflows directly in VS Code. Manage tasks, track time, create branches, and submit pull requests without leaving your editor.",
-  "version": "1.8.2",
+  "version": "1.9.0",
   "publisher": "PluresLLC",
   "icon": "media/icon.png",
   "repository": {
@@ -19,8 +19,8 @@
     "theme": "dark"
   },
   "engines": {
-      "vscode": "^1.99.0"
-    },
+    "vscode": "^1.99.0"
+  },
   "categories": [
     "Other"
   ],
@@ -198,6 +198,21 @@
       {
         "command": "azureDevOpsInt.setOpenAIApiKey",
         "title": "Set OpenAI API Key",
+        "category": "Azure DevOps Int"
+      },
+      {
+        "command": "azureDevOpsInt.signInWithEntra",
+        "title": "Sign In with Microsoft Entra ID",
+        "category": "Azure DevOps Int"
+      },
+      {
+        "command": "azureDevOpsInt.signOutEntra",
+        "title": "Sign Out (Entra ID)",
+        "category": "Azure DevOps Int"
+      },
+      {
+        "command": "azureDevOpsInt.convertConnectionToEntra",
+        "title": "Convert Connection to Entra ID Auth",
         "category": "Azure DevOps Int"
       },
       {
@@ -404,9 +419,26 @@
                 "type": "string",
                 "description": "Optional team name"
               },
+              "authMethod": {
+                "type": "string",
+                "enum": [
+                  "pat",
+                  "entra"
+                ],
+                "default": "pat",
+                "description": "Authentication method: 'pat' for Personal Access Token or 'entra' for Microsoft Entra ID"
+              },
               "patKey": {
                 "type": "string",
-                "description": "Key for storing PAT in secrets (internal use)"
+                "description": "Key for storing PAT in secrets (for PAT authentication)"
+              },
+              "tenantId": {
+                "type": "string",
+                "description": "Azure AD tenant ID (for Entra ID authentication, optional - defaults to 'organizations')"
+              },
+              "clientId": {
+                "type": "string",
+                "description": "Azure AD application (client) ID (for Entra ID authentication)"
               },
               "baseUrl": {
                 "type": "string",
@@ -508,6 +540,21 @@
           "type": "string",
           "default": "gpt-4o-mini",
           "description": "OpenAI model identifier to use when summaryProvider is set to 'openai'."
+        },
+        "azureDevOpsIntegration.entra.defaultClientId": {
+          "type": "string",
+          "default": "872cd9fa-d31f-45e0-9eab-6e460a02d1f1",
+          "description": "Default Azure AD application (client) ID for Entra ID authentication. This is the Visual Studio IDE client ID that works with Azure DevOps."
+        },
+        "azureDevOpsIntegration.entra.defaultTenantId": {
+          "type": "string",
+          "default": "organizations",
+          "description": "Default Azure AD tenant ID for Entra ID authentication. Use 'organizations' for any work/school account, 'common' for any Microsoft account, or specify your tenant ID."
+        },
+        "azureDevOpsIntegration.entra.autoRefreshToken": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically refresh Entra ID access tokens before they expire"
         }
       }
     }
@@ -531,6 +578,7 @@
     "postinstall": "npm run prepare",
     "build": "npm run compile",
     "build:formatted": "npm run format && npm run compile",
+    "prepackage": "npm install && npm run format && npm run lint && npm run build:all && npm run screenshots:capture",
     "package": "vsce package --no-dependencies",
     "screenshots:setup": "npx playwright install",
     "screenshots:build": "npm run build && npm run screenshots:capture",
@@ -565,6 +613,7 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
+    "@azure/msal-node": "^3.8.0",
     "axios": "^1.12.2",
     "openai": "^4.59.0",
     "sql.js": "^1.13.0"

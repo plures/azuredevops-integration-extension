@@ -4,6 +4,8 @@ import { RateLimiter } from './rateLimiter.js';
 import { workItemCache, WorkItemCache } from './cache.js';
 import { measureAsync } from './performance.js';
 
+type AuthType = 'pat' | 'bearer';
+
 interface ClientOptions {
   ratePerSecond?: number;
   burst?: number;
@@ -11,6 +13,8 @@ interface ClientOptions {
   // If true (default), attempt to use [System.StateCategory] in WIQL filters until proven unsupported.
   wiqlPreferStateCategory?: boolean;
   baseUrl?: string; // Custom base URL for different Azure DevOps instances
+  authType?: AuthType; // 'pat' (default) or 'bearer' for Entra ID tokens
+  tokenRefreshCallback?: () => Promise<string | undefined>; // Callback to refresh token on 401
 }
 
 export class AzureDevOpsIntClient {
@@ -20,7 +24,9 @@ export class AzureDevOpsIntClient {
   public encodedProject: string;
   public axios: AxiosInstance;
   private _repoCache: any[] | undefined;
-  private pat: string;
+  private credential: string; // PAT or access token
+  private authType: AuthType;
+  private tokenRefreshCallback?: () => Promise<string | undefined>;
   private limiter: RateLimiter;
   public team: string | undefined;
   public encodedTeam: string | undefined;
@@ -29,10 +35,17 @@ export class AzureDevOpsIntClient {
   private cachedIdentity?: { id?: string; displayName?: string; uniqueName?: string };
   public baseUrl: string; // Store the base URL for browser URL generation
 
-  constructor(organization: string, project: string, pat: string, options: ClientOptions = {}) {
+  constructor(
+    organization: string,
+    project: string,
+    credential: string,
+    options: ClientOptions = {}
+  ) {
     this.organization = organization;
     this.project = project;
-    this.pat = pat;
+    this.credential = credential;
+    this.authType = options.authType ?? 'pat';
+    this.tokenRefreshCallback = options.tokenRefreshCallback;
     this.team = options.team?.trim() ? options.team.trim() : undefined;
     this.preferStateCategory = options.wiqlPreferStateCategory ?? true;
     this.encodedOrganization = encodeURIComponent(organization);
@@ -68,12 +81,19 @@ export class AzureDevOpsIntClient {
     const burst = Math.max(1, Math.min(100, options.burst ?? 10));
     this.limiter = new RateLimiter(rps, burst);
 
-    // Attach PAT auth on each request (kept if already implemented elsewhere)
+    // Attach auth header on each request
     this.axios.interceptors.request.use(async (cfg) => {
       await this.limiter.acquire();
-      (cfg.headers ||= {} as any)['Authorization'] = `Basic ${Buffer.from(':' + this.pat).toString(
-        'base64'
-      )}`;
+
+      // Set authorization header based on auth type
+      if (this.authType === 'pat') {
+        (cfg.headers ||= {} as any)['Authorization'] =
+          `Basic ${Buffer.from(':' + this.credential).toString('base64')}`;
+      } else {
+        // Bearer token for Entra ID
+        (cfg.headers ||= {} as any)['Authorization'] = `Bearer ${this.credential}`;
+      }
+
       (cfg as any).__start = Date.now();
       // Attach attempt counter for retries
       (cfg as any).__attempt = ((cfg as any).__attempt || 0) + 1;
@@ -99,7 +119,7 @@ export class AzureDevOpsIntClient {
         );
         return resp;
       },
-      (err) => {
+      async (err) => {
         const cfg = err.config || {};
         const ms = cfg.__start ? Date.now() - cfg.__start : 'n/a';
         if (err.response) {
@@ -121,6 +141,24 @@ export class AzureDevOpsIntClient {
               snippet = '[unserializable response data]';
             }
             console.error('[azureDevOpsInt][HTTP][ERR] body:', snippet);
+          }
+
+          // Handle 401 for bearer token auth - try to refresh token
+          if (status === 401 && this.authType === 'bearer' && this.tokenRefreshCallback) {
+            console.log('[azureDevOpsInt][HTTP] 401 detected, attempting token refresh...');
+            try {
+              const newToken = await this.tokenRefreshCallback();
+              if (newToken) {
+                console.log('[azureDevOpsInt][HTTP] Token refreshed, retrying request...');
+                this.credential = newToken;
+                // Reset attempt counter for the refresh retry
+                (cfg as any).__attempt = 0;
+                return this.axios(cfg);
+              }
+            } catch (refreshError) {
+              console.error('[azureDevOpsInt][HTTP] Token refresh failed:', refreshError);
+              // Continue with normal error flow
+            }
           }
         } else if (err.code === 'ECONNABORTED') {
           console.error(
@@ -159,6 +197,14 @@ export class AzureDevOpsIntClient {
         return Promise.reject(err);
       }
     );
+  }
+
+  /**
+   * Update the credential (PAT or access token)
+   * Useful for refreshing Entra ID tokens
+   */
+  updateCredential(newCredential: string): void {
+    this.credential = newCredential;
   }
 
   buildFullUrl(path: string) {

@@ -1133,7 +1133,7 @@ function onMessage(message: any) {
       recomputeItemsForView();
       persistViewState();
       syncApp();
-		addToast('Filters cleared', { type: 'info', timeout: 2000 });
+      addToast('Filters cleared', { type: 'info', timeout: 2000 });
       break;
     }
     case 'focusSearch': {

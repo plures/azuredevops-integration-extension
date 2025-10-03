@@ -1,4 +1,0 @@
-// snapshot of src/azureClient.js (ESM re-export stub)
-// Original location: src/azureClient.js
-
-export * from './azureClient.ts';
