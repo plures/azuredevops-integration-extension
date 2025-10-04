@@ -13,6 +13,15 @@ export type ConnectionLike = {
   authMethod?: AuthMethod;
 };
 
+export type BranchContextPayload = {
+  branchName?: string;
+  branchRef?: string;
+  repositoryId?: string;
+  repositoryName?: string;
+  remoteUrl?: string;
+  lastUpdated?: number;
+} | null;
+
 export type PostToWebviewParams = {
   panel: WebviewView | undefined;
   message: any;
@@ -41,6 +50,7 @@ export type PostWorkItemsSnapshotParams = {
   types?: string[];
   query?: string;
   logger?: LoggerFn;
+  branchContext?: BranchContextPayload;
 };
 
 export function postWorkItemsSnapshot({
@@ -63,6 +73,7 @@ export function postWorkItemsSnapshot({
       workItems: itemsArray,
       kanbanView: !!kanbanView,
       query,
+      branchContext: branchContext ?? null,
     },
   });
 

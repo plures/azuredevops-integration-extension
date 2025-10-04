@@ -1,13 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // Vanilla JavaScript implementation - reliable and framework-free
-
-// Declare global types for VS Code webview context
 declare global {
   interface Window {
     vscode?: any;
     acquireVsCodeApi?: () => any;
-  }
-  const acquireVsCodeApi: () => any;
 }
 
 // Initialize VS Code API
@@ -102,6 +98,18 @@ type FilterState = {
 };
 
 const filterStateByConnection = new Map<string, FilterState>();
+
+type BranchContextState = {
+  branchName?: string;
+  branchRef?: string;
+  repositoryId?: string;
+  repositoryName?: string;
+  remoteUrl?: string;
+  lastUpdated?: number;
+} | null;
+
+const branchContextByConnection = new Map<string, BranchContextState>();
+let activeBranchContext: BranchContextState = null;
 
 function normalizeConnectionId(raw: unknown): string | null {
   if (typeof raw === 'string') {
@@ -290,10 +298,8 @@ function applyFilterStateToUi(connectionId: string) {
     const options = Array.from(select.options).map((option) => option.value);
     const value = desired && options.includes(desired) ? desired : '';
     select.value = value;
-    return value;
-  };
-
-  state.sprint = ensureSelectValue(elements.sprintFilter, state.sprint);
+    return value
+      .split(/\s+/)
   state.type = ensureSelectValue(elements.typeFilter, state.type);
   state.assignedTo = ensureSelectValue(elements.assignedToFilter, state.assignedTo);
 
@@ -1052,10 +1058,11 @@ function selectConnection(connectionId: string, options: { fromMessage?: boolean
 
   if (cachedItems) {
     isLoading = false;
+    const cachedBranchContext = branchContextByConnection.get(trimmed) ?? null;
     handleWorkItemsLoaded(cachedItems, trimmed, {
       fromCache: true,
       query: getSelectedQueryForConnection(trimmed),
-    });
+    }, cachedBranchContext);
   } else if (changed) {
     isLoading = true;
     showLoadingState();
@@ -1074,12 +1081,25 @@ function setupMessageHandling() {
     const message = event.data;
 
     switch (message.type) {
-      case 'workItemsLoaded':
+      case 'workItemsLoaded': {
         fallbackNotice = null;
-        handleWorkItemsLoaded(message.workItems || [], message.connectionId, {
+        const normalizedConnection =
+          normalizeConnectionId(message.connectionId) ?? activeConnectionId ?? null;
+        const hasBranchContext = Object.prototype.hasOwnProperty.call(message, 'branchContext');
+        let branchContextPayload: BranchContextState = null;
+        if (hasBranchContext) {
+          branchContextPayload = message.branchContext ?? null;
+        } else if (normalizedConnection) {
+          branchContextPayload = branchContextByConnection.get(normalizedConnection) ?? null;
+        }
+        if (normalizedConnection) {
+          branchContextByConnection.set(normalizedConnection, branchContextPayload);
+        }
+        handleWorkItemsLoaded(message.workItems || [], normalizedConnection, {
           query: message.query,
-        });
+        }, branchContextPayload);
         break;
+      }
       case 'workItemsFallback':
         handleWorkItemsFallback(message);
         break;
@@ -1525,7 +1545,8 @@ function populateFilterDropdowns(connectionId?: string) {
 function handleWorkItemsLoaded(
   items: any[],
   connectionId?: string | null,
-  options: { fromCache?: boolean; query?: string } = {}
+  options: { fromCache?: boolean; query?: string } = {},
+  branchContext?: BranchContextState
 ) {
   const trimmedId = typeof connectionId === 'string' ? connectionId.trim() : '';
   const fromCache = options.fromCache === true;
@@ -1548,6 +1569,16 @@ function handleWorkItemsLoaded(
 
   const targetId = trimmedId || activeConnectionId || null;
   const connectionKey = trimmedId || activeConnectionId || null;
+  let contextForConnection: BranchContextState = branchContext ?? null;
+  if (branchContext !== undefined) {
+    const keyToStore = trimmedId || connectionKey;
+    if (keyToStore) {
+      branchContextByConnection.set(keyToStore, branchContext ?? null);
+    }
+  } else if (connectionKey) {
+    contextForConnection = branchContextByConnection.get(connectionKey) ?? null;
+  }
+
   if (connectionKey) {
     setTypeOptionsForConnection(connectionKey, extractWorkItemTypes(items));
     if (incomingQuery) {
@@ -1566,9 +1597,7 @@ function handleWorkItemsLoaded(
     searchHaystackCache = new WeakMap();
     workItems = items;
     isLoading = false;
-    if (activeConnectionId) {
-      fallbackNotice = fallbackNotices.get(activeConnectionId) || null;
-    }
+    activeBranchContext = contextForConnection;
     applyQuerySelectionToUi(activeConnectionId ?? null);
     populateFilterDropdowns(activeConnectionId ?? undefined);
     if (activeConnectionId) {
@@ -1845,6 +1874,116 @@ function applyFilters() {
   persistCurrentFilterState();
   if (currentView === 'kanban') renderKanbanView();
   else renderWorkItems();
+}
+
+const BRANCH_MATCH_LABELS: Record<string, string> = {
+  exact: 'Exact repository branch',
+  refOnly: 'Matching branch ref',
+  name: 'Matching branch name',
+};
+
+function normalizeBranchDisplayName(meta: any): string {
+  if (!meta) return '';
+  const directName = typeof meta.branchName === 'string' ? meta.branchName.trim() : '';
+  if (directName) return directName;
+  const ref = typeof meta.refName === 'string' ? meta.refName.trim() : '';
+  if (!ref) return '';
+  const parts = ref.split('/');
+  return parts[parts.length - 1] || ref;
+}
+
+function toTitleCase(value: string): string {
+  if (!value) return '';
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
+    .join(' ');
+}
+
+type BuildStatusMeta = {
+  className: string;
+  icon: string;
+  label: string;
+};
+
+function getBuildStatusMeta(meta: any): BuildStatusMeta | null {
+  if (!meta) return null;
+  const build = meta.build;
+  const status = typeof build?.status === 'string' ? build.status.toLowerCase() : '';
+  const result = typeof build?.result === 'string' ? build.result.toLowerCase() : '';
+
+  if (meta.hasActiveBuild || (!result && status && status !== 'completed')) {
+    const label = status ? toTitleCase(status) : 'Running';
+    return { className: 'branch-build-active', icon: '⏳', label };
+  }
+
+  if (!build) return null;
+
+  switch (result) {
+    case 'succeeded':
+      return { className: 'branch-build-success', icon: '✅', label: 'Succeeded' };
+    case 'failed':
+      return { className: 'branch-build-failed', icon: '❌', label: 'Failed' };
+    case 'canceled':
+    case 'cancelled':
+      return { className: 'branch-build-canceled', icon: '⛔', label: 'Canceled' };
+    case 'partiallysucceeded':
+      return { className: 'branch-build-warning', icon: '⚠️', label: 'Partial' };
+    default:
+      if (status === 'completed') {
+        return { className: 'branch-build-completed', icon: 'ℹ️', label: toTitleCase(result || status) };
+      }
+      return null;
+  }
+}
+
+function renderBranchBadge(meta: any): string {
+  if (!meta || meta.isCurrentBranch !== true) return '';
+  const branchName = normalizeBranchDisplayName(meta) || 'Current branch';
+  const matchConfidence =
+    typeof meta.matchConfidence === 'string' && meta.matchConfidence.trim().length > 0
+      ? meta.matchConfidence.trim()
+      : 'exact';
+  const matchLabel = BRANCH_MATCH_LABELS[matchConfidence] || 'Branch link';
+  const classes = ['branch-badge', `branch-match-${matchConfidence.toLowerCase()}`];
+  if (meta.hasActiveBuild) {
+    classes.push('branch-build-active');
+  }
+
+  const buildStatusMeta = getBuildStatusMeta(meta);
+  const tooltipParts: string[] = [`Current branch: ${branchName}`, `Match: ${matchLabel}`];
+  if (meta.repositoryName) {
+    tooltipParts.push(`Repository: ${meta.repositoryName}`);
+  }
+  if (meta.refName && meta.refName !== branchName) {
+    tooltipParts.push(`Ref: ${meta.refName}`);
+  }
+  if (buildStatusMeta) {
+    const buildNumber =
+      typeof meta.build?.buildNumber === 'string' && meta.build.buildNumber.trim().length > 0
+        ? meta.build.buildNumber.trim()
+        : meta.build?.id
+          ? `#${meta.build.id}`
+          : '';
+    const buildLabel = buildNumber ? `${buildStatusMeta.label} ${buildNumber}` : buildStatusMeta.label;
+    tooltipParts.push(`Latest build: ${buildLabel}`);
+  }
+
+  const tooltip = tooltipParts.join('\n');
+  const buildHtml = buildStatusMeta
+    ? `<span class="branch-build-indicator ${buildStatusMeta.className}">${buildStatusMeta.icon} ${escapeHtml(
+        buildStatusMeta.label
+      )}</span>`
+    : '';
+
+  return `
+    <span class="${classes.join(' ')}" title="${escapeHtml(tooltip)}">
+      <span class="branch-icon">🌿</span>
+      <span class="branch-name">${escapeHtml(branchName)}</span>
+      ${buildHtml}
+    </span>
+  `;
 }
 
 function renderWorkItems() {

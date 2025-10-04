@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import { WorkItem } from './types.js';
+import { WorkItem, WorkItemBuildSummary } from './types.js';
 import { RateLimiter } from './rateLimiter.js';
 import { workItemCache, WorkItemCache } from './cache.js';
 import { measureAsync } from './performance.js';
@@ -356,7 +356,35 @@ export class AzureDevOpsIntClient {
     if (!Array.isArray(rawItems)) return [];
     return rawItems
       .filter((item: any) => item && typeof item.id === 'number')
-      .map((item: any) => ({ id: item.id, fields: item.fields || {} }) as WorkItem);
+      .map((item: any) => {
+        const mapped: WorkItem = {
+          id: item.id,
+          fields: item.fields || {},
+        };
+
+        if (Array.isArray(item.relations) && item.relations.length > 0) {
+          const relations = item.relations
+            .filter((rel: any) => rel && typeof rel === 'object')
+            .map((rel: any) => {
+              const attributes =
+                rel.attributes && typeof rel.attributes === 'object'
+                  ? { ...rel.attributes }
+                  : undefined;
+              return {
+                url: typeof rel.url === 'string' ? rel.url : undefined,
+                rel: typeof rel.rel === 'string' ? rel.rel : undefined,
+                attributes,
+              };
+            })
+            .filter(Boolean);
+
+          if (relations.length > 0) {
+            mapped.relations = relations;
+          }
+        }
+
+        return mapped;
+      });
   }
 
   private async _fetchWorkItemsByIds(ids: number[]): Promise<WorkItem[]> {
@@ -1019,12 +1047,42 @@ export class AzureDevOpsIntClient {
   }
 
   // ---------------- Build Helpers ----------------
-  async getRecentBuilds(top: number = 10) {
+  async getRecentBuilds(
+    options: {
+      top?: number;
+      branchName?: string;
+      repositoryId?: string;
+      definitions?: number | number[];
+      resultFilter?: string;
+      statusFilter?: string;
+    } = {}
+  ): Promise<WorkItemBuildSummary[]> {
+    const {
+      top = 10,
+      branchName,
+      repositoryId,
+      definitions,
+      resultFilter,
+      statusFilter,
+    } = options;
+
     try {
-      const resp = await this.axios.get(`/build/builds`, {
-        params: { $top: top, queryOrder: 'finishTimeDescending' },
-      });
-      return (resp.data.value || []).map((b: any) => ({
+      const params: Record<string, any> = {
+        $top: top,
+        queryOrder: 'finishTimeDescending',
+        'api-version': '7.0',
+      };
+      if (branchName) params.branchName = branchName;
+      if (repositoryId) params.repositoryId = repositoryId;
+      if (definitions !== undefined) {
+        params.definitions = Array.isArray(definitions) ? definitions.join(',') : definitions;
+      }
+      if (resultFilter) params.resultFilter = resultFilter;
+      if (statusFilter) params.statusFilter = statusFilter;
+
+      const resp = await this.axios.get(`/build/builds`, { params });
+      const values = Array.isArray(resp.data?.value) ? resp.data.value : [];
+      return values.map((b: any) => ({
         id: b.id,
         buildNumber: b.buildNumber,
         status: b.status,
@@ -1033,7 +1091,7 @@ export class AzureDevOpsIntClient {
         queueTime: b.queueTime,
         finishTime: b.finishTime,
         webUrl: b._links?.web?.href,
-      }));
+      })) as WorkItemBuildSummary[];
     } catch (e) {
       console.error('Error fetching builds', e);
       return [];

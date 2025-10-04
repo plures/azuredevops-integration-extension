@@ -10,11 +10,17 @@ export type ProviderLogger = {
   error?: (message: string, meta?: any) => void;
 };
 
+type WorkItemTransform = (params: {
+  items: WorkItem[];
+  connectionId: string;
+}) => Promise<WorkItem[]> | WorkItem[];
+
 type ProviderOptions = {
   kanbanView?: boolean;
   currentFilters?: Record<string, any>;
   logger?: ProviderLogger;
   debounceMs?: number;
+  transformWorkItems?: WorkItemTransform;
 };
 
 function isProviderOptions(value: any): value is ProviderOptions {
@@ -37,6 +43,7 @@ export class WorkItemsProvider {
   private _lastRefreshTs = 0;
   private _workItemTypes: string[] = [];
   private _currentQuery: string = DEFAULT_QUERY;
+  private transformWorkItemsFn: WorkItemTransform | undefined;
 
   constructor(
     connectionOrClient: string | AzureDevOpsIntClient,
@@ -68,6 +75,7 @@ export class WorkItemsProvider {
     if (typeof options.debounceMs === 'number' && options.debounceMs >= 0) {
       this.debounceMs = options.debounceMs;
     }
+    this.transformWorkItemsFn = options.transformWorkItems ?? this.transformWorkItemsFn;
   }
 
   updateClient(nextClient: AzureDevOpsIntClient | undefined) {
@@ -81,6 +89,10 @@ export class WorkItemsProvider {
 
   setLogger(nextLogger: ProviderLogger | undefined) {
     this.logger = nextLogger;
+  }
+
+  setTransformWorkItems(nextTransform: WorkItemTransform | undefined) {
+    this.transformWorkItemsFn = nextTransform;
   }
 
   getConnectionId() {
@@ -131,9 +143,10 @@ export class WorkItemsProvider {
         query: normalizedQuery,
       });
       const fetched = await this.client.getWorkItems(normalizedQuery);
+      const processed = await this._applyTransform(fetched);
       this.log('info', 'refresh(): completed fetch', {
         connectionId: this.connectionId,
-        count: Array.isArray(fetched) ? fetched.length : 'n/a',
+        count: Array.isArray(processed) ? processed.length : 'n/a',
       });
 
       if (typePromise) {
@@ -148,11 +161,11 @@ export class WorkItemsProvider {
       }
 
       // Always update the work items, even if empty
-      this._workItems = fetched;
-      this._mergeWorkItemTypesFromItems(fetched);
+      this._workItems = processed;
+      this._mergeWorkItemTypesFromItems(processed);
       this._postWorkItemsLoaded();
 
-      if (fetched.length === 0) {
+      if (processed.length === 0) {
         this.log('debug', 'refresh(): no results for query', {
           connectionId: this.connectionId,
           query: normalizedQuery,
@@ -239,7 +252,7 @@ export class WorkItemsProvider {
       return [];
     }
     const res = await this.client.searchWorkItems(term);
-    this.showWorkItems(res);
+    await this.showWorkItems(res);
     return res;
   }
 
@@ -249,7 +262,7 @@ export class WorkItemsProvider {
       return [];
     }
     const res = await this.client.filterWorkItems(filterObj);
-    this.showWorkItems(res);
+    await this.showWorkItems(res);
     return res;
   }
 
@@ -261,14 +274,14 @@ export class WorkItemsProvider {
     return this.client.runWIQL(wiql);
   }
 
-  showWorkItems(items: WorkItem[]) {
+  async showWorkItems(items: WorkItem[]) {
     if (!Array.isArray(items)) return;
-    if (items.length === 0 && this._workItems.length > 0) {
-      // ignore empty
-    } else {
-      this._workItems = items;
+    const processed = await this._applyTransform(items);
+    const shouldIgnoreEmpty = processed.length === 0 && this._workItems.length > 0;
+    if (!shouldIgnoreEmpty) {
+      this._workItems = processed;
     }
-    this._mergeWorkItemTypesFromItems(items);
+    this._mergeWorkItemTypesFromItems(shouldIgnoreEmpty ? this._workItems : processed);
     this._postWorkItemsLoaded();
   }
 
@@ -379,6 +392,26 @@ export class WorkItemsProvider {
 
   private _postWorkItemTypeOptions() {
     this._post({ type: 'workItemTypeOptions', types: [...this._workItemTypes] });
+  }
+
+  private async _applyTransform(items: WorkItem[]): Promise<WorkItem[]> {
+    if (!Array.isArray(items)) return [];
+    if (!this.transformWorkItemsFn) return [...items];
+    try {
+      const result = await this.transformWorkItemsFn({
+        items: [...items],
+        connectionId: this.connectionId,
+      });
+      if (Array.isArray(result)) {
+        return result;
+      }
+    } catch (error: any) {
+      this.log('warn', 'transformWorkItems failed', {
+        connectionId: this.connectionId,
+        error: error?.message || String(error),
+      });
+    }
+    return [...items];
   }
 }
 
