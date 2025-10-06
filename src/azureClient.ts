@@ -1061,14 +1061,7 @@ export class AzureDevOpsIntClient {
       statusFilter?: string;
     } = {}
   ): Promise<WorkItemBuildSummary[]> {
-    const {
-      top = 10,
-      branchName,
-      repositoryId,
-      definitions,
-      resultFilter,
-      statusFilter,
-    } = options;
+    const { top = 10, branchName, repositoryId, definitions, resultFilter, statusFilter } = options;
 
     try {
       const params: Record<string, any> = {

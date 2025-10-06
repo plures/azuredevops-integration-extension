@@ -13,12 +13,14 @@ The extension now supports Azure DevOps Server (on-premises installations) in ad
 ## Expected Behavior
 
 ### For Azure DevOps Online (dev.azure.com)
+
 - **Input**: No custom baseUrl OR baseUrl like `https://dev.azure.com/myorg`
 - **API Base URL**: `https://dev.azure.com/{organization}/{project}/_apis`
 - **Browser URL**: `https://dev.azure.com/{organization}/{project}/...`
 - **No change** from previous behavior
 
 ### For Azure DevOps Server (On-Premises)
+
 - **Input**: Custom baseUrl like `https://myserver/DefaultCollection`
 - **API Base URL**: `https://myserver/DefaultCollection/{project}/_apis`
 - **Browser URL**: `https://myserver/DefaultCollection/{project}/...`
@@ -27,6 +29,7 @@ The extension now supports Azure DevOps Server (on-premises installations) in ad
 ## Test Scenarios
 
 ### 1. Parse On-Premises URL
+
 ```typescript
 const url = 'https://myserver/DefaultCollection/MyProject/_workitems/edit/123';
 const parsed = parseAzureDevOpsUrl(url);
@@ -41,9 +44,10 @@ const parsed = parseAzureDevOpsUrl(url);
 ```
 
 ### 2. Initialize Client with On-Premises Base URL
+
 ```typescript
 const client = new AzureDevOpsIntClient('DefaultCollection', 'MyProject', 'fake-pat', {
-  baseUrl: 'https://myserver/DefaultCollection'
+  baseUrl: 'https://myserver/DefaultCollection',
 });
 
 // Expected results:
@@ -52,9 +56,10 @@ const client = new AzureDevOpsIntClient('DefaultCollection', 'MyProject', 'fake-
 ```
 
 ### 3. Build API URLs with On-Premises Base
+
 ```typescript
 const client = new AzureDevOpsIntClient('DefaultCollection', 'MyProject', 'fake-pat', {
-  baseUrl: 'https://myserver/DefaultCollection'
+  baseUrl: 'https://myserver/DefaultCollection',
 });
 
 const apiUrl = client.buildFullUrl('/wit/workitems/123');
@@ -65,10 +70,11 @@ const browserUrl = client.getBrowserUrl('/_workitems/edit/123');
 ```
 
 ### 4. Team URLs with On-Premises Base
+
 ```typescript
 const client = new AzureDevOpsIntClient('DefaultCollection', 'MyProject', 'fake-pat', {
   baseUrl: 'https://myserver/DefaultCollection',
-  team: 'MyTeam'
+  team: 'MyTeam',
 });
 
 // Team API URLs should be constructed as:
@@ -76,12 +82,19 @@ const client = new AzureDevOpsIntClient('DefaultCollection', 'MyProject', 'fake-
 ```
 
 ### 5. Generate Work Item URL for On-Premises
+
 ```typescript
-const url = generateWorkItemUrl('DefaultCollection', 'MyProject', 123, 'https://myserver/DefaultCollection');
+const url = generateWorkItemUrl(
+  'DefaultCollection',
+  'MyProject',
+  123,
+  'https://myserver/DefaultCollection'
+);
 // Expected: 'https://myserver/DefaultCollection/MyProject/_workitems/edit/123'
 ```
 
 ### 6. Generate PAT Creation URL for On-Premises
+
 ```typescript
 const url = generatePatCreationUrl('DefaultCollection', 'https://myserver/DefaultCollection');
 // Expected: 'https://myserver/DefaultCollection/_usersSettings/tokens'
@@ -104,6 +117,7 @@ To test with a real on-premises Azure DevOps Server:
 ## Backwards Compatibility
 
 All existing functionality for Azure DevOps Services (dev.azure.com) should continue to work without any changes:
+
 - URLs are parsed the same way
 - API calls go to the same endpoints
 - No configuration changes required for cloud users
@@ -111,6 +125,7 @@ All existing functionality for Azure DevOps Services (dev.azure.com) should cont
 ## Code Changes
 
 ### Modified Files
+
 1. `src/azureClient.ts`
    - Added `apiBaseUrl` property
    - Updated constructor to build API URL from custom baseUrl

@@ -410,7 +410,7 @@ function sendToWebview(message: any) {
 
 function sendWorkItemsSnapshot(options: WorkItemsSnapshotOptions) {
   const branchContext = options.connectionId
-    ? branchStateByConnection.get(options.connectionId)?.context ?? null
+    ? (branchStateByConnection.get(options.connectionId)?.context ?? null)
     : null;
   postWorkItemsSnapshot({ panel, logger: verbose, branchContext, ...options });
 }
@@ -4927,9 +4927,7 @@ function normalizeBranchRef(ref?: string | null): { full: string; short: string 
   const trimmed = String(ref).trim();
   if (!trimmed) return null;
   if (trimmed.startsWith('refs/')) {
-    const short = trimmed.startsWith('refs/heads/')
-      ? trimmed.slice('refs/heads/'.length)
-      : trimmed;
+    const short = trimmed.startsWith('refs/heads/') ? trimmed.slice('refs/heads/'.length) : trimmed;
     return { full: trimmed, short };
   }
   return { full: `refs/heads/${trimmed}`, short: trimmed };
@@ -5067,7 +5065,9 @@ async function getAzureRepositoryByName(
   }
   if (!Array.isArray(repos)) return null;
   return (
-    repos.find((r: any) => typeof r?.name === 'string' && r.name.trim().toLowerCase() === normalized) ||
+    repos.find(
+      (r: any) => typeof r?.name === 'string' && r.name.trim().toLowerCase() === normalized
+    ) ||
     repos.find((r: any) => typeof r?.id === 'string' && r.id.trim().toLowerCase() === normalized) ||
     null
   );
@@ -5082,7 +5082,8 @@ async function resolveBranchContext(state: ConnectionState): Promise<BranchConte
   const normalized = normalizeBranchRef(head?.name || head?.upstream?.name);
   if (!normalized) return null;
   const remotes: any[] = Array.isArray(repo.state?.remotes) ? repo.state.remotes : [];
-  const remote = remotes.find((r: any) => !r?.isReadOnly && (r?.pushUrl || r?.fetchUrl)) || remotes[0];
+  const remote =
+    remotes.find((r: any) => !r?.isReadOnly && (r?.pushUrl || r?.fetchUrl)) || remotes[0];
   const remoteUrl = remote?.pushUrl || remote?.fetchUrl;
   const parsedRemote = parseAzureRemote(remoteUrl);
   let repositoryId: string | undefined = undefined;
@@ -5184,9 +5185,10 @@ function findBestBranchMatch(
     const refMatches = !!relationRef && relationRef === desiredRef;
     const nameMatches = relationShort === desiredShort && desiredShort.length > 0;
     if (!refMatches && !nameMatches) continue;
-    const repoMatch = targetRepositoryId && parsed.repositoryId
-      ? parsed.repositoryId.toLowerCase() === targetRepositoryId.toLowerCase()
-      : !targetRepositoryId;
+    const repoMatch =
+      targetRepositoryId && parsed.repositoryId
+        ? parsed.repositoryId.toLowerCase() === targetRepositoryId.toLowerCase()
+        : !targetRepositoryId;
     let score = 0;
     let confidence: WorkItemBranchMetadata['matchConfidence'] = 'name';
     if (refMatches) {

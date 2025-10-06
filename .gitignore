@@ -147,7 +147,7 @@ vite.config.ts.timestamp-*
 *.bundle
 
 # Generated webview files
-media/webview
+#media/webview
 
 
 # Demo files (for testing only)
