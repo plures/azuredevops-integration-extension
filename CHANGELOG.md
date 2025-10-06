@@ -6,6 +6,29 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.9.4] - 2025-10-06
+
+### Added
+
+- **Azure DevOps Server (On-Premises) Support**: Full compatibility with on-premises Azure DevOps Server installations
+  - Extension now correctly uses custom `baseUrl` for all API operations
+  - URL parser handles on-premises server URLs (e.g., `https://server/collection/project/...`)
+  - Updated URL generation functions for PAT creation and work item links
+  - Comprehensive test coverage for on-premises scenarios
+
+### Changed
+
+- **Setup Wizard Authentication Detection**: Setup wizard now automatically detects Azure DevOps Server (on-premises) installations and guides users to use PAT authentication
+  - Microsoft Entra ID (OAuth) is only offered for Azure DevOps Services (cloud)
+  - Clear messaging explains that on-premises servers require PAT authentication
+  - Automatic selection of appropriate authentication method based on server type
+
+### Documentation
+
+- Added detailed on-premises testing guide (`docs/ONPREMISES_TESTING.md`)
+- Updated README with on-premises support information and authentication requirements
+- Added examples for on-premises URL formats and configuration
+
 ## [1.9.3] - 2025-10-03
 
 ### Changed

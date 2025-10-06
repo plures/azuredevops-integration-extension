@@ -118,7 +118,9 @@ The extension fully supports on-premises Azure DevOps Server installations:
 2. **Manual Configuration**: Set `azureDevOpsIntegration.baseUrl` to your server's base URL (e.g., `https://myserver/DefaultCollection`)
 3. The extension automatically detects and uses your on-premises server for all API calls
 
-> **Note**: Ensure your PAT has appropriate permissions for your on-premises server. See [docs/ONPREMISES_TESTING.md](docs/ONPREMISES_TESTING.md) for detailed testing scenarios.
+> **Authentication Note**: Azure DevOps Server (on-premises) only supports **Personal Access Token (PAT)** authentication. Microsoft Entra ID (OAuth) is only available for Azure DevOps Services (cloud). The setup wizard automatically selects the appropriate authentication method based on your server type.
+
+> **Tip**: Ensure your PAT has appropriate permissions for your on-premises server. See [docs/ONPREMISES_TESTING.md](docs/ONPREMISES_TESTING.md) for detailed testing scenarios.
 
 ### Accessing the Extension
 
