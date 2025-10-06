@@ -10,6 +10,7 @@ Integrate Azure DevOps work items, time tracking, branching, and pull requests d
 - **Time Tracking**: Lightweight timer with inactivity auto-pause, status bar integration, and automatic work item updates
 - **Git Integration**: Create branches and pull requests directly from work items with customizable naming templates
 - **Smart Setup**: Easy setup wizard that parses work item URLs and guides you through configuration
+- **On-Premises Support**: Works with both Azure DevOps Services (cloud) and Azure DevOps Server (on-premises installations)
 - **AI-Powered Summaries**: Generate work summaries using Copilot prompts or OpenAI integration
 - **Multiple Views**: Switch between list and Kanban views with preserved scroll positions and keyboard navigation
 - **Secure Storage**: PAT tokens stored securely in VS Code's secret store with automatic migration
@@ -108,6 +109,16 @@ Generate at: Azure DevOps → User Settings → Security → Personal Access Tok
 - Use `Azure DevOps Integration: Select Team` to set a team context
 - When set, the "Current Sprint" query uses that team's current iteration
 - You can change or clear this anytime by running the command again
+
+### On-Premises Azure DevOps Server
+
+The extension fully supports on-premises Azure DevOps Server installations:
+
+1. **During Setup**: Use a work item URL from your on-premises server (e.g., `https://myserver/DefaultCollection/MyProject/_workitems/edit/123`)
+2. **Manual Configuration**: Set `azureDevOpsIntegration.baseUrl` to your server's base URL (e.g., `https://myserver/DefaultCollection`)
+3. The extension automatically detects and uses your on-premises server for all API calls
+
+> **Note**: Ensure your PAT has appropriate permissions for your on-premises server. See [docs/ONPREMISES_TESTING.md](docs/ONPREMISES_TESTING.md) for detailed testing scenarios.
 
 ### Accessing the Extension
 
