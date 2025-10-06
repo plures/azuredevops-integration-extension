@@ -108,6 +108,43 @@ describe('Azure DevOps URL Parser', function () {
       expect(result.organization).to.equal('my-org_123');
       expect(result.project).to.equal('My%20Project');
     });
+
+    it('should parse on-premises Azure DevOps Server URLs correctly', function () {
+      const url = 'https://myserver/DefaultCollection/MyProject/_workitems/edit/12345';
+      const result = parseAzureDevOpsUrl(url);
+
+      expect(result.isValid).to.be.true;
+      expect(result.organization).to.equal('DefaultCollection');
+      expect(result.project).to.equal('MyProject');
+      expect(result.baseUrl).to.equal('https://myserver/DefaultCollection');
+      expect(result.apiBaseUrl).to.equal('https://myserver/DefaultCollection/MyProject/_apis');
+      expect(result.workItemId).to.equal(12345);
+      expect(result.error).to.be.undefined;
+    });
+
+    it('should parse on-premises URLs with ports', function () {
+      const url = 'https://server:8080/tfs/MyProject/_workitems/edit/123';
+      const result = parseAzureDevOpsUrl(url);
+
+      expect(result.isValid).to.be.true;
+      expect(result.organization).to.equal('tfs');
+      expect(result.project).to.equal('MyProject');
+      expect(result.baseUrl).to.equal('https://server:8080/tfs');
+      expect(result.apiBaseUrl).to.equal('https://server:8080/tfs/MyProject/_apis');
+      expect(result.workItemId).to.equal(123);
+    });
+
+    it('should parse on-premises URLs without work item ID', function () {
+      const url = 'https://onprem-server/Collection/Project/_boards';
+      const result = parseAzureDevOpsUrl(url);
+
+      expect(result.isValid).to.be.true;
+      expect(result.organization).to.equal('Collection');
+      expect(result.project).to.equal('Project');
+      expect(result.baseUrl).to.equal('https://onprem-server/Collection');
+      expect(result.apiBaseUrl).to.equal('https://onprem-server/Collection/Project/_apis');
+      expect(result.workItemId).to.be.undefined;
+    });
   });
 
   describe('isAzureDevOpsWorkItemUrl', function () {
@@ -151,6 +188,11 @@ describe('Azure DevOps URL Parser', function () {
       const url = generatePatCreationUrl('myorg', 'https://myorg.visualstudio.com');
       expect(url).to.equal('https://myorg.visualstudio.com/_usersSettings/tokens');
     });
+
+    it('should generate correct PAT creation URL for on-premises', function () {
+      const url = generatePatCreationUrl('collection', 'https://myserver/collection');
+      expect(url).to.equal('https://myserver/collection/_usersSettings/tokens');
+    });
   });
 
   describe('generateWorkItemUrl', function () {
@@ -167,6 +209,16 @@ describe('Azure DevOps URL Parser', function () {
         'https://myorg.visualstudio.com'
       );
       expect(url).to.equal('https://myorg.visualstudio.com/myproject/_workitems/edit/12345');
+    });
+
+    it('should generate correct work item URL for on-premises', function () {
+      const url = generateWorkItemUrl(
+        'collection',
+        'myproject',
+        12345,
+        'https://myserver/collection'
+      );
+      expect(url).to.equal('https://myserver/collection/myproject/_workitems/edit/12345');
     });
   });
 

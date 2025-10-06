@@ -114,6 +114,16 @@ export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
     organization = decodeURIComponent(parts[0]);
     project = normalizeProjectSegment(segments[0]);
     baseUrl = `https://${parts[0]}.visualstudio.com`;
+  } else {
+    // Handle on-premises Azure DevOps Server URLs
+    // Format: https://server/collection/project/...
+    // We need at least 2 segments: collection and project
+    if (segments.length >= 2) {
+      organization = normalizeProjectSegment(segments[0]);
+      project = normalizeProjectSegment(segments[1]);
+      // Base URL includes protocol, host, and collection
+      baseUrl = `${parsed.protocol}//${parsed.host}/${organization}`;
+    }
   }
 
   if (!organization || !project) {
@@ -161,8 +171,12 @@ export function isAzureDevOpsWorkItemUrl(url: string): boolean {
 export function generatePatCreationUrl(organization: string, baseUrl: string): string {
   if (baseUrl.includes('dev.azure.com')) {
     return `https://dev.azure.com/${organization}/_usersSettings/tokens`;
-  } else {
+  } else if (baseUrl.includes('visualstudio.com')) {
     return `https://${organization}.visualstudio.com/_usersSettings/tokens`;
+  } else {
+    // For on-premises servers, use the base URL structure
+    const trimmedBase = baseUrl.replace(/\/$/, '');
+    return `${trimmedBase}/_usersSettings/tokens`;
   }
 }
 
@@ -183,8 +197,12 @@ export function generateWorkItemUrl(
 ): string {
   if (baseUrl.includes('dev.azure.com')) {
     return `https://dev.azure.com/${organization}/${project}/_workitems/edit/${workItemId}`;
-  } else {
+  } else if (baseUrl.includes('visualstudio.com')) {
     return `https://${organization}.visualstudio.com/${project}/_workitems/edit/${workItemId}`;
+  } else {
+    // For on-premises servers, use the base URL structure
+    const trimmedBase = baseUrl.replace(/\/$/, '');
+    return `${trimmedBase}/${project}/_workitems/edit/${workItemId}`;
   }
 }
 

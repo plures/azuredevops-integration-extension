@@ -34,6 +34,7 @@ export class AzureDevOpsIntClient {
   private preferStateCategory: boolean;
   private cachedIdentity?: { id?: string; displayName?: string; uniqueName?: string };
   public baseUrl: string; // Store the base URL for browser URL generation
+  private apiBaseUrl: string; // Store the API base URL (for on-premises support)
 
   constructor(
     organization: string,
@@ -55,10 +56,11 @@ export class AzureDevOpsIntClient {
     // Determine the base URL and API base URL
     if (options.baseUrl) {
       this.baseUrl = options.baseUrl;
-      // For custom base URLs, use the dev.azure.com API format
-      const apiBaseURL = `https://dev.azure.com/${organization}/${project}/_apis`;
+      // For custom base URLs (e.g., on-premises), construct API URL from the provided base
+      const trimmedBase = this.baseUrl.replace(/\/$/, '');
+      this.apiBaseUrl = `${trimmedBase}/${project}/_apis`;
       this.axios = axios.create({
-        baseURL: apiBaseURL,
+        baseURL: this.apiBaseUrl,
         timeout: 30000, // 30s network timeout for slow Azure DevOps APIs
         headers: {
           'Content-Type': 'application/json',
@@ -67,9 +69,9 @@ export class AzureDevOpsIntClient {
     } else {
       // Default to dev.azure.com
       this.baseUrl = `https://dev.azure.com/${organization}`;
-      const baseURL = `https://dev.azure.com/${organization}/${project}/_apis`;
+      this.apiBaseUrl = `https://dev.azure.com/${organization}/${project}/_apis`;
       this.axios = axios.create({
-        baseURL,
+        baseURL: this.apiBaseUrl,
         timeout: 30000, // 30s network timeout for slow Azure DevOps APIs
         headers: {
           'Content-Type': 'application/json',
@@ -208,14 +210,16 @@ export class AzureDevOpsIntClient {
   }
 
   buildFullUrl(path: string) {
-    return `https://dev.azure.com/${this.encodedOrganization}/${this.encodedProject}/_apis${path}`;
+    return `${this.apiBaseUrl}${path}`;
   }
   getBrowserUrl(path: string) {
     return `${this.baseUrl}/${this.encodedProject}${path}`;
   }
   private buildTeamApiUrl(path: string) {
     if (!this.encodedTeam) return this.buildFullUrl(path);
-    return `https://dev.azure.com/${this.encodedOrganization}/${this.encodedProject}/${this.encodedTeam}/_apis${path}`;
+    // Insert team segment before _apis
+    const baseWithoutApis = this.apiBaseUrl.replace(/\/_apis$/, '');
+    return `${baseWithoutApis}/${this.encodedTeam}/_apis${path}`;
   }
 
   // ---------------- Identity Helpers ----------------
