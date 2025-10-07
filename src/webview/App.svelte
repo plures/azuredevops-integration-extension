@@ -14,6 +14,7 @@
   export let items = [];
   export let kanbanView = false;
   export let loading = false;
+  export let initializing = false;
   export let errorMsg = '';
   // Filters / sort
   export let filterText = '';
@@ -677,7 +678,11 @@
         <div>{errorMsg}</div>
       </div>
     {/if}
-    {#if loading}
+    {#if initializing}
+      <div class="loading">
+        <span class="spinner" role="status" aria-label="Initializing"></span> Initializing extension…
+      </div>
+    {:else if loading}
       <div class="loading">
         <span class="spinner" role="status" aria-label="Loading"></span> Loading work items…
       </div>

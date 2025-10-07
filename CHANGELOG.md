@@ -6,6 +6,45 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.9.5] - 2025-10-06
+
+### Added
+
+- **Enhanced Loading States**: New "Initializing extension..." and "Loading work items..." states provide clear feedback during startup and query execution
+  - Eliminates premature "No items found" flash before items load
+  - Smart state management only exits initializing state when meaningful data is received
+  - Connection switching properly resets to initializing state
+
+### Changed
+
+- **Improved TFS/Azure DevOps Server URL Parsing**: Enhanced parser now correctly handles 3-segment on-premises URLs (collection/organization/project)
+  - Fixed API URL construction for on-premises installations
+  - Added smart URL validator that detects project segment before special folders (`_workitems`, `_git`, `_apis`)
+  - Cloud URL parsing remains unchanged and protected from on-premises logic
+- **Connection-Specific PAT Storage**: Eliminated global PAT storage for improved security
+  - Each connection now stores its own PAT independently
+  - On-premises connections prompt for username (identityName) for proper identity resolution
+  - Enhanced identity fallback logic when connectionData endpoint is unavailable
+
+### Fixed
+
+- **On-Premises Query Issues**: Resolved issue where "Assigned to me" and "My Activity" queries returned 0 items
+  - Fixed API endpoint construction to use correct path: `https://server/collection/org/project/_apis`
+  - Added identity name fallback for on-premises username resolution
+  - Improved connection validation during setup
+- **Cross-Connection Data Isolation**: Fixed webview message filtering to prevent data contamination between connections
+  - All provider messages now include connectionId for proper routing
+  - Auth reminder clearing works correctly when switching connections
+- **Cloud URL Regression**: Protected Azure DevOps Services (dev.azure.com, visualstudio.com) from on-premises URL parsing logic
+
+### Development
+
+- **Automated Screenshot Generation**: Added fully automated GIF generation for loading sequence documentation
+  - Pure JavaScript implementation using gifenc + pngjs (no external dependencies)
+  - Generates 4-second animated GIF showing initializing → loading → loaded states
+  - Command: `npm run screenshots:loading-gif`
+  - Output: 80 frames at 20fps showing complete user experience
+
 ## [1.9.4] - 2025-10-06
 
 ### Added

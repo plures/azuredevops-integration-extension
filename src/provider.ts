@@ -122,6 +122,12 @@ export class WorkItemsProvider {
         : this._currentQuery || DEFAULT_QUERY;
     this._currentQuery = normalizedQuery;
 
+    // Notify webview that query is starting so it can show loading state
+    this._post({
+      type: 'workItemsLoading',
+      query: normalizedQuery,
+    });
+
     try {
       const shouldFetchTypes =
         this._workItemTypes.length === 0 &&

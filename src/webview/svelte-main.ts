@@ -64,7 +64,8 @@ let elapsedSeconds: number = 0;
 let timerElapsedLabel: string = '';
 let itemsForView: any[] = [];
 let kanbanView = false;
-let loading = true;
+let loading = false; // Don't show loading until a query actually starts
+let initializing = true; // True until first message from extension
 let errorMsg: string = '';
 let filterText = '';
 let typeFilter = '';
@@ -244,6 +245,7 @@ function getAppProps() {
     items: itemsForView,
     kanbanView,
     loading,
+    initializing,
     errorMsg,
     filterText,
     typeFilter,
@@ -460,6 +462,9 @@ function ensureApp() {
         saveConnectionState(activeConnectionId);
       }
 
+      // Show loading state immediately when query changes
+      loading = true;
+      errorMsg = '';
       syncApp();
       // Send query change to extension
       postMessage({ type: 'setQuery', query });
@@ -927,6 +932,30 @@ function formatElapsedHHMM(sec: number): string {
 
 function onMessage(message: any) {
   switch (message?.type) {
+    case 'workItemsLoading': {
+      const messageConnectionId = message?.connectionId;
+
+      // Only show loading for the active connection
+      if (messageConnectionId && messageConnectionId !== activeConnectionId) {
+        console.log(
+          '[svelte-main] Ignoring workItemsLoading for inactive connection:',
+          messageConnectionId,
+          'active:',
+          activeConnectionId
+        );
+        break;
+      }
+
+      console.log(
+        '[svelte-main] workItemsLoading - showing loading state for query:',
+        message?.query
+      );
+      initializing = false; // We've connected to extension
+      loading = true;
+      errorMsg = '';
+      syncApp();
+      break;
+    }
     case 'workItemsLoaded': {
       const items = Array.isArray(message.workItems) ? message.workItems : [];
       const messageConnectionId = message?.connectionId;
@@ -955,7 +984,7 @@ function onMessage(message: any) {
         if (!items || (items && items.length === 0)) {
           try {
             console.warn('[svelte-main] workItemsLoaded arrived with 0 items — full message:');
-            console.warn(message);
+            console.warn(JSON.stringify(message));
             console.warn('[svelte-main] connectionId on message =', message?.connectionId);
             console.warn(
               '[svelte-main] local persisted state: typeFilter=',
@@ -974,16 +1003,37 @@ function onMessage(message: any) {
         void err;
       }
 
-      // If this message is for a specific connection, restore its state
+      // CRITICAL FIX: Only process this message if it's for the active connection
+      // or if no connection filtering is needed (legacy/initial load). This prevents
+      // work items from one connection appearing when another is active.
+      if (messageConnectionId && messageConnectionId !== activeConnectionId) {
+        console.warn(
+          '[svelte-main] Ignoring workItemsLoaded for inactive connection:',
+          messageConnectionId,
+          'active:',
+          activeConnectionId
+        );
+        break;
+      }
+
+      // Process the work items - these should always be applied when they match the active connection
+      searchHaystackCache = new WeakMap();
+      lastWorkItems = items;
+      // Only exit initializing state if we have items (cached or fresh)
+      // If no items, stay in initializing until a real query fires
+      if (items.length > 0) {
+        initializing = false;
+      }
+      if (typeof message.kanbanView === 'boolean') {
+        kanbanView = message.kanbanView;
+      }
+
+      // Apply saved UI state for this connection (filters, sort, query selection)
+      // but DON'T clear the work items we just received
       if (messageConnectionId && messageConnectionId === activeConnectionId) {
         applyConnectionState(messageConnectionId);
       }
 
-      searchHaystackCache = new WeakMap();
-      lastWorkItems = items;
-      if (typeof message.kanbanView === 'boolean') {
-        kanbanView = message.kanbanView;
-      }
       recomputeItemsForView();
       workItemCount = itemsForView.length;
       loading = false;
@@ -1004,8 +1054,12 @@ function onMessage(message: any) {
       break;
     }
     case 'workItemsError': {
+      initializing = false; // We've received response from extension
       loading = false;
       errorMsg = String(message?.error || 'Failed to load work items.');
+      // Clear items when there's an error to avoid showing stale data
+      lastWorkItems = [];
+      recomputeItemsForView();
       syncApp();
       break;
     }
@@ -1233,6 +1287,8 @@ function onMessage(message: any) {
       break;
     }
     case 'connectionsUpdate': {
+      // Don't exit initializing state just because we got connections
+      // Stay in initializing until we have items or a query starts
       const receivedConnections = Array.isArray(message?.connections) ? message.connections : [];
       connections = receivedConnections.map((conn: any) => ({
         id: String(conn.id || ''),
@@ -1244,12 +1300,26 @@ function onMessage(message: any) {
         ? String(message.activeConnectionId)
         : undefined;
 
-      // If the active connection changed, apply its state
+      // If the active connection changed, clear stale data and set loading state
       if (newActiveConnectionId && newActiveConnectionId !== activeConnectionId) {
         if (activeConnectionId) {
           saveConnectionState(activeConnectionId);
         }
         activeConnectionId = newActiveConnectionId;
+
+        // CRITICAL FIX: Clear stale work items and show loading when switching connections
+        lastWorkItems = [];
+        itemsForView = [];
+        workItemCount = 0;
+        loading = true;
+        initializing = true; // Back to initializing for new connection
+        errorMsg = '';
+
+        // CRITICAL FIX: Clear auth reminders from previous connection to prevent
+        // signin cards from old connections appearing on the new connection tab
+        authReminderMap.clear();
+        authReminders = [];
+
         applyConnectionState(activeConnectionId);
       } else {
         activeConnectionId = newActiveConnectionId;
@@ -1278,11 +1348,12 @@ function onMessage(message: any) {
 
 function boot() {
   window.addEventListener('message', (ev) => onMessage(ev.data));
-  // Signal readiness and request initial data
-  loading = true;
+  // Signal readiness - extension will send initial data in response
+  // Don't request getWorkItems here, as it causes a premature query before
+  // connections are properly initialized. Also don't set loading=true here,
+  // as we haven't actually started a query yet - just initializing.
   errorMsg = '';
   postMessage({ type: 'webviewReady' });
-  postMessage({ type: 'getWorkItems' });
   ensureApp();
 }
 
