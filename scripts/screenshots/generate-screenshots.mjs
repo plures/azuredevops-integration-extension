@@ -17,14 +17,29 @@ const __dirname = path.dirname(__filename);
 
 const CAPTURE_WIDTH = 1200;
 const CAPTURE_MAX_HEIGHT = 780;
-const CAPTURE_BACKGROUND = '#f4f6fb';
 const CAPTURE_PADDING = 32;
-const CAPTURE_BORDER_RADIUS = 16;
-const CAPTURE_BORDER = '1px solid rgba(15, 23, 42, 0.08)';
-const CAPTURE_SHADOW = '0 18px 48px rgba(15, 23, 42, 0.14)';
-const CAPTURE_TEXT_COLOR = '#0f172a';
-const CAPTURE_PANE_GRADIENT =
-  'linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(236, 241, 249, 0.96))';
+const CAPTURE_BORDER_RADIUS = 8;
+const CAPTURE_SHADOW = '0 8px 32px rgba(0, 0, 0, 0.4)';
+
+// VS Code Dark+ theme colors (most popular theme)
+const VSCODE_THEME = {
+  background: '#1e1e1e',
+  sidebarBackground: '#252526',
+  editorBackground: '#1e1e1e',
+  foreground: '#cccccc',
+  border: '#3e3e42',
+  inputBackground: '#3c3c3c',
+  inputForeground: '#cccccc',
+  buttonBackground: '#0e639c',
+  buttonForeground: '#ffffff',
+  buttonHoverBackground: '#1177bb',
+  listActiveBackground: '#094771',
+  listHoverBackground: '#2a2d2e',
+  widgetBorder: '#454545', // Subtle border
+  widgetBorderStrong: '#6e6e6e', // More visible border for screenshots
+  focusBorder: '#007acc',
+  descriptionForeground: '#9d9d9d',
+};
 
 async function readJson(p) {
   const raw = await fs.readFile(p, 'utf8');
@@ -153,6 +168,10 @@ async function main() {
               // Handle webviewReady to send connections
               if (isSvelte && msg && msg.type === 'webviewReady') {
                 const fixture = window.__AZDO_FIXTURE__ || {};
+                console.log('[screenshots] webviewReady received, sending connections', {
+                  hasConnections: !!(fixture.connections && fixture.connections.length > 0),
+                  activeConnectionId: fixture.activeConnectionId,
+                });
                 if (fixture.connections && fixture.connections.length > 0) {
                   setTimeout(() => {
                     window.postMessage(
@@ -165,6 +184,52 @@ async function main() {
                     );
                   }, 5);
                 }
+                // Also send work items after a short delay to ensure connections are processed
+                setTimeout(() => {
+                  const raw = (fixture || {}).workItems || [];
+                  console.log('[screenshots] Auto-sending work items', { count: raw.length });
+                  const mapped = raw.map((w) => ({
+                    id: w.id,
+                    fields: {
+                      'System.Id': w.id,
+                      'System.Title': w.title,
+                      'System.State': w.state,
+                      'System.WorkItemType': w.type,
+                      'System.AssignedTo':
+                        !w.assignedTo || w.assignedTo === 'Unassigned'
+                          ? undefined
+                          : { displayName: w.assignedTo },
+                      'Microsoft.VSTS.Common.Priority': w.priority,
+                      'System.ChangedDate': new Date().toISOString(),
+                    },
+                  }));
+                  window.postMessage(
+                    {
+                      type: 'workItemsLoading',
+                      query: 'My Activity',
+                      connectionId: fixture.activeConnectionId,
+                    },
+                    '*'
+                  );
+                  setTimeout(() => {
+                    window.postMessage(
+                      {
+                        type: 'workItemsLoaded',
+                        workItems: mapped,
+                        connectionId: fixture.activeConnectionId,
+                        kanbanView: fixture.view === 'kanban',
+                      },
+                      '*'
+                    );
+                    // If kanban view requested, send toggle message after work items load
+                    if (fixture.view === 'kanban') {
+                      setTimeout(() => {
+                        console.log('[screenshots] Sending toggleKanbanView message');
+                        window.postMessage({ type: 'toggleKanbanView' }, '*');
+                      }, 100);
+                    }
+                  }, 50);
+                }, 100);
               }
             } catch (e) {
               console.error('[screenshots] stub postMessage error', e);
@@ -182,6 +247,66 @@ async function main() {
       }
     }, fixture);
     await page.goto(fileUrl);
+
+    // Load the Svelte component CSS (esbuild generates this but doesn't auto-inject it)
+    const cssPath = fileUrl.replace('svelte.html', 'svelte-main.css');
+    await page.addStyleTag({ url: cssPath });
+
+    // Inject VS Code theme CSS variables immediately after page load
+    await page.addStyleTag({
+      content: `
+        :root {
+          --vscode-font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+          --vscode-font-size: 13px;
+          --vscode-foreground: ${VSCODE_THEME.foreground};
+          --vscode-sideBar-background: ${VSCODE_THEME.sidebarBackground};
+          --vscode-editor-background: ${VSCODE_THEME.editorBackground};
+          --vscode-editor-foreground: ${VSCODE_THEME.foreground};
+          --vscode-widget-border: ${VSCODE_THEME.widgetBorderStrong};
+          --vscode-editorWidget-border: ${VSCODE_THEME.widgetBorderStrong};
+          --vscode-editorWidget-background: ${VSCODE_THEME.inputBackground};
+          --vscode-input-background: ${VSCODE_THEME.inputBackground};
+          --vscode-input-foreground: ${VSCODE_THEME.inputForeground};
+          --vscode-input-border: ${VSCODE_THEME.border};
+          --vscode-input-placeholderForeground: ${VSCODE_THEME.descriptionForeground};
+          --vscode-button-background: ${VSCODE_THEME.buttonBackground};
+          --vscode-button-foreground: ${VSCODE_THEME.buttonForeground};
+          --vscode-button-hoverBackground: ${VSCODE_THEME.buttonHoverBackground};
+          --vscode-button-secondaryBackground: ${VSCODE_THEME.inputBackground};
+          --vscode-button-secondaryForeground: ${VSCODE_THEME.foreground};
+          --vscode-button-secondaryHoverBackground: ${VSCODE_THEME.listHoverBackground};
+          --vscode-button-border: ${VSCODE_THEME.border};
+          --vscode-list-activeSelectionBackground: ${VSCODE_THEME.listActiveBackground};
+          --vscode-list-hoverBackground: ${VSCODE_THEME.listHoverBackground};
+          --vscode-toolbar-hoverBackground: ${VSCODE_THEME.listHoverBackground};
+          --vscode-focusBorder: ${VSCODE_THEME.focusBorder};
+          --vscode-descriptionForeground: ${VSCODE_THEME.descriptionForeground};
+          --vscode-textBlockQuote-background: #2a2a2a;
+          
+          /* Azure DevOps semantic colors for status badges */
+          --primary-color: #0078d4;
+          --success-color: #107c10;
+          --warning-color: #f8961e;
+          --danger-color: #d13438;
+          --info-color: #5c2d91;
+          
+          /* Azure DevOps state colors */
+          --ado-blue: #0078d4;
+          --ado-green: #107c10;
+          --ado-orange: #ff8c00;
+          --ado-red: #d13438;
+          --ado-purple: #5c2d91;
+          --ado-gray: #605e5c;
+          --state-new: #0078d4;
+          --state-active: #ff8c00;
+          --state-inprogress: #ff8c00;
+          --state-resolved: #107c10;
+          --state-done: #107c10;
+          --state-closed: #605e5c;
+        }
+      `,
+    });
+
     // Wait until bootstrap has fed data and content renders
     const wantKanban = fixture.view === 'kanban';
     const hasConnections = fixture.connections && fixture.connections.length > 1;
@@ -235,14 +360,13 @@ async function main() {
     // If a target width is requested, apply it before selecting/screenshotting
     if (typeof widthPx === 'number' && widthPx > 0) {
       const cssParts = [
-        `${selector}{width:${widthPx}px !important; max-width:${widthPx}px !important; margin:0 auto !important; border-radius:${CAPTURE_BORDER_RADIUS}px !important; border:${CAPTURE_BORDER} !important; box-shadow:${CAPTURE_SHADOW} !important; overflow:hidden !important; background:${CAPTURE_PANE_GRADIENT} !important; color:${CAPTURE_TEXT_COLOR} !important;}`,
-        `body,html{background:${CAPTURE_BACKGROUND} !important; padding:${CAPTURE_PADDING}px !important; margin:0 !important; display:flex !important; justify-content:center !important; align-items:flex-start !important;}`,
-        `.pane, .pane .pane-content{background:transparent !important; color:${CAPTURE_TEXT_COLOR} !important;}`,
-        `.pane .work-item-card, .pane .kanban-card{background-color:rgba(255,255,255,0.92) !important; color:${CAPTURE_TEXT_COLOR} !important; box-shadow:0 4px 14px rgba(15,23,42,0.08) !important;}`,
-        `.pane .kanban-column{background-color:rgba(248,250,255,0.9) !important;}`,
-        `.pane .status-label{color:${CAPTURE_TEXT_COLOR} !important;}`,
-        `.pane .connection-tabs{background:rgba(255,255,255,0.85) !important; border-bottom:1px solid rgba(15,23,42,0.08) !important;}
-         .pane .connection-tab{color:${CAPTURE_TEXT_COLOR} !important;}`,
+        // Set container sizing and add subtle shadow for screenshot presentation
+        `${selector}{width:${widthPx}px !important; max-width:${widthPx}px !important; margin:0 auto !important; border-radius:${CAPTURE_BORDER_RADIUS}px !important; box-shadow:${CAPTURE_SHADOW} !important; overflow:hidden !important;}`,
+        // Set page background to transparent so screenshots work on light and dark backgrounds
+        `body,html{background:transparent !important; padding:${CAPTURE_PADDING}px !important; margin:0 !important; display:flex !important; justify-content:center !important; align-items:flex-start !important;}`,
+        // Ensure borders are visible in screenshots
+        `.work-item-card{border: 1px solid ${VSCODE_THEME.widgetBorderStrong} !important;}`,
+        `.kanban-column{border: 1px solid ${VSCODE_THEME.widgetBorderStrong} !important;}`,
       ];
       await page.addStyleTag({ content: cssParts.join('\n') });
     }
@@ -255,10 +379,16 @@ async function main() {
     // Query the pane element
     let target = await page.$(selector);
     if (target) {
-      await target.screenshot({ path: path.join(outDir, `${name}.png`) });
+      await target.screenshot({
+        path: path.join(outDir, `${name}.png`),
+        omitBackground: true, // Transparent background for light/dark theme compatibility
+      });
     } else {
       // Fallback to viewport screenshot
-      await page.screenshot({ path: path.join(outDir, `${name}.png`) });
+      await page.screenshot({
+        path: path.join(outDir, `${name}.png`),
+        omitBackground: true,
+      });
     }
     console.log('[screenshots] Wrote', path.join(outDir, `${name}.png`));
   }
