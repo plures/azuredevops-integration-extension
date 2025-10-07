@@ -124,11 +124,24 @@ async function main() {
                     'System.ChangedDate': new Date().toISOString(),
                   },
                 }));
+                // First send workItemsLoading to simulate query start
+                setTimeout(() => {
+                  window.postMessage(
+                    {
+                      type: 'workItemsLoading',
+                      query: 'My Activity',
+                      connectionId: (window.__AZDO_FIXTURE__ || {}).activeConnectionId,
+                    },
+                    '*'
+                  );
+                }, 5);
+                // Then send workItemsLoaded with actual data
                 setTimeout(() => {
                   window.postMessage(
                     {
                       type: 'workItemsLoaded',
                       workItems: mapped,
+                      connectionId: (window.__AZDO_FIXTURE__ || {}).activeConnectionId,
                       kanbanView: (window.__AZDO_FIXTURE__ || {}).view === 'kanban',
                     },
                     '*'

@@ -20,7 +20,10 @@ function buildApiBaseUrl(baseUrl: string, organization: string, project: string)
     return `${trimmedBase}/${project}/_apis`;
   }
 
-  return `${trimmedBase}/${project}/_apis`;
+  // On-prem: baseUrl already includes collection, add org/project
+  const apiUrl = `${trimmedBase}/${organization}/${project}/_apis`;
+  console.log('[buildApiBaseUrl] On-prem API URL:', apiUrl);
+  return apiUrl;
 }
 
 function normalizeProjectSegment(segment: string | undefined): string {
@@ -114,6 +117,37 @@ export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
     organization = decodeURIComponent(parts[0]);
     project = normalizeProjectSegment(segments[0]);
     baseUrl = `https://${parts[0]}.visualstudio.com`;
+  } else {
+    // Handle on-premises Azure DevOps Server URLs
+    // Format: https://server/collection/org/project/...
+    // OR simplified format: https://server/collection/project/... (when collection serves as both)
+    // We need at least 2 segments for minimal on-prem, but prefer 3 for full collection/org/project
+    if (segments.length >= 3) {
+      // Full on-prem format: collection/org/project
+      const collection = normalizeProjectSegment(segments[0]);
+      organization = normalizeProjectSegment(segments[1]);
+      project = normalizeProjectSegment(segments[2]);
+      // Base URL includes protocol, host, and collection
+      baseUrl = `${parsed.protocol}//${parsed.host}/${collection}`;
+      console.log('[parseAzureDevOpsUrl] Parsed on-prem URL (3-segment):', {
+        collection,
+        organization,
+        project,
+        baseUrl,
+      });
+    } else if (segments.length >= 2) {
+      // Simplified on-prem format: collection/project (no separate org)
+      const collection = normalizeProjectSegment(segments[0]);
+      organization = collection; // Use collection as org for simplified format
+      project = normalizeProjectSegment(segments[1]);
+      baseUrl = `${parsed.protocol}//${parsed.host}/${collection}`;
+      console.log('[parseAzureDevOpsUrl] Parsed on-prem URL (2-segment):', {
+        collection,
+        organization,
+        project,
+        baseUrl,
+      });
+    }
   }
 
   if (!organization || !project) {
@@ -161,8 +195,12 @@ export function isAzureDevOpsWorkItemUrl(url: string): boolean {
 export function generatePatCreationUrl(organization: string, baseUrl: string): string {
   if (baseUrl.includes('dev.azure.com')) {
     return `https://dev.azure.com/${organization}/_usersSettings/tokens`;
-  } else {
+  } else if (baseUrl.includes('visualstudio.com')) {
     return `https://${organization}.visualstudio.com/_usersSettings/tokens`;
+  } else {
+    // For on-premises servers, use the base URL structure
+    const trimmedBase = baseUrl.replace(/\/$/, '');
+    return `${trimmedBase}/_usersSettings/tokens`;
   }
 }
 
@@ -183,8 +221,12 @@ export function generateWorkItemUrl(
 ): string {
   if (baseUrl.includes('dev.azure.com')) {
     return `https://dev.azure.com/${organization}/${project}/_workitems/edit/${workItemId}`;
-  } else {
+  } else if (baseUrl.includes('visualstudio.com')) {
     return `https://${organization}.visualstudio.com/${project}/_workitems/edit/${workItemId}`;
+  } else {
+    // For on-premises servers, use the base URL structure
+    const trimmedBase = baseUrl.replace(/\/$/, '');
+    return `${trimmedBase}/${project}/_workitems/edit/${workItemId}`;
   }
 }
 

@@ -10,9 +10,14 @@ Integrate Azure DevOps work items, time tracking, branching, and pull requests d
 - **Time Tracking**: Lightweight timer with inactivity auto-pause, status bar integration, and automatic work item updates
 - **Git Integration**: Create branches and pull requests directly from work items with customizable naming templates
 - **Smart Setup**: Easy setup wizard that parses work item URLs and guides you through configuration
+- **Enhanced On-Premises Support**: Robust support for Azure DevOps Services (cloud) and Azure DevOps Server (on-premises)
+  - Smart URL parsing handles 3-segment paths (collection/organization/project)
+  - Connection-specific PAT storage with username prompts for on-premises
+  - Intelligent loading states ("Initializing..." → "Loading..." → content)
+  - Fixed query execution for "Assigned to me" and "My Activity" on TFS/Server
 - **AI-Powered Summaries**: Generate work summaries using Copilot prompts or OpenAI integration
 - **Multiple Views**: Switch between list and Kanban views with preserved scroll positions and keyboard navigation
-- **Secure Storage**: PAT tokens stored securely in VS Code's secret store with automatic migration
+- **Secure Storage**: PAT tokens stored securely per-connection in VS Code's secret store with automatic migration
 
 ### Security & Trust
 
@@ -108,6 +113,18 @@ Generate at: Azure DevOps → User Settings → Security → Personal Access Tok
 - Use `Azure DevOps Integration: Select Team` to set a team context
 - When set, the "Current Sprint" query uses that team's current iteration
 - You can change or clear this anytime by running the command again
+
+### On-Premises Azure DevOps Server
+
+The extension fully supports on-premises Azure DevOps Server installations:
+
+1. **During Setup**: Use a work item URL from your on-premises server (e.g., `https://myserver/DefaultCollection/MyProject/_workitems/edit/123`)
+2. **Manual Configuration**: Set `azureDevOpsIntegration.baseUrl` to your server's base URL (e.g., `https://myserver/DefaultCollection`)
+3. The extension automatically detects and uses your on-premises server for all API calls
+
+> **Authentication Note**: Azure DevOps Server (on-premises) only supports **Personal Access Token (PAT)** authentication. Microsoft Entra ID (OAuth) is only available for Azure DevOps Services (cloud). The setup wizard automatically selects the appropriate authentication method based on your server type.
+
+> **Tip**: Ensure your PAT has appropriate permissions for your on-premises server. See [docs/ONPREMISES_TESTING.md](docs/ONPREMISES_TESTING.md) for detailed testing scenarios.
 
 ### Accessing the Extension
 
@@ -293,6 +310,14 @@ Enjoy the extension! Feedback & feature requests are appreciated.
 ## 🖼️ Screenshots
 
 Below are preview-friendly screenshots captured at a consistent size and tightly cropped to the content so they render cleanly in VS Code preview and on the Marketplace.
+
+### Loading Sequence (v1.9.5)
+
+Watch the extension's smart loading states in action:
+
+![Loading Sequence](images/loading-sequence.gif)
+
+The extension provides clear feedback during startup: "Initializing extension..." → "Loading work items..." → content display.
 
 ### Work Items – List View (v1.7.0)
 

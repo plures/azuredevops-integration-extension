@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { AzureDevOpsIntClient } from './azureClient.js';
+import { parseAzureDevOpsUrl, isAzureDevOpsWorkItemUrl } from './azureDevOpsUrlParser.js';
 import { WorkItemsProvider } from './provider.js';
 import { WorkItemTimer } from './timer.js';
 import type {
@@ -53,6 +54,10 @@ type ProjectConnection = {
   authMethod?: AuthMethod; // Authentication method: 'pat' (default) or 'entra'
   patKey?: string; // Key for storing PAT in secrets (for PAT auth)
   baseUrl?: string; // Base URL for the Azure DevOps instance
+  // Optional identity name for on-prem servers where @Me may not resolve. This
+  // should be the user's unique identity string (email, domain\user, etc.) used
+  // in Azure DevOps Server for AssignedTo/CreatedBy matching.
+  identityName?: string;
   // Entra ID specific fields
   tenantId?: string; // Azure AD tenant ID (optional, defaults to 'organizations')
   clientId?: string; // Azure AD app registration client ID (for Entra auth)
@@ -410,7 +415,7 @@ function sendToWebview(message: any) {
 
 function sendWorkItemsSnapshot(options: WorkItemsSnapshotOptions) {
   const branchContext = options.connectionId
-    ? branchStateByConnection.get(options.connectionId)?.context ?? null
+    ? (branchStateByConnection.get(options.connectionId)?.context ?? null)
     : null;
   postWorkItemsSnapshot({ panel, logger: verbose, branchContext, ...options });
 }
@@ -780,7 +785,9 @@ async function loadConnectionsFromConfig(
     const sanitized = sanitizeConnection(entry);
     if (sanitized) {
       // Migrate existing connections to have patKey if they don't have one
-      if (!sanitized.patKey) {
+      // Only add a patKey for connections that are PAT-authenticated. Do not
+      // create or populate PAT keys for connections configured for Entra ID.
+      if (!sanitized.patKey && sanitized.authMethod !== 'entra') {
         sanitized.patKey = `azureDevOpsInt.pat.${sanitized.id}`;
       }
 
@@ -810,9 +817,14 @@ async function loadConnectionsFromConfig(
 
   connections = normalized;
 
-  // Migrate global PAT to first connection if needed
-  if (connections.length > 0 && connections[0].patKey) {
-    await migrateGlobalPATToConnection(context, connections[0]);
+  // Migrate any existing global PAT into per-connection secret keys so
+  // credentials are always connection-scoped (no global PAT sharing).
+  if (connections.length > 0) {
+    try {
+      await migrateGlobalPATToConnections(context, connections);
+    } catch (e) {
+      console.warn('[azureDevOpsInt] migrateGlobalPATToConnections failed', e);
+    }
   }
 
   verbose('[connections] Loaded connections from config', {
@@ -955,7 +967,10 @@ async function ensureActiveConnection(
     id: connection.id,
     organization: connection.organization,
     project: connection.project,
+    baseUrl: connection.baseUrl,
     authMethod: connection.authMethod || 'pat',
+    hasIdentityName: !!connection.identityName,
+    identityName: connection.identityName, // Show for debugging on-prem identity
   });
 
   let state = connectionStates.get(targetId);
@@ -1041,6 +1056,12 @@ async function ensureActiveConnection(
       authMethod,
     });
 
+    verbose('[ensureActiveConnection] creating client with options', {
+      hasIdentityName: !!connection.identityName,
+      identityName: connection.identityName,
+      baseUrl: connection.baseUrl,
+    });
+
     state.client = new AzureDevOpsIntClient(
       connection.organization,
       connection.project,
@@ -1051,6 +1072,7 @@ async function ensureActiveConnection(
         team,
         baseUrl: connection.baseUrl,
         authType: authMethod === 'entra' ? 'bearer' : 'pat',
+        identityName: connection.identityName, // Pass through for on-prem identity fallback
         tokenRefreshCallback:
           authMethod === 'entra' && state.authService
             ? async () => {
@@ -2689,11 +2711,12 @@ async function selfTestWebview() {
   }
 }
 
-async function migrateGlobalPATToConnection(
+async function _migrateGlobalPATToConnection(
   context: vscode.ExtensionContext,
   connection: ProjectConnection
 ): Promise<void> {
-  if (!connection.patKey) return;
+  // Only migrate into connections that are PAT-authenticated
+  if (!connection.patKey || connection.authMethod === 'entra') return;
 
   // Check if connection already has a PAT
   const existingPAT = await context.secrets.get(connection.patKey);
@@ -2705,6 +2728,41 @@ async function migrateGlobalPATToConnection(
     // Migrate global PAT to connection-specific key
     await context.secrets.store(connection.patKey, globalPAT);
     console.log(`[azureDevOpsInt] Migrated global PAT to connection ${connection.id}`);
+  }
+}
+
+/**
+ * Migrate the global PAT into all connection-specific secret keys where missing.
+ * After copying, the global PAT will be deleted to enforce connection-scoped secrets.
+ */
+async function migrateGlobalPATToConnections(
+  context: vscode.ExtensionContext,
+  conns: ProjectConnection[]
+): Promise<void> {
+  try {
+    const global = await context.secrets.get(PAT_KEY);
+    if (!global) return;
+    for (const c of conns) {
+      if (!c.patKey) continue;
+      try {
+        const existing = await context.secrets.get(c.patKey);
+        if (!existing) {
+          await context.secrets.store(c.patKey, global);
+          console.log(`[azureDevOpsInt] Migrated global PAT into connection ${c.id}`);
+        }
+      } catch (e) {
+        console.warn(`[azureDevOpsInt] Failed migrating PAT to connection ${c.id}`, e);
+      }
+    }
+    // Remove global PAT to enforce single-source per-connection credentials
+    try {
+      await context.secrets.delete(PAT_KEY);
+      console.log('[azureDevOpsInt] Deleted global PAT after migrating to connections');
+    } catch (e) {
+      console.warn('[azureDevOpsInt] Failed to delete global PAT after migration', e);
+    }
+  } catch (e) {
+    console.warn('[azureDevOpsInt] migrateGlobalPATToConnections failed', e);
   }
 }
 
@@ -2721,7 +2779,7 @@ async function getSecretPAT(
   }
 
   // Fallback to global PAT for backward compatibility
-  return context.secrets.get(PAT_KEY);
+  return undefined;
 }
 
 function persistTimer(
@@ -3321,22 +3379,126 @@ async function promptSwitchActiveConnection(context: vscode.ExtensionContext): P
 }
 
 async function promptAddConnection(context: vscode.ExtensionContext): Promise<boolean> {
-  const existingPat = await getSecretPAT(context);
+  const _existingPat = await getSecretPAT(context);
 
   const lastConnection = connections[connections.length - 1];
-  const org = await vscode.window.showInputBox({
-    prompt: 'Azure DevOps organization (short name)',
-    value: lastConnection?.organization ?? '',
-    ignoreFocusOut: true,
-  });
-  if (!org) return false;
+  // Offer the user a chance to paste a work item URL first so we can auto-detect org/project/baseUrl
+  const urlOrManual = await vscode.window.showQuickPick(
+    [
+      {
+        label: 'Provide a work item URL',
+        description: 'Paste a URL to auto-detect organization and project',
+        value: 'url',
+      },
+      {
+        label: 'Enter organization & project manually',
+        description: 'Type org and project names',
+        value: 'manual',
+      },
+      { label: 'Cancel', description: '', value: 'cancel' },
+    ],
+    { placeHolder: 'How would you like to add the project connection?', ignoreFocusOut: true }
+  );
+  if (!urlOrManual || urlOrManual.value === 'cancel') return false;
 
-  const project = await vscode.window.showInputBox({
-    prompt: 'Azure DevOps project name',
-    value: lastConnection?.project ?? '',
-    ignoreFocusOut: true,
-  });
-  if (!project) return false;
+  let org: string | undefined = undefined;
+  let project: string | undefined = undefined;
+  let detectedBaseUrl: string | undefined = undefined;
+  let urlInput: string | undefined = undefined;
+
+  if (urlOrManual.value === 'url') {
+    urlInput = await vscode.window.showInputBox({
+      prompt: 'Enter a work item URL from your Azure DevOps instance',
+      placeHolder: 'https://dev.azure.com/yourorg/yourproject/_workitems/edit/12345',
+      validateInput: (value) => {
+        if (!value || !value.trim()) return 'Please enter a work item URL or Cancel';
+        if (!isAzureDevOpsWorkItemUrl(value))
+          return 'Please enter a valid Azure DevOps work item URL';
+        return null;
+      },
+      ignoreFocusOut: true,
+    });
+    if (!urlInput) return false;
+    try {
+      const parsed = parseAzureDevOpsUrl(urlInput);
+      if (!parsed.isValid) {
+        vscode.window.showWarningMessage(`Could not parse URL: ${parsed.error}`);
+      } else {
+        org = parsed.organization;
+        project = parsed.project;
+        detectedBaseUrl = parsed.baseUrl;
+      }
+    } catch (e) {
+      // Fall back to manual entry below
+      console.warn('[promptAddConnection] URL parse failed', e);
+    }
+  }
+
+  if (!org || !project) {
+    // Manual prompts (or fallback when URL parse failed)
+    org = await vscode.window.showInputBox({
+      prompt: 'Azure DevOps organization (short name)',
+      value: lastConnection?.organization ?? '',
+      ignoreFocusOut: true,
+    });
+    if (!org) return false;
+
+    project = await vscode.window.showInputBox({
+      prompt: 'Azure DevOps project name',
+      value: lastConnection?.project ?? '',
+      ignoreFocusOut: true,
+    });
+    if (!project) return false;
+  }
+
+  // If we detected a baseUrl from a pasted work item URL, use that. Otherwise ask for instance type.
+  let baseUrl: string | undefined = detectedBaseUrl;
+  if (!baseUrl) {
+    const baseUrlChoice = await vscode.window.showQuickPick(
+      [
+        {
+          label: 'dev.azure.com',
+          description: 'https://dev.azure.com/{org}',
+          value: 'dev.azure.com',
+        },
+        {
+          label: 'visualstudio.com',
+          description: 'https://{org}.visualstudio.com',
+          value: 'visualstudio.com',
+        },
+        { label: 'Custom', description: 'Enter custom base URL', value: 'custom' },
+      ],
+      {
+        placeHolder: 'Select your Azure DevOps instance type',
+        ignoreFocusOut: true,
+      }
+    );
+
+    if (!baseUrlChoice) return false;
+
+    if (baseUrlChoice.value === 'custom') {
+      const customBaseUrl = await vscode.window.showInputBox({
+        prompt: 'Enter your custom base URL',
+        placeHolder: 'https://your-instance.visualstudio.com',
+        validateInput: (value) => {
+          if (!value || !value.trim()) {
+            return 'Base URL is required';
+          }
+          if (!value.startsWith('http://') && !value.startsWith('https://')) {
+            return 'Base URL must start with http:// or https://';
+          }
+          return null;
+        },
+        ignoreFocusOut: true,
+      });
+      if (!customBaseUrl) return false;
+      baseUrl = customBaseUrl.trim();
+    } else if (baseUrlChoice.value === 'dev.azure.com') {
+      baseUrl = `https://dev.azure.com/${org}`;
+    } else {
+      baseUrl = `https://${org}.visualstudio.com`;
+    }
+  }
 
   const label = await vscode.window.showInputBox({
     prompt: 'Display label for this connection (optional)',
@@ -3350,56 +3512,105 @@ async function promptAddConnection(context: vscode.ExtensionContext): Promise<bo
     ignoreFocusOut: true,
   });
 
-  let pat = existingPat;
-  if (pat) {
-    const patChoice = await vscode.window.showQuickPick(
-      [
-        { label: 'Use saved Personal Access Token', action: 'reuse' as const },
-        { label: 'Enter a new Personal Access Token…', action: 'update' as const },
-      ],
-      {
-        placeHolder: 'Choose how to authenticate with Azure DevOps',
-        ignoreFocusOut: true,
-      }
-    );
-    if (!patChoice) {
-      vscode.window.showInformationMessage('Setup cancelled without updating connections.');
-      return false;
-    }
-    if (patChoice.action === 'update') {
-      const entered = await vscode.window.showInputBox({
-        prompt: 'Personal Access Token (scopes: Work Items Read/Write)',
-        password: true,
-        ignoreFocusOut: true,
-      });
-      if (!entered || !entered.trim()) {
-        vscode.window.showWarningMessage('A Personal Access Token is required to complete setup.');
-        return false;
-      }
-      pat = entered.trim();
-      await context.secrets.store(PAT_KEY, pat);
-    }
-  } else {
-    const entered = await vscode.window.showInputBox({
-      prompt: 'Personal Access Token (scopes: Work Items Read/Write)',
-      password: true,
-      ignoreFocusOut: true,
-    });
-    if (!entered || !entered.trim()) {
-      vscode.window.showWarningMessage('A Personal Access Token is required to complete setup.');
-      return false;
-    }
-    pat = entered.trim();
-    await context.secrets.store(PAT_KEY, pat);
-  }
-
+  // Create the connection object first so we have an ID for the PAT key
   const newConnection: ProjectConnection = {
     id: randomUUID(),
     organization: org.trim(),
     project: project.trim(),
     label: label?.trim() ? label.trim() : undefined,
     team: team?.trim() ? team.trim() : undefined,
+    baseUrl: baseUrl?.toString(),
   };
+
+  // If this looks like an on-prem Azure DevOps Server (custom base URL not dev.azure.com/visualstudio.com),
+  // ask the user for their identity name which we can use for @Me substitution when the server does not
+  // resolve @Me properly. Only prompt for PAT connections where identity matters.
+  try {
+    const lowerBase = (baseUrl || '').toLowerCase();
+    const isOnPrem =
+      lowerBase && !lowerBase.includes('dev.azure.com') && !lowerBase.includes('visualstudio.com');
+    if (isOnPrem) {
+      const identityPrompt = await vscode.window.showInputBox({
+        prompt:
+          'Optional: Enter the username/email that your Azure DevOps Server uses for AssignedTo/CreatedBy (leave blank to skip)',
+        placeHolder: 'e.g. domain\\username or user@contoso.com',
+        ignoreFocusOut: true,
+      });
+      if (identityPrompt && identityPrompt.trim()) {
+        newConnection.identityName = identityPrompt.trim();
+      }
+    }
+  } catch {
+    /* ignore prompt failures */
+  }
+
+  // Always prompt for a PAT for PAT-authenticated connections. Store the PAT
+  // under a connection-specific secret key so credentials are never global.
+  let pat: string | undefined;
+  const entered = await vscode.window.showInputBox({
+    prompt: 'Personal Access Token (scopes: Work Items Read/Write)',
+    password: true,
+    ignoreFocusOut: true,
+  });
+  if (!entered || !entered.trim()) {
+    vscode.window.showWarningMessage('A Personal Access Token is required to complete setup.');
+    return false;
+  }
+  pat = entered.trim();
+
+  // For on-prem connections, validate and potentially correct the URL structure
+  const lowerBase = (baseUrl || '').toLowerCase();
+  const isOnPrem =
+    lowerBase && !lowerBase.includes('dev.azure.com') && !lowerBase.includes('visualstudio.com');
+
+  if (isOnPrem && detectedBaseUrl) {
+    verbose('[promptAddConnection] Validating on-prem URL structure with provided PAT');
+
+    try {
+      const { parseAndValidateOnPremUrl } = await import('./onPremUrlValidator.js');
+      const originalUrl = urlInput || `${baseUrl}/${org}/${project}`;
+
+      const validated = await parseAndValidateOnPremUrl(originalUrl, pat);
+
+      if (validated.validated) {
+        verbose('[promptAddConnection] URL structure validated successfully:', {
+          organization: validated.organization,
+          project: validated.project,
+          baseUrl: validated.baseUrl,
+          apiBaseUrl: validated.apiBaseUrl,
+        });
+
+        // Update connection with validated values
+        newConnection.organization = validated.organization;
+        newConnection.project = validated.project;
+        newConnection.baseUrl = validated.baseUrl;
+
+        vscode.window.showInformationMessage(
+          `✅ Connection validated: ${validated.organization}/${validated.project}`
+        );
+      } else {
+        verbose('[promptAddConnection] Could not validate URL structure, using parsed values');
+        vscode.window.showWarningMessage(
+          `Could not validate connection structure. Using: ${org}/${project}. If queries fail, you may need to recreate the connection.`
+        );
+      }
+    } catch (error) {
+      console.error('[promptAddConnection] URL validation failed:', error);
+      // Continue with parsed values if validation fails
+    }
+  }
+
+  // Generate a per-connection secret key and store the PAT there. We set
+  // the patKey on the connection so the runtime can rehydrate the credential.
+  const connPatKey = `azureDevOpsInt.pat.${newConnection.id}`;
+  try {
+    await context.secrets.store(connPatKey, pat);
+    newConnection.patKey = connPatKey;
+  } catch (e) {
+    console.error('[azureDevOpsInt] Failed to store PAT for connection', e);
+    vscode.window.showErrorMessage('Failed to save PAT for the new connection. Setup aborted.');
+    return false;
+  }
 
   const nextConnections = [...connections, newConnection];
   await saveConnectionsToConfig(context, nextConnections);
@@ -4927,9 +5138,7 @@ function normalizeBranchRef(ref?: string | null): { full: string; short: string 
   const trimmed = String(ref).trim();
   if (!trimmed) return null;
   if (trimmed.startsWith('refs/')) {
-    const short = trimmed.startsWith('refs/heads/')
-      ? trimmed.slice('refs/heads/'.length)
-      : trimmed;
+    const short = trimmed.startsWith('refs/heads/') ? trimmed.slice('refs/heads/'.length) : trimmed;
     return { full: trimmed, short };
   }
   return { full: `refs/heads/${trimmed}`, short: trimmed };
@@ -5067,7 +5276,9 @@ async function getAzureRepositoryByName(
   }
   if (!Array.isArray(repos)) return null;
   return (
-    repos.find((r: any) => typeof r?.name === 'string' && r.name.trim().toLowerCase() === normalized) ||
+    repos.find(
+      (r: any) => typeof r?.name === 'string' && r.name.trim().toLowerCase() === normalized
+    ) ||
     repos.find((r: any) => typeof r?.id === 'string' && r.id.trim().toLowerCase() === normalized) ||
     null
   );
@@ -5082,7 +5293,8 @@ async function resolveBranchContext(state: ConnectionState): Promise<BranchConte
   const normalized = normalizeBranchRef(head?.name || head?.upstream?.name);
   if (!normalized) return null;
   const remotes: any[] = Array.isArray(repo.state?.remotes) ? repo.state.remotes : [];
-  const remote = remotes.find((r: any) => !r?.isReadOnly && (r?.pushUrl || r?.fetchUrl)) || remotes[0];
+  const remote =
+    remotes.find((r: any) => !r?.isReadOnly && (r?.pushUrl || r?.fetchUrl)) || remotes[0];
   const remoteUrl = remote?.pushUrl || remote?.fetchUrl;
   const parsedRemote = parseAzureRemote(remoteUrl);
   let repositoryId: string | undefined = undefined;
@@ -5184,9 +5396,10 @@ function findBestBranchMatch(
     const refMatches = !!relationRef && relationRef === desiredRef;
     const nameMatches = relationShort === desiredShort && desiredShort.length > 0;
     if (!refMatches && !nameMatches) continue;
-    const repoMatch = targetRepositoryId && parsed.repositoryId
-      ? parsed.repositoryId.toLowerCase() === targetRepositoryId.toLowerCase()
-      : !targetRepositoryId;
+    const repoMatch =
+      targetRepositoryId && parsed.repositoryId
+        ? parsed.repositoryId.toLowerCase() === targetRepositoryId.toLowerCase()
+        : !targetRepositoryId;
     let score = 0;
     let confidence: WorkItemBranchMetadata['matchConfidence'] = 'name';
     if (refMatches) {
@@ -5410,17 +5623,24 @@ function updateBuildRefreshTimer(connectionId: string, shouldPoll: boolean) {
 }
 
 function forwardProviderMessage(connectionId: string, message: any) {
+  // CRITICAL: Always include connectionId in provider messages so webview can
+  // filter/ignore messages that don't match the active connection. This prevents
+  // stale data from inactive connections from appearing in the UI.
   if (message?.type === 'workItemsLoaded') {
     const enrichment = branchStateByConnection.get(connectionId);
     const merged = {
       ...message,
+      connectionId,
       branchContext: enrichment?.context ?? null,
     };
     postToWebview({ panel, message: merged, logger: verbose });
     updateBuildRefreshTimer(connectionId, !!enrichment?.hasActiveBuild);
     return;
   }
-  postToWebview({ panel, message, logger: verbose });
+
+  // Include connectionId in all provider messages for proper filtering
+  const tagged = { ...message, connectionId };
+  postToWebview({ panel, message: tagged, logger: verbose });
 }
 
 // ---------------- Git / PR / Build Feature Helpers ----------------

@@ -391,6 +391,27 @@ export class SetupWizard {
   private async step2_AuthMethodSelection(): Promise<boolean> {
     const step = this.steps[1];
 
+    // Check if this is an on-premises Azure DevOps Server installation
+    const isOnPremises =
+      this.data.parsedUrl?.baseUrl &&
+      !this.data.parsedUrl.baseUrl.includes('dev.azure.com') &&
+      !this.data.parsedUrl.baseUrl.includes('visualstudio.com');
+
+    // For on-premises, only PAT is supported
+    if (isOnPremises) {
+      await vscode.window.showInformationMessage(
+        `Azure DevOps Server (On-Premises) Detected\n\n` +
+          `Personal Access Token (PAT) authentication will be used.\n\n` +
+          `Note: Microsoft Entra ID authentication is only available for Azure DevOps Services (cloud). ` +
+          `On-premises Azure DevOps Server installations require PAT authentication.`,
+        'Continue'
+      );
+      this.data.authMethod = 'pat';
+      step.completed = true;
+      return true;
+    }
+
+    // For cloud (Azure DevOps Services), offer both options
     const authMethodChoice = await vscode.window.showQuickPick(
       [
         {

@@ -15,6 +15,7 @@ interface ClientOptions {
   baseUrl?: string; // Custom base URL for different Azure DevOps instances
   authType?: AuthType; // 'pat' (default) or 'bearer' for Entra ID tokens
   tokenRefreshCallback?: () => Promise<string | undefined>; // Callback to refresh token on 401
+  identityName?: string; // Optional identity name for on-prem servers where @Me doesn't resolve
 }
 
 export class AzureDevOpsIntClient {
@@ -33,7 +34,9 @@ export class AzureDevOpsIntClient {
   // Capability cache: prefer using [System.StateCategory] unless Azure DevOps rejects it for this org/project
   private preferStateCategory: boolean;
   private cachedIdentity?: { id?: string; displayName?: string; uniqueName?: string };
+  private identityName?: string; // Fallback identity name for on-prem servers
   public baseUrl: string; // Store the base URL for browser URL generation
+  private apiBaseUrl: string; // Store the API base URL (for on-premises support)
 
   constructor(
     organization: string,
@@ -48,6 +51,13 @@ export class AzureDevOpsIntClient {
     this.tokenRefreshCallback = options.tokenRefreshCallback;
     this.team = options.team?.trim() ? options.team.trim() : undefined;
     this.preferStateCategory = options.wiqlPreferStateCategory ?? true;
+    this.identityName = options.identityName?.trim() ? options.identityName.trim() : undefined;
+    if (this.identityName) {
+      console.log(
+        '[AzureClient] Configured with fallback identityName for on-prem:',
+        this.identityName
+      );
+    }
     this.encodedOrganization = encodeURIComponent(organization);
     this.encodedProject = encodeURIComponent(project);
     this.encodedTeam = this.team ? encodeURIComponent(this.team) : undefined;
@@ -55,10 +65,31 @@ export class AzureDevOpsIntClient {
     // Determine the base URL and API base URL
     if (options.baseUrl) {
       this.baseUrl = options.baseUrl;
-      // For custom base URLs, use the dev.azure.com API format
-      const apiBaseURL = `https://dev.azure.com/${organization}/${project}/_apis`;
+      const trimmedBase = this.baseUrl.replace(/\/$/, '');
+      const lowerBase = trimmedBase.toLowerCase();
+
+      // For cloud Azure DevOps (dev.azure.com or visualstudio.com),
+      // baseUrl already includes org, so just add project
+      if (lowerBase.includes('dev.azure.com')) {
+        this.apiBaseUrl = `${trimmedBase}/${project}/_apis`;
+      } else if (lowerBase.includes('visualstudio.com')) {
+        // Visual Studio redirects to dev.azure.com for API calls
+        this.apiBaseUrl = `https://dev.azure.com/${organization}/${project}/_apis`;
+      } else {
+        // For on-premises, construct API URL with org/project path
+        // baseUrl format: https://server/collection
+        // API URL format: https://server/collection/org/project/_apis
+        this.apiBaseUrl = `${trimmedBase}/${organization}/${project}/_apis`;
+        console.log('[AzureClient] On-prem configuration:', {
+          baseUrl: this.baseUrl,
+          organization,
+          project,
+          apiBaseUrl: this.apiBaseUrl,
+        });
+      }
+
       this.axios = axios.create({
-        baseURL: apiBaseURL,
+        baseURL: this.apiBaseUrl,
         timeout: 30000, // 30s network timeout for slow Azure DevOps APIs
         headers: {
           'Content-Type': 'application/json',
@@ -67,9 +98,9 @@ export class AzureDevOpsIntClient {
     } else {
       // Default to dev.azure.com
       this.baseUrl = `https://dev.azure.com/${organization}`;
-      const baseURL = `https://dev.azure.com/${organization}/${project}/_apis`;
+      this.apiBaseUrl = `https://dev.azure.com/${organization}/${project}/_apis`;
       this.axios = axios.create({
-        baseURL,
+        baseURL: this.apiBaseUrl,
         timeout: 30000, // 30s network timeout for slow Azure DevOps APIs
         headers: {
           'Content-Type': 'application/json',
@@ -208,14 +239,16 @@ export class AzureDevOpsIntClient {
   }
 
   buildFullUrl(path: string) {
-    return `https://dev.azure.com/${this.encodedOrganization}/${this.encodedProject}/_apis${path}`;
+    return `${this.apiBaseUrl}${path}`;
   }
   getBrowserUrl(path: string) {
     return `${this.baseUrl}/${this.encodedProject}${path}`;
   }
   private buildTeamApiUrl(path: string) {
     if (!this.encodedTeam) return this.buildFullUrl(path);
-    return `https://dev.azure.com/${this.encodedOrganization}/${this.encodedProject}/${this.encodedTeam}/_apis${path}`;
+    // Insert team segment before _apis
+    const baseWithoutApis = this.apiBaseUrl.replace(/\/_apis$/, '');
+    return `${baseWithoutApis}/${this.encodedTeam}/_apis${path}`;
   }
 
   // ---------------- Identity Helpers ----------------
@@ -241,6 +274,13 @@ export class AzureDevOpsIntClient {
       console.log('[AzureClient] ❌ Authentication failed - no user identity returned');
     }
 
+    // Debug: log the entire identity object for diagnostics (no secrets)
+    try {
+      console.log('[AzureClient][DEBUG] resolved identity object:', JSON.stringify(identity));
+    } catch {
+      // ignore stringify errors
+    }
+
     return identity?.id ?? null;
   }
 
@@ -251,36 +291,111 @@ export class AzureDevOpsIntClient {
   } | null> {
     if (this.cachedIdentity) return this.cachedIdentity;
     try {
-      // Use absolute URL (org-level) to avoid project scoping issues
-      const url = `https://dev.azure.com/${this.encodedOrganization}/_apis/connectionData?api-version=7.0`;
-      const resp = await this.axios.get(url);
+      // Request connectionData. For on-prem/TFS the connectionData endpoint lives at
+      // the collection/org level (e.g. https://instance/_apis/connectionData). Our
+      // axios instance is usually configured with a project-scoped base URL which
+      // may make a simple relative request fail. Try a few strategies in order:
+      //  1) Absolute org-level URL derived from configured baseUrl (works for most on-prem setups)
+      //  2) Absolute URL derived from apiBaseUrl with _apis replaced
+      //  3) Relative '/connectionData' using axios baseURL (fallback)
+      let resp: any;
+      const attempts: Array<{ desc: string; url: string }> = [];
+
+      try {
+        const orgLevel = this.baseUrl.replace(/\/$/, '') + '/_apis/connectionData?api-version=7.0';
+        attempts.push({ desc: 'baseUrl org-level', url: orgLevel });
+        resp = await this.axios.get(orgLevel);
+      } catch (err1) {
+        try {
+          // Try constructing from apiBaseUrl by removing '/_apis' suffix if present
+          const apiRoot = this.apiBaseUrl.replace(/\/_apis\/?$/, '');
+          const apiConn = apiRoot.replace(/\/$/, '') + '/_apis/connectionData?api-version=7.0';
+          attempts.push({ desc: 'apiBaseUrl-derived', url: apiConn });
+          resp = await this.axios.get(apiConn);
+        } catch (err2) {
+          try {
+            attempts.push({
+              desc: 'relative to axios baseURL',
+              url: '/connectionData?api-version=7.0',
+            });
+            resp = await this.axios.get('/connectionData?api-version=7.0');
+          } catch (err3) {
+            // If all fail, throw the first error to preserve original failure context
+            console.error('[azureDevOpsInt] connectionData attempts:', attempts);
+            throw err1 || err2 || err3;
+          }
+        }
+      }
       const user = resp.data?.authenticatedUser ?? {};
-      const identity = {
-        id:
-          typeof user.id === 'string'
-            ? user.id
-            : typeof user.descriptor === 'string'
-              ? user.descriptor
-              : undefined,
-        displayName:
-          typeof user.providerDisplayName === 'string'
-            ? user.providerDisplayName
-            : typeof user.displayName === 'string'
-              ? user.displayName
-              : undefined,
-        uniqueName:
-          typeof user.uniqueName === 'string'
-            ? user.uniqueName
+      // Tolerant identity extraction: accept string or numeric id, and look
+      // for several possible unique-name fields used across Azure DevOps and TFS.
+      const resolvedId =
+        typeof user.id === 'string' || typeof user.id === 'number'
+          ? String(user.id)
+          : typeof user.descriptor === 'string'
+            ? user.descriptor
             : typeof user.subjectDescriptor === 'string'
               ? user.subjectDescriptor
-              : typeof user.descriptor === 'string'
-                ? user.descriptor
-                : undefined,
+              : undefined;
+      const displayName =
+        typeof user.providerDisplayName === 'string'
+          ? user.providerDisplayName
+          : typeof user.displayName === 'string'
+            ? user.displayName
+            : undefined;
+      const uniqueName =
+        typeof user.uniqueName === 'string'
+          ? user.uniqueName
+          : typeof user.unique_name === 'string'
+            ? user.unique_name
+            : typeof user.mailAddress === 'string'
+              ? user.mailAddress
+              : typeof user.email === 'string'
+                ? user.email
+                : typeof user.principalName === 'string'
+                  ? user.principalName
+                  : typeof user.subjectDescriptor === 'string'
+                    ? user.subjectDescriptor
+                    : typeof user.descriptor === 'string'
+                      ? user.descriptor
+                      : undefined;
+
+      const identity = {
+        id: resolvedId,
+        displayName,
+        uniqueName,
       };
       this.cachedIdentity = identity;
+      try {
+        console.log('[AzureClient][DEBUG] resolved identity object:', JSON.stringify(identity));
+      } catch {
+        /* ignore stringify errors */
+      }
+
+      // If we still don't have a uniqueName and identityName was provided (for on-prem),
+      // use identityName as the fallback uniqueName
+      if (!this.cachedIdentity.uniqueName && this.identityName) {
+        console.log(
+          '[AzureClient][DEBUG] using provided identityName as fallback:',
+          this.identityName
+        );
+        this.cachedIdentity.uniqueName = this.identityName;
+      }
+
       return this.cachedIdentity;
     } catch (e) {
       console.error('Error fetching authenticated user identity', e);
+      // If connectionData fails entirely and we have identityName, use it as a fallback
+      if (this.identityName) {
+        console.log(
+          '[AzureClient][DEBUG] connectionData failed, using identityName fallback:',
+          this.identityName
+        );
+        this.cachedIdentity = {
+          uniqueName: this.identityName,
+        };
+        return this.cachedIdentity;
+      }
       return null;
     }
   }
@@ -335,7 +450,7 @@ export class AzureDevOpsIntClient {
                         ORDER BY [System.ChangedDate] DESC`;
       case 'Recently Updated':
         return `SELECT ${fields} FROM WorkItems 
-                        WHERE [System.ChangedDate] >= @Today - 14
+                        WHERE [System.ChangedDate] >= @Today - 7
                         AND [System.State] <> 'Removed'
                         ${sprintClause}
                         ORDER BY [System.ChangedDate] DESC`;
@@ -489,6 +604,8 @@ export class AzureDevOpsIntClient {
 
   async getWorkItems(query: string): Promise<WorkItem[]> {
     return await measureAsync('getWorkItems', async () => {
+      let wiql = ''; // Declare outside try block for error reporting
+      let wiqlToSend = '';
       try {
         // Check cache first
         const cacheKey = WorkItemCache.generateWorkItemsKey(
@@ -513,7 +630,7 @@ export class AzureDevOpsIntClient {
           workItemCache.setWorkItems(cacheKey, result);
           return result;
         }
-        let wiql = this.buildWIQL(query);
+        wiql = this.buildWIQL(query);
         // If querying Current Sprint, prefer resolving the explicit current iteration path for configured team
         if (query === 'Current Sprint') {
           try {
@@ -534,10 +651,54 @@ export class AzureDevOpsIntClient {
         console.log('[azureDevOpsInt][GETWI] Fetching work items with query:', wiql);
         console.log('[azureDevOpsInt][GETWI] API Base URL:', this.axios.defaults.baseURL);
 
+        // Prepare the WIQL to send. Some on-prem/TFS servers don't reliably resolve the @Me token
+        // so, when possible, replace @Me with an explicit identity string (uniqueName, displayName, or id).
+        wiqlToSend = wiql;
+
+        // For queries that might return many results, add a hard limit via $top parameter
+        const needsLimit = ['Recently Updated', 'All Active'].includes(query);
+        if (needsLimit) {
+          console.log('[azureDevOpsInt][GETWI] Applying hard limit of 100 items for query:', query);
+        }
+
+        try {
+          if (/@Me\b/i.test(wiql)) {
+            const resolved = await this._getAuthenticatedIdentity();
+            if (resolved) {
+              const idVal = resolved.uniqueName || resolved.displayName || resolved.id;
+              if (idVal) {
+                const escaped = this._escapeWIQL(String(idVal));
+                wiqlToSend = wiql.replace(/@Me\b/g, `'${escaped}'`);
+                console.log(
+                  '[azureDevOpsInt][GETWI] Replacing @Me with explicit identity for compatibility: ',
+                  idVal
+                );
+              } else {
+                console.log(
+                  '[azureDevOpsInt][GETWI] _getAuthenticatedIdentity returned no usable identifier'
+                );
+              }
+            } else {
+              console.log(
+                '[azureDevOpsInt][GETWI] Could not resolve authenticated identity to replace @Me'
+              );
+            }
+          }
+        } catch (identErr) {
+          console.warn(
+            '[azureDevOpsInt][GETWI] Failed resolving identity for @Me replacement',
+            identErr
+          );
+        }
+
         // First, try the WIQL query
+        const wiqlEndpoint = needsLimit
+          ? '/wit/wiql?api-version=7.0&$top=100'
+          : '/wit/wiql?api-version=7.0';
+
         let wiqlResp;
         try {
-          wiqlResp = await this.axios.post('/wit/wiql?api-version=7.0', { query: wiql });
+          wiqlResp = await this.axios.post(wiqlEndpoint, { query: wiqlToSend });
         } catch (err: any) {
           if (this._isMissingStateCategoryError(err)) {
             console.warn(
@@ -548,7 +709,33 @@ export class AzureDevOpsIntClient {
             // Rebuild the WIQL with legacy state filters and retry
             const wiqlLegacy = this._buildWIQL(query, false);
             console.log('[azureDevOpsInt][GETWI] Fallback WIQL:', wiqlLegacy);
-            wiqlResp = await this.axios.post('/wit/wiql?api-version=7.0', { query: wiqlLegacy });
+            // Apply the same @Me replacement logic to the legacy WIQL as well
+            let legacyToSend = wiqlLegacy;
+            try {
+              if (/@Me\b/i.test(wiqlLegacy)) {
+                const resolved2 = await this._getAuthenticatedIdentity();
+                if (resolved2) {
+                  const idVal2 = resolved2.uniqueName || resolved2.displayName || resolved2.id;
+                  if (idVal2) {
+                    legacyToSend = wiqlLegacy.replace(
+                      /@Me\b/g,
+                      `'${this._escapeWIQL(String(idVal2))}'`
+                    );
+                    console.log(
+                      '[azureDevOpsInt][GETWI] Replacing @Me in fallback WIQL with explicit identity:',
+                      idVal2
+                    );
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn(
+                '[azureDevOpsInt][GETWI] Identity resolution failed for fallback WIQL',
+                e
+              );
+            }
+
+            wiqlResp = await this.axios.post(wiqlEndpoint, { query: legacyToSend });
             // Also update wiql for subsequent logs/context
             wiql = wiqlLegacy;
           } else {
@@ -556,6 +743,16 @@ export class AzureDevOpsIntClient {
           }
         }
         console.log('[azureDevOpsInt][GETWI] WIQL response status:', wiqlResp.status);
+        // Diagnostic: dump a truncated version of the response body to help debug empty results
+        try {
+          const bodySnippet = JSON.stringify(wiqlResp.data).slice(0, 2000);
+          console.log(
+            '[azureDevOpsInt][GETWI][DEBUG] WIQL response body (truncated):',
+            bodySnippet
+          );
+        } catch {
+          /* ignore */
+        }
 
         const refs = wiqlResp.data?.workItems || [];
         console.log(`[azureDevOpsInt][GETWI] WIQL reference count: ${refs.length}`);
@@ -571,6 +768,16 @@ export class AzureDevOpsIntClient {
           const simpleResp = await this.axios.post('/wit/wiql?api-version=7.0', {
             query: simpleWiql,
           });
+          // Diagnostic: log simple query response snippet
+          try {
+            const simpleSnippet = JSON.stringify(simpleResp.data).slice(0, 1500);
+            console.log(
+              '[azureDevOpsInt][GETWI][DEBUG] simpleWIQL response body (truncated):',
+              simpleSnippet
+            );
+          } catch {
+            /* ignore */
+          }
           const simpleRefs = simpleResp.data?.workItems || [];
           console.log(
             `[azureDevOpsInt][GETWI] Simple query returned ${simpleRefs.length} work items`
@@ -622,6 +829,16 @@ export class AzureDevOpsIntClient {
             `• Organization: "${this.organization}"\n` +
             `• Project: "${this.project}"\n` +
             '• The project name matches exactly (case-sensitive)';
+        } else if (status === 400) {
+          // 400 Bad Request - likely WIQL syntax or field name issue
+          const apiError = err?.response?.data?.message || err?.response?.data?.value?.Message;
+          if (apiError) {
+            errorMessage = `Invalid query (400): ${apiError}`;
+          } else {
+            errorMessage = `Invalid query (400). The WIQL query may contain unsupported fields or syntax for this project.\nQuery name: "${query}"`;
+          }
+          // Log the actual WIQL that failed for debugging
+          console.error('[azureDevOpsInt][GETWI][ERROR] WIQL that failed:', wiqlToSend || wiql);
         } else if (status >= 500) {
           errorMessage = `Azure DevOps server error (${status}). The service may be temporarily unavailable.`;
         } else if (err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED') {
@@ -653,9 +870,20 @@ export class AzureDevOpsIntClient {
   }
 
   private _isMissingStateCategoryError(err: any) {
-    const msg = err?.response?.data?.message || err?.message || '';
     const status = err?.response?.status;
-    return status === 400 && /System\.StateCategory/i.test(String(msg));
+    const bodyMessage = String(
+      err?.response?.data?.message || err?.response?.data || err?.message || ''
+    );
+    // Some server versions or languages may return different wording. Test for 'statecategory' anywhere in the message.
+    if (status === 400 && /statecategory/i.test(bodyMessage)) return true;
+    // Also handle server responses where the error mentions an unknown field name without the exact 'System.StateCategory' token
+    if (
+      status === 400 &&
+      /\bSystem\.State\b/i.test(bodyMessage) &&
+      /not found|unknown|does not exist|is not valid/i.test(bodyMessage)
+    )
+      return true;
+    return false;
   }
 
   async getWorkItemById(id: number): Promise<WorkItem | null> {
@@ -878,8 +1106,13 @@ export class AzureDevOpsIntClient {
           return cached;
         }
 
-        const url = `https://dev.azure.com/${this.encodedOrganization}/_apis/projects/${this.encodedProject}/teams?api-version=7.0`;
-        const resp = await this.axios.get(url);
+        // Call the org-level projects API directly using the configured baseUrl so we target
+        // the correct host regardless of axios.baseURL (which may include project/_apis).
+        const orgTeamsUrl =
+          this.baseUrl.replace(/\/$/, '') +
+          `/_apis/projects/${this.encodedProject}/teams?api-version=7.0`;
+        // Note: build the absolute URL so axios will call the intended host rather than prefixing baseURL.
+        const resp = await this.axios.get(orgTeamsUrl);
         const result = resp.data?.value || [];
 
         // Cache the result
@@ -1057,14 +1290,7 @@ export class AzureDevOpsIntClient {
       statusFilter?: string;
     } = {}
   ): Promise<WorkItemBuildSummary[]> {
-    const {
-      top = 10,
-      branchName,
-      repositoryId,
-      definitions,
-      resultFilter,
-      statusFilter,
-    } = options;
+    const { top = 10, branchName, repositoryId, definitions, resultFilter, statusFilter } = options;
 
     try {
       const params: Record<string, any> = {

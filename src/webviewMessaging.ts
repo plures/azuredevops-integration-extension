@@ -62,6 +62,7 @@ export function postWorkItemsSnapshot({
   types,
   query,
   logger,
+  branchContext,
 }: PostWorkItemsSnapshotParams): void {
   const itemsArray = Array.isArray(items) ? items : [];
   postToWebview({
