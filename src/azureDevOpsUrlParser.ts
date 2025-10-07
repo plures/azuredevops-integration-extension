@@ -8,7 +8,12 @@ export interface ParsedAzureDevOpsUrl {
   error?: string;
 }
 
-function buildApiBaseUrl(baseUrl: string, organization: string, project: string): string {
+function buildApiBaseUrl(
+  baseUrl: string,
+  organization: string,
+  project: string,
+  isSimplifiedOnPrem: boolean = false
+): string {
   const trimmedBase = baseUrl.replace(/\/$/, '');
   const lowerBase = trimmedBase.toLowerCase();
 
@@ -20,8 +25,12 @@ function buildApiBaseUrl(baseUrl: string, organization: string, project: string)
     return `${trimmedBase}/${project}/_apis`;
   }
 
-  // On-prem: baseUrl already includes collection, add org/project
-  const apiUrl = `${trimmedBase}/${organization}/${project}/_apis`;
+  // On-prem: baseUrl already includes collection
+  // For simplified format (https://server/collection), don't add organization (it's same as collection)
+  // For full format (https://server/collection with separate org), add org/project
+  const apiUrl = isSimplifiedOnPrem
+    ? `${trimmedBase}/${project}/_apis`
+    : `${trimmedBase}/${organization}/${project}/_apis`;
   console.log('[buildApiBaseUrl] On-prem API URL:', apiUrl);
   return apiUrl;
 }
@@ -59,6 +68,107 @@ function extractWorkItemId(segments: string[], searchParams: URLSearchParams): n
 }
 
 /**
+ * Simplified parser that extracts API base URL from a work item URL.
+ * This approach works universally for cloud and on-premises without needing to understand
+ * the collection/org/project structure.
+ *
+ * @param url - Work item URL (must contain _workitems)
+ * @returns Parsed URL information with API base URL
+ */
+function parseWorkItemUrl(url: string): ParsedAzureDevOpsUrl {
+  if (!url || typeof url !== 'string' || !url.trim()) {
+    return {
+      organization: '',
+      project: '',
+      baseUrl: '',
+      apiBaseUrl: '',
+      isValid: false,
+      error: 'Invalid URL: URL must be a non-empty string',
+    };
+  }
+
+  const cleanUrl = url.trim();
+  let parsed: URL;
+
+  try {
+    parsed = new URL(cleanUrl);
+  } catch (_error) {
+    void _error;
+    return {
+      organization: '',
+      project: '',
+      baseUrl: '',
+      apiBaseUrl: '',
+      isValid: false,
+      error: 'Invalid URL: URL must include a valid protocol (http or https)',
+    };
+  }
+
+  const segments = parsed.pathname
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  // Find _workitems segment
+  const workItemsIndex = segments.findIndex((s) => s.toLowerCase() === '_workitems');
+
+  if (workItemsIndex < 0) {
+    return {
+      organization: '',
+      project: '',
+      baseUrl: '',
+      apiBaseUrl: '',
+      isValid: false,
+      error: 'URL must be a work item URL (must contain _workitems)',
+    };
+  }
+
+  if (workItemsIndex === 0) {
+    return {
+      organization: '',
+      project: '',
+      baseUrl: '',
+      apiBaseUrl: '',
+      isValid: false,
+      error: 'Invalid URL structure: _workitems cannot be the first segment',
+    };
+  }
+
+  // Project is the segment immediately before _workitems
+  const project = normalizeProjectSegment(segments[workItemsIndex - 1]);
+
+  // API base is everything up to (and including) project, then add /_apis
+  const pathUpToProject = segments.slice(0, workItemsIndex).join('/');
+  const apiBaseUrl = `${parsed.protocol}//${parsed.host}/${pathUpToProject}/_apis`;
+
+  // For baseUrl, use the server root
+  const baseUrl = `${parsed.protocol}//${parsed.host}`;
+
+  // Organization: use the first segment as a fallback (works for cloud, approximation for on-prem)
+  const organization = segments[0] || 'default';
+
+  // Extract work item ID if present
+  const workItemId = extractWorkItemId(segments, parsed.searchParams);
+
+  console.log('[parseWorkItemUrl] Parsed:', {
+    project,
+    organization,
+    baseUrl,
+    apiBaseUrl,
+    workItemId,
+  });
+
+  return {
+    organization: normalizeProjectSegment(organization),
+    project,
+    baseUrl,
+    apiBaseUrl,
+    workItemId,
+    isValid: true,
+  };
+}
+
+/**
  * Parses an Azure DevOps URL to extract organization, project, and base URL information.
  * Accepts work item URLs as well as broader project URLs (boards, repos, etc.).
  */
@@ -75,6 +185,13 @@ export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
   }
 
   const cleanUrl = url.trim();
+
+  // If it's a work item URL, use the simplified parser
+  if (cleanUrl.includes('/_workitems/') || cleanUrl.includes('/_workitems?')) {
+    return parseWorkItemUrl(cleanUrl);
+  }
+
+  // Otherwise fall back to the complex parser for non-work-item URLs
   let parsed: URL;
 
   try {
@@ -122,6 +239,8 @@ export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
     // Format: https://server/collection/org/project/...
     // OR simplified format: https://server/collection/project/... (when collection serves as both)
     // We need at least 2 segments for minimal on-prem, but prefer 3 for full collection/org/project
+    let isSimplifiedOnPrem = false;
+
     if (segments.length >= 3) {
       // Full on-prem format: collection/org/project
       const collection = normalizeProjectSegment(segments[0]);
@@ -141,15 +260,42 @@ export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
       organization = collection; // Use collection as org for simplified format
       project = normalizeProjectSegment(segments[1]);
       baseUrl = `${parsed.protocol}//${parsed.host}/${collection}`;
+      isSimplifiedOnPrem = true;
       console.log('[parseAzureDevOpsUrl] Parsed on-prem URL (2-segment):', {
         collection,
         organization,
         project,
         baseUrl,
+        isSimplifiedOnPrem,
       });
     }
+
+    if (!organization || !project) {
+      return {
+        organization: '',
+        project: '',
+        baseUrl: '',
+        apiBaseUrl: '',
+        isValid: false,
+        error:
+          'Unsupported URL format. Provide an Azure DevOps URL that includes the organization and project.',
+      };
+    }
+
+    const apiBaseUrl = buildApiBaseUrl(baseUrl, organization, project, isSimplifiedOnPrem);
+    const workItemId = extractWorkItemId(segments, parsed.searchParams);
+
+    return {
+      organization,
+      project,
+      baseUrl,
+      apiBaseUrl,
+      workItemId,
+      isValid: true,
+    };
   }
 
+  // This should never be reached due to the else block above, but keeping for safety
   if (!organization || !project) {
     return {
       organization: '',
@@ -162,7 +308,7 @@ export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
     };
   }
 
-  const apiBaseUrl = buildApiBaseUrl(baseUrl, organization, project);
+  const apiBaseUrl = buildApiBaseUrl(baseUrl, organization, project, false);
   const workItemId = extractWorkItemId(segments, parsed.searchParams);
 
   return {

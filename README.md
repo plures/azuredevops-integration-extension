@@ -309,23 +309,20 @@ Enjoy the extension! Feedback & feature requests are appreciated.
 
 ## 🖼️ Screenshots
 
-Below are preview-friendly screenshots captured at a consistent size and tightly cropped to the content so they render cleanly in VS Code preview and on the Marketplace.
+### Extension Workflow Demo
 
-### Loading Sequence (v1.9.5)
+Watch the complete extension workflow in action – this animated demo shows the full experience from startup to viewing your work items:
 
-Watch the extension's smart loading states in action:
+  ![Extension Demo - Loading sequence showing initialization, work item list, and Kanban board views](images/loading-sequence.gif)
 
-![Loading Sequence](images/loading-sequence.gif)
+**What you're seeing:**
+1. **Initializing** (0.5s) – Extension activates and connects to Azure DevOps
+2. **Loading** (0.5s) – Work items query executes with visual feedback
+3. **List View** (1.5s) – Work items displayed in a clean, sortable list with timer controls
+4. **Transition** (0.3s) – Smooth toggle to Kanban view
+5. **Kanban Board** (1.7s) – Work items organized by state columns with drag-and-drop support
 
-The extension provides clear feedback during startup: "Initializing extension..." → "Loading work items..." → content display.
-
-### Work Items – List View (v1.7.0)
-
-![Work Items – List View](images/work-items-list.png)
-
-### Work Items – Kanban View (v1.7.0)
-
-![Work Items – Kanban View](images/work-items-kanban.png)
+The extension provides clear status messages throughout, eliminating the "flash of empty state" during startup. The authentic VS Code Dark+ theme ensures the interface feels native to your editor.
 
 <!-- Timer-specific screenshot removed; the timer is visible inline in the list/kanban views when active. -->
 

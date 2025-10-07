@@ -61,6 +61,9 @@ type ProjectConnection = {
   // Entra ID specific fields
   tenantId?: string; // Azure AD tenant ID (optional, defaults to 'organizations')
   clientId?: string; // Azure AD app registration client ID (for Entra auth)
+  // Manual API URL override - if specified, this takes precedence over derived API URL
+  // Format: {baseUrl}/{project}/_apis or custom structure for on-premises
+  apiBaseUrl?: string;
 };
 
 type ConnectionState = {
@@ -1071,6 +1074,7 @@ async function ensureActiveConnection(
         burst,
         team,
         baseUrl: connection.baseUrl,
+        apiBaseUrl: connection.apiBaseUrl, // Pass manual API URL override if provided
         authType: authMethod === 'entra' ? 'bearer' : 'pat',
         identityName: connection.identityName, // Pass through for on-prem identity fallback
         tokenRefreshCallback:
@@ -3404,7 +3408,9 @@ async function promptAddConnection(context: vscode.ExtensionContext): Promise<bo
   let org: string | undefined = undefined;
   let project: string | undefined = undefined;
   let detectedBaseUrl: string | undefined = undefined;
+  let detectedApiBaseUrl: string | undefined = undefined;
   let urlInput: string | undefined = undefined;
+  let isOnPremManual = false;
 
   if (urlOrManual.value === 'url') {
     urlInput = await vscode.window.showInputBox({
@@ -3427,33 +3433,112 @@ async function promptAddConnection(context: vscode.ExtensionContext): Promise<bo
         org = parsed.organization;
         project = parsed.project;
         detectedBaseUrl = parsed.baseUrl;
+        detectedApiBaseUrl = parsed.apiBaseUrl;
       }
     } catch (e) {
       // Fall back to manual entry below
       console.warn('[promptAddConnection] URL parse failed', e);
     }
+  } else if (urlOrManual.value === 'manual') {
+    // Manual entry - ask for instance type first
+    const instanceType = await vscode.window.showQuickPick(
+      [
+        {
+          label: 'Azure DevOps (Cloud)',
+          description: 'dev.azure.com or visualstudio.com',
+          value: 'cloud',
+        },
+        {
+          label: 'Azure DevOps Server (On-Premises/TFS)',
+          description: 'Self-hosted server',
+          value: 'onprem',
+        },
+      ],
+      { placeHolder: 'Select instance type', ignoreFocusOut: true }
+    );
+
+    if (!instanceType) return false;
+
+    if (instanceType.value === 'onprem') {
+      isOnPremManual = true;
+
+      // On-prem manual flow: server URL + collection + project
+      const serverUrl = await vscode.window.showInputBox({
+        prompt: 'Server URL (e.g., https://tfs.contoso.com or https://azuredevops.contoso.com)',
+        placeHolder: 'https://tfs.contoso.com',
+        validateInput: (value) => {
+          if (!value || !value.trim()) return 'Server URL is required';
+          if (!value.startsWith('http://') && !value.startsWith('https://')) {
+            return 'URL must start with http:// or https://';
+          }
+          return null;
+        },
+        ignoreFocusOut: true,
+      });
+      if (!serverUrl) return false;
+
+      const collection = await vscode.window.showInputBox({
+        prompt: 'Collection name (e.g., DefaultCollection)',
+        placeHolder: 'DefaultCollection',
+        validateInput: (value) => {
+          if (!value || !value.trim()) return 'Collection name is required';
+          return null;
+        },
+        ignoreFocusOut: true,
+      });
+      if (!collection) return false;
+
+      project = await vscode.window.showInputBox({
+        prompt: 'Project name',
+        validateInput: (value) => {
+          if (!value || !value.trim()) return 'Project name is required';
+          return null;
+        },
+        ignoreFocusOut: true,
+      });
+      if (!project) return false;
+
+      // For on-prem, organization is typically the collection name
+      org = collection;
+      detectedBaseUrl = `${serverUrl.replace(/\/$/, '')}/${collection}`;
+      detectedApiBaseUrl = `${detectedBaseUrl}/${project}/_apis`;
+
+      console.log('[promptAddConnection] On-prem manual configuration:', {
+        serverUrl,
+        collection,
+        project,
+        baseUrl: detectedBaseUrl,
+        apiBaseUrl: detectedApiBaseUrl,
+      });
+    } else {
+      // Cloud manual flow
+      org = await vscode.window.showInputBox({
+        prompt: 'Azure DevOps organization (short name)',
+        value: lastConnection?.organization ?? '',
+        ignoreFocusOut: true,
+      });
+      if (!org) return false;
+
+      project = await vscode.window.showInputBox({
+        prompt: 'Azure DevOps project name',
+        value: lastConnection?.project ?? '',
+        ignoreFocusOut: true,
+      });
+      if (!project) return false;
+    }
   }
 
   if (!org || !project) {
-    // Manual prompts (or fallback when URL parse failed)
-    org = await vscode.window.showInputBox({
-      prompt: 'Azure DevOps organization (short name)',
-      value: lastConnection?.organization ?? '',
-      ignoreFocusOut: true,
-    });
-    if (!org) return false;
-
-    project = await vscode.window.showInputBox({
-      prompt: 'Azure DevOps project name',
-      value: lastConnection?.project ?? '',
-      ignoreFocusOut: true,
-    });
-    if (!project) return false;
+    vscode.window.showErrorMessage('Organization and project are required');
+    return false;
   }
 
-  // If we detected a baseUrl from a pasted work item URL, use that. Otherwise ask for instance type.
+  // If we detected a baseUrl from a pasted work item URL or manual on-prem setup, use that.
+  // Otherwise ask for cloud instance type.
   let baseUrl: string | undefined = detectedBaseUrl;
-  if (!baseUrl) {
+  let apiBaseUrl: string | undefined = detectedApiBaseUrl;
+
+  if (!baseUrl && !isOnPremManual) {
     const baseUrlChoice = await vscode.window.showQuickPick(
       [
         {
@@ -3520,6 +3605,7 @@ async function promptAddConnection(context: vscode.ExtensionContext): Promise<bo
     label: label?.trim() ? label.trim() : undefined,
     team: team?.trim() ? team.trim() : undefined,
     baseUrl: baseUrl?.toString(),
+    apiBaseUrl: apiBaseUrl?.toString(), // Store manual API URL override if provided
   };
 
   // If this looks like an on-prem Azure DevOps Server (custom base URL not dev.azure.com/visualstudio.com),

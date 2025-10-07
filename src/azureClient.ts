@@ -13,6 +13,7 @@ interface ClientOptions {
   // If true (default), attempt to use [System.StateCategory] in WIQL filters until proven unsupported.
   wiqlPreferStateCategory?: boolean;
   baseUrl?: string; // Custom base URL for different Azure DevOps instances
+  apiBaseUrl?: string; // Manual API base URL override (takes precedence over derived URL)
   authType?: AuthType; // 'pat' (default) or 'bearer' for Entra ID tokens
   tokenRefreshCallback?: () => Promise<string | undefined>; // Callback to refresh token on 401
   identityName?: string; // Optional identity name for on-prem servers where @Me doesn't resolve
@@ -63,7 +64,16 @@ export class AzureDevOpsIntClient {
     this.encodedTeam = this.team ? encodeURIComponent(this.team) : undefined;
 
     // Determine the base URL and API base URL
-    if (options.baseUrl) {
+    // Priority: manual apiBaseUrl override > derived from baseUrl > default cloud
+    if (options.apiBaseUrl) {
+      // Manual API URL override - use as-is
+      this.apiBaseUrl = options.apiBaseUrl.replace(/\/$/, '');
+      this.baseUrl = options.baseUrl || `https://dev.azure.com/${organization}`;
+      console.log('[AzureClient] Using manual API URL override:', {
+        apiBaseUrl: this.apiBaseUrl,
+        baseUrl: this.baseUrl,
+      });
+    } else if (options.baseUrl) {
       this.baseUrl = options.baseUrl;
       const trimmedBase = this.baseUrl.replace(/\/$/, '');
       const lowerBase = trimmedBase.toLowerCase();
@@ -87,26 +97,19 @@ export class AzureDevOpsIntClient {
           apiBaseUrl: this.apiBaseUrl,
         });
       }
-
-      this.axios = axios.create({
-        baseURL: this.apiBaseUrl,
-        timeout: 30000, // 30s network timeout for slow Azure DevOps APIs
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
     } else {
       // Default to dev.azure.com
       this.baseUrl = `https://dev.azure.com/${organization}`;
       this.apiBaseUrl = `https://dev.azure.com/${organization}/${project}/_apis`;
-      this.axios = axios.create({
-        baseURL: this.apiBaseUrl,
-        timeout: 30000, // 30s network timeout for slow Azure DevOps APIs
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
     }
+
+    this.axios = axios.create({
+      baseURL: this.apiBaseUrl,
+      timeout: 30000, // 30s network timeout for slow Azure DevOps APIs
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
     // Rate limiter: allow configurable burst & sustained rate (defaults)
     const rps = Math.max(1, Math.min(50, options.ratePerSecond ?? 5));
     const burst = Math.max(1, Math.min(100, options.burst ?? 10));

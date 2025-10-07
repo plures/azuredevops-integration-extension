@@ -145,6 +145,34 @@ describe('Azure DevOps URL Parser', function () {
       expect(result.apiBaseUrl).to.equal('https://onprem-server/Collection/Project/_apis');
       expect(result.workItemId).to.be.undefined;
     });
+
+    it('should parse simplified on-premises URLs (2-segment) correctly', function () {
+      // Edge case: https://server/collection should create API URL without duplicating collection
+      const url = 'https://server/tfs/MyProject/_workitems/edit/123';
+      const result = parseAzureDevOpsUrl(url);
+
+      expect(result.isValid).to.be.true;
+      expect(result.organization).to.equal('tfs');
+      expect(result.project).to.equal('MyProject');
+      expect(result.baseUrl).to.equal('https://server/tfs');
+      // API URL should be baseUrl/project/_apis, NOT baseUrl/collection/project/_apis
+      expect(result.apiBaseUrl).to.equal('https://server/tfs/MyProject/_apis');
+      expect(result.workItemId).to.equal(123);
+    });
+
+    it('should parse full on-premises URLs (3-segment) correctly', function () {
+      // Full format: https://server/collection/org/project
+      const url = 'https://server/DefaultCollection/MyOrg/MyProject/_workitems/edit/456';
+      const result = parseAzureDevOpsUrl(url);
+
+      expect(result.isValid).to.be.true;
+      expect(result.organization).to.equal('MyOrg');
+      expect(result.project).to.equal('MyProject');
+      expect(result.baseUrl).to.equal('https://server/DefaultCollection');
+      // API URL should be baseUrl/org/project/_apis for 3-segment format
+      expect(result.apiBaseUrl).to.equal('https://server/DefaultCollection/MyOrg/MyProject/_apis');
+      expect(result.workItemId).to.equal(456);
+    });
   });
 
   describe('isAzureDevOpsWorkItemUrl', function () {

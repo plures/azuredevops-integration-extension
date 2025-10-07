@@ -6,6 +6,18 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.9.6] - 2025-01-17
+
+### Changed
+
+- **Comprehensive Animated GIF**: Replaced three static screenshots with one 90-frame animated GIF demonstrating complete extension workflow
+  - Shows: initializing → loading → list view → transition → kanban board
+  - Applied authentic VS Code Dark+ theme with 50+ CSS variables
+  - Fixed viewport width calculation for `deviceScaleFactor: 2` (viewport must be `(width + padding) * 2`)
+  - Solid background (#0d1117) for GitHub README compatibility
+  - Frame size: 3200x1432 (1600x716 at 1x scale)
+  - File size: ~4.68 MB for 90 frames at 20fps (4.5 seconds)
+
 ## [1.9.5] - 2025-10-06
 
 ### Added
