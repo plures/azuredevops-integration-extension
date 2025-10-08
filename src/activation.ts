@@ -1656,13 +1656,9 @@ export function activate(context: vscode.ExtensionContext) {
       const stopped = timer.stop();
       updateTimerContext(undefined);
       if (stopped) {
-        // Show compose comment dialog in webview instead of VS Code dialogs
-        sendToWebview({
-          type: 'showComposeComment',
-          workItemId: stopped.workItemId,
-          mode: 'timerStop',
-          timerData: stopped,
-          connectionInfo: timerConnectionSnapshot,
+        await handleTimerStopAndOfferUpdate(stopped, {
+          offerCopilot: false,
+          connection: timerConnectionSnapshot,
         });
       }
     }),
@@ -2537,40 +2533,22 @@ async function handleMessage(msg: any) {
       break;
     }
     case 'showStopTimerOptions': {
-      const choice = await vscode.window.showQuickPick(
-        [
-          { label: 'Stop Timer & Apply Time', action: 'stop' },
-          { label: 'Generate Copilot Summary & Continue', action: 'copilot' },
-        ],
-        {
-          placeHolder: 'What would you like to do?',
-          ignoreFocusOut: true,
+      const timerConnectionSnapshot: TimerConnectionInfo = { ...timerConnectionInfo };
+      setTimerConnectionFrom(undefined);
+      const stopped = timer?.stop();
+      updateTimerContext(undefined);
+      if (stopped) {
+        try {
+          await handleTimerStopAndOfferUpdate(stopped, {
+            offerCopilot: false,
+            connection: timerConnectionSnapshot,
+          });
+        } catch (e: any) {
+          console.error('Error applying timer updates', e);
+          vscode.window.showErrorMessage(
+            'Failed to process timer update: ' + (e?.message || String(e))
+          );
         }
-      );
-
-      if (!choice) return; // User cancelled
-
-      if (choice.action === 'stop') {
-        const timerConnectionSnapshot: TimerConnectionInfo = { ...timerConnectionInfo };
-        setTimerConnectionFrom(undefined);
-        const stopped = timer?.stop();
-        updateTimerContext(undefined);
-        if (stopped) {
-          try {
-            // The `false` here is to prevent offering the copilot prompt again.
-            await handleTimerStopAndOfferUpdate(stopped, {
-              offerCopilot: false,
-              connection: timerConnectionSnapshot,
-            });
-          } catch (e: any) {
-            console.error('Error applying timer updates', e);
-            vscode.window.showErrorMessage(
-              'Failed to process timer update: ' + (e?.message || String(e))
-            );
-          }
-        }
-      } else if (choice.action === 'copilot') {
-        await generateCopilotPromptWithoutStopping();
       }
       break;
     }
@@ -6479,7 +6457,21 @@ async function handleTimerStopAndOfferUpdate(
   options?: { offerCopilot?: boolean; connection?: TimerConnectionInfo }
 ) {
   if (!entry) return;
-  const clientForTimer = getClientForConnectionInfo(options?.connection);
+  const connectionInfo = options?.connection ?? timerConnectionInfo;
+
+  if (panel?.webview) {
+    revealWorkItemsView();
+    sendToWebview({
+      type: 'showComposeComment',
+      workItemId: entry.workItemId,
+      mode: 'timerStop',
+      timerData: entry,
+      connectionInfo,
+    });
+    return;
+  }
+
+  const clientForTimer = getClientForConnectionInfo(connectionInfo);
   if (!clientForTimer) {
     vscode.window.showWarningMessage(
       'Timer stopped but no Azure DevOps client is available for the associated project. Connect and try again.'
@@ -6612,53 +6604,6 @@ async function handleTimerStopAndOfferUpdate(
   } catch (err: any) {
     console.error('Failed to update work item', err);
     vscode.window.showErrorMessage('Failed to update work item: ' + (err?.message || String(err)));
-  }
-}
-
-async function generateCopilotPromptWithoutStopping() {
-  const snap = timer?.snapshot();
-  if (!snap) {
-    vscode.window.showWarningMessage('No active timer to generate a prompt for.');
-    return;
-  }
-
-  const timerConnectionSnapshot: TimerConnectionInfo = { ...timerConnectionInfo };
-  const clientForTimer = getClientForConnectionInfo(timerConnectionSnapshot);
-  if (!clientForTimer) {
-    vscode.window.showWarningMessage(
-      'No Azure DevOps connection is available for the running timer. Connect and try again.'
-    );
-    return;
-  }
-
-  const workItemId = Number(snap.workItemId);
-  if (!workItemId) {
-    vscode.window.showWarningMessage('Active timer is missing a work item.');
-    return;
-  }
-
-  const previousClient = client;
-  try {
-    client = clientForTimer;
-    await produceWorkItemSummary({
-      workItemId,
-      entrySeed: {
-        startTime: typeof snap.startTime === 'number' ? snap.startTime : undefined,
-        endTime: Date.now(),
-        duration: typeof snap.elapsedSeconds === 'number' ? snap.elapsedSeconds : undefined,
-        hoursDecimal:
-          typeof snap.elapsedSeconds === 'number' ? snap.elapsedSeconds / 3600 : undefined,
-      },
-      reason: 'manualPrompt',
-      stillRunningTimer: true,
-    });
-  } catch (e: any) {
-    console.error('Failed to create Copilot prompt', e);
-    vscode.window.showErrorMessage(
-      'Failed to generate Copilot prompt: ' + (e?.message || String(e))
-    );
-  } finally {
-    client = previousClient;
   }
 }
 function generateAutoSummary(entry: any, workItem: any) {

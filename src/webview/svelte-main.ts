@@ -348,7 +348,7 @@ function ensureApp() {
         workItemId: Number(first.id || first.fields?.['System.Id']),
       });
   });
-  (app as any).$on('stopTimer', () => postMessage({ type: 'showStopTimerOptions' }));
+  (app as any).$on('stopTimer', () => postMessage({ type: 'stopTimer' }));
   (app as any).$on('openActive', (ev: any) => {
     const id = ev?.detail?.id ?? activeId;
     if (id != null) {
@@ -369,7 +369,7 @@ function ensureApp() {
     const id = Number(ev?.detail?.id);
     if (id) {
       postMessage({ type: 'startTimer', workItemId: id });
-      setSummaryTarget(id, { ensureOpen: true });
+      setSummaryTarget(id, { ensureOpen: false, refreshDraft: true });
       syncApp();
     }
   });
@@ -1476,6 +1476,53 @@ function onMessage(message: any) {
   }
 }
 
+function setupActivityDetection() {
+  let lastActivityTime = Date.now();
+  let activityPingTimer: ReturnType<typeof setTimeout> | undefined;
+  const MIN_ACTIVITY_INTERVAL_MS = 1000;
+  const PING_DELAY_MS = 500;
+
+  const scheduleActivityPing = () => {
+    if (activityPingTimer) return;
+    activityPingTimer = setTimeout(() => {
+      activityPingTimer = undefined;
+      postMessage({ type: 'activity' });
+    }, PING_DELAY_MS);
+  };
+
+  const recordActivity = () => {
+    const now = Date.now();
+    if (now - lastActivityTime < MIN_ACTIVITY_INTERVAL_MS) return;
+    lastActivityTime = now;
+    scheduleActivityPing();
+  };
+
+  const activityEvents: Array<keyof DocumentEventMap> = [
+    'click',
+    'keydown',
+    'scroll',
+    'mousemove',
+    'touchstart',
+    'focus',
+  ];
+
+  activityEvents.forEach((eventType) => {
+    if (eventType === 'keydown') {
+      document.addEventListener(eventType, recordActivity);
+    } else {
+      document.addEventListener(eventType, recordActivity, { passive: true });
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) scheduleActivityPing();
+  });
+
+  window.addEventListener('focus', () => scheduleActivityPing());
+
+  scheduleActivityPing();
+}
+
 function boot() {
   window.addEventListener('message', (ev) => onMessage(ev.data));
   // Signal readiness - extension will send initial data in response
@@ -1485,6 +1532,7 @@ function boot() {
   errorMsg = '';
   postMessage({ type: 'webviewReady' });
   ensureApp();
+  setupActivityDetection();
 }
 
 if (document.readyState === 'loading') {

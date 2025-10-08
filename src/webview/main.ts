@@ -2694,7 +2694,7 @@ function applyFilterStateToUi(connectionId: string) {
     // Add throttled event listeners
     activityEvents.forEach((eventType) => {
       document.addEventListener(
-        eventType,
+        eventType as any,
         () => {
           const now = Date.now();
           // Only send activity ping if enough time has passed since last activity

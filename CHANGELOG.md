@@ -6,6 +6,15 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.9.9] - 2025-10-08
+
+### Changed
+
+- Streamlined timer stop flow so the compose dialog now opens directly in the work items webview, eliminating the redundant quick pick prompt in VS Code.
+- Starting a timer no longer opens the compose dialog by default; focus remains on the work items list unless the user explicitly opens the composer.
+- Added lightweight activity detection in the Svelte webview to keep timer status in sync with user interaction.
+- Preserved legacy fallback flow when the webview isn’t available, ensuring work item updates can still be applied through VS Code dialogs.
+
 ## [1.9.7] - 2025-10-07
 
 ### Added
