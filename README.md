@@ -1,11 +1,11 @@
 # Azure DevOps Integration for VS Code
 
-**Streamline your development workflow** with Azure DevOps work items, time tracking, and Git integration directly in VS Code. Perfect for teams using Azure DevOps Services (c3. **Get Help:**
+**Streamline your development workflow** with Azure DevOps work items, time tracking, and Git integration directly in VS Code. Perfect for teams using Azure DevOps Services or DevOps Server (on-premises).
+
+**Get Help:**
 
 - Copy logs: `Azure DevOps Integration: Copy Logs to Clipboard`
 - Open an issue on [GitHub](https://github.com/plures/azuredevops-integration-extension/issues)
-
----e DevOps Server (on-premises).
 
 ## 🎬 See It In Action
 
