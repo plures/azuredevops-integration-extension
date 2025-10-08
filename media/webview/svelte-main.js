@@ -6696,7 +6696,7 @@ function ensureApp() {
         workItemId: Number(first.id || first.fields?.["System.Id"])
       });
   });
-  app.$on("stopTimer", () => postMessage({ type: "showStopTimerOptions" }));
+  app.$on("stopTimer", () => postMessage({ type: "stopTimer" }));
   app.$on("openActive", (ev) => {
     const id = ev?.detail?.id ?? activeId;
     if (id != null) {
@@ -6717,7 +6717,7 @@ function ensureApp() {
     const id = Number(ev?.detail?.id);
     if (id) {
       postMessage({ type: "startTimer", workItemId: id });
-      setSummaryTarget(id, { ensureOpen: true });
+      setSummaryTarget(id, { ensureOpen: false, refreshDraft: true });
       syncApp();
     }
   });
@@ -7673,11 +7673,51 @@ function onMessage(message) {
       break;
   }
 }
+function setupActivityDetection() {
+  let lastActivityTime = Date.now();
+  let activityPingTimer;
+  const MIN_ACTIVITY_INTERVAL_MS = 1e3;
+  const PING_DELAY_MS = 500;
+  const scheduleActivityPing = () => {
+    if (activityPingTimer) return;
+    activityPingTimer = setTimeout(() => {
+      activityPingTimer = void 0;
+      postMessage({ type: "activity" });
+    }, PING_DELAY_MS);
+  };
+  const recordActivity = () => {
+    const now2 = Date.now();
+    if (now2 - lastActivityTime < MIN_ACTIVITY_INTERVAL_MS) return;
+    lastActivityTime = now2;
+    scheduleActivityPing();
+  };
+  const activityEvents = [
+    "click",
+    "keydown",
+    "scroll",
+    "mousemove",
+    "touchstart",
+    "focus"
+  ];
+  activityEvents.forEach((eventType) => {
+    if (eventType === "keydown") {
+      document.addEventListener(eventType, recordActivity);
+    } else {
+      document.addEventListener(eventType, recordActivity, { passive: true });
+    }
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) scheduleActivityPing();
+  });
+  window.addEventListener("focus", () => scheduleActivityPing());
+  scheduleActivityPing();
+}
 function boot() {
   window.addEventListener("message", (ev) => onMessage(ev.data));
   errorMsg = "";
   postMessage({ type: "webviewReady" });
   ensureApp();
+  setupActivityDetection();
 }
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", () => boot());
