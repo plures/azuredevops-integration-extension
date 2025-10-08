@@ -1,333 +1,267 @@
 # Azure DevOps Integration for VS Code
 
-Integrate Azure DevOps work items, time tracking, branching, and pull requests directly inside VS Code.
+**Streamline your development workflow** with Azure DevOps work items, time tracking, and Git integration directly in VS Code. Perfect for teams using Azure DevOps Services (c3. **Get Help:**
+
+- Copy logs: `Azure DevOps Integration: Copy Logs to Clipboard`
+- Open an issue on [GitHub](https://github.com/plures/azuredevops-integration-extension/issues)
+
+---e DevOps Server (on-premises).
+
+## 🎬 See It In Action
+
+![Extension Demo - Loading sequence showing initialization, work item list, and Kanban board views](images/loading-sequence.gif)
+
+**Watch the complete workflow:** Initialization → Work item queries → List and Kanban views with smooth transitions and native VS Code theming.
 
 ## 🚀 Key Features
 
-### Core Functionality
+### 📋 **Work Items Management**
 
-- **Work Items Management**: Unified view with built-in filters (My Activity, Assigned to Me, Current Sprint, All Active, Recently Updated) and custom WIQL support
-- **Time Tracking**: Lightweight timer with inactivity auto-pause, status bar integration, and automatic work item updates
-- **Git Integration**: Create branches and pull requests directly from work items with customizable naming templates
-- **Smart Setup**: Easy setup wizard that parses work item URLs and guides you through configuration
-- **Enhanced On-Premises Support**: Robust support for Azure DevOps Services (cloud) and Azure DevOps Server (on-premises)
-  - Smart URL parsing handles 3-segment paths (collection/organization/project)
-  - Connection-specific PAT storage with username prompts for on-premises
-  - Intelligent loading states ("Initializing..." → "Loading..." → content)
-  - Fixed query execution for "Assigned to me" and "My Activity" on TFS/Server
-- **AI-Powered Summaries**: Generate work summaries using Copilot prompts or OpenAI integration
-- **Multiple Views**: Switch between list and Kanban views with preserved scroll positions and keyboard navigation
-- **Secure Storage**: PAT tokens stored securely per-connection in VS Code's secret store with automatic migration
+- **Smart Queries**: Built-in filters (My Activity, Assigned to Me, Current Sprint, All Active, Recently Updated)
+- **Custom WIQL**: Write your own queries with syntax validation and templates
+- **Bulk Operations**: Multi-select work items for batch assign, state changes, tagging, and deletion
+- **Advanced Filtering**: Save and share filter sets, export/import configurations
 
-### Security & Trust
+### ⏱️ **Time Tracking**
 
-For details on how this extension handles authentication, data access, and runtime security, please read our full [Security & Trust Notice](SECURITY.md).
+- **Smart Timer**: Auto-pause on inactivity, resume when you're back
+- **Status Bar Integration**: Always visible timer with one-click controls
+- **Automatic Updates**: Sync tracked time to work item hours
+- **Time Reports**: View daily, weekly, monthly, and all-time tracking data
 
-### 🆕 Advanced Features (v1.8.2+)
+### 🔀 **Git Integration**
 
-- **🎯 Bulk Operations**: Multi-select work items and apply changes in batch
-  - Select with Ctrl/Cmd+Click or checkboxes
-  - Bulk assign, move states, add tags, or delete
-  - Real-time progress tracking with error handling
-  - Animated toolbar appears when items selected
+- **Branch Creation**: Generate branches from work items with customizable naming
+- **Pull Request Flow**: Create PRs directly from your current branch
+- **Smart Templates**: Configure branch naming patterns that fit your workflow
 
-- **🔍 Filter & Query Management**: Complete filtering system
-  - Interactive Query Builder with 5 pre-built templates
-  - Save and manage named filter sets
-  - Export/import filter configurations as JSON
-  - WIQL syntax help and validation
+### 🔐 **Modern Authentication**
 
-- **📊 Performance Monitoring**: Real-time observability
-  - Performance Dashboard with operation metrics
-  - Memory usage tracking and optimization tips
-  - Cache statistics and hit rates
-  - Manual garbage collection
+- **Microsoft Entra ID**: Secure OAuth 2.0 with automatic token refresh
+- **Personal Access Tokens**: Traditional PAT support with secure storage
+- **On-Premises Support**: Full compatibility with Azure DevOps Server
+- **Connection Management**: Switch between multiple organizations seamlessly
 
-- **🚀 Performance Optimization**: Intelligent caching system with 60-80% faster API responses
-- **⌨️ Keyboard Navigation**: Vim-style shortcuts (r, v, /), multi-select with Space/Esc/Ctrl+A
-- **♿ Accessibility**: Full ARIA support, screen reader compatibility, keyboard-only operation
-- **🔧 Enhanced Error Handling**: Detailed, actionable error messages with troubleshooting steps
+### 🎨 **Rich Interface**
 
-## 📥 Installation
+- **Dual Views**: Toggle between detailed list and visual Kanban board
+- **Keyboard Navigation**: Vim-style shortcuts (r, v, /) and multi-select
+- **Accessibility**: Full ARIA support and screen reader compatibility
+- **Performance Dashboard**: Real-time metrics and optimization tips
 
-From VS Code: Extensions view → search "Azure DevOps Integration" → Install.
+### 🧠 **AI Integration**
 
-Command palette quick install:
+- **Work Summaries**: Generate updates using Copilot prompts or OpenAI
+- **Smart Drafts**: Per-work-item draft persistence for refining messages
+- **Timer Integration**: Auto-select active work item for summaries
 
-1. Press Ctrl+P (Cmd+P on macOS)
-2. Type: ext install PluresLLC.azure-devops-integration-extension
-3. Press Enter
+---
 
-Marketplace page: [Azure DevOps Integration – VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=PluresLLC.azure-devops-integration-extension)
+### 🛡️ Security & Trust
 
-## 🔐 Authentication
+This extension handles your data with enterprise-grade security. For complete details on authentication, data access, and runtime security, see our [Security & Trust Notice](SECURITY.md).
 
-### Microsoft Entra ID (Recommended) 🆕
+## � Get Started in 3 Steps
 
-Sign in with your Microsoft account—no token creation needed:
+### 1. 📥 **Install**
 
-- **OAuth 2.0 Authentication**: Modern, secure authentication flow
-- **Automatic Token Refresh**: Tokens refresh automatically in the background
-- **Status Bar Expiration Indicator**: See how long each token has left and click to reconnect; the button automatically cycles through every connection that needs attention
-- **Webview Reminders**: Work Items view surfaces sign-in reminders with one-click reconnect or a 30-minute snooze
-- **Device Code Flow**: Simple browser-based sign-in, with the device code automatically copied to your clipboard when you choose **Open Browser**
-- **No Manual Setup**: No need to create or manage Personal Access Tokens
+**From VS Code Marketplace:**
 
-### Personal Access Token (Traditional)
+- Open Extensions view (`Ctrl+Shift+X`)
+- Search "Azure DevOps Integration"
+- Click Install
 
-If you prefer or need PAT authentication:
+**Quick Install via Command Palette:**
 
-Required scopes (minimum recommended):
+- Press `Ctrl+P` (Cmd+P on macOS)
+- Type: `ext install PluresLLC.azure-devops-integration-extension`
+
+### 2. ⚙️ **Setup**
+
+**Easy Setup Wizard (Recommended):**
+
+1. Open Command Palette (`Ctrl+Shift+P`)
+2. Run: `Azure DevOps Integration: Setup Wizard (Easy)`
+3. **Paste any work item URL** from your Azure DevOps
+4. Choose authentication method:
+   - **Microsoft Entra ID** (OAuth) - Modern, secure, no tokens to manage
+   - **Personal Access Token** - Traditional approach
+
+The wizard auto-detects your organization, project, and server type!
+
+**For On-Premises:** The extension fully supports Azure DevOps Server. Just use a work item URL from your server (e.g., `https://myserver/DefaultCollection/MyProject/_workitems/edit/123`)
+
+### 3. 🎯 **Start Working**
+
+- Click the **Azure DevOps** icon in the Activity Bar
+- Browse work items with built-in queries or create custom WIQL
+- Start timers, create branches, and manage work items directly in VS Code
+
+---
+
+## 🔐 Authentication Options
+
+### 🌟 **Microsoft Entra ID (Recommended)**
+
+**Perfect for Azure DevOps Services (cloud):**
+
+- ✅ **No token management** - OAuth 2.0 handles everything
+- ✅ **Auto-refresh** - Never worry about expired tokens
+- ✅ **Status bar indicator** - See token status at a glance
+- ✅ **One-click reconnect** - Easy reauthorization when needed
+
+### � **Personal Access Token**
+
+**Required for on-premises, available for cloud:**
+
+**Minimum required scopes:**
 
 - Work Items (Read & Write)
 - User Profile (Read)
 - Team (Read)
-- Code (Read & Write) – optional, for PRs & repos
-- Build (Read) – optional, for planned build status features
+- Code (Read & Write) - for Git integration
+- Build (Read) - for future features
 
-Generate at: Azure DevOps → User Settings → Security → Personal Access Tokens.
+**Generate at:** Azure DevOps → User Settings → Security → Personal Access Tokens
 
-## ⚙️ Quick Setup
+> **Note:** On-premises Azure DevOps Server only supports PAT authentication. The setup wizard automatically detects this and guides you accordingly.
 
-### Easy Setup Wizard (Recommended)
+## � Power User Features
 
-1. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
-2. Run: `Azure DevOps Integration: Setup Wizard (Easy)`
-3. Paste a work item URL from your Azure DevOps organization
-4. The wizard will auto-detect your organization and project
-5. **Choose Authentication Method**: Microsoft Entra ID (recommended) or Personal Access Token
-6. **For Entra ID**: Follow the device code flow to sign in; selecting **Open Browser** copies the device code to your clipboard and opens the Microsoft sign-in page
-7. **For PAT**: Follow the guided steps to create a Personal Access Token
-8. Test your connection and you're ready to go!
+### ⚡ **Bulk Operations**
 
-> **Tip**: If a Microsoft Entra connection loses access, the Work Items view shows a reminder banner and the status bar button cycles through each affected connection so you can reconnect quickly.
+Select multiple work items (Ctrl/Cmd+Click or checkboxes) for batch operations:
 
-### Manual Setup
+- **Bulk Assign** - Assign multiple items to any user
+- **Bulk Move** - Change state for multiple items
+- **Bulk Tag** - Add tags with smart merge (no duplicates)
+- **Bulk Delete** - Soft delete with confirmation
 
-1. Run: `Azure DevOps Integration: Setup Connection`
-2. Provide your Organization (short name), Project, and PAT
-3. The extension stores the PAT securely in VS Code's secret store
+### 🔍 **Advanced Filtering**
 
-### Optional: Team Configuration
+- **Query Builder** - Interactive WIQL with 5 pre-built templates
+- **Saved Filters** - Save, manage, and share filter configurations
+- **Export/Import** - JSON-based filter sharing
+- **Live Validation** - Syntax checking with helpful error messages
 
-- Use `Azure DevOps Integration: Select Team` to set a team context
-- When set, the "Current Sprint" query uses that team's current iteration
-- You can change or clear this anytime by running the command again
+### 📊 **Performance Dashboard**
 
-### On-Premises Azure DevOps Server
+- **Real-time Metrics** - Operation stats, cache hit rates, error tracking
+- **Memory Monitoring** - Usage tracking and optimization tips
+- **Cache Statistics** - View performance improvements and recommendations
 
-The extension fully supports on-premises Azure DevOps Server installations:
+### ⌨️ **Keyboard Shortcuts**
 
-1. **During Setup**: Use a work item URL from your on-premises server (e.g., `https://myserver/DefaultCollection/MyProject/_workitems/edit/123`)
-2. **Manual Configuration**: Set `azureDevOpsIntegration.baseUrl` to your server's base URL (e.g., `https://myserver/DefaultCollection`)
-3. The extension automatically detects and uses your on-premises server for all API calls
-
-> **Authentication Note**: Azure DevOps Server (on-premises) only supports **Personal Access Token (PAT)** authentication. Microsoft Entra ID (OAuth) is only available for Azure DevOps Services (cloud). The setup wizard automatically selects the appropriate authentication method based on your server type.
-
-> **Tip**: Ensure your PAT has appropriate permissions for your on-premises server. See [docs/ONPREMISES_TESTING.md](docs/ONPREMISES_TESTING.md) for detailed testing scenarios.
-
-### Accessing the Extension
-
-- Look for the "Azure DevOps" icon in the Activity Bar
-- Click to open the "Work Items" view
-- Browse, filter, and manage your work items with list or Kanban views
-
-## 🕒 Time Tracking
-
-- **Start/Stop Timer**: Click the timer button on any work item or use the command palette
-- **Smart Pause**: Automatically pauses after inactivity (configurable timeout)
-- **Auto-Resume**: Resumes when you become active again
-- **Time Reports**: View tracked time across different periods (Today, Week, Month, All Time)
-- **Automatic Updates**: When stopping a timer, automatically updates work item's Completed/Remaining hours
-- **AI Summaries**: Generate work summaries using Copilot prompts or OpenAI integration
-
-## 🧠 AI-Powered Work Summaries
-
-- **Copilot Integration**: Generate Copilot-ready prompts for work summaries
-- **OpenAI Support**: Direct integration with OpenAI for automatic summary generation
-- **Smart Drafts**: Per-work-item draft persistence for refining your messages
-- **Timer Integration**: Auto-selects active work item when generating summaries
-
-## 🚀 Advanced Features (v1.8.2+)
-
-### Bulk Operations
-
-- **Multi-Select UI**: Click checkboxes or Ctrl/Cmd+Click to select multiple work items
-- **Bulk Assign**: Assign multiple work items to any user at once
-- **Bulk Move**: Change state for multiple items simultaneously
-- **Bulk Add Tags**: Add tags to multiple items with smart merge (no duplicates)
-- **Bulk Delete**: Soft delete with double-confirmation for safety
-- **Visual Feedback**: Animated toolbar, progress tracking, and selection count
-
-### Filter & Query Management
-
-- **Query Builder**: Interactive WIQL construction with 5 pre-built templates
-  - My Work Items, Recently Changed, Active Bugs, Current Sprint, Unassigned Items
-  - Live syntax validation with helpful error messages
-  - Comprehensive WIQL help reference
-- **Saved Filters**: Save, load, delete, and manage named filter sets
-- **Export/Import**: Share filter configurations as JSON files
-- **Quick Actions**: Clear all filters (`/`), focus search, manage saved queries
-
-### Performance & Monitoring
-
-- **Performance Dashboard**: Comprehensive metrics and health analytics
-  - Operation statistics (duration, error rate, cache hit rate)
-  - Memory usage tracking (current, peak, RSS)
-  - Cache statistics and optimization recommendations
-- **Clear Performance Data**: Reset baseline metrics
-- **Force Garbage Collection**: Manual memory cleanup (if --expose-gc enabled)
-- **Intelligent Caching**: 60-80% faster API responses with automatic memory management
-- **Smart Optimization**: Automatic garbage collection and performance recommendations
-
-### Keyboard Shortcuts
-
-- **Navigation**: `r` to refresh, `v` to toggle Kanban view
-- **Search**: `/` to focus search box
-- **Selection**: `Space` to toggle selection, `Esc` to clear, `Ctrl+A` to select all
-- **Multi-Select**: `Ctrl/Cmd+Click` on work items to build selection
-- **Accessibility**: Full keyboard-only operation with screen reader support
+- `r` - Refresh • `v` - Toggle Kanban view • `/` - Focus search
+- `Space` - Toggle selection • `Esc` - Clear selection • `Ctrl+A` - Select all
+- **Full accessibility** with screen reader support
 
 ## ⌨️ Essential Commands
 
-| Command                                                        | Description                                                                                                        |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `Azure DevOps Integration: Setup Wizard (Easy)`                | Guided setup with work item URL parsing                                                                            |
-| `Azure DevOps Integration: Setup Connection`                   | Manual connection setup                                                                                            |
-| `Azure DevOps Integration: Sign In with Microsoft Entra ID` 🆕 | Sign in using OAuth 2.0 device code flow (also available from the status bar, cycling through pending connections) |
-| `Azure DevOps Integration: Sign Out from Entra ID` 🆕          | Sign out and clear Entra ID tokens                                                                                 |
-| `Azure DevOps Integration: Convert Connection to Entra ID` 🆕  | Switch from PAT to Entra ID authentication                                                                         |
-| `Azure DevOps Integration: Show Work Items`                    | Open the work items view                                                                                           |
-| `Azure DevOps Integration: Start/Stop Timer`                   | Toggle timer for selected work item                                                                                |
-| `Azure DevOps Integration: Show Time Report`                   | View time tracking reports                                                                                         |
-| `Azure DevOps Integration: Create Work Item`                   | Create a new work item                                                                                             |
-| `Azure DevOps Integration: Create Branch from Work Item`       | Create Git branch from work item                                                                                   |
-| `Azure DevOps Integration: Create Pull Request`                | Create PR from current branch                                                                                      |
-| `Azure DevOps Integration: Toggle Kanban View`                 | Switch between list and Kanban views                                                                               |
-| `Azure DevOps Integration: Select Team`                        | Set team context for sprint queries                                                                                |
-| `Azure DevOps Integration: Set OpenAI API Key`                 | Configure OpenAI integration                                                                                       |
+**Setup & Connection:**
 
-### 🆕 Advanced Commands (v1.8.2+)
+- `Azure DevOps Integration: Setup Wizard (Easy)` - Guided setup with URL parsing
+- `Azure DevOps Integration: Sign In with Microsoft Entra ID` - OAuth authentication
+- `Azure DevOps Integration: Setup Connection` - Manual PAT setup
 
-| Command                                                | Description                                      | Keybinding |
-| ------------------------------------------------------ | ------------------------------------------------ | ---------- |
-| **Bulk Operations**                                    |                                                  |            |
-| `Azure DevOps Integration: Bulk Assign Work Items`     | Assign selected items to any user                |            |
-| `Azure DevOps Integration: Bulk Move Work Items`       | Change state for selected items                  |            |
-| `Azure DevOps Integration: Bulk Add Tags`              | Add tags to selected items (smart merge)         |            |
-| `Azure DevOps Integration: Bulk Delete Work Items`     | Soft delete selected items (double-confirmation) |            |
-| **Filter & Query Management**                          |                                                  |            |
-| `Azure DevOps Integration: Query Builder`              | Build WIQL queries with templates & validation   |            |
-| `Azure DevOps Integration: Manage Saved Filters`       | Save, load, delete named filter sets             |            |
-| `Azure DevOps Integration: Export Filters to File`     | Export current filters to JSON                   |            |
-| `Azure DevOps Integration: Import Filters from File`   | Import filters from JSON                         |            |
-| `Azure DevOps Integration: Clear All Filters`          | Reset all active filters                         |            |
-| `Azure DevOps Integration: Focus Search Box`           | Jump to search input                             | `/`        |
-| **Performance Monitoring**                             |                                                  |            |
-| `Azure DevOps Integration: Show Performance Dashboard` | View metrics, memory, cache stats, & tips        |            |
-| `Azure DevOps Integration: Clear Performance Data`     | Reset performance metrics                        |            |
-| `Azure DevOps Integration: Force Garbage Collection`   | Manually trigger GC (if --expose-gc enabled)     |            |
+**Daily Workflow:**
 
-## 🔧 Key Settings
+- `Azure DevOps Integration: Show Work Items` - Open main view
+- `Azure DevOps Integration: Start/Stop Timer` - Toggle time tracking
+- `Azure DevOps Integration: Create Branch from Work Item` - Git integration
+- `Azure DevOps Integration: Toggle Kanban View` - Switch view modes
 
-The most important settings you might want to configure:
+**Advanced Features:**
+
+- `Azure DevOps Integration: Query Builder` - Build custom WIQL queries
+- `Azure DevOps Integration: Bulk Assign Work Items` - Multi-item operations
+- `Azure DevOps Integration: Show Performance Dashboard` - View metrics
+- `Azure DevOps Integration: Show Time Report` - Tracking reports
+
+> 💡 **Pro Tip:** Press `Ctrl+Shift+P` and type "Azure DevOps" to see all available commands
+
+## ⚙️ Configuration
+
+**Key Settings (Optional):**
 
 ```jsonc
 {
   // Time tracking
   "azureDevOpsIntegration.defaultElapsedLimitHours": 3.5,
-  "azureDevOpsIntegration.enableTimeTracking": true,
 
-  // AI summaries
+  // AI integration
   "azureDevOpsIntegration.summaryProvider": "builtin", // or "openai"
-  "azureDevOpsIntegration.openAiModel": "gpt-4o-mini",
 
-  // Git integration
+  // Git templates
   "azureDevOpsIntegration.branchNameTemplate": "feature/{id}-{title}",
-  "azureDevOpsIntegration.enableBranchCreation": true,
 
-  // Work items
+  // Performance
   "azureDevOpsIntegration.workItemsPerPage": 50,
-  "azureDevOpsIntegration.enableAutoRefresh": true,
 
   // Debugging
   "azureDevOpsIntegration.debugLogging": false,
 }
 ```
 
-> **Note**: Personal Access Tokens are stored securely in VS Code's secret store, not in settings.json.
+> 🔒 **Security:** Tokens are stored securely in VS Code's secret store, never in settings files.
 
 ## 🔍 Troubleshooting
 
-If you encounter issues:
+**Having issues?**
 
-1. **Enable Debug Logging**: Set `azureDevOpsIntegration.debugLogging` to `true` in settings
-2. **View Logs**: Run `Azure DevOps Integration: Open Logs` to see detailed diagnostics
-3. **Copy Logs**: Use `Azure DevOps Integration: Copy Logs to Clipboard` to share logs for support
+1. **Check Debug Logs:**
+   - Enable: Set `azureDevOpsIntegration.debugLogging` to `true`
+   - View: Command Palette → `Azure DevOps Integration: Open Logs`
 
-### Common Issues
+2. **Common Solutions:**
+   - **Empty work items**: Verify PAT scopes and organization/project settings
+   - **Timer issues**: Confirm a work item is selected and no other timer is active
+   - **Git integration**: Ensure PAT has Code (Read & Write) permissions
 
-| Issue                | Solution                                                        |
-| -------------------- | --------------------------------------------------------------- |
-| Empty work item list | Verify organization/project settings and PAT scopes             |
-| Timer not starting   | Ensure a work item is selected and no timer is already active   |
-| PR creation fails    | Confirm PAT has Code (Read & Write) scope and repository exists |
-
-## 📦 Development
-
-This extension is built with modern tooling and follows VS Code extension best practices:
-
-- **TypeScript** with strict type checking
-- **Svelte** for the webview UI components
-- **ESBuild** for fast compilation
-- **Comprehensive testing** with unit and integration tests
-
-### Development Scripts
-
-```bash
-npm run build          # Build the extension
-npm run test           # Run unit tests
-npm run test:integration # Run integration tests
-npm run screenshots:capture # Generate documentation screenshots
-```
-
-### MCP Server
-
-The repository includes a Model Context Protocol (MCP) server for automation and agent integrations. See `mcp-server/README.md` for details.
-
-## 🤝 Contributing
-
-Pull requests welcome. Please open an issue first for substantial changes. Add tests where practical (client querying, timer edge cases) and keep logging minimal outside debug mode.
-
-## 📄 License
-
-MIT License – see [LICENSE](./LICENSE.txt)
+3. **Get Help:**
+   - Copy logs: `Azure DevOps Integration: Copy Logs to Clipboard`
+   - Open an issue on [GitHub](https://github.com/plures/azuredevops-integration-extension/issues)
 
 ---
 
-Enjoy the extension! Feedback & feature requests are appreciated.
+## �️ See It In Action
 
-## 🖼️ Screenshots
+![Extension Demo - Loading sequence showing initialization, work item list, and Kanban board views](images/loading-sequence.gif)
 
-### Extension Workflow Demo
+**Watch the complete workflow:** Initialization → Work item queries → List and Kanban views with smooth transitions and native VS Code theming.
 
-Watch the complete extension workflow in action – this animated demo shows the full experience from startup to viewing your work items:
+---
 
-  ![Extension Demo - Loading sequence showing initialization, work item list, and Kanban board views](images/loading-sequence.gif)
+## 📚 Documentation & Resources
 
-**What you're seeing:**
-1. **Initializing** (0.5s) – Extension activates and connects to Azure DevOps
-2. **Loading** (0.5s) – Work items query executes with visual feedback
-3. **List View** (1.5s) – Work items displayed in a clean, sortable list with timer controls
-4. **Transition** (0.3s) – Smooth toggle to Kanban view
-5. **Kanban Board** (1.7s) – Work items organized by state columns with drag-and-drop support
+- **[Marketplace Page](https://marketplace.visualstudio.com/items?itemName=PluresLLC.azure-devops-integration-extension)** - Install and reviews
+- **[Security & Trust](SECURITY.md)** - Security practices and data handling
+- **[Architecture Guide](docs/ARCHITECTURE.md)** - Technical details and CI testing
+- **[Release Notes](CHANGELOG.md)** - Latest features and fixes
+- **[GitHub Repository](https://github.com/plures/azuredevops-integration-extension)** - Source code and issues
 
-The extension provides clear status messages throughout, eliminating the "flash of empty state" during startup. The authentic VS Code Dark+ theme ensures the interface feels native to your editor.
+## 🤝 Contributing
 
-<!-- Timer-specific screenshot removed; the timer is visible inline in the list/kanban views when active. -->
+Contributions welcome! Please open an issue for substantial changes. Built with TypeScript, Svelte, and ESBuild following VS Code extension best practices.
 
-## More
+**Quick Development:**
 
-- Attribution and license details: see [NOTICE](./NOTICE.md) and [LICENSE](./LICENSE.txt).
+```bash
+npm run build          # Build extension
+npm run test           # Run tests
+npm run test:integration # Integration tests
+```
+
+## 📄 Legal
+
+**License:** MIT License - see [LICENSE](./LICENSE.txt)  
+**Attribution:** See [NOTICE](./NOTICE.md) for third-party licenses  
+**Security:** Read our [Security & Trust Notice](SECURITY.md) for data handling details
+
+---
+
+**Enjoy streamlined Azure DevOps integration!** 🚀  
+_Feedback and feature requests are always welcome._
+
 - Architecture, security notes, and CI testing details: see [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 - What's new: see [CHANGELOG](./CHANGELOG.md) for the latest features and fixes.

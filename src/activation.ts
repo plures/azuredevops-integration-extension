@@ -33,6 +33,7 @@ import { startCacheCleanup, stopCacheCleanup } from './cache.js';
 import { performanceMonitor, MemoryOptimizer } from './performance.js';
 import { AuthService, createAuthService } from './auth/index.js';
 import type { DeviceCodeCallback } from './auth/index.js';
+import { SetupWizard } from './setupWizard.js';
 
 // Basic state keys
 const STATE_TIMER = 'azureDevOpsInt.timer.state';
@@ -443,9 +444,11 @@ async function updateAuthStatusBar() {
     return;
   }
 
+  // Set command to sign in with the active connection directly
   authStatusBarItem.command = {
     title: 'Sign in with Microsoft Entra',
-    command: 'azureDevOpsInt.signInWithEntraCycle',
+    command: 'azureDevOpsInt.signInWithEntra',
+    arguments: [activeConnectionId],
   };
 
   try {
@@ -514,6 +517,7 @@ type AuthReminderReason = 'expired' | 'refreshFailed' | 'authFailed';
 
 type SetupWizardAction =
   | 'add'
+  | 'manage'
   | 'remove'
   | 'switch'
   | 'entraSignIn'
@@ -1668,6 +1672,12 @@ export function activate(context: vscode.ExtensionContext) {
         } catch {
           /* ignore */
         }
+        // Force reload connections array from config when connections setting changes
+        if (e.affectsConfiguration(`${CONFIG_NS}.connections`)) {
+          connections.length = 0; // Clear array to force reload
+          await loadConnectionsFromConfig(context);
+          notifyConnectionsList(); // Update webview with new connections list
+        }
         // Reset client/provider so silentInit can rebuild from new settings
         client = undefined;
         provider = undefined;
@@ -1988,6 +1998,9 @@ async function handleMessage(msg: any) {
     case 'webviewReady': {
       // Re-send current cached state (avoid race where initial post happened before listener attached)
       if (panel) {
+        // Re-send connections list in case webview loaded before initDomainObjects completed
+        notifyConnectionsList();
+
         const workItems = provider?.getWorkItems() || [];
         console.log('[azureDevOpsInt] Sending workItemsLoaded with', workItems.length, 'items');
         if (workItems.length > 0) {
@@ -2944,27 +2957,34 @@ async function setupConnection(context: vscode.ExtensionContext) {
 
     const quickPickItems: Array<vscode.QuickPickItem & { action: SetupWizardAction }> = [];
 
-    if (canSwitch) {
-      quickPickItems.push({
-        label: 'Switch active project…',
-        description: 'Choose which connection the sidebar uses by default',
-        action: 'switch',
-      });
-    }
-
+    // Main project management options
     quickPickItems.push(
       {
-        label: 'Add project connection…',
+        label: 'Add new project…',
         description: 'Connect to another organization/project',
         action: 'add',
       },
       {
-        label: 'Remove project connection…',
+        label: 'Manage existing project…',
+        description: 'Edit, replace, or remove an existing project',
+        action: 'manage',
+      },
+      {
+        label: 'Remove project…',
         description: 'Disconnect an existing project',
         action: 'remove',
       }
     );
 
+    if (canSwitch) {
+      quickPickItems.push({
+        label: 'Switch active project…',
+        description: 'Choose which project the sidebar uses by default',
+        action: 'switch',
+      });
+    }
+
+    // Authentication options
     quickPickItems.push({
       label: 'Sign in with Microsoft Entra ID…',
       description: 'Authenticate a connection using Entra ID',
@@ -2988,7 +3008,7 @@ async function setupConnection(context: vscode.ExtensionContext) {
     }
 
     const pick = await vscode.window.showQuickPick(quickPickItems, {
-      placeHolder: 'Manage Azure DevOps project connections',
+      placeHolder: 'Manage Azure DevOps projects',
       ignoreFocusOut: true,
     });
     action = pick?.action;
@@ -2999,9 +3019,46 @@ async function setupConnection(context: vscode.ExtensionContext) {
   }
 
   if (action === 'add') {
-    const added = await promptAddConnection(context);
-    if (added) {
+    // Use the modern SetupWizard which supports both PAT and Entra ID authentication
+    const wizard = new SetupWizard(context);
+    const result = await wizard.start();
+
+    if (result.status === 'success') {
+      // Reload connections after successful setup
+      await ensureConnectionsInitialized(context);
       ensureTimer(context);
+
+      // If a connection was added, set it as active
+      if (result.connectionId) {
+        const newConnection = connections.find((c) => c.id === result.connectionId);
+        if (newConnection) {
+          activeConnectionId = result.connectionId;
+          await context.globalState.update(ACTIVE_CONNECTION_STATE_KEY, activeConnectionId);
+          vscode.window.showInformationMessage(
+            `Connection "${newConnection.label || `${newConnection.organization}/${newConnection.project}`}" added and activated successfully.`
+          );
+        }
+      }
+    }
+  } else if (action === 'manage') {
+    // Use the SetupWizard to manage existing projects - skip initial choice and go straight to project list
+    const wizard = new SetupWizard(context);
+    const result = await wizard.start({ skipInitialChoice: true });
+
+    if (result.status === 'success') {
+      // Reload connections after successful management
+      await ensureConnectionsInitialized(context);
+      ensureTimer(context);
+
+      // If a connection was modified, show success message
+      if (result.connectionId) {
+        const updatedConnection = connections.find((c) => c.id === result.connectionId);
+        if (updatedConnection) {
+          vscode.window.showInformationMessage(
+            `Project "${updatedConnection.label || `${updatedConnection.organization}/${updatedConnection.project}`}" updated successfully.`
+          );
+        }
+      }
     }
   } else if (action === 'remove') {
     const removed = await promptRemoveConnection(context);
@@ -3382,7 +3439,12 @@ async function promptSwitchActiveConnection(context: vscode.ExtensionContext): P
   return true;
 }
 
-async function promptAddConnection(context: vscode.ExtensionContext): Promise<boolean> {
+/**
+ * Legacy add connection function - DEPRECATED
+ * This function is kept for reference but is no longer used.
+ * Use SetupWizard instead, which supports both PAT and Entra ID authentication.
+ */
+async function _promptAddConnection_DEPRECATED(context: vscode.ExtensionContext): Promise<boolean> {
   const _existingPat = await getSecretPAT(context);
 
   const lastConnection = connections[connections.length - 1];

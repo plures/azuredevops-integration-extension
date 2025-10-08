@@ -128,7 +128,14 @@ const queryOptions = [
 ];
 
 // Connections state
-let connections: Array<{ id: string; label: string; organization: string; project: string }> = [];
+let connections: Array<{
+  id: string;
+  label: string;
+  organization: string;
+  project: string;
+  baseUrl?: string; // For on-premises detection
+  hasIdentityName?: boolean; // Flag indicating if identity is configured
+}> = [];
 let activeConnectionId: string | undefined;
 
 // Per-connection state storage

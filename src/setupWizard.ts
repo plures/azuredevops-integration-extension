@@ -30,6 +30,7 @@ export interface SetupWizardData {
   connectionTested?: boolean;
   team?: string;
   label?: string;
+  identityName?: string; // On-prem identity for @Me substitution
   existingConnectionId?: string;
   clientId?: string; // Entra ID client ID
   tenantId?: string; // Entra ID tenant ID
@@ -47,10 +48,12 @@ export interface StoredConnection {
   label?: string;
   team?: string;
   baseUrl?: string;
+  apiBaseUrl?: string; // Explicit API URL override for on-prem servers
   authMethod?: 'pat' | 'entra';
   patKey?: string;
   tenantId?: string;
   clientId?: string;
+  identityName?: string; // On-prem identity for @Me substitution
 }
 
 export interface SetupWizardResult {
@@ -123,12 +126,18 @@ export class SetupWizard {
 
   /**
    * Starts the setup wizard
+   * @param options.skipInitialChoice - If true, goes directly to manage existing projects
    */
-  async start(): Promise<SetupWizardResult> {
+  async start(options?: { skipInitialChoice?: boolean }): Promise<SetupWizardResult> {
     try {
       this.resetWizardState();
 
       const existingConnections = await this.getExistingConnections();
+
+      // If skipInitialChoice is true, go directly to manage existing projects
+      if (options?.skipInitialChoice && existingConnections.length > 0) {
+        return await this.manageExistingConnections(existingConnections);
+      }
 
       if (existingConnections.length === 0) {
         this.data.mode = 'create';
@@ -138,19 +147,19 @@ export class SetupWizard {
       const initialChoice = await vscode.window.showQuickPick(
         [
           {
-            label: 'Add New Connection',
-            description: 'Create a new Azure DevOps connection',
+            label: 'Add New Project',
+            description: 'Connect to a new Azure DevOps project',
             value: 'add',
           },
           {
-            label: 'Manage Existing Connections',
-            description: 'Edit, replace, or remove an existing connection',
+            label: 'Manage Existing Project',
+            description: 'Edit, replace, or remove an existing project',
             value: 'manage',
           },
           { label: 'Cancel', value: 'cancel' },
         ],
         {
-          placeHolder: 'Azure DevOps Integration setup',
+          placeHolder: 'Azure DevOps project setup',
           ignoreFocusOut: true,
         }
       );
@@ -836,8 +845,14 @@ export class SetupWizard {
       label: this.data.label,
       team: this.data.team,
       baseUrl: this.data.parsedUrl.baseUrl,
+      apiBaseUrl: this.data.parsedUrl.apiBaseUrl, // Save explicit API URL for on-prem
       authMethod: this.data.authMethod || 'pat',
     };
+
+    // Add identity name for on-premises servers (required for @Me substitution)
+    if (this.data.identityName) {
+      connection.identityName = this.data.identityName;
+    }
 
     // Handle PAT authentication
     if (this.data.authMethod === 'pat' || !this.data.authMethod) {
@@ -907,7 +922,7 @@ export class SetupWizard {
   }
 
   /**
-   * Handles managing an existing connection (edit/replace/remove)
+   * Handles managing an existing project (edit/replace/remove)
    */
   private async manageExistingConnections(
     existingConnections: StoredConnection[]
@@ -920,7 +935,7 @@ export class SetupWizard {
     }));
 
     const selectedConnection = await vscode.window.showQuickPick(connectionItems, {
-      placeHolder: 'Select a connection to manage',
+      placeHolder: 'Select a project to manage',
       ignoreFocusOut: true,
     });
 
@@ -931,18 +946,18 @@ export class SetupWizard {
     const action = await vscode.window.showQuickPick(
       [
         {
-          label: 'Edit Connection',
+          label: 'Edit Project',
           description: 'Review and update the existing configuration',
           value: 'edit',
         },
         {
           label: 'Replace with New Details',
-          description: 'Start from a fresh work item URL and overwrite this connection',
+          description: 'Start from a fresh work item URL and overwrite this project',
           value: 'replace',
         },
         {
-          label: 'Remove Connection',
-          description: 'Delete this connection from the extension',
+          label: 'Remove Project',
+          description: 'Delete this project from the extension',
           value: 'remove',
         },
         { label: 'Cancel', value: 'cancel' },

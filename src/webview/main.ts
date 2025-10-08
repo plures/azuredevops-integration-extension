@@ -45,6 +45,8 @@ type ConnectionEntry = {
   organization?: string;
   project?: string;
   authMethod?: AuthMethod;
+  baseUrl?: string; // For on-premises detection
+  hasIdentityName?: boolean; // Flag indicating if identity is configured
 };
 
 let connections: ConnectionEntry[] = [];

@@ -6,7 +6,70 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.9.7] - 2025-10-07
+
+### Added
+
+- **Query Performance Limits**: Implemented client-side limiting to prevent performance issues with large result sets
+  - Added 100-item limit for potentially large queries: "All Active", "Recently Updated", "Current Sprint", and custom WIQL queries
+  - User-scoped queries ("My Activity", "Assigned to me") remain unlimited as they are naturally bounded
+  - Applied smart limiting logic that distinguishes between user-scoped and project-wide queries
+  - Results are truncated after successful API response to ensure consistent performance
+
+### Fixed
+
+- **WIQL Query Syntax**: Fixed "All Active" query that was causing 400 Bad Request errors
+  - Changed problematic `WHERE 1=1` clause to proper `WHERE [System.TeamProject] = @Project`
+  - Resolved "Expecting field name. The error is caused by «1»." error that affected both cloud and on-premises deployments
+  - All built-in queries now use proper WIQL syntax compatible with Azure DevOps Services and Server
+
+### Changed
+
+- **UI Terminology Consistency**: Updated terminology from "connection" to "project" throughout the interface
+  - Setup wizard now shows "Add new project", "Manage existing project", "Remove project"
+  - All UI labels, tooltips, and messages use consistent "project" terminology
+  - Added skipInitialChoice parameter to SetupWizard for improved navigation flow
+  - Setup flow now navigates directly from manage to project list (skips redundant menu)
+
+- **README Enhancement**: Complete rewrite focused on user attraction and quick onboarding
+  - Restructured with "Why Choose This Extension?" value propositions
+  - Added "Get Started in 3 Steps" quick setup process
+  - Moved animated demo GIF to top for immediate visual impact ("a picture is worth a thousand words")
+  - Condensed feature descriptions while preserving all functionality
+  - Maintained all security notices and legal compliance requirements
+  - Streamlined advanced features into organized, scannable sections
+
 ## [1.9.6] - 2025-01-17
+
+### Fixed
+
+- **On-Premises URL Parsing and Identity**: Fixed multiple issues with on-premises Azure DevOps Server connections
+  - **Manual Entry apiBaseUrl**: Fixed hardcoded `dev.azure.com` URL in manual entry flow - now properly generates `apiBaseUrl` for all instance types (dev.azure.com, visualstudio.com, custom/on-prem)
+  - **Identity Name for On-Premises**: Added required identity prompting for on-premises connections
+    - On-premises servers often don't resolve `@Me` in WIQL queries correctly
+    - Now prompts for user identity (domain\username or email) after PAT entry
+    - Pre-fills with detected identity from environment variables (USERDOMAIN\USERNAME on Windows, USER on Linux/Mac)
+    - Identity name is required (not optional) for on-premises to ensure queries work
+    - Identity is passed to AzureDevOpsIntClient for proper @Me substitution
+  - Updated both `SetupWizardData` and `StoredConnection` interfaces to include `identityName` field
+- **Missing apiBaseUrl in Connections**: Fixed critical bug where `apiBaseUrl` was not being saved when creating connections through SetupWizard
+  - On-premises connections were missing `apiBaseUrl`, causing them to not appear in UI or be accessible
+  - SetupWizard now properly copies `apiBaseUrl` from parsed URL to connection object
+  - Updated `StoredConnection` interface to include `apiBaseUrl` field
+  - This fixes the issue where on-premises connections would save but not be detected or usable
+- **Entra ID Authentication Option Missing**: Fixed critical bug where users adding new connections were not offered the choice between Entra ID and PAT authentication
+  - Legacy "Add project connection" flow was bypassing the modern SetupWizard
+  - Now uses SetupWizard for all new connections, properly offering both auth methods
+  - Cloud connections (dev.azure.com, visualstudio.com) now correctly show "Microsoft Entra ID (Recommended)" option
+  - Added debug logging to setup wizard for future troubleshooting
+  - See [BUG_FIX_ENTRA_ID_NOT_OFFERED.md](docs/BUG_FIX_ENTRA_ID_NOT_OFFERED.md) for details
+- **Status Bar Click Command**: Fixed status bar item to directly sign in/refresh the active connection instead of cycling through pending connections
+  - Clicking the Entra ID status bar now acts on the displayed connection
+  - Improved user experience when managing authentication status
+- **Setup Wizard Error Handling**: Added comprehensive logging and error messages for connection setup failures
+  - Better diagnostics for PAT validation issues
+  - Clearer error messages when connection save fails
+  - All setup steps now log progress to help troubleshoot issues
 
 ### Changed
 

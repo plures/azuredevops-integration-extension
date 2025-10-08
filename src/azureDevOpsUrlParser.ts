@@ -144,8 +144,34 @@ function parseWorkItemUrl(url: string): ParsedAzureDevOpsUrl {
   // For baseUrl, use the server root
   const baseUrl = `${parsed.protocol}//${parsed.host}`;
 
-  // Organization: use the first segment as a fallback (works for cloud, approximation for on-prem)
-  const organization = segments[0] || 'default';
+  // Organization extraction:
+  // - For cloud (dev.azure.com): first segment is the org
+  // - For on-prem with collections: everything before the project is the org/collection path
+  // We use a heuristic: if there are multiple segments before project, it's likely on-prem
+  // and we should use the full path (minus project) as the "organization" identifier
+  let organization: string;
+
+  const isCloud =
+    parsed.host.toLowerCase().includes('dev.azure.com') ||
+    parsed.host.toLowerCase().includes('visualstudio.com');
+
+  if (isCloud) {
+    // Cloud: first segment is the organization
+    organization = segments[0] || 'default';
+  } else {
+    // On-premises: use everything before the project as the org/collection identifier
+    // For URLs like: https://server/tfs/Collection/Project/_workitems
+    // segments = ['tfs', 'Collection', 'Project', '_workitems']
+    // We want organization = 'tfs/Collection' (path up to project, excluding project itself)
+    const segmentsBeforeProject = segments.slice(0, workItemsIndex - 1);
+    if (segmentsBeforeProject.length > 1) {
+      // Multiple segments before project - join them as the collection path
+      organization = segmentsBeforeProject.join('/');
+    } else {
+      // Single segment - use it as-is
+      organization = segmentsBeforeProject[0] || 'default';
+    }
+  }
 
   // Extract work item ID if present
   const workItemId = extractWorkItemId(segments, parsed.searchParams);
@@ -156,6 +182,7 @@ function parseWorkItemUrl(url: string): ParsedAzureDevOpsUrl {
     baseUrl,
     apiBaseUrl,
     workItemId,
+    isCloud,
   });
 
   return {

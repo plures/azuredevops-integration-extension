@@ -294,34 +294,38 @@ export class AzureDevOpsIntClient {
   } | null> {
     if (this.cachedIdentity) return this.cachedIdentity;
     try {
-      // Request connectionData. For on-prem/TFS the connectionData endpoint lives at
-      // the collection/org level (e.g. https://instance/_apis/connectionData). Our
-      // axios instance is usually configured with a project-scoped base URL which
-      // may make a simple relative request fail. Try a few strategies in order:
-      //  1) Absolute org-level URL derived from configured baseUrl (works for most on-prem setups)
-      //  2) Absolute URL derived from apiBaseUrl with _apis replaced
-      //  3) Relative '/connectionData' using axios baseURL (fallback)
+      // Request connectionData. The endpoint location varies:
+      // - Cloud (dev.azure.com): https://dev.azure.com/{org}/_apis/connectionData
+      // - On-prem/TFS: https://server/collection/_apis/connectionData OR https://server/_apis/connectionData
+      // Use api-version=5.0 (widely supported stable version)
       let resp: any;
       const attempts: Array<{ desc: string; url: string }> = [];
 
       try {
-        const orgLevel = this.baseUrl.replace(/\/$/, '') + '/_apis/connectionData?api-version=7.0';
+        // Strategy 1: Use baseUrl (org/collection level) - works for cloud and most on-prem
+        const orgLevel = this.baseUrl.replace(/\/$/, '') + '/_apis/connectionData?api-version=5.0';
         attempts.push({ desc: 'baseUrl org-level', url: orgLevel });
         resp = await this.axios.get(orgLevel);
       } catch (err1) {
         try {
-          // Try constructing from apiBaseUrl by removing '/_apis' suffix if present
-          const apiRoot = this.apiBaseUrl.replace(/\/_apis\/?$/, '');
-          const apiConn = apiRoot.replace(/\/$/, '') + '/_apis/connectionData?api-version=7.0';
-          attempts.push({ desc: 'apiBaseUrl-derived', url: apiConn });
+          // Strategy 2: For on-prem with collections, try removing project from apiBaseUrl
+          // apiBaseUrl: https://server/collection/project/_apis
+          // Target:     https://server/collection/_apis/connectionData
+          const apiRoot = this.apiBaseUrl
+            .replace(/\/_apis\/?$/, '') // Remove /_apis suffix
+            .replace(new RegExp(`/${this.encodedProject}$`), ''); // Remove /project suffix
+          const apiConn = apiRoot.replace(/\/$/, '') + '/_apis/connectionData?api-version=5.0';
+          attempts.push({ desc: 'apiBaseUrl without project', url: apiConn });
           resp = await this.axios.get(apiConn);
         } catch (err2) {
           try {
+            // Strategy 3: Try relative path (will use axios baseURL which is project-scoped)
+            // This likely won't work but try as final fallback
             attempts.push({
               desc: 'relative to axios baseURL',
-              url: '/connectionData?api-version=7.0',
+              url: '/connectionData?api-version=5.0',
             });
-            resp = await this.axios.get('/connectionData?api-version=7.0');
+            resp = await this.axios.get('/connectionData?api-version=5.0');
           } catch (err3) {
             // If all fail, throw the first error to preserve original failure context
             console.error('[azureDevOpsInt] connectionData attempts:', attempts);
@@ -447,7 +451,7 @@ export class AzureDevOpsIntClient {
                         ORDER BY [Microsoft.VSTS.Common.Priority] ASC, [System.Id] ASC`;
       case 'All Active':
         return `SELECT ${fields} FROM WorkItems 
-                        WHERE 1=1
+                        WHERE [System.TeamProject] = @Project
                         ${activeFilter}
                         ${sprintClause}
                         ORDER BY [System.ChangedDate] DESC`;
@@ -658,8 +662,19 @@ export class AzureDevOpsIntClient {
         // so, when possible, replace @Me with an explicit identity string (uniqueName, displayName, or id).
         wiqlToSend = wiql;
 
-        // For queries that might return many results, add a hard limit via $top parameter
-        const needsLimit = ['Recently Updated', 'All Active'].includes(query);
+        // For queries that might return many results, add a hard limit via client-side limiting
+        // User-scoped queries (My Activity, Assigned to me) don't need limits as they're naturally bounded
+        const knownUserScopedQueries = ['My Activity', 'Assigned to me', 'My Work Items'];
+        const isKnownQuery = [
+          'Recently Updated',
+          'All Active',
+          'Current Sprint',
+          ...knownUserScopedQueries,
+        ].includes(query);
+        const needsLimit =
+          !knownUserScopedQueries.includes(query) &&
+          (['Recently Updated', 'All Active', 'Current Sprint'].includes(query) || !isKnownQuery);
+
         if (needsLimit) {
           console.log('[azureDevOpsInt][GETWI] Applying hard limit of 100 items for query:', query);
         }
@@ -695,9 +710,7 @@ export class AzureDevOpsIntClient {
         }
 
         // First, try the WIQL query
-        const wiqlEndpoint = needsLimit
-          ? '/wit/wiql?api-version=7.0&$top=100'
-          : '/wit/wiql?api-version=7.0';
+        const wiqlEndpoint = '/wit/wiql?api-version=7.0';
 
         let wiqlResp;
         try {
@@ -757,8 +770,16 @@ export class AzureDevOpsIntClient {
           /* ignore */
         }
 
-        const refs = wiqlResp.data?.workItems || [];
+        let refs = wiqlResp.data?.workItems || [];
         console.log(`[azureDevOpsInt][GETWI] WIQL reference count: ${refs.length}`);
+
+        // Apply client-side limiting for queries that might return many results
+        if (needsLimit && refs.length > 100) {
+          refs = refs.slice(0, 100);
+          console.log(
+            `[azureDevOpsInt][GETWI] Applied client-side limit, reduced to ${refs.length} items`
+          );
+        }
 
         if (refs.length === 0) {
           console.log(

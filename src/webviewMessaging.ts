@@ -129,6 +129,8 @@ export function postConnectionsUpdate({
     organization: connection.organization,
     project: connection.project,
     authMethod: connection.authMethod,
+    baseUrl: connection.baseUrl, // Include baseUrl for on-premises detection
+    hasIdentityName: !!connection.identityName, // Flag for debugging on-premises identity
   }));
 
   postToWebview({
