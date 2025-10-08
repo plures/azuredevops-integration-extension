@@ -30,7 +30,7 @@ declare global {
 // Acquire VS Code API
 const vscode = (() => {
   try {
-    return (window as any).vscode || acquireVsCodeApi();
+    return (window as any).vscode || (window as any).acquireVsCodeApi?.();
   } catch (e) {
     console.error('[svelte-main] Failed to acquire VS Code API', e);
     return null;
@@ -91,6 +91,10 @@ let summaryWorkItemId: number | null = null;
 let _summaryTargetTitle = '';
 let summaryBusyTimer: ReturnType<typeof setTimeout> | undefined;
 let summaryStatusTimer: ReturnType<typeof setTimeout> | undefined;
+
+// Store timer stop data for submission
+let _timerStopData: any = null;
+let _timerConnectionInfo: any = null;
 
 const authReminderMap = new Map<string, AuthReminder>();
 let authReminders: AuthReminder[] = [];
@@ -711,6 +715,24 @@ function _attemptSummaryGeneration() {
 }
 
 function _attemptStopAndApply() {
+  // If we have stored timer data from a previous stop, use submitComposeComment instead
+  if (_timerStopData && _timerConnectionInfo && summaryWorkItemId) {
+    if (summaryWorkItemId) saveDraftForWorkItem(summaryWorkItemId, summaryDraft);
+    setSummaryBusy(true);
+    setSummaryStatus('Applying timer updates…');
+    syncApp();
+    postMessage({
+      type: 'submitComposeComment',
+      workItemId: summaryWorkItemId,
+      comment: summaryDraft,
+      mode: 'timerStop',
+      timerData: _timerStopData,
+      connectionInfo: _timerConnectionInfo,
+    });
+    return;
+  }
+
+  // Original logic for actively running timer
   if (!timerActive) {
     const message = 'Start a timer before applying time to the work item.';
     setSummaryStatus(message, { timeout: 3500 });
@@ -1154,6 +1176,107 @@ function onMessage(message: any) {
         elapsedSeconds = 0;
         timerElapsedLabel = '';
       }
+      syncApp();
+      break;
+    }
+    case 'showComposeComment': {
+      const workItemId = typeof message.workItemId === 'number' ? message.workItemId : null;
+      const mode = typeof message.mode === 'string' ? message.mode : 'addComment';
+
+      if (mode === 'timerStop' && message.timerData && workItemId) {
+        // Handle timer stop - set the work item as the summary target and populate draft
+        const hours = Number(
+          message.timerData.hoursDecimal || message.timerData.duration / 3600 || 0
+        );
+        const fallbackTitle = getWorkItemTitle(workItemId) || `#${workItemId}`;
+
+        // Set summary target and ensure it's visible
+        setSummaryTarget(workItemId, { ensureOpen: true, refreshDraft: false });
+
+        // Set draft text if not already present
+        if (!summaryDraft || !summaryDraft.trim()) {
+          const persisted = loadDraftForWorkItem(workItemId);
+          if (persisted && persisted.length > 0) {
+            summaryDraft = persisted;
+          } else {
+            summaryDraft = `Worked approximately ${hours.toFixed(2)} hours on ${fallbackTitle}. Summarize the key updates you completed.`;
+          }
+        }
+
+        // Store timer data for later submission
+        _timerStopData = message.timerData;
+        _timerConnectionInfo = message.connectionInfo;
+
+        syncApp();
+
+        // Show success message
+        addToast(
+          `Timer stopped. Review the comment and use "Stop & Apply" to apply time updates to work item #${workItemId}.`,
+          { type: 'info', timeout: 5000 }
+        );
+      } else if (mode === 'addComment' && workItemId) {
+        // Handle regular comment - just set the target
+        setSummaryTarget(workItemId, { ensureOpen: true, refreshDraft: false });
+        syncApp();
+
+        addToast(`Ready to compose a comment for work item #${workItemId}.`, {
+          type: 'info',
+          timeout: 3000,
+        });
+      }
+      break;
+    }
+    case 'composeCommentResult': {
+      const workItemId = message.workItemId;
+      const mode = message.mode;
+      const success = message.success;
+      const hours = message.hours;
+
+      setSummaryBusy(false);
+
+      if (!success) {
+        const errorMessage =
+          typeof message.error === 'string' && message.error.trim().length > 0
+            ? message.error.trim()
+            : `Failed to ${mode === 'timerStop' ? 'apply timer update' : 'add comment'}.`;
+        setSummaryStatus(errorMessage, { timeout: 8000 });
+        addToast(errorMessage, { type: 'error', timeout: 5000 });
+        syncApp();
+        break;
+      }
+
+      // Success case
+      if (typeof workItemId === 'number') {
+        try {
+          removeDraftForWorkItem(workItemId);
+        } catch (e) {
+          console.warn('[svelte-main] Failed to remove persisted draft after compose', e);
+        }
+      }
+
+      if (mode === 'timerStop') {
+        // Clear stored timer data since we successfully applied it
+        _timerStopData = null;
+        _timerConnectionInfo = null;
+
+        const hoursStr = typeof hours === 'number' ? hours.toFixed(2) : '0.00';
+        setSummaryStatus(
+          `Timer update applied: ${hoursStr} hours added to work item #${workItemId}`,
+          { timeout: 5000 }
+        );
+        addToast(`Timer update applied: ${hoursStr} hours added to work item #${workItemId}`, {
+          type: 'success',
+          timeout: 4000,
+        });
+
+        // Clear the summary since the timer task is complete
+        summaryWorkItemId = null;
+        summaryDraft = '';
+      } else {
+        setSummaryStatus(`Comment added to work item #${workItemId}`, { timeout: 3000 });
+        addToast(`Comment added to work item #${workItemId}`, { type: 'success', timeout: 3000 });
+      }
+
       syncApp();
       break;
     }

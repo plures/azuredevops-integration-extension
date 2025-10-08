@@ -785,14 +785,6 @@
                               <span class="summary-provider-badge"
                                 >{summaryProvider === 'openai' ? 'OpenAI' : 'Copilot'}</span
                               >
-                              {#if timerActive && activeId === Number(it.id)}
-                                <span class="summary-target-timer"
-                                  >{timerRunning ? 'Running' : 'Paused'}
-                                  {#if timerElapsedLabel}
-                                    ({timerElapsedLabel})
-                                  {/if}</span
-                                >
-                              {/if}
                             </div>
                             <div class="summary-header-actions">
                               {#if summaryBusy}
@@ -1016,14 +1008,6 @@
                       <span class="summary-provider-badge"
                         >{summaryProvider === 'openai' ? 'OpenAI' : 'Copilot'}</span
                       >
-                      {#if timerActive && activeId === Number(it.id)}
-                        <span class="summary-target-timer"
-                          >{timerRunning ? 'Running' : 'Paused'}
-                          {#if timerElapsedLabel}
-                            ({timerElapsedLabel})
-                          {/if}</span
-                        >
-                      {/if}
                     </div>
                     <div class="summary-header-actions">
                       {#if summaryBusy}
@@ -1422,14 +1406,7 @@
     color: var(--ado-purple);
     font-weight: 600;
   }
-  .summary-target-timer {
-    font-size: 10px;
-    color: var(--ado-orange);
-    background: rgba(255, 140, 0, 0.18);
-    padding: 2px 6px;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 140, 0, 0.35);
-  }
+
   .summary-textarea {
     width: 100%;
     min-height: 120px;

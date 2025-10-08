@@ -41,6 +41,12 @@ export class EntraAuthProvider implements IAuthProvider {
   private refreshTokenKey: string;
   private tokenCacheKey: string;
 
+  // Refresh failure tracking to prevent constant retry attempts
+  private refreshFailureCount = 0;
+  private lastRefreshFailure: Date | undefined;
+  private refreshBackoffUntil: Date | undefined;
+  private readonly maxRefreshFailures = 3;
+
   constructor(options: EntraAuthProviderOptions) {
     this.config = options.config;
     this.secretStorage = options.secretStorage;
@@ -185,6 +191,11 @@ export class EntraAuthProvider implements IAuthProvider {
         await this.storeAccount(account);
       }
 
+      // Reset refresh failure tracking on successful authentication
+      this.refreshFailureCount = 0;
+      this.lastRefreshFailure = undefined;
+      this.refreshBackoffUntil = undefined;
+
       return {
         success: true,
         accessToken: response.accessToken,
@@ -257,10 +268,61 @@ export class EntraAuthProvider implements IAuthProvider {
       return this.cachedToken.accessToken;
     }
 
+    // Check if we're in a backoff period due to repeated refresh failures
+    if (this.refreshBackoffUntil && this.refreshBackoffUntil.getTime() > Date.now()) {
+      console.log('[EntraAuthProvider] Skipping token refresh due to backoff period', {
+        connectionId: this.connectionId,
+        backoffUntil: this.refreshBackoffUntil.toISOString(),
+        failureCount: this.refreshFailureCount,
+      });
+      return undefined; // Don't try to refresh during backoff
+    }
+
     // Try to refresh the token
     const result = await this.refreshAccessToken();
     if (result.success && result.accessToken) {
+      // Reset failure tracking on success
+      this.refreshFailureCount = 0;
+      this.lastRefreshFailure = undefined;
+      this.refreshBackoffUntil = undefined;
       return result.accessToken;
+    } else {
+      // Track failures and implement backoff
+      this.refreshFailureCount += 1;
+      this.lastRefreshFailure = new Date();
+
+      // Stop trying after max failures - no more refresh attempts
+      if (this.refreshFailureCount >= this.maxRefreshFailures) {
+        console.warn(
+          '[EntraAuthProvider] Max refresh failures reached, stopping all refresh attempts',
+          {
+            connectionId: this.connectionId,
+            maxFailures: this.maxRefreshFailures,
+            error: result.error,
+          }
+        );
+        return undefined;
+      }
+
+      // Progressive backoff: 1 hour, 4 hours, 12 hours, then 24 hours
+      let backoffHours: number;
+      if (this.refreshFailureCount <= 1) {
+        backoffHours = 1;
+      } else if (this.refreshFailureCount <= 2) {
+        backoffHours = 4;
+      } else {
+        backoffHours = 12;
+      }
+
+      this.refreshBackoffUntil = new Date(Date.now() + backoffHours * 60 * 60 * 1000);
+
+      console.warn('[EntraAuthProvider] Token refresh failed, implementing backoff', {
+        connectionId: this.connectionId,
+        failureCount: this.refreshFailureCount,
+        backoffHours,
+        backoffUntil: this.refreshBackoffUntil.toISOString(),
+        error: result.error,
+      });
     }
 
     return undefined;
@@ -270,6 +332,32 @@ export class EntraAuthProvider implements IAuthProvider {
    * Refresh the access token using silent flow
    */
   async refreshAccessToken(): Promise<AuthenticationResult> {
+    // Check if we've exceeded max failures - stop trying
+    if (this.refreshFailureCount >= this.maxRefreshFailures) {
+      console.warn('[EntraAuthProvider] Refresh blocked - max failures reached', {
+        connectionId: this.connectionId,
+        maxFailures: this.maxRefreshFailures,
+        failureCount: this.refreshFailureCount,
+      });
+      return {
+        success: false,
+        error: `Max refresh failures (${this.maxRefreshFailures}) reached. Please re-authenticate.`,
+      };
+    }
+
+    // Check if we're in backoff period
+    if (this.refreshBackoffUntil && this.refreshBackoffUntil.getTime() > Date.now()) {
+      console.log('[EntraAuthProvider] Refresh blocked - in backoff period', {
+        connectionId: this.connectionId,
+        backoffUntil: this.refreshBackoffUntil.toISOString(),
+        failureCount: this.refreshFailureCount,
+      });
+      return {
+        success: false,
+        error: 'In backoff period due to previous failures.',
+      };
+    }
+
     const scopes = this.resolveScopes();
     return this.trySilentAuthentication(scopes);
   }
@@ -289,6 +377,29 @@ export class EntraAuthProvider implements IAuthProvider {
     const accounts = await this.msalClient.getTokenCache().getAllAccounts();
     for (const account of accounts) {
       await this.msalClient.getTokenCache().removeAccount(account);
+    }
+  }
+
+  /**
+   * Reset token cache and failure tracking
+   */
+  async resetToken(): Promise<void> {
+    // Clear cached token
+    this.cachedToken = undefined;
+
+    // Reset failure tracking
+    this.refreshFailureCount = 0;
+    this.lastRefreshFailure = undefined;
+    this.refreshBackoffUntil = undefined;
+
+    // Clear MSAL cache
+    try {
+      await this.secretStorage.delete(this.tokenCacheKey);
+      console.log('[EntraAuthProvider] Token cache and failure tracking reset', {
+        connectionId: this.connectionId,
+      });
+    } catch (error) {
+      console.error('[EntraAuthProvider] Failed to clear token cache:', error);
     }
   }
 

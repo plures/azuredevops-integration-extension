@@ -876,6 +876,18 @@ export class SetupWizard {
     // Set as active connection
     await this.context.globalState.update('azureDevOpsInt.activeConnectionId', connection.id);
 
+    let entraSignInTriggered = false;
+    let entraSignInError: string | undefined;
+    if (this.data.authMethod === 'entra') {
+      try {
+        await vscode.commands.executeCommand('azureDevOpsInt.signInWithEntra', connection.id);
+        entraSignInTriggered = true;
+      } catch (error: any) {
+        console.error('[SetupWizard] Failed to trigger Entra ID sign-in after setup', error);
+        entraSignInError = error?.message || String(error);
+      }
+    }
+
     // Update legacy settings for backward compatibility (only for the primary connection)
     const config = vscode.workspace.getConfiguration('azureDevOpsIntegration');
     const existingConnections = await this.getExistingConnections();
@@ -892,10 +904,18 @@ export class SetupWizard {
 
     const authMethodName = this.data.authMethod === 'entra' ? 'Entra ID' : 'PAT';
     const action = this.data.existingConnectionId ? 'updated' : 'configured and saved';
-    const entraNote =
-      this.data.authMethod === 'entra'
-        ? '\n\nYou will be prompted to sign in with Microsoft Entra ID when you first access this connection.'
-        : '';
+    const entraNote = (() => {
+      if (this.data.authMethod !== 'entra') {
+        return '';
+      }
+      if (entraSignInError) {
+        return `\n\nWe tried to start Microsoft Entra ID sign-in automatically but encountered an error: ${entraSignInError}. You can retry via the authentication status bar item or the “Azure DevOps: Sign In with Microsoft Entra ID” command.`;
+      }
+      if (entraSignInTriggered) {
+        return '\n\nA Microsoft Entra ID sign-in prompt has been opened to issue a fresh token for this connection.';
+      }
+      return '\n\nYou can sign in with Microsoft Entra ID using the authentication status bar item when ready.';
+    })();
 
     vscode.window
       .showInformationMessage(

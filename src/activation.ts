@@ -76,6 +76,12 @@ type ConnectionState = {
   accessToken?: string; // For Entra ID authentication
   authMethod?: AuthMethod;
   authService?: AuthService; // Authentication service instance
+  // Refresh failure tracking to prevent constant retry attempts
+  refreshFailureCount?: number;
+  lastRefreshFailure?: Date;
+  refreshBackoffUntil?: Date;
+  reauthInProgress?: boolean;
+  lastInteractiveAuthAt?: number;
 };
 
 const CONNECTIONS_CONFIG_KEY = 'connections';
@@ -166,6 +172,8 @@ const AUTH_REMINDER_SNOOZE_MS = 30 * 60 * 1000; // 30 minutes
 const pendingAuthReminders = new Map<string, AuthReminderState>();
 let nextAuthConnectionIndex = 0;
 
+const INTERACTIVE_REAUTH_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+
 type EnsureEntraAuthResult = {
   state: ConnectionState;
   success: boolean;
@@ -194,9 +202,10 @@ function describeConnection(connection: ProjectConnection): string {
 async function ensureEntraAuthService(
   context: vscode.ExtensionContext,
   connection: ProjectConnection,
-  options: { interactive?: boolean } = {}
+  options: { interactive?: boolean; forceInteractive?: boolean } = {}
 ): Promise<EnsureEntraAuthResult> {
   const interactive = options.interactive !== false;
+  const forceInteractive = options.forceInteractive === true;
   let state = connectionStates.get(connection.id);
   if (!state) {
     state = { id: connection.id, config: connection, authMethod: connection.authMethod || 'pat' };
@@ -240,14 +249,48 @@ async function ensureEntraAuthService(
   }
 
   try {
-    let token = await state.authService.getAccessToken();
+    if (forceInteractive) {
+      try {
+        await state.authService.resetToken?.();
+      } catch (resetError) {
+        console.warn(
+          '[ensureEntraAuthService] Failed to reset token cache before interactive auth',
+          resetError
+        );
+      }
+      try {
+        await state.authService.signOut();
+      } catch (signOutError: any) {
+        console.warn(
+          '[ensureEntraAuthService] Failed to sign out before interactive auth',
+          signOutError
+        );
+      }
+    }
 
-    if (!token && interactive) {
+    let token: string | undefined;
+    if (!forceInteractive) {
+      token = await state.authService.getAccessToken();
+    }
+
+    if (!token) {
+      if (!interactive && !forceInteractive) {
+        return { state, success: false, error: 'Unable to acquire access token' };
+      }
+
       const result = await state.authService.authenticate();
       if (!result.success) {
         return { state, success: false, error: result.error || 'Authentication failed' };
       }
-      token = await state.authService.getAccessToken();
+
+      token = result.accessToken ?? (await state.authService.getAccessToken());
+
+      // Reset refresh failure tracking on successful interactive authentication
+      if (token) {
+        state.refreshFailureCount = 0;
+        state.lastRefreshFailure = undefined;
+        state.refreshBackoffUntil = undefined;
+      }
     }
 
     if (token) {
@@ -670,6 +713,71 @@ function ensureAuthReminder(
   }
 }
 
+function triggerAuthReminderSignIn(
+  connectionId: string,
+  reason: AuthReminderReason,
+  options: { detail?: string; force?: boolean; startInteractive?: boolean } = {}
+): void {
+  const state = connectionStates.get(connectionId);
+  if (!state) return;
+
+  const detail = options.detail;
+  const startInteractive = options.startInteractive === true;
+
+  if (!startInteractive) {
+    ensureAuthReminder(connectionId, reason, detail ? { detail } : {});
+    return;
+  }
+
+  if ((state.authMethod ?? 'pat') !== 'entra' || !state.authService) {
+    ensureAuthReminder(connectionId, reason, detail ? { detail } : {});
+    return;
+  }
+
+  const now = Date.now();
+  if (state.reauthInProgress) {
+    return;
+  }
+
+  if (
+    !options.force &&
+    state.lastInteractiveAuthAt &&
+    now - state.lastInteractiveAuthAt < INTERACTIVE_REAUTH_THROTTLE_MS
+  ) {
+    return;
+  }
+
+  state.reauthInProgress = true;
+  state.lastInteractiveAuthAt = now;
+  state.accessToken = undefined;
+  state.refreshFailureCount = 0;
+  state.refreshBackoffUntil = undefined;
+
+  const context = extensionContextRef;
+
+  (async () => {
+    try {
+      if (context) {
+        await signInWithEntra(context, connectionId, {
+          showSuccessMessage: false,
+          forceInteractive: true,
+        });
+      } else {
+        await vscode.commands.executeCommand('azureDevOpsInt.signInWithEntra', connectionId);
+      }
+    } catch (error) {
+      console.error('[triggerAuthReminderSignIn] Interactive Entra sign-in failed', error);
+      ensureAuthReminder(connectionId, reason, detail ? { detail } : {});
+    } finally {
+      state.reauthInProgress = false;
+    }
+  })().catch((error) => {
+    console.error('[triggerAuthReminderSignIn] Unexpected Entra sign-in error', error);
+    state.reauthInProgress = false;
+    ensureAuthReminder(connectionId, reason, detail ? { detail } : {});
+  });
+}
+
 function normalizeQuery(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
@@ -1081,16 +1189,11 @@ async function ensureActiveConnection(
         apiBaseUrl: connection.apiBaseUrl, // Pass manual API URL override if provided
         authType: authMethod === 'entra' ? 'bearer' : 'pat',
         identityName: connection.identityName, // Pass through for on-prem identity fallback
-        tokenRefreshCallback:
-          authMethod === 'entra' && state.authService
-            ? async () => {
-                const token = await state.authService!.getAccessToken();
-                if (token) {
-                  state.accessToken = token;
-                }
-                return token;
-              }
-            : undefined,
+        onAuthFailure: (error) => {
+          state.accessToken = undefined;
+          const detail = error?.message ? `Details: ${error.message}` : undefined;
+          triggerAuthReminderSignIn(state.id, 'authFailed', { detail, force: true });
+        },
       }
     );
 
@@ -1700,6 +1803,15 @@ export function activate(context: vscode.ExtensionContext) {
       for (const [connectionId, state] of connectionStates.entries()) {
         if (state.authMethod === 'entra' && state.authService) {
           try {
+            // Check if we're in a backoff period due to repeated failures
+            if (state.refreshBackoffUntil && state.refreshBackoffUntil.getTime() > Date.now()) {
+              verbose('[TokenRefresh] Skipping connection due to backoff period', {
+                connectionId,
+                backoffUntil: state.refreshBackoffUntil.toISOString(),
+              });
+              continue;
+            }
+
             const tokenInfo = await state.authService.getTokenInfo();
             const isExpiringSoon = await state.authService.isTokenExpiringSoon();
 
@@ -1718,43 +1830,44 @@ export function activate(context: vscode.ExtensionContext) {
 
             // Refresh if token is expiring within 5 minutes or already expired
             if (isExpired || isExpiringSoon) {
-              verbose('[TokenRefresh] Refreshing token for connection', { connectionId });
+              verbose('[TokenRefresh] Attempting to get fresh token for connection', {
+                connectionId,
+              });
 
-              const result = await state.authService.refreshAccessToken();
-              if (result.success) {
-                const newToken = await state.authService.getAccessToken();
-                if (newToken) {
-                  state.accessToken = newToken;
-                  // Update client credential if this connection has an active client
-                  if (state.client) {
-                    state.client.updateCredential(newToken);
-                  }
-                  verbose('[TokenRefresh] Successfully refreshed token', { connectionId });
+              // Use getAccessToken() which has backoff logic built-in
+              const newToken = await state.authService.getAccessToken();
+              if (newToken) {
+                state.accessToken = newToken;
+                // Update client credential if this connection has an active client
+                if (state.client) {
+                  state.client.updateCredential(newToken);
+                }
+                verbose('[TokenRefresh] Successfully refreshed token', { connectionId });
 
-                  clearAuthReminder(connectionId);
+                // Reset failure tracking on success
+                state.refreshFailureCount = 0;
+                state.lastRefreshFailure = undefined;
+                state.refreshBackoffUntil = undefined;
 
-                  // Update status bar if this is the active connection
-                  if (connectionId === activeConnectionId) {
-                    await updateAuthStatusBar();
-                  }
+                clearAuthReminder(connectionId);
 
-                  if (entraAuthProvider) {
-                    await entraAuthProvider.updateSessionForConnection(connectionId);
-                  }
+                // Update status bar if this is the active connection
+                if (connectionId === activeConnectionId) {
+                  await updateAuthStatusBar();
+                }
+
+                if (entraAuthProvider) {
+                  await entraAuthProvider.updateSessionForConnection(connectionId);
                 }
               } else {
                 console.warn(
-                  `[TokenRefresh] Failed to refresh token for connection ${connectionId}:`,
-                  result.error
+                  `[TokenRefresh] Failed to get fresh token for connection ${connectionId} - likely in backoff period`
                 );
 
-                ensureAuthReminder(connectionId, 'refreshFailed', {
-                  detail: result.error ? `Refresh failed: ${result.error}` : undefined,
+                triggerAuthReminderSignIn(connectionId, 'refreshFailed', {
+                  detail: 'Token refresh failed. Click "Sign In" to re-authenticate.',
+                  force: true,
                 });
-
-                if (entraAuthProvider) {
-                  await entraAuthProvider.removeSessionForConnection(connectionId);
-                }
               }
             }
           } catch (error: any) {
@@ -1775,35 +1888,60 @@ export function activate(context: vscode.ExtensionContext) {
     try {
       for (const [connectionId, state] of connectionStates.entries()) {
         if (state.authMethod === 'entra' && state.authService) {
+          // Skip if we're in a backoff period
+          if (state.refreshBackoffUntil && state.refreshBackoffUntil.getTime() > Date.now()) {
+            verbose('[TokenRefresh] Skipping initial check due to backoff period', {
+              connectionId,
+              backoffUntil: state.refreshBackoffUntil.toISOString(),
+            });
+            continue;
+          }
+
           const isExpiringSoon = await state.authService.isTokenExpiringSoon();
           const tokenInfo = await state.authService.getTokenInfo();
           const isExpired = tokenInfo ? tokenInfo.expiresAt.getTime() < Date.now() : false;
 
           if (isExpiringSoon || isExpired) {
-            verbose('[TokenRefresh] Initial token check - refreshing for connection', {
-              connectionId,
-            });
-            const result = await state.authService.refreshAccessToken();
-            if (result.success) {
-              const refreshedToken = await state.authService.getAccessToken();
-              if (refreshedToken) {
-                state.accessToken = refreshedToken;
-                if (state.client) {
-                  state.client.updateCredential(refreshedToken);
-                }
-                clearAuthReminder(connectionId);
+            verbose(
+              '[TokenRefresh] Initial token check - attempting to get fresh token for connection',
+              {
+                connectionId,
+              }
+            );
 
-                if (connectionId === activeConnectionId) {
-                  await updateAuthStatusBar();
-                }
+            // Use getAccessToken() which has backoff logic built-in
+            const refreshedToken = await state.authService.getAccessToken();
+            if (refreshedToken) {
+              state.accessToken = refreshedToken;
+              if (state.client) {
+                state.client.updateCredential(refreshedToken);
+              }
 
-                if (entraAuthProvider) {
-                  await entraAuthProvider.updateSessionForConnection(connectionId);
-                }
+              // Reset failure tracking on success
+              state.refreshFailureCount = 0;
+              state.lastRefreshFailure = undefined;
+              state.refreshBackoffUntil = undefined;
+
+              clearAuthReminder(connectionId);
+
+              if (connectionId === activeConnectionId) {
+                await updateAuthStatusBar();
+              }
+
+              if (entraAuthProvider) {
+                await entraAuthProvider.updateSessionForConnection(connectionId);
               }
             } else {
-              ensureAuthReminder(connectionId, 'refreshFailed', {
-                detail: result.error ? `Refresh failed: ${result.error}` : undefined,
+              verbose(
+                '[TokenRefresh] Initial check - could not get fresh token, likely in backoff period',
+                {
+                  connectionId,
+                }
+              );
+
+              triggerAuthReminderSignIn(connectionId, 'refreshFailed', {
+                detail: 'Token refresh failed. Click "Sign In" to re-authenticate.',
+                force: true,
               });
 
               if (entraAuthProvider) {
@@ -1973,11 +2111,10 @@ async function handleMessage(msg: any) {
 
       if (action === 'signIn') {
         clearAuthReminder(connectionId);
-        if (extensionContextRef) {
-          await signInWithEntra(extensionContextRef, connectionId, { showSuccessMessage: true });
-        } else {
-          await vscode.commands.executeCommand('azureDevOpsInt.signInWithEntra', connectionId);
-        }
+        triggerAuthReminderSignIn(connectionId, 'authFailed', {
+          force: true,
+          startInteractive: true,
+        });
         break;
       }
 
@@ -3085,7 +3222,7 @@ async function setupConnection(context: vscode.ExtensionContext) {
 async function signInWithEntra(
   context: vscode.ExtensionContext,
   targetConnectionId?: string,
-  options: { showSuccessMessage?: boolean } = {}
+  options: { showSuccessMessage?: boolean; forceInteractive?: boolean } = {}
 ): Promise<void> {
   await ensureConnectionsInitialized(context);
 
@@ -3143,7 +3280,10 @@ async function signInWithEntra(
 
   const connectionLabel = describeConnection(connection);
   try {
-    const result = await ensureEntraAuthService(context, connection, { interactive: true });
+    const result = await ensureEntraAuthService(context, connection, {
+      interactive: true,
+      forceInteractive: options.forceInteractive === true,
+    });
 
     if (!result.success || !result.token) {
       vscode.window.showErrorMessage(
@@ -3159,6 +3299,14 @@ async function signInWithEntra(
     if (connection.authMethod !== 'entra') {
       connection.authMethod = 'entra';
       await saveConnectionsToConfig(context, connections);
+    }
+
+    // Reset refresh failure tracking since sign-in was successful
+    const state = connectionStates.get(connection.id);
+    if (state) {
+      state.refreshFailureCount = 0;
+      state.lastRefreshFailure = undefined;
+      state.refreshBackoffUntil = undefined;
     }
 
     clearAuthReminder(connection.id);

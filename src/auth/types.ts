@@ -52,6 +52,11 @@ export interface IAuthProvider {
   signOut(): Promise<void>;
 
   /**
+   * Reset token cache and failure tracking
+   */
+  resetToken?(): Promise<void>;
+
+  /**
    * Check if currently authenticated
    */
   isAuthenticated(): Promise<boolean>;

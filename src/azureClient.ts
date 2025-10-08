@@ -15,8 +15,8 @@ interface ClientOptions {
   baseUrl?: string; // Custom base URL for different Azure DevOps instances
   apiBaseUrl?: string; // Manual API base URL override (takes precedence over derived URL)
   authType?: AuthType; // 'pat' (default) or 'bearer' for Entra ID tokens
-  tokenRefreshCallback?: () => Promise<string | undefined>; // Callback to refresh token on 401
   identityName?: string; // Optional identity name for on-prem servers where @Me doesn't resolve
+  onAuthFailure?: (error: Error) => void;
 }
 
 export class AzureDevOpsIntClient {
@@ -28,8 +28,8 @@ export class AzureDevOpsIntClient {
   private _repoCache: any[] | undefined;
   private credential: string; // PAT or access token
   private authType: AuthType;
-  private tokenRefreshCallback?: () => Promise<string | undefined>;
   private limiter: RateLimiter;
+  private onAuthFailure?: (error: Error) => void;
   public team: string | undefined;
   public encodedTeam: string | undefined;
   // Capability cache: prefer using [System.StateCategory] unless Azure DevOps rejects it for this org/project
@@ -49,7 +49,7 @@ export class AzureDevOpsIntClient {
     this.project = project;
     this.credential = credential;
     this.authType = options.authType ?? 'pat';
-    this.tokenRefreshCallback = options.tokenRefreshCallback;
+    this.onAuthFailure = options.onAuthFailure;
     this.team = options.team?.trim() ? options.team.trim() : undefined;
     this.preferStateCategory = options.wiqlPreferStateCategory ?? true;
     this.identityName = options.identityName?.trim() ? options.identityName.trim() : undefined;
@@ -177,22 +177,20 @@ export class AzureDevOpsIntClient {
             console.error('[azureDevOpsInt][HTTP][ERR] body:', snippet);
           }
 
-          // Handle 401 for bearer token auth - try to refresh token
-          if (status === 401 && this.authType === 'bearer' && this.tokenRefreshCallback) {
-            console.log('[azureDevOpsInt][HTTP] 401 detected, attempting token refresh...');
+          // Handle 401 for bearer token auth - throw error immediately to stop retry loops
+          if (status === 401 && this.authType === 'bearer') {
+            console.error('[azureDevOpsInt][HTTP] 401 Unauthorized - authentication required');
+            const authError = new Error(
+              'Authentication failed: 401 Unauthorized. Please re-authenticate.'
+            );
+            authError.name = 'AuthenticationError';
+            (authError as any).status = 401;
             try {
-              const newToken = await this.tokenRefreshCallback();
-              if (newToken) {
-                console.log('[azureDevOpsInt][HTTP] Token refreshed, retrying request...');
-                this.credential = newToken;
-                // Reset attempt counter for the refresh retry
-                (cfg as any).__attempt = 0;
-                return this.axios(cfg);
-              }
-            } catch (refreshError) {
-              console.error('[azureDevOpsInt][HTTP] Token refresh failed:', refreshError);
-              // Continue with normal error flow
+              this.onAuthFailure?.(authError);
+            } catch (callbackError) {
+              console.error('[azureDevOpsInt][HTTP] onAuthFailure callback threw', callbackError);
             }
+            throw authError;
           }
         } else if (err.code === 'ECONNABORTED') {
           console.error(

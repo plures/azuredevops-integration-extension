@@ -108,6 +108,15 @@ export class AuthService {
   }
 
   /**
+   * Reset token cache and failure tracking (if supported)
+   */
+  async resetToken(): Promise<void> {
+    if (this.provider.resetToken) {
+      return this.provider.resetToken();
+    }
+  }
+
+  /**
    * Check if currently authenticated
    */
   async isAuthenticated(): Promise<boolean> {

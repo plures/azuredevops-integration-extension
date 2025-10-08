@@ -149,6 +149,8 @@ vite.config.ts.timestamp-*
 # Generated webview files
 #media/webview
 
+# Loading frame assets (generated screenshots)
+images/loading-frames/*.png
 
 # Demo files (for testing only)
 demo/
