@@ -6,6 +6,16 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.9.11] - 2025-10-08
+
+### Fixed
+
+- **Comment composer**: Spacebar and normal typing now work reliably inside the comment/summary textarea; global selection toggle shortcuts are ignored whenever focus is in that field.
+
+### Changed
+
+- **Keyboard navigation**: Added a Vim-style insert mode toggle—press `i` to pause navigation shortcuts and `Esc` to resume—plus clear status indicators so power users can control when shortcuts are active.
+
 ## [1.9.9] - 2025-10-08
 
 ### Changed

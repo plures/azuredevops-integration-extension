@@ -45,7 +45,7 @@
 ### 🎨 **Rich Interface**
 
 - **Dual Views**: Toggle between detailed list and visual Kanban board
-- **Keyboard Navigation**: Vim-style shortcuts (r, v, /) and multi-select
+- **Keyboard Navigation**: Vim-style shortcuts (r, v, /) and multi-select, plus an insert mode toggle to pause shortcuts while typing
 - **Accessibility**: Full ARIA support and screen reader compatibility
 - **Performance Dashboard**: Real-time metrics and optimization tips
 
@@ -153,7 +153,8 @@ Select multiple work items (Ctrl/Cmd+Click or checkboxes) for batch operations:
 ### ⌨️ **Keyboard Shortcuts**
 
 - `r` - Refresh • `v` - Toggle Kanban view • `/` - Focus search
-- `Space` - Toggle selection • `Esc` - Clear selection • `Ctrl+A` - Select all
+- `Space` - Toggle selection • `Esc` - Clear selection or exit insert mode • `Ctrl+A` - Select all
+- `i` / `I` - Enter insert mode to pause navigation shortcuts (type freely in summary/comments)
 - **Full accessibility** with screen reader support
 
 ## ⌨️ Essential Commands

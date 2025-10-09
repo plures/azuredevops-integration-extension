@@ -1,6 +1,7 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import Toasts from './Toasts.svelte';
+  import { addToast } from './toastStore';
   const dispatch = createEventDispatcher();
   export let workItemCount = 0;
   // Optional subtitle (removed legacy 'Svelte flag on' marker)
@@ -190,11 +191,62 @@
   ];
 
   // Keyboard navigation handlers
-  function handleKeydown(event) {
+  function disableKeyboardNavigation() {
     if (!keyboardNavigationEnabled) return;
+    keyboardNavigationEnabled = false;
+    addToast('Keyboard shortcuts paused—press Esc to resume navigation.', {
+      type: 'info',
+      timeout: 6000,
+    });
+  }
 
+  function enableKeyboardNavigation() {
+    if (keyboardNavigationEnabled) return;
+    keyboardNavigationEnabled = true;
+    addToast('Keyboard navigation re-enabled.', { type: 'info', timeout: 3000 });
+  }
+
+  function handleKeydown(event) {
+    const target = event.target;
     const { key, ctrlKey, metaKey, shiftKey } = event;
     const isModifier = ctrlKey || metaKey;
+
+    if (!keyboardNavigationEnabled) {
+      if (!isModifier && key === 'Escape') {
+        event.preventDefault();
+        enableKeyboardNavigation();
+      }
+      return;
+    }
+
+    // Skip keyboard shortcuts while the user is focused inside interactive form fields.
+    const tagName = (target?.tagName || '').toLowerCase();
+    const path = event.composedPath?.() || [];
+    const shouldBypass = (node) => {
+      if (!(node instanceof Element)) return false;
+      const el = node;
+      const nodeTag = (el.tagName || '').toLowerCase();
+      return (
+        el?.isContentEditable === true ||
+        nodeTag === 'input' ||
+        nodeTag === 'textarea' ||
+        nodeTag === 'select' ||
+        nodeTag === 'button' ||
+        el?.dataset?.disableKeynav !== undefined ||
+        Boolean(el.closest('[data-disable-keynav]'))
+      );
+    };
+    if (
+      target?.isContentEditable ||
+      tagName === 'input' ||
+      tagName === 'textarea' ||
+      tagName === 'select' ||
+      tagName === 'button' ||
+      target?.closest?.('[data-disable-keynav]') ||
+      path.some(shouldBypass)
+    ) {
+      return;
+    }
 
     switch (key) {
       case 'j':
@@ -247,7 +299,15 @@
         break;
       case 'Escape':
         event.preventDefault();
+        enableKeyboardNavigation();
         clearSelection();
+        break;
+      case 'I':
+      case 'i':
+        if (!isModifier) {
+          event.preventDefault();
+          disableKeyboardNavigation();
+        }
         break;
       case 'a':
         if (isModifier) {
@@ -619,6 +679,11 @@
         >
       {/if}
     {/if}
+    {#if !keyboardNavigationEnabled}
+      <span class="nav-status" aria-live="polite"
+        >Insert mode — shortcuts paused (Esc to resume)</span
+      >
+    {/if}
     <span class="actions" style="margin-left:auto;">
       <span class="filters" aria-label="Filters and sort">
         <input
@@ -778,7 +843,7 @@
 
                       <!-- Summary Composer for this work item -->
                       {#if summaryWorkItemId === Number(it.id)}
-                        <div class="work-item-summary">
+                        <div class="work-item-summary" data-disable-keynav>
                           <div class="summary-header">
                             <div class="summary-context">
                               <span class="summary-target-label">Comment</span>
@@ -810,8 +875,10 @@
                             value={summaryDraft}
                             on:input={onSummaryInput}
                             on:blur={onSummaryBlur}
+                            on:keydown|stopPropagation
                             rows="3"
                             disabled={summaryAreaDisabled}
+                            data-disable-keynav
                           ></textarea>
                           <div class="summary-actions">
                             <div class="summary-buttons">
@@ -1001,7 +1068,7 @@
 
               <!-- Summary Composer for this work item -->
               {#if summaryWorkItemId === Number(it.id)}
-                <div class="work-item-summary">
+                <div class="work-item-summary" data-disable-keynav>
                   <div class="summary-header">
                     <div class="summary-context">
                       <span class="summary-target-label">Comment</span>
@@ -1030,8 +1097,10 @@
                     value={summaryDraft}
                     on:input={onSummaryInput}
                     on:blur={onSummaryBlur}
+                    on:keydown|stopPropagation
                     rows="3"
                     disabled={summaryAreaDisabled}
+                    data-disable-keynav
                   ></textarea>
                   <div class="summary-actions">
                     <div class="summary-buttons">
@@ -1217,6 +1286,18 @@
     background: var(--vscode-editorGroupHeader-tabsBackground);
     color: var(--vscode-editor-foreground);
     flex-shrink: 0;
+  }
+
+  .nav-status {
+    margin-left: 12px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: rgba(255, 140, 0, 0.18);
+    color: var(--ado-orange);
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
 
   .muted {
