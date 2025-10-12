@@ -892,7 +892,7 @@
                                 <span class="codicon codicon-rocket" aria-hidden="true"></span>
                                 {summaryButtonLabel}
                               </button>
-                              {#if timerActive && activeId === Number(it.id)}
+                              <!-- {#if timerActive && activeId === Number(it.id)}
                                 <button
                                   class="action-btn summary-apply"
                                   on:click|preventDefault={onStopAndApplySummary}
@@ -903,7 +903,7 @@
                                   <span class="codicon codicon-check" aria-hidden="true"></span>
                                   Stop &amp; Apply
                                 </button>
-                              {:else}
+                              {:else} -->
                                 <button
                                   class="action-btn summary-apply"
                                   on:click|preventDefault={() =>
@@ -915,7 +915,7 @@
                                   <span class="codicon codicon-check" aria-hidden="true"></span>
                                   Apply
                                 </button>
-                              {/if}
+                              <!-- {/if} -->
                             </div>
                             <div class="summary-helper">{summaryHelperText}</div>
                           </div>
@@ -1114,7 +1114,7 @@
                         <span class="codicon codicon-rocket" aria-hidden="true"></span>
                         {summaryButtonLabel}
                       </button>
-                      {#if timerActive && activeId === Number(it.id)}
+                      <!-- {#if timerActive && activeId === Number(it.id)}
                         <button
                           class="action-btn summary-apply"
                           on:click|preventDefault={onStopAndApplySummary}
@@ -1125,7 +1125,7 @@
                           <span class="codicon codicon-check" aria-hidden="true"></span>
                           Stop &amp; Apply
                         </button>
-                      {:else}
+                      {:else} -->
                         <button
                           class="action-btn summary-apply"
                           on:click|preventDefault={() =>
@@ -1137,7 +1137,7 @@
                           <span class="codicon codicon-check" aria-hidden="true"></span>
                           Apply
                         </button>
-                      {/if}
+                      <!-- {/if} -->
                     </div>
                     <div class="summary-helper">{summaryHelperText}</div>
                   </div>

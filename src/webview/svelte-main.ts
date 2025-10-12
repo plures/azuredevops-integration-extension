@@ -348,7 +348,7 @@ function ensureApp() {
         workItemId: Number(first.id || first.fields?.['System.Id']),
       });
   });
-  (app as any).$on('stopTimer', () => postMessage({ type: 'stopTimer' }));
+  (app as any).$on('stopTimer', () => postMessage({ type: 'stopTimer', mode: 'timerStop' }));
   (app as any).$on('openActive', (ev: any) => {
     const id = ev?.detail?.id ?? activeId;
     if (id != null) {
