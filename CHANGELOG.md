@@ -6,6 +6,18 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.9.12] - 2025-10-08
+
+### Changed
+
+- **Microsoft Entra sign-in flow**: Reminder cards now stay quiet until you click **Sign in**, at which point the extension clears stale credentials and launches the device-code prompt so you always get a fresh code on demand.
+- **Setup wizard**: Completing a new project with Entra authentication automatically kicks off the device-code sign-in, making sure the connection is ready to use immediately.
+- **Timer workflow**: Stopping the timer opens the comment composer directly inside the work items view with a concise **Apply** button—no more extra quick pick dialog—while starting a timer keeps the composer hidden so focus stays on the board/list.
+
+### Fixed
+
+- **Status bar timer**: The Svelte webview now reports user activity again, allowing the timer to resume from “Paused” the moment you interact with the UI.
+
 ## [1.9.11] - 2025-10-08
 
 ### Fixed
