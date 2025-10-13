@@ -225,14 +225,6 @@ Select multiple work items (Ctrl/Cmd+Click or checkboxes) for batch operations:
 
 ---
 
-## �️ See It In Action
-
-![Extension Demo - Loading sequence showing initialization, work item list, and Kanban board views](images/loading-sequence.gif)
-
-**Watch the complete workflow:** Initialization → Work item queries → List and Kanban views with smooth transitions and native VS Code theming.
-
----
-
 ## 📚 Documentation & Resources
 
 - **[Marketplace Page](https://marketplace.visualstudio.com/items?itemName=PluresLLC.azure-devops-integration-extension)** - Install and reviews
