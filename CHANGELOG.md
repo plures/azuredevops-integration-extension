@@ -6,6 +6,12 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.9.13] - 2025-10-13
+
+### Fixed
+
+- **Webview initialization**: Fixed tabs getting stuck on "Initializing extension..." when authentication reminders couldn't be delivered because the webview panel wasn't ready yet. Authentication reminders are now properly queued and delivered when the webview loads, ensuring users see sign-in prompts instead of indefinite loading screens.
+
 ## [1.9.12] - 2025-10-08
 
 ### Changed

@@ -584,7 +584,11 @@ function postAuthReminderToWebview(
   connectionState: ConnectionState,
   reminder: AuthReminderState
 ) {
-  if (!panel) return;
+  if (!panel) {
+    // Panel not available - ensure reminder stays pending for redelivery
+    reminder.deliveredToWebview = false;
+    return;
+  }
   const label = reminder.label ?? describeConnection(connectionState.config);
   sendToWebview({
     type: 'authReminder',
