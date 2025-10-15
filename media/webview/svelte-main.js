@@ -2605,7 +2605,7 @@ function create_if_block_14(ctx) {
       t9 = space();
       button2 = element("button");
       span4 = element("span");
-      t10 = text("\n                          Apply");
+      t10 = text("\r\n                          Apply");
       t11 = space();
       div4 = element("div");
       t12 = text(
@@ -3828,7 +3828,7 @@ function create_if_block_6(ctx) {
       t9 = space();
       button2 = element("button");
       span4 = element("span");
-      t10 = text("\n                                  Apply");
+      t10 = text("\r\n                                  Apply");
       t11 = space();
       div4 = element("div");
       t12 = text(

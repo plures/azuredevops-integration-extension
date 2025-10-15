@@ -6,6 +6,12 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.9.14] - 2025-10-15
+
+### Fixed
+
+- **Missing apiBaseUrl Migration**: Fixed critical 404 "Project not found" errors for connections created before v1.9.6 by adding automatic migration logic that reconstructs missing `apiBaseUrl` fields using the correct URL format (`https://dev.azure.com/{organization}/{project}/_apis`). This resolves authentication loops and ensures existing connections work properly without requiring users to recreate them.
+
 ## [1.9.13] - 2025-10-13
 
 ### Fixed

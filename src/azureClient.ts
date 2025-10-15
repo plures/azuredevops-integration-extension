@@ -131,12 +131,21 @@ export class AzureDevOpsIntClient {
       (cfg as any).__start = Date.now();
       // Attach attempt counter for retries
       (cfg as any).__attempt = ((cfg as any).__attempt || 0) + 1;
+
+      // Enhanced debugging: log token info (first/last chars only for security)
+      const authHeader = cfg.headers?.['Authorization'] as string;
+      const tokenDebug = authHeader
+        ? `${authHeader.substring(0, 20)}...${authHeader.substring(authHeader.length - 10)}`
+        : 'NO_AUTH_HEADER';
+
       console.log(
         '[azureDevOpsInt][HTTP] →',
         cfg.method?.toUpperCase(),
         cfg.url,
         'attempt',
-        (cfg as any).__attempt
+        (cfg as any).__attempt,
+        'token:',
+        tokenDebug
       );
       return cfg;
     });
@@ -158,6 +167,22 @@ export class AzureDevOpsIntClient {
         const ms = cfg.__start ? Date.now() - cfg.__start : 'n/a';
         if (err.response) {
           const { status, statusText, data } = err.response;
+
+          // Enhanced error logging for 404s
+          if (status === 404) {
+            console.error('[azureDevOpsInt][HTTP][404_DETAILS]', {
+              method: cfg.method?.toUpperCase(),
+              url: cfg.url,
+              fullUrl: cfg.baseURL + cfg.url,
+              status,
+              statusText,
+              responseData: data,
+              authType: this.authType,
+              organization: this.organization,
+              project: this.project,
+            });
+          }
+
           console.error(
             '[azureDevOpsInt][HTTP][ERR]',
             cfg.method?.toUpperCase(),
@@ -178,13 +203,14 @@ export class AzureDevOpsIntClient {
           }
 
           // Handle 401 for bearer token auth - throw error immediately to stop retry loops
+          // Note: 404 is handled individually by methods since it can have different meanings
           if (status === 401 && this.authType === 'bearer') {
-            console.error('[azureDevOpsInt][HTTP] 401 Unauthorized - authentication required');
+            console.error(`[azureDevOpsInt][HTTP] 401 Unauthorized - authentication required`);
             const authError = new Error(
-              'Authentication failed: 401 Unauthorized. Please re-authenticate.'
+              `Authentication failed: 401 Unauthorized. Please re-authenticate.`
             );
             authError.name = 'AuthenticationError';
-            (authError as any).status = 401;
+            (authError as any).status = status;
             try {
               this.onAuthFailure?.(authError);
             } catch (callbackError) {
@@ -846,6 +872,16 @@ export class AzureDevOpsIntClient {
             '• The PAT has "Work Items (Read)" permission\n' +
             '• You have access to this project';
         } else if (status === 404) {
+          // Log 404 details for debugging
+          console.log('[azureDevOpsInt][GETWI] 404 Not Found', {
+            organization: this.organization,
+            project: this.project,
+            authType: this.authType,
+            url: err?.request?.url || err?.config?.url,
+          });
+
+          // For both PAT and Entra ID, treat 404 as project/access issue, not auth failure
+          // Auth failures should return 401, not 404
           errorMessage =
             `Project not found (404). Please verify:\n` +
             `• Organization: "${this.organization}"\n` +

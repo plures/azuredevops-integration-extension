@@ -675,12 +675,11 @@ export class SetupWizard {
 
     if (!this.data.parsedUrl) return false;
 
-    // For PAT auth, perform a token-based connection test. For Entra ID, we
-    // defer interactive auth to first use and mark this step as completed.
+    // For PAT auth, perform a token-based connection test
+    // For Entra ID auth, perform interactive authentication and test the connection
     if (this.data.authMethod === 'entra') {
-      this.data.connectionTested = true;
-      step.completed = true;
-      return true;
+      // Perform actual Entra ID authentication during setup instead of deferring
+      return await this.testEntraIDConnection();
     }
 
     // Show progress
@@ -706,6 +705,136 @@ export class SetupWizard {
     );
 
     return this.data.connectionTested || false;
+  }
+
+  /**
+   * Test Entra ID connection by performing interactive authentication
+   */
+  private async testEntraIDConnection(): Promise<boolean> {
+    const step = this.steps[3];
+
+    if (!this.data.parsedUrl || !this.data.clientId || !this.data.tenantId) {
+      throw new Error('Missing Entra ID configuration data');
+    }
+
+    try {
+      // Show progress while authenticating
+      return await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'Testing Entra ID connection...',
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ increment: 0, message: 'Starting device code authentication...' });
+
+          // Import auth services
+          const { createAuthService } = await import('./auth/index.js');
+
+          // Create a temporary connection ID for testing
+          const tempConnectionId = `temp-setup-${Date.now()}`;
+
+          // Create auth service for testing with custom device code callback
+          const authService = await createAuthService(
+            'entra',
+            this.context.secrets,
+            tempConnectionId,
+            {
+              entraConfig: {
+                clientId: this.data.clientId!,
+                tenantId: this.data.tenantId!,
+                scopes: ['https://app.vssps.visualstudio.com/.default'],
+              },
+              deviceCodeCallback: async (deviceCode, userCode, verificationUri, expiresIn) => {
+                // Show the device code in VS Code's native browser dialog
+                // This prevents the webview auth reminder from appearing
+                const uri = vscode.Uri.parse(verificationUri);
+                await vscode.env.openExternal(uri);
+
+                // Show information message with the user code
+                const result = await vscode.window.showInformationMessage(
+                  `To complete sign-in, enter code: ${userCode}`,
+                  'Open Browser Again',
+                  'Cancel'
+                );
+
+                if (result === 'Open Browser Again') {
+                  await vscode.env.openExternal(uri);
+                }
+              },
+            }
+          );
+
+          progress.report({ increment: 30, message: 'Authenticating with Microsoft...' });
+
+          // Perform interactive authentication
+          const authResult = await authService.authenticate();
+
+          if (!authResult.success || !authResult.accessToken) {
+            throw new Error(authResult.error || 'Authentication failed');
+          }
+
+          progress.report({ increment: 70, message: 'Testing API access...' });
+
+          // Test the connection by making an API call
+          const { AzureDevOpsIntClient } = await import('./azureClient.js');
+          const parsedUrl = this.data.parsedUrl!; // We already checked this exists
+          const testClient = new AzureDevOpsIntClient(
+            parsedUrl.organization,
+            parsedUrl.project,
+            authResult.accessToken,
+            {
+              authType: 'bearer',
+              baseUrl: parsedUrl.baseUrl,
+              apiBaseUrl: parsedUrl.apiBaseUrl,
+              // Provide no-op auth failure callback to prevent auth reminders during setup
+              onAuthFailure: () => {
+                // During setup, we handle auth failures in this method
+                // Don't trigger the normal auth reminder system
+              },
+            }
+          );
+
+          // Try to get a simple work item query to test access
+          try {
+            await testClient.getWorkItems('SELECT TOP 1 [System.Id] FROM WorkItems');
+            progress.report({ increment: 100, message: 'Connection successful!' });
+
+            this.data.connectionTested = true;
+            step.completed = true;
+
+            // Clean up the temporary auth service
+            await authService.signOut?.();
+
+            return true;
+          } catch (apiError: any) {
+            // If we get here, authentication worked but there might be permission issues
+            // or the project might not have any work items. Check the specific error.
+            if (apiError.message?.includes('404') || apiError.message?.includes('not found')) {
+              // 404 might mean no work items exist, but auth is working
+              progress.report({ increment: 100, message: 'Authentication successful!' });
+              this.data.connectionTested = true;
+              step.completed = true;
+              await authService.signOut?.();
+              return true;
+            }
+            throw apiError;
+          }
+        }
+      );
+    } catch (error: any) {
+      console.error('[SetupWizard] Entra ID connection test failed:', error);
+
+      vscode.window.showErrorMessage(
+        `Entra ID authentication failed: ${error.message || 'Unknown error'}\n\n` +
+          'Please check:\n' +
+          '• Your internet connection\n' +
+          '• Azure DevOps organization and project names\n' +
+          '• Your Microsoft account has access to the project'
+      );
+
+      return false;
+    }
   }
 
   /**

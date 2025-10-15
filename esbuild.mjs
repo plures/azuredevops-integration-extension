@@ -16,7 +16,7 @@ async function build() {
       entryPoints: { extension: path.join(__dirname, 'src', 'activation.ts') },
       bundle: true,
       platform: 'node',
-      target: ['node20'],
+      target: ['node24'],
       external: ['vscode'],
       outfile: path.join(__dirname, 'dist', 'extension.js'),
       sourcemap: !isProd,

@@ -915,6 +915,39 @@ async function loadConnectionsFromConfig(
         sanitized.baseUrl = `https://dev.azure.com/${sanitized.organization}`;
       }
 
+      // Migrate existing connections to have apiBaseUrl if they don't have one
+      // This fixes connections created before v1.9.6 that are missing the apiBaseUrl field
+      if (
+        !sanitized.apiBaseUrl &&
+        sanitized.baseUrl &&
+        sanitized.organization &&
+        sanitized.project
+      ) {
+        try {
+          const lowerBase = sanitized.baseUrl.toLowerCase();
+          if (lowerBase.includes('dev.azure.com')) {
+            // Azure DevOps Services (cloud)
+            sanitized.apiBaseUrl = `${sanitized.baseUrl.replace(/\/$/, '')}/${sanitized.organization}/${sanitized.project}/_apis`;
+          } else if (lowerBase.includes('visualstudio.com')) {
+            // Legacy Azure DevOps Services URL
+            sanitized.apiBaseUrl = `${sanitized.baseUrl.replace(/\/$/, '')}/${sanitized.project}/_apis`;
+          } else {
+            // On-premises Azure DevOps Server
+            sanitized.apiBaseUrl = `${sanitized.baseUrl.replace(/\/$/, '')}/${sanitized.organization}/${sanitized.project}/_apis`;
+          }
+          verbose('[connections] Migrated apiBaseUrl for connection', {
+            id: sanitized.id,
+            apiBaseUrl: sanitized.apiBaseUrl,
+          });
+        } catch (e) {
+          console.warn(
+            '[connections] Failed to migrate apiBaseUrl for connection',
+            sanitized.id,
+            e
+          );
+        }
+      }
+
       normalized.push(sanitized);
     }
   }
@@ -935,6 +968,24 @@ async function loadConnectionsFromConfig(
   }
 
   connections = normalized;
+
+  // Save migrated connections back to config if any apiBaseUrl fields were added
+  const needsSave = rawConnections.some(
+    (raw, index) => !raw.apiBaseUrl && normalized[index] && normalized[index].apiBaseUrl
+  );
+  if (needsSave) {
+    try {
+      const settings = getConfig();
+      await settings.update(
+        CONNECTIONS_CONFIG_KEY,
+        normalized.map((entry) => ({ ...entry })),
+        vscode.ConfigurationTarget.Global
+      );
+      verbose('[connections] Saved migrated connections with apiBaseUrl fields');
+    } catch (e) {
+      console.warn('[connections] Failed to save migrated connections', e);
+    }
+  }
 
   // Migrate any existing global PAT into per-connection secret keys so
   // credentials are always connection-scoped (no global PAT sharing).
@@ -1087,6 +1138,7 @@ async function ensureActiveConnection(
     organization: connection.organization,
     project: connection.project,
     baseUrl: connection.baseUrl,
+    apiBaseUrl: connection.apiBaseUrl, // Add this to see if it's set
     authMethod: connection.authMethod || 'pat',
     hasIdentityName: !!connection.identityName,
     identityName: connection.identityName, // Show for debugging on-prem identity
@@ -1115,12 +1167,15 @@ async function ensureActiveConnection(
     credential = entraResult.token;
 
     if (!entraResult.success || !credential) {
-      verbose('[azureDevOpsInt] Entra ID token unavailable; deferring to reminder flow', {
+      verbose('[azureDevOpsInt] Entra ID token unavailable; triggering interactive auth', {
         connectionId: targetId,
         error: entraResult.error,
       });
-      ensureAuthReminder(targetId, 'authFailed', {
+      // Trigger interactive auth automatically instead of just showing reminder
+      triggerAuthReminderSignIn(targetId, 'authFailed', {
         detail: entraResult.error ? `Details: ${entraResult.error}` : undefined,
+        force: true,
+        startInteractive: true,
       });
       provider = undefined;
       client = undefined;
@@ -1196,7 +1251,14 @@ async function ensureActiveConnection(
         onAuthFailure: (error) => {
           state.accessToken = undefined;
           const detail = error?.message ? `Details: ${error.message}` : undefined;
-          triggerAuthReminderSignIn(state.id, 'authFailed', { detail, force: true });
+          // For Entra ID connections, trigger interactive auth immediately on auth failures (like 404s)
+          // For PAT connections, show reminder (PAT issues need manual intervention)
+          const shouldStartInteractive = (state.authMethod ?? 'pat') === 'entra';
+          triggerAuthReminderSignIn(state.id, 'authFailed', {
+            detail,
+            force: true,
+            startInteractive: shouldStartInteractive,
+          });
         },
       }
     );

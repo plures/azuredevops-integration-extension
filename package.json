@@ -2,7 +2,7 @@
   "name": "azuredevops-integration-extension",
   "displayName": "Azure DevOps Integration for VS Code",
   "description": "Integrate Azure DevOps work items, time tracking, and Git workflows directly in VS Code. Manage tasks, track time, create branches, and submit pull requests without leaving your editor.",
-  "version": "1.9.13",
+  "version": "1.9.14",
   "publisher": "PluresLLC",
   "icon": "media/icon.png",
   "repository": {
@@ -35,10 +35,7 @@
     "project management"
   ],
   "activationEvents": [
-    "onStartupFinished",
-    "onView:azureDevOpsWorkItems",
-    "onCommand:azureDevOpsInt.showWorkItems",
-    "onCommand:azureDevOpsInt.setup"
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "files": [
@@ -620,7 +617,7 @@
     "sql.js": "^1.13.0"
   },
   "volta": {
-    "node": "20.19.0",
-    "npm": "10.2.4"
+    "node": "24.10.0",
+    "npm": "10.9.0"
   }
 }
