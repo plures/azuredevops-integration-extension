@@ -11,7 +11,10 @@ let counter = 0;
 const store = writable<Toast[]>([]);
 export const toasts = store;
 
-export function addToast(message: string, opts: Partial<Pick<Toast, 'type' | 'timeout'>> = {}) {
+export function addToast(
+  message: string,
+  opts: Partial<Pick<Toast, 'type' | 'timeout'>> = {}
+): number {
   const id = ++counter;
   const toast: Toast = {
     id,
@@ -26,10 +29,10 @@ export function addToast(message: string, opts: Partial<Pick<Toast, 'type' | 'ti
   return id;
 }
 
-export function removeToast(id: number) {
+export function removeToast(id: number): void {
   store.update((list) => list.filter((t) => t.id !== id));
 }
 
-export function clearToasts() {
+export function clearToasts(): void {
   store.set([]);
 }

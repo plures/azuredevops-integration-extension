@@ -4,7 +4,7 @@
 
 - **Start with a clear contract:** Decide which VS Code surfaces you need (commands, views, webviews, notebooks) and outline activation events and contribution points early. Keep activation lazy; prefer `onCommand`, `onView`, or `workspaceContains` over wildcard activation.
 - **Organize source cleanly:** Separate extension host code (for example `src/`), webviews (`src/webview/`), tests (`tests/`), and build scripts (`scripts/`). Generated output belongs in `dist/` or `out/`; never hand-edit compiled assets.
-- **Choose one module system:** Commit to ESM or CJS. For modern tooling, use `"type": "module"` and ensure test runners/build scripts invoke Node with the appropriate loader (e.g., `node --loader ts-node/esm`).
+- **Choose one module system:** Commit to ESM or CJS. For modern tooling, use `"type": "module"` and ensure test runners/build scripts invoke Node with the appropriate loader (e.g., `node --loader @esbuild-kit/esm-loader`).
 - **Automate bootstrap:** Document `npm ci` and `npm run prepare` in the README. Ship husky + lint-staged hooks so formatting and linting run automatically.
 
 ## Architecture and Activation

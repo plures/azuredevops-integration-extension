@@ -2,7 +2,8 @@
   "name": "azuredevops-integration-extension",
   "displayName": "Azure DevOps Integration for VS Code",
   "description": "Integrate Azure DevOps work items, time tracking, and Git workflows directly in VS Code. Manage tasks, track time, create branches, and submit pull requests without leaving your editor.",
-  "version": "1.9.14",
+  "version": "1.10.0",
+  "type": "module",
   "publisher": "PluresLLC",
   "icon": "media/icon.png",
   "repository": {
@@ -93,6 +94,12 @@
         "command": "azureDevOpsInt.refreshWorkItems",
         "title": "Refresh Work Items",
         "icon": "$(refresh)",
+        "category": "Azure DevOps Int"
+      },
+      {
+        "command": "azureDevOpsInt.debugConnections",
+        "title": "Debug Connection Configuration",
+        "icon": "$(bug)",
         "category": "Azure DevOps Int"
       },
       {
@@ -198,6 +205,11 @@
         "category": "Azure DevOps Int"
       },
       {
+        "command": "azureDevOpsInt.forceAuthReset",
+        "title": "Force Authentication Reset",
+        "category": "Azure DevOps Int"
+      },
+      {
         "command": "azureDevOpsInt.convertConnectionToEntra",
         "title": "Convert Connection to Entra ID Auth",
         "category": "Azure DevOps Int"
@@ -279,6 +291,144 @@
         "title": "Query Builder",
         "category": "Azure DevOps Int",
         "icon": "$(search)"
+      },
+      {
+        "command": "azureDevOpsInt.showFSMStatus",
+        "title": "Show FSM Status",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(debug)"
+      },
+      {
+        "command": "azureDevOpsInt.showFSMTraceStatus",
+        "title": "Show FSM Trace Status",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(history)"
+      },
+      {
+        "command": "azureDevOpsInt.exportFSMTrace",
+        "title": "Export FSM Trace",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(export)"
+      },
+      {
+        "command": "azureDevOpsInt.importFSMTrace",
+        "title": "Import FSM Trace",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(import)"
+      },
+      {
+        "command": "azureDevOpsInt.analyzeFSMTrace",
+        "title": "Analyze FSM Trace",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "azureDevOpsInt.startFSMTraceSession",
+        "title": "Start FSM Trace Session",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(record)"
+      },
+      {
+        "command": "azureDevOpsInt.stopFSMTraceSession",
+        "title": "Stop FSM Trace Session",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(stop)"
+      },
+      {
+        "command": "azureDevOpsInt.showFSMTraceTimeline",
+        "title": "Show FSM Trace Timeline",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(timeline-view)"
+      },
+      {
+        "command": "azureDevOpsInt.quickDebug",
+        "title": "🚨 Quick Debug Panel",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(bug)"
+      },
+      {
+        "command": "azureDevOpsInt.showFSMLogs",
+        "title": "Show FSM Logs NOW",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(output)"
+      },
+      {
+        "command": "azureDevOpsInt.triageBrokenFeature",
+        "title": "🔍 Triage Broken Feature",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(search-save)"
+      },
+      {
+        "command": "azureDevOpsInt.toggleFSM",
+        "title": "Toggle FSM Timer",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "azureDevOpsInt.validateTimerSync",
+        "title": "Validate Timer Synchronization",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "azureDevOpsInt.configureLogging",
+        "title": "Configure FSM Logging",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "azureDevOpsInt.showFSMLogs",
+        "title": "Show FSM Logs",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(output)"
+      },
+      {
+        "command": "azureDevOpsInt.showApplicationFSMStatus",
+        "title": "Show Application FSM Status",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(debug)"
+      },
+      {
+        "command": "azureDevOpsInt.startApplicationFSMInspector",
+        "title": "Start Application FSM Inspector",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "azureDevOpsInt.resetApplicationFSM",
+        "title": "Reset Application FSM",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "azureDevOpsInt.getFSMLogs",
+        "title": "Get FSM Logs (Programmatic)",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(file-text)"
+      },
+      {
+        "command": "azureDevOpsInt.exportFSMLogs",
+        "title": "Export FSM Logs to Document",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(export)"
+      },
+      {
+        "command": "azureDevOpsInt.showConnectionFSMStatus",
+        "title": "Show Connection FSM Status",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(debug)"
+      },
+      {
+        "command": "azureDevOpsInt.testConnectionFSM",
+        "title": "Test Connection FSM",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "azureDevOpsInt.validateConnectionSync",
+        "title": "Validate Connection FSM Sync",
+        "category": "Azure DevOps Int (Debug)",
+        "icon": "$(sync)"
       }
     ],
     "keybindings": [
@@ -423,10 +573,6 @@
                 "type": "string",
                 "description": "Azure AD tenant ID (for Entra ID authentication, optional - defaults to 'organizations')"
               },
-              "clientId": {
-                "type": "string",
-                "description": "Azure AD application (client) ID (for Entra ID authentication)"
-              },
               "baseUrl": {
                 "type": "string",
                 "description": "Base URL for the Azure DevOps instance (e.g., https://dev.azure.com/org or https://org.visualstudio.com)"
@@ -536,10 +682,165 @@
           "default": "gpt-4o-mini",
           "description": "OpenAI model identifier to use when summaryProvider is set to 'openai'."
         },
+        "azureDevOpsIntegration.experimental.useFSM": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable FSM (Finite State Machine) architecture for timer component"
+        },
+        "azureDevOpsIntegration.experimental.useApplicationFSM": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Application-wide FSM architecture (orchestrates all extension state management)"
+        },
+        "azureDevOpsIntegration.experimental.useConnectionFSM": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Connection FSM (replaces ensureActiveConnection logic with state machines)"
+        },
+        "azureDevOpsIntegration.experimental.fsmComponents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "timer",
+              "connection",
+              "webview",
+              "messaging"
+            ]
+          },
+          "default": [],
+          "description": "List of components to use FSM for (requires useFSM to be true)"
+        },
+        "azureDevOpsIntegration.experimental.enableFSMInspector": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable FSM visual inspector for development and debugging"
+        },
+        "azureDevOpsIntegration.logging.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable FSM-integrated logging system"
+        },
+        "azureDevOpsIntegration.logging.level": {
+          "type": "string",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARN",
+            "ERROR",
+            "OFF"
+          ],
+          "default": "INFO",
+          "description": "Minimum log level to output (DEBUG < INFO < WARN < ERROR < OFF)"
+        },
+        "azureDevOpsIntegration.logging.components": {
+          "type": "object",
+          "properties": {
+            "APPLICATION": {
+              "type": "boolean",
+              "default": true,
+              "description": "Log Application FSM activities"
+            },
+            "CONNECTION": {
+              "type": "boolean",
+              "default": true,
+              "description": "Log Connection FSM activities"
+            },
+            "TIMER": {
+              "type": "boolean",
+              "default": true,
+              "description": "Log Timer FSM activities"
+            },
+            "WEBVIEW": {
+              "type": "boolean",
+              "default": false,
+              "description": "Log Webview FSM activities"
+            },
+            "AUTH": {
+              "type": "boolean",
+              "default": true,
+              "description": "Log Authentication FSM activities"
+            },
+            "DATA": {
+              "type": "boolean",
+              "default": false,
+              "description": "Log Data FSM activities"
+            },
+            "ADAPTER": {
+              "type": "boolean",
+              "default": false,
+              "description": "Log FSM Adapter activities"
+            },
+            "MACHINE": {
+              "type": "boolean",
+              "default": false,
+              "description": "Log individual State Machine activities"
+            }
+          },
+          "default": {
+            "APPLICATION": true,
+            "CONNECTION": true,
+            "TIMER": true,
+            "WEBVIEW": false,
+            "AUTH": true,
+            "DATA": false,
+            "ADAPTER": false,
+            "MACHINE": false
+          },
+          "description": "Enable/disable logging for specific FSM components"
+        },
+        "azureDevOpsIntegration.logging.destinations": {
+          "type": "object",
+          "properties": {
+            "console": {
+              "type": "boolean",
+              "default": true,
+              "description": "Output logs to developer console"
+            },
+            "outputChannel": {
+              "type": "boolean",
+              "default": true,
+              "description": "Output logs to VS Code Output Channel"
+            },
+            "file": {
+              "type": "boolean",
+              "default": false,
+              "description": "Output logs to file (future feature)"
+            }
+          },
+          "default": {
+            "console": true,
+            "outputChannel": true,
+            "file": false
+          },
+          "description": "Configure where logs are output"
+        },
+        "azureDevOpsIntegration.logging.includeTimestamp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include timestamp in log entries"
+        },
+        "azureDevOpsIntegration.logging.includeStackTrace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include stack trace for WARN and ERROR level logs"
+        },
+        "azureDevOpsIntegration.logging.maxLogEntries": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 100,
+          "maximum": 10000,
+          "description": "Maximum number of log entries to keep in memory buffer"
+        },
+        "azureDevOpsIntegration.logging.contextTracking": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include FSM context information (state, event, machine ID) in logs"
+        },
         "azureDevOpsIntegration.entra.defaultClientId": {
           "type": "string",
           "default": "872cd9fa-d31f-45e0-9eab-6e460a02d1f1",
-          "description": "Default Azure AD application (client) ID for Entra ID authentication. This is the Visual Studio IDE client ID that works with Azure DevOps."
+          "description": "Default Azure AD application (client) ID for Entra ID authentication. This is the Azure DevOps service principal client ID that works with Azure DevOps."
         },
         "azureDevOpsIntegration.entra.defaultTenantId": {
           "type": "string",
@@ -560,7 +861,7 @@
     "compile": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "pretest": "npm run compile",
-    "test": "node --loader ts-node/esm scripts/run-esm-tests-cmd.mjs",
+  "test": "node scripts/run-esm-tests-cmd.mjs",
     "test:unit": "npm test",
     "test:integration": "node scripts/run-integration.mjs",
     "test:ci": "npm run test && npm run test:integration",
@@ -582,39 +883,43 @@
     "screenshots:watch": "node scripts/watch-screenshots.mjs"
   },
   "devDependencies": {
-    "@commitlint/cli": "^19.8.1",
-    "@commitlint/config-conventional": "^19.8.1",
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
+    "@esbuild-kit/esm-loader": "^2.6.5",
     "@types/chai": "^5.2.2",
     "@types/mocha": "^10.0.10",
-    "@types/nock": "^10.0.3",
+    "@types/nock": "^11.1.0",
     "@types/node": "24.x",
     "@types/vscode": "^1.99.0",
-    "@typescript-eslint/eslint-plugin": "^8.44.0",
-    "@typescript-eslint/parser": "^8.44.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.1",
+    "@typescript-eslint/parser": "^8.46.1",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.6.2",
-    "chai": "^6.0.1",
+    "chai": "^6.2.0",
     "chokidar": "^4.0.3",
-    "esbuild": "^0.25.10",
-    "esbuild-svelte": "^0.9.0",
-    "eslint": "^9.36.0",
+    "esbuild": "^0.25.11",
+    "esbuild-svelte": "^0.9.3",
+    "eslint": "^9.37.0",
     "gifenc": "^1.0.3",
     "husky": "^9.1.7",
-    "lint-staged": "^16.1.6",
-    "mocha": "^11.7.2",
+    "lint-staged": "^16.2.4",
+    "mocha": "^11.7.4",
     "nock": "^14.0.10",
-    "playwright": "^1.55.0",
+    "playwright": "^1.56.0",
     "pngjs": "^7.0.0",
     "prettier": "^3.6.2",
-    "svelte": "^4.2.18",
+    "svelte": "^5.40.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "@azure/msal-node": "^3.8.0",
+    "@statelyai/inspect": "^0.4.0",
+    "@xstate/svelte": "^5.0.0",
     "axios": "^1.12.2",
-    "openai": "^4.59.0",
-    "sql.js": "^1.13.0"
+    "openai": "^6.4.0",
+    "sql.js": "^1.13.0",
+    "xstate": "^5.23.0"
   },
   "volta": {
     "node": "24.10.0",

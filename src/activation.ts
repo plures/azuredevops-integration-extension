@@ -2,17 +2,23 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
+import type OpenAIClient from 'openai';
 import { AzureDevOpsIntClient } from './azureClient.js';
 import { parseAzureDevOpsUrl, isAzureDevOpsWorkItemUrl } from './azureDevOpsUrlParser.js';
-import { WorkItemsProvider } from './provider.js';
+import type { WorkItem } from './types.js';
+import type { WorkItemsProvider } from './provider.js';
 import { WorkItemTimer } from './timer.js';
-import type {
-  WorkItem,
-  WorkItemBranchLink,
-  WorkItemBranchMetadata,
-  WorkItemBuildSummary,
-} from './types.js';
 import { SessionTelemetryManager } from './sessionTelemetry.js';
+import {
+  clearConnectionCaches,
+  getBranchEnrichmentState,
+  updateBuildRefreshTimer,
+} from './fsm/functions/connection/branchEnrichment.js';
+import {
+  createBranchAwareTransform,
+  createConnectionProvider,
+} from './fsm/functions/connection/providerFactory.js';
+import { createSharedContextBridge } from './bridge/sharedContextBridge.js';
 import {
   bridgeConsoleToOutputChannel,
   createScopedLogger,
@@ -27,63 +33,61 @@ import {
   postToWebview,
   postWorkItemsSnapshot,
 } from './webviewMessaging.js';
-import type { PostWorkItemsSnapshotParams } from './webviewMessaging.js';
-import type OpenAIClient from 'openai';
+import type { PostWorkItemsSnapshotParams, LoggerFn } from './webviewMessaging.js';
 import { startCacheCleanup, stopCacheCleanup } from './cache.js';
 import { performanceMonitor, MemoryOptimizer } from './performance.js';
-import { AuthService, createAuthService } from './auth/index.js';
-import type { DeviceCodeCallback } from './auth/index.js';
-import { SetupWizard } from './setupWizard.js';
+import {
+  normalizeConnections,
+  resolveActiveConnectionId,
+} from './fsm/functions/activation/connectionNormalization.js';
+import { migrateGlobalPATToConnections } from './fsm/functions/secrets/patMigration.js';
+import {
+  getApplicationStoreActor,
+  sendApplicationStoreEvent,
+  setActiveConnectionHandler,
+  setActiveConnectionIdReader,
+  setExtensionContextRef as setExtensionContextRefBridge,
+  setForwardProviderMessage,
+  setGetSecretPAT,
+  setLoadedConnectionsReader,
+  setRegisterAllCommands,
+  setWebviewMessageHandler,
+} from './fsm/services/extensionHostBridge.js';
+import { registerTraceCommands } from './fsm/commands/traceCommands.js';
+import { FSMSetupService } from './fsm/services/fsmSetupService.js';
+import type {
+  AuthReminderState as FSMAuthReminderState,
+  ConnectionState,
+  ProjectConnection,
+} from './fsm/machines/applicationMachine.js';
 
-// Basic state keys
+type AuthMethod = 'pat' | 'entra';
+type AuthReminderStatus = 'pending' | 'dismissed';
+type AuthReminderReason = 'tokenExpired' | 'refreshFailed' | 'authFailed';
+type AuthReminderState = Omit<FSMAuthReminderState, 'reason'> & {
+  reason: AuthReminderReason;
+  detail?: string;
+  message?: string;
+  label?: string;
+  authMethod?: AuthMethod;
+  deliveredToWebview?: boolean;
+};
+
+type SetupAction =
+  | 'add'
+  | 'manage'
+  | 'remove'
+  | 'switch'
+  | 'entraSignIn'
+  | 'entraSignOut'
+  | 'convertToEntra';
+
 const STATE_TIMER = 'azureDevOpsInt.timer.state';
 const STATE_TIME_ENTRIES = 'azureDevOpsInt.timer.entries';
 const STATE_LAST_SAVE = 'azureDevOpsInt.timer.lastSave';
 const STATE_TIMER_CONNECTION = 'azureDevOpsInt.timer.connection';
 const CONFIG_NS = 'azureDevOpsIntegration';
-// Legacy settings lived under 'azureDevOps' before renaming; keep migration path
 const LEGACY_CONFIG_NS = 'azureDevOps';
-
-type AuthMethod = 'pat' | 'entra';
-
-type ProjectConnection = {
-  id: string;
-  organization: string;
-  project: string;
-  label?: string;
-  team?: string;
-  authMethod?: AuthMethod; // Authentication method: 'pat' (default) or 'entra'
-  patKey?: string; // Key for storing PAT in secrets (for PAT auth)
-  baseUrl?: string; // Base URL for the Azure DevOps instance
-  // Optional identity name for on-prem servers where @Me may not resolve. This
-  // should be the user's unique identity string (email, domain\user, etc.) used
-  // in Azure DevOps Server for AssignedTo/CreatedBy matching.
-  identityName?: string;
-  // Entra ID specific fields
-  tenantId?: string; // Azure AD tenant ID (optional, defaults to 'organizations')
-  clientId?: string; // Azure AD app registration client ID (for Entra auth)
-  // Manual API URL override - if specified, this takes precedence over derived API URL
-  // Format: {baseUrl}/{project}/_apis or custom structure for on-premises
-  apiBaseUrl?: string;
-};
-
-type ConnectionState = {
-  id: string;
-  config: ProjectConnection;
-  client?: AzureDevOpsIntClient;
-  provider?: WorkItemsProvider;
-  pat?: string;
-  accessToken?: string; // For Entra ID authentication
-  authMethod?: AuthMethod;
-  authService?: AuthService; // Authentication service instance
-  // Refresh failure tracking to prevent constant retry attempts
-  refreshFailureCount?: number;
-  lastRefreshFailure?: Date;
-  refreshBackoffUntil?: Date;
-  reauthInProgress?: boolean;
-  lastInteractiveAuthAt?: number;
-};
-
 const CONNECTIONS_CONFIG_KEY = 'connections';
 const ACTIVE_CONNECTION_STATE_KEY = 'azureDevOpsInt.activeConnectionId';
 
@@ -102,527 +106,150 @@ let connections: ProjectConnection[] = [];
 const connectionStates = new Map<string, ConnectionState>();
 let activeConnectionId: string | undefined;
 let tokenRefreshInterval: NodeJS.Timeout | undefined;
+let gcInterval: NodeJS.Timeout | undefined;
+let isDeactivating = false;
+let rejectionHandler: ((reason: any, promise: Promise<any>) => void) | undefined;
+let sharedContextBridge: ReturnType<typeof createSharedContextBridge> | undefined;
+let extensionContextRef: vscode.ExtensionContext | undefined;
+let openAiClient: OpenAIClient | undefined;
+let cachedExtensionVersion: string | undefined; // cache package.json version for cache-busting
+
+// Self-test tracking (prove Svelte webview round-trip works)
+// Self-test pending promise handlers (typed loosely to avoid unused param lint churn)
+let selfTestPending:
+  | { nonce: string; resolve: Function; reject: Function; timeout: NodeJS.Timeout }
+  | undefined;
+
 type TimerConnectionInfo = {
   id?: string;
   label?: string;
   organization?: string;
   project?: string;
 };
+
 let timerConnectionInfo: TimerConnectionInfo = {};
 
 const DEFAULT_QUERY = 'My Activity';
 const activeQueryByConnection = new Map<string, string>();
 
-type BranchContext = {
-  branchName?: string;
-  branchRef?: string;
-  repositoryId?: string;
-  repositoryName?: string;
-  remoteUrl?: string;
-  lastUpdated: number;
-};
-
-type BranchEnrichmentState = {
-  context: BranchContext | null;
-  hasActiveBuild: boolean;
-  lastUpdated: number;
-};
-
-const branchStateByConnection = new Map<string, BranchEnrichmentState>();
-const repositoryCacheByConnection = new Map<string, { fetchedAt: number; repos: any[] }>();
-const buildCacheByKey = new Map<string, { fetchedAt: number; builds: WorkItemBuildSummary[] }>();
-const buildRefreshTimers = new Map<string, NodeJS.Timeout>();
-let cachedGitApi: any | undefined;
-
-const BRANCH_REFRESH_INTERVAL_MS = 30 * 1000;
-const REPOSITORY_CACHE_TTL_MS = 5 * 60 * 1000;
-const BUILD_CACHE_TTL_MS = 20 * 1000;
-
-function clearConnectionCaches(connectionId: string) {
-  branchStateByConnection.delete(connectionId);
-  repositoryCacheByConnection.delete(connectionId);
-  for (const key of Array.from(buildCacheByKey.keys())) {
-    if (key.startsWith(`${connectionId}|`)) {
-      buildCacheByKey.delete(key);
-    }
-  }
-  const timer = buildRefreshTimers.get(connectionId);
-  if (timer) {
-    try {
-      clearTimeout(timer);
-    } catch {
-      /* ignore */
-    }
-    buildRefreshTimers.delete(connectionId);
-  }
-}
-
-type AuthReminderState = {
-  status: 'pending' | 'dismissed';
-  snoozeUntil?: number;
-  reason?: AuthReminderReason;
-  detail?: string;
-  message?: string;
-  label?: string;
-  authMethod?: AuthMethod;
-  deliveredToWebview?: boolean;
-};
-
-const AUTH_REMINDER_SNOOZE_MS = 30 * 60 * 1000; // 30 minutes
-const pendingAuthReminders = new Map<string, AuthReminderState>();
+const AUTH_REMINDER_SNOOZE_MS = 30 * 60 * 1000;
 let nextAuthConnectionIndex = 0;
+const INTERACTIVE_REAUTH_THROTTLE_MS = 5 * 60 * 1000;
 
-const INTERACTIVE_REAUTH_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
-
-type EnsureEntraAuthResult = {
-  state: ConnectionState;
-  success: boolean;
-  token?: string;
-  error?: string;
-};
-
-let entraAuthProvider: EntraAuthenticationProvider | undefined;
-
-function describeConnection(connection: ProjectConnection): string {
-  if (connection.label && connection.label.trim().length > 0) {
-    return connection.label;
+function getApplicationActor(): { getSnapshot?: () => any; send?: (event: unknown) => void } | undefined {
+  const actor = getApplicationStoreActor();
+  if (!actor || typeof actor !== 'object') {
+    return undefined;
   }
-
-  const parts: string[] = [];
-  if (connection.organization) parts.push(connection.organization);
-  if (connection.project) parts.push(connection.project);
-
-  if (parts.length > 0) {
-    return parts.join('/');
-  }
-
-  return connection.id;
+  return actor as { getSnapshot?: () => any; send?: (event: unknown) => void };
 }
 
-async function ensureEntraAuthService(
-  context: vscode.ExtensionContext,
-  connection: ProjectConnection,
-  options: { interactive?: boolean; forceInteractive?: boolean } = {}
-): Promise<EnsureEntraAuthResult> {
-  const interactive = options.interactive !== false;
-  const forceInteractive = options.forceInteractive === true;
-  let state = connectionStates.get(connection.id);
-  if (!state) {
-    state = { id: connection.id, config: connection, authMethod: connection.authMethod || 'pat' };
-    connectionStates.set(connection.id, state);
-  } else {
-    state.config = connection;
-    state.authMethod = connection.authMethod || 'pat';
-  }
-
-  if ((state.authMethod ?? 'pat') !== 'entra') {
-    return {
-      state,
-      success: false,
-      error: 'Connection is not configured for Entra authentication.',
-    };
-  }
-
-  if (!state.authService) {
-    const settings = getConfig();
-    const defaultClientId =
-      settings.get<string>('entra.defaultClientId') || '872cd9fa-d31f-45e0-9eab-6e460a02d1f1';
-    const defaultTenantId = settings.get<string>('entra.defaultTenantId') || 'organizations';
-
-    try {
-      state.authService = await createAuthService('entra', context.secrets, connection.id, {
-        entraConfig: {
-          clientId: connection.clientId || defaultClientId,
-          tenantId: connection.tenantId || defaultTenantId,
-          scopes: ['499b84ac-1321-427f-aa17-267ca6975798/.default'],
-        },
-        deviceCodeCallback: createDeviceCodeCallback(context, connection),
-      });
-    } catch (error: any) {
-      console.error('[ensureEntraAuthService] Failed to create auth service', error);
-      return { state, success: false, error: error?.message || 'Failed to create auth service' };
-    }
-  }
-
-  if (!state.authService) {
-    return { state, success: false, error: 'Auth service unavailable' };
-  }
-
-  try {
-    if (forceInteractive) {
-      try {
-        await state.authService.resetToken?.();
-      } catch (resetError) {
-        console.warn(
-          '[ensureEntraAuthService] Failed to reset token cache before interactive auth',
-          resetError
-        );
-      }
-      try {
-        await state.authService.signOut();
-      } catch (signOutError: any) {
-        console.warn(
-          '[ensureEntraAuthService] Failed to sign out before interactive auth',
-          signOutError
-        );
-      }
-    }
-
-    let token: string | undefined;
-    if (!forceInteractive) {
-      token = await state.authService.getAccessToken();
-    }
-
-    if (!token) {
-      if (!interactive && !forceInteractive) {
-        return { state, success: false, error: 'Unable to acquire access token' };
-      }
-
-      const result = await state.authService.authenticate();
-      if (!result.success) {
-        return { state, success: false, error: result.error || 'Authentication failed' };
-      }
-
-      token = result.accessToken ?? (await state.authService.getAccessToken());
-
-      // Reset refresh failure tracking on successful interactive authentication
-      if (token) {
-        state.refreshFailureCount = 0;
-        state.lastRefreshFailure = undefined;
-        state.refreshBackoffUntil = undefined;
-      }
-    }
-
-    if (token) {
-      state.accessToken = token;
-      return { state, success: true, token };
-    }
-
-    return { state, success: false, error: 'Unable to acquire access token' };
-  } catch (error: any) {
-    console.error('[ensureEntraAuthService] Failed to ensure access token', error);
-    return { state, success: false, error: error?.message || 'Failed to acquire access token' };
-  }
+function dispatchApplicationEvent(event: unknown): void {
+  sendApplicationStoreEvent(event);
 }
 
-class EntraAuthenticationProvider implements vscode.AuthenticationProvider, vscode.Disposable {
-  private readonly sessions = new Map<string, vscode.AuthenticationSession>();
-  private readonly onDidChangeSessionsEmitter =
-    new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
-
-  readonly onDidChangeSessions = this.onDidChangeSessionsEmitter.event;
-
-  constructor(private readonly context: vscode.ExtensionContext) {}
-
-  dispose(): void {
-    this.onDidChangeSessionsEmitter.dispose();
-    this.sessions.clear();
-  }
-
-  async initialize(): Promise<void> {
-    await this.getSessions();
-  }
-
-  async getSessions(): Promise<vscode.AuthenticationSession[]> {
-    await ensureConnectionsInitialized(this.context);
-    for (const connection of connections) {
-      if (connection.authMethod === 'entra') {
-        await this.updateSessionForConnection(connection.id, { fireEvent: false });
-      }
-    }
-    return Array.from(this.sessions.values());
-  }
-
-  async createSession(_scopes: readonly string[]): Promise<vscode.AuthenticationSession> {
-    await ensureConnectionsInitialized(this.context);
-
-    const connection = await this.pickConnection();
-    if (!connection) {
-      throw new Error('No connection selected');
-    }
-
-    await signInWithEntra(this.context, connection.id, { showSuccessMessage: false });
-    const session = await this.updateSessionForConnection(connection.id, { fireEvent: false });
-    if (!session) {
-      throw new Error('Failed to create authentication session');
-    }
-
-    this.onDidChangeSessionsEmitter.fire({ added: [session], changed: [], removed: [] });
-    return session;
-  }
-
-  async removeSession(sessionId: string): Promise<void> {
-    await signOutEntra(this.context, sessionId, { showSuccessMessage: false });
-    await this.removeSessionForConnection(sessionId);
-  }
-
-  async updateSessionForConnection(
-    connectionId: string,
-    options: { fireEvent?: boolean } = {}
-  ): Promise<vscode.AuthenticationSession | undefined> {
-    const connection = connections.find((conn) => conn.id === connectionId);
-    if (!connection || connection.authMethod !== 'entra') {
-      await this.removeSessionForConnection(connectionId, options);
-      return undefined;
-    }
-
-    const result = await ensureEntraAuthService(this.context, connection, { interactive: false });
-    if (!result.success || !result.token) {
-      await this.removeSessionForConnection(connectionId, options);
-      return undefined;
-    }
-
-    const session = this.createSessionObject(connection, result.token);
-    const existing = this.sessions.get(connectionId);
-    this.sessions.set(connectionId, session);
-
-    if (options.fireEvent !== false) {
-      this.onDidChangeSessionsEmitter.fire({
-        added: existing ? [] : [session],
-        changed: existing ? [session] : [],
-        removed: [],
-      });
-    }
-
-    return session;
-  }
-
-  async removeSessionForConnection(
-    connectionId: string,
-    options: { fireEvent?: boolean } = {}
-  ): Promise<void> {
-    const existing = this.sessions.get(connectionId);
-    if (existing) {
-      this.sessions.delete(connectionId);
-      if (options.fireEvent !== false) {
-        this.onDidChangeSessionsEmitter.fire({ added: [], changed: [], removed: [existing] });
-      }
-    }
-  }
-
-  async manageSessions(_scopes?: readonly string[]): Promise<void> {
-    try {
-      await vscode.commands.executeCommand('azureDevOpsInt.setup');
-    } catch (error) {
-      console.error(
-        '[EntraAuthenticationProvider] Failed to open setup command from Accounts menu',
-        error
-      );
-      vscode.window.showErrorMessage(
-        'Unable to open Azure DevOps connection setup. Please run “Azure DevOps Int: Setup Connection” manually.'
-      );
-    }
-  }
-
-  private createSessionObject(
-    connection: ProjectConnection,
-    accessToken: string
-  ): vscode.AuthenticationSession {
-    return {
-      id: connection.id,
-      accessToken,
-      account: {
-        id: connection.id,
-        label: describeConnection(connection),
-      },
-      scopes: ['499b84ac-1321-427f-aa17-267ca6975798/.default', 'offline_access'],
-    };
-  }
-
-  private async pickConnection(): Promise<ProjectConnection | undefined> {
-    const items = connections.map((conn) => ({
-      label: conn.label || `${conn.organization}/${conn.project}`,
-      description: conn.authMethod === 'entra' ? '(Entra ID)' : '(PAT)',
-      detail: `Organization: ${conn.organization}, Project: ${conn.project}`,
-      connection: conn,
-    }));
-
-    const selection = await vscode.window.showQuickPick(items, {
-      placeHolder: 'Select a connection to authenticate with Microsoft Entra ID',
-      ignoreFocusOut: true,
-    });
-
-    return selection?.connection;
-  }
-}
-
-function shouldLogDebug(): boolean {
-  try {
-    return !!getConfig().get<boolean>('debugLogging');
-  } catch {
-    return false;
-  }
-}
-
-type WorkItemsSnapshotOptions = Omit<PostWorkItemsSnapshotParams, 'panel' | 'logger'>;
-
-function sendToWebview(message: any) {
-  postToWebview({ panel, message, logger: verbose });
-}
-
-function sendWorkItemsSnapshot(options: WorkItemsSnapshotOptions) {
-  const branchContext = options.connectionId
-    ? (branchStateByConnection.get(options.connectionId)?.context ?? null)
-    : null;
-  postWorkItemsSnapshot({ panel, logger: verbose, branchContext, ...options });
-}
-
-/**
- * Update the auth status bar item for Entra ID connections
- */
-async function updateAuthStatusBar() {
-  if (!authStatusBarItem) return;
-
-  // Only show for Entra ID connections
-  if (!activeConnectionId) {
-    clearAuthReminder(activeConnectionId);
-    authStatusBarItem.hide();
-    return;
-  }
-
-  const state = connectionStates.get(activeConnectionId);
-  if (!state || state.authMethod !== 'entra' || !state.authService) {
-    clearAuthReminder(activeConnectionId);
-    authStatusBarItem.hide();
-    return;
-  }
-
-  // Set command to sign in with the active connection directly
-  authStatusBarItem.command = {
-    title: 'Sign in with Microsoft Entra',
-    command: 'azureDevOpsInt.signInWithEntra',
-    arguments: [activeConnectionId],
-  };
-
-  try {
-    const tokenInfo = await state.authService.getTokenInfo();
-    const isAuthenticated = await state.authService.isAuthenticated();
-    const connectionLabel = describeConnection(state.config);
-
-    if (!isAuthenticated || !tokenInfo) {
-      authStatusBarItem.text = '$(warning) Sign In Required';
-      authStatusBarItem.tooltip = `Click to sign in to ${connectionLabel} with Microsoft Entra ID`;
-      authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-      authStatusBarItem.show();
-      ensureAuthReminder(state.config.id, 'expired');
+function safeCommandHandler<Args extends unknown[], Result>(
+  handler: (...args: Args) => Result
+): (...args: Args) => void {
+  return (...args: Args) => {
+    if (isDeactivating) {
+      console.log('[Command] Ignoring command execution during deactivation');
       return;
     }
 
-    clearAuthReminder(state.config.id);
+    try {
+      const result = handler(...args);
+      const maybeThenable = result as
+        | { catch?: (onRejected: (reason: unknown) => unknown) => unknown }
+        | undefined;
+      if (maybeThenable?.catch) {
+        maybeThenable.catch((error) => {
+          if (!isDeactivating) {
+            console.error('[Command] Unhandled command error:', error);
+          }
+        });
+      }
+    } catch (error) {
+      if (!isDeactivating) {
+        console.error('[Command] Synchronous command error:', error);
+      }
+    }
+  };
+}
 
-    const now = Date.now();
-    const expiresAt = tokenInfo.expiresAt.getTime();
-    const diffMs = expiresAt - now;
-    const diffMinutes = Math.floor(diffMs / (60 * 1000));
-    const diffHours = Math.floor(diffMinutes / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    let icon = '$(pass)';
-    let backgroundColor = undefined;
-    let timeText = '';
-
-    if (diffMs <= 0) {
-      icon = '$(error)';
-      timeText = 'Expired';
-      backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
-    } else if (diffMinutes < 5) {
-      icon = '$(warning)';
-      timeText = `${diffMinutes}m`;
-      backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-    } else if (diffHours < 1) {
-      timeText = `${diffMinutes}m`;
-    } else if (diffDays < 1) {
-      timeText = `${diffHours}h`;
-    } else {
-      timeText = `${diffDays}d`;
+async function ensureSharedContextBridge(
+  context: vscode.ExtensionContext
+): Promise<ReturnType<typeof createSharedContextBridge>> {
+  if (!sharedContextBridge) {
+    if (!getApplicationActor()) {
+      await import('./stores/applicationStore.js');
     }
 
-    authStatusBarItem.text = `${icon} Entra: ${timeText}`;
-    authStatusBarItem.tooltip = `Microsoft Entra ID authentication for ${connectionLabel}\nToken expires in ${timeText}\nClick to refresh or sign in`;
-    authStatusBarItem.backgroundColor = backgroundColor;
-    authStatusBarItem.show();
-  } catch (error: any) {
-    console.error('[updateAuthStatusBar] Error updating auth status:', error);
-    authStatusBarItem.hide();
+    const actor = getApplicationActor();
+    if (!actor) {
+      throw new Error('Application store actor not available');
+    }
+
+    sharedContextBridge = createSharedContextBridge({
+      actor: actor as any,
+      logger: (message, meta) => {
+        verbose(`[context-bridge] ${message}`, meta);
+      },
+    });
+
+    context.subscriptions.push(sharedContextBridge);
+    context.subscriptions.push(
+      new vscode.Disposable(() => {
+        sharedContextBridge = undefined;
+      })
+    );
   }
+
+  return sharedContextBridge;
 }
 
-function notifyConnectionsList() {
-  postConnectionsUpdate({
-    panel,
-    connections,
-    activeConnectionId,
-    logger: verbose,
-  });
-}
-
-type AuthReminderReason = 'expired' | 'refreshFailed' | 'authFailed';
-
-type SetupWizardAction =
-  | 'add'
-  | 'manage'
-  | 'remove'
-  | 'switch'
-  | 'entraSignIn'
-  | 'entraSignOut'
-  | 'convertToEntra';
-
-function clearAuthReminder(connectionId: string | undefined) {
-  if (!connectionId) return;
-  pendingAuthReminders.delete(connectionId);
-  sendToWebview({
-    type: 'authReminderClear',
-    connectionId,
-  });
-  if (pendingAuthReminders.size === 0) {
-    nextAuthConnectionIndex = 0;
+function getPendingAuthReminderMap(): Map<string, AuthReminderState> {
+  const actor = getApplicationActor();
+  if (!actor?.getSnapshot) {
+    return new Map();
   }
-}
 
-function postAuthReminderToWebview(
-  connectionId: string,
-  connectionState: ConnectionState,
-  reminder: AuthReminderState
-) {
-  if (!panel) {
-    // Panel not available - ensure reminder stays pending for redelivery
-    reminder.deliveredToWebview = false;
-    return;
-  }
-  const label = reminder.label ?? describeConnection(connectionState.config);
-  sendToWebview({
-    type: 'authReminder',
-    connectionId,
-    connectionLabel: label,
-    reason: reminder.reason ?? 'authFailed',
-    message: reminder.message,
-    detail: reminder.detail,
-    authMethod: reminder.authMethod ?? connectionState.config.authMethod ?? 'pat',
-  });
-  reminder.deliveredToWebview = true;
-}
+  try {
+    const snapshot = actor.getSnapshot?.();
+    const pending = snapshot?.context?.pendingAuthReminders;
 
-function resendPendingAuthReminders() {
-  if (!panel) return;
-  for (const [connectionId, reminder] of pendingAuthReminders.entries()) {
-    if (reminder.status !== 'pending') continue;
-    const state = connectionStates.get(connectionId);
-    if (!state) continue;
-    postAuthReminderToWebview(connectionId, state, reminder);
+    if (pending instanceof Map) {
+      return new Map(pending as Map<string, AuthReminderState>);
+    }
+
+    if (Array.isArray(pending)) {
+      const normalized = pending
+        .filter((entry): entry is AuthReminderState =>
+          Boolean(entry && typeof entry.connectionId === 'string' && entry.connectionId.trim().length > 0)
+        )
+        .map((entry) => [entry.connectionId, entry] as const);
+
+      return new Map(normalized);
+    }
+  } catch (error) {
+    verbose('[authReminder] Failed to read pending reminders from actor', { error });
   }
+
+  return new Map();
 }
 
 function getPendingAuthConnectionIds(): string[] {
+  const pending = getPendingAuthReminderMap();
   const ordered: string[] = [];
 
   for (const connection of connections) {
-    const reminder = pendingAuthReminders.get(connection.id);
+    const reminder = pending.get(connection.id);
     if (reminder?.status === 'pending') {
       ordered.push(connection.id);
     }
   }
 
-  for (const [connectionId, reminder] of pendingAuthReminders.entries()) {
+  for (const [connectionId, reminder] of pending.entries()) {
     if (reminder?.status === 'pending' && !ordered.includes(connectionId)) {
       ordered.push(connectionId);
     }
@@ -654,29 +281,106 @@ async function cycleAuthSignIn(context: vscode.ExtensionContext): Promise<void> 
   await signInWithEntra(context, targetId, { showSuccessMessage: true });
 }
 
+function describeConnection(connection: ProjectConnection): string {
+  if (connection.label && connection.label.trim().length > 0) {
+    return connection.label;
+  }
+
+  const parts: string[] = [];
+  if (connection.organization) parts.push(connection.organization);
+  if (connection.project) parts.push(connection.project);
+
+  if (parts.length > 0) {
+    return parts.join('/');
+  }
+
+  return connection.id;
+}
+
+function shouldLogDebug(): boolean {
+  try {
+    return Boolean(getConfig().get('debugLogging'));
+  } catch {
+    return false;
+  }
+}
+
+async function updateAuthStatusBar(): Promise<void> {
+  if (!authStatusBarItem) return;
+
+  if (!activeConnectionId) {
+    clearAuthReminder(activeConnectionId);
+    authStatusBarItem.hide();
+    return;
+  }
+
+  const state = connectionStates.get(activeConnectionId);
+  if (!state || state.authMethod !== 'entra') {
+    clearAuthReminder(activeConnectionId);
+    authStatusBarItem.hide();
+    return;
+  }
+
+  authStatusBarItem.command = {
+    title: 'Sign in with Microsoft Entra',
+    command: 'azureDevOpsInt.signInWithEntra',
+    arguments: [activeConnectionId],
+  };
+
+  try {
+    const connectionLabel = describeConnection(state.config);
+    authStatusBarItem.text = '$(warning) Entra Auth Not Available';
+    authStatusBarItem.tooltip = `FSM authentication implementation needed for ${connectionLabel}`;
+    authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+    authStatusBarItem.show();
+  } catch (error) {
+    console.error('[updateAuthStatusBar] Error updating auth status:', error);
+    authStatusBarItem.hide();
+  }
+}
+
+function notifyConnectionsList(): void {
+  postConnectionsUpdate({
+    panel,
+    connections,
+    activeConnectionId,
+    logger: verbose,
+  });
+
+  const actor = getApplicationActor();
+  const send = actor?.send;
+  if (!send) {
+    return;
+  }
+
+  send({
+    type: 'CONNECTIONS_LOADED',
+    connections: connections.slice(),
+  });
+
+  if (activeConnectionId) {
+    send({ type: 'CONNECTION_SELECTED', connectionId: activeConnectionId });
+  }
+}
+
 function ensureAuthReminder(
   connectionId: string,
   reason: AuthReminderReason,
   options: { detail?: string } = {}
-) {
+): void {
   const state = connectionStates.get(connectionId);
   if (!state) return;
 
   const now = Date.now();
+  const pendingAuthReminders = getPendingAuthReminderMap();
   const existing = pendingAuthReminders.get(connectionId);
   if (existing) {
     if (existing.status === 'pending') {
-      if (panel && !existing.deliveredToWebview) {
-        postAuthReminderToWebview(connectionId, state, existing);
-      }
       return;
     }
 
-    if (existing.status === 'dismissed') {
-      if (existing.snoozeUntil && existing.snoozeUntil > now) {
-        return; // Snoozed
-      }
-      pendingAuthReminders.delete(connectionId);
+    if (existing.status === 'dismissed' && existing.snoozeUntil && existing.snoozeUntil > now) {
+      return;
     }
   }
 
@@ -702,19 +406,16 @@ function ensureAuthReminder(
   ];
 
   const reminderState: AuthReminderState = {
+    connectionId,
     status: 'pending',
     reason,
     detail: webviewDetails.join('\n\n'),
     message,
     label,
     authMethod: state.config.authMethod ?? 'pat',
-    deliveredToWebview: false,
   };
-  pendingAuthReminders.set(connectionId, reminderState);
 
-  if (panel) {
-    postAuthReminderToWebview(connectionId, state, reminderState);
-  }
+  dispatchApplicationEvent({ type: 'AUTH_REMINDER_SET', connectionId, reminder: reminderState });
 }
 
 function triggerAuthReminderSignIn(
@@ -728,12 +429,7 @@ function triggerAuthReminderSignIn(
   const detail = options.detail;
   const startInteractive = options.startInteractive === true;
 
-  if (!startInteractive) {
-    ensureAuthReminder(connectionId, reason, detail ? { detail } : {});
-    return;
-  }
-
-  if ((state.authMethod ?? 'pat') !== 'entra' || !state.authService) {
+  if (!startInteractive || (state.authMethod ?? 'pat') !== 'entra') {
     ensureAuthReminder(connectionId, reason, detail ? { detail } : {});
     return;
   }
@@ -782,6 +478,25 @@ function triggerAuthReminderSignIn(
   });
 }
 
+function clearAuthReminder(connectionId: string | undefined): void {
+  if (!connectionId) {
+    return;
+  }
+
+  dispatchApplicationEvent({ type: 'AUTH_REMINDER_CLEAR', connectionId });
+
+  if (panel) {
+    sendToWebview({
+      type: 'authReminderClear',
+      connectionId,
+    });
+  }
+
+  if (getPendingAuthReminderMap().size === 0) {
+    nextAuthConnectionIndex = 0;
+  }
+}
+
 function normalizeQuery(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
@@ -791,9 +506,13 @@ function normalizeQuery(value: unknown): string | undefined {
 function getStoredQueryForConnection(connectionId?: string | null, fallback?: string): string {
   const resolved = fallback ?? getDefaultQuery(getConfig());
   const base = resolved && resolved.trim().length > 0 ? resolved : DEFAULT_QUERY;
-  if (!connectionId) return base;
+  if (!connectionId) {
+    return base;
+  }
   const stored = activeQueryByConnection.get(connectionId);
-  if (stored && stored.trim().length > 0) return stored;
+  if (stored && stored.trim().length > 0) {
+    return stored;
+  }
   activeQueryByConnection.set(connectionId, base);
   return base;
 }
@@ -833,157 +552,113 @@ function setTimerConnectionFrom(connection: ProjectConnection | undefined) {
 }
 
 function getActiveTimerConnectionLabel(): string | undefined {
-  if (timerConnectionInfo.label) return timerConnectionInfo.label;
-  if (timerConnectionInfo.id) {
-    const match = connections.find((c) => c.id === timerConnectionInfo.id);
-    if (match) return getConnectionLabel(match);
+  const info = timerConnectionInfo;
+  if (!info) {
+    return undefined;
   }
-  if (timerConnectionInfo.organization && timerConnectionInfo.project) {
-    return `${timerConnectionInfo.organization}/${timerConnectionInfo.project}`;
+
+  if (info.label && info.label.trim().length > 0) {
+    return info.label;
   }
+
+  if (info.id) {
+    const byId = connections.find((connection) => connection.id === info.id);
+    if (byId) {
+      return getConnectionLabel(byId);
+    }
+  }
+
+  if (info.organization && info.project) {
+    const byCoordinates = connections.find(
+      (connection) =>
+        connection.organization === info.organization && connection.project === info.project
+    );
+    if (byCoordinates) {
+      return getConnectionLabel(byCoordinates);
+    }
+  }
+
   return undefined;
 }
 
-function getClientForConnectionInfo(info?: TimerConnectionInfo): AzureDevOpsIntClient | undefined {
-  if (info?.id) {
-    const state = connectionStates.get(info.id);
-    if (state?.client) return state.client;
-    if (info.id === activeConnectionId && client) return client;
+function getClientForConnectionInfo(
+  info?: TimerConnectionInfo
+): AzureDevOpsIntClient | undefined {
+  if (!info) {
+    return client;
   }
-  return client;
-}
 
-function sanitizeConnection(raw: any): ProjectConnection | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const organization = String(raw.organization || '').trim();
-  const project = String(raw.project || '').trim();
-  if (!organization || !project) return null;
-  const idValue = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : randomUUID();
-  const labelValue =
-    typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : undefined;
-  const teamValue = typeof raw.team === 'string' && raw.team.trim() ? raw.team.trim() : undefined;
-  const patKeyValue =
-    typeof raw.patKey === 'string' && raw.patKey.trim() ? raw.patKey.trim() : undefined;
-  const baseUrlValue =
-    typeof raw.baseUrl === 'string' && raw.baseUrl.trim() ? raw.baseUrl.trim() : undefined;
-  const tenantIdValue =
-    typeof raw.tenantId === 'string' && raw.tenantId.trim() ? raw.tenantId.trim() : undefined;
-  const clientIdValue =
-    typeof raw.clientId === 'string' && raw.clientId.trim() ? raw.clientId.trim() : undefined;
-  let authMethodValue: AuthMethod | undefined;
-  const authMethodRaw =
-    typeof raw.authMethod === 'string' && raw.authMethod.trim()
-      ? raw.authMethod.trim().toLowerCase()
-      : undefined;
-  if (authMethodRaw === 'entra' || authMethodRaw === 'pat') {
-    authMethodValue = authMethodRaw;
-  } else if (clientIdValue || tenantIdValue) {
-    authMethodValue = 'entra';
+  if (info.id) {
+    const stateById = connectionStates.get(info.id);
+    if (stateById?.client) {
+      return stateById.client;
+    }
   }
-  return {
-    id: idValue,
-    organization,
-    project,
-    label: labelValue,
-    team: teamValue,
-    authMethod: authMethodValue,
-    patKey: patKeyValue,
-    baseUrl: baseUrlValue,
-    tenantId: tenantIdValue,
-    clientId: clientIdValue,
-  };
+
+  if (info.organization && info.project) {
+    for (const state of connectionStates.values()) {
+      if (
+        state.config.organization === info.organization &&
+        state.config.project === info.project &&
+        state.client
+      ) {
+        return state.client;
+      }
+    }
+  }
+
+  if (info.label) {
+    const byLabel = connections.find(
+      (connection) => getConnectionLabel(connection) === info.label
+    );
+    if (byLabel) {
+      const stateByLabel = connectionStates.get(byLabel.id);
+      if (stateByLabel?.client) {
+        return stateByLabel.client;
+      }
+    }
+  }
+
+  if (activeConnectionId) {
+    const activeState = connectionStates.get(activeConnectionId);
+    if (activeState?.client) {
+      return activeState.client;
+    }
+  }
+
+  return client;
 }
 
 async function loadConnectionsFromConfig(
   context: vscode.ExtensionContext
 ): Promise<ProjectConnection[]> {
   const settings = getConfig();
-  const rawConnections = settings.get<any[]>(CONNECTIONS_CONFIG_KEY) ?? [];
-  const normalized: ProjectConnection[] = [];
-  for (const entry of rawConnections) {
-    const sanitized = sanitizeConnection(entry);
-    if (sanitized) {
-      // Migrate existing connections to have patKey if they don't have one
-      // Only add a patKey for connections that are PAT-authenticated. Do not
-      // create or populate PAT keys for connections configured for Entra ID.
-      if (!sanitized.patKey && sanitized.authMethod !== 'entra') {
-        sanitized.patKey = `azureDevOpsInt.pat.${sanitized.id}`;
-      }
+  const rawConnections = settings.get<unknown[]>(CONNECTIONS_CONFIG_KEY) ?? [];
 
-      // Migrate existing connections to have baseUrl if they don't have one
-      if (!sanitized.baseUrl) {
-        sanitized.baseUrl = `https://dev.azure.com/${sanitized.organization}`;
-      }
+  const legacyOrganization = String(settings.get<string>('organization') ?? '').trim();
+  const legacyProject = String(settings.get<string>('project') ?? '').trim();
+  const legacyTeam = String(settings.get<string>('team') ?? '').trim();
 
-      // Migrate existing connections to have apiBaseUrl if they don't have one
-      // This fixes connections created before v1.9.6 that are missing the apiBaseUrl field
-      if (
-        !sanitized.apiBaseUrl &&
-        sanitized.baseUrl &&
-        sanitized.organization &&
-        sanitized.project
-      ) {
-        try {
-          const lowerBase = sanitized.baseUrl.toLowerCase();
-          if (lowerBase.includes('dev.azure.com')) {
-            // Azure DevOps Services (cloud)
-            sanitized.apiBaseUrl = `${sanitized.baseUrl.replace(/\/$/, '')}/${sanitized.organization}/${sanitized.project}/_apis`;
-          } else if (lowerBase.includes('visualstudio.com')) {
-            // Legacy Azure DevOps Services URL
-            sanitized.apiBaseUrl = `${sanitized.baseUrl.replace(/\/$/, '')}/${sanitized.project}/_apis`;
-          } else {
-            // On-premises Azure DevOps Server
-            sanitized.apiBaseUrl = `${sanitized.baseUrl.replace(/\/$/, '')}/${sanitized.organization}/${sanitized.project}/_apis`;
-          }
-          verbose('[connections] Migrated apiBaseUrl for connection', {
-            id: sanitized.id,
-            apiBaseUrl: sanitized.apiBaseUrl,
-          });
-        } catch (e) {
-          console.warn(
-            '[connections] Failed to migrate apiBaseUrl for connection',
-            sanitized.id,
-            e
-          );
-        }
-      }
+  const legacyFallback = legacyOrganization && legacyProject
+    ? { organization: legacyOrganization, project: legacyProject, team: legacyTeam || undefined, label: undefined }
+    : undefined;
 
-      normalized.push(sanitized);
-    }
-  }
-
-  if (normalized.length === 0) {
-    const legacyOrg = String(settings.get<string>('organization') || '').trim();
-    const legacyProject = String(settings.get<string>('project') || '').trim();
-    if (legacyOrg && legacyProject) {
-      const legacyTeam = String(settings.get<string>('team') || '').trim();
-      normalized.push({
-        id: randomUUID(),
-        organization: legacyOrg,
-        project: legacyProject,
-        team: legacyTeam || undefined,
-      });
-      await settings.update(CONNECTIONS_CONFIG_KEY, normalized, vscode.ConfigurationTarget.Global);
-    }
-  }
-
+  const { connections: normalized, requiresSave, summary } = normalizeConnections(
+    rawConnections,
+    legacyFallback
+  );
   connections = normalized;
 
-  // Save migrated connections back to config if any apiBaseUrl fields were added
-  const needsSave = rawConnections.some(
-    (raw, index) => !raw.apiBaseUrl && normalized[index] && normalized[index].apiBaseUrl
-  );
-  if (needsSave) {
+  if (requiresSave) {
     try {
-      const settings = getConfig();
       await settings.update(
         CONNECTIONS_CONFIG_KEY,
         normalized.map((entry) => ({ ...entry })),
         vscode.ConfigurationTarget.Global
       );
-      verbose('[connections] Saved migrated connections with apiBaseUrl fields');
-    } catch (e) {
-      console.warn('[connections] Failed to save migrated connections', e);
+      verbose('[connections] Saved migrated connections', summary);
+    } catch (error) {
+      console.warn('[connections] Failed to save migrated connections', error);
     }
   }
 
@@ -992,8 +667,8 @@ async function loadConnectionsFromConfig(
   if (connections.length > 0) {
     try {
       await migrateGlobalPATToConnections(context, connections);
-    } catch (e) {
-      console.warn('[azureDevOpsInt] migrateGlobalPATToConnections failed', e);
+    } catch (error) {
+      console.warn('[azureDevOpsInt] migrateGlobalPATToConnections failed', error);
     }
   }
 
@@ -1001,7 +676,8 @@ async function loadConnectionsFromConfig(
     count: connections.length,
     ids: connections.map((c) => c.id),
   });
-  const validIds = new Set(normalized.map((item) => item.id));
+
+  const validIds = new Set(connections.map((item) => item.id));
 
   for (const [id, state] of connectionStates.entries()) {
     if (!validIds.has(id)) {
@@ -1009,8 +685,10 @@ async function loadConnectionsFromConfig(
       initialRefreshedConnections.delete(id);
       clearConnectionCaches(id);
     } else {
-      const updated = normalized.find((item) => item.id === id);
-      if (updated) state.config = updated;
+      const updated = connections.find((item) => item.id === id);
+      if (updated) {
+        state.config = updated;
+      }
     }
   }
 
@@ -1020,16 +698,16 @@ async function loadConnectionsFromConfig(
     }
   }
 
-  if (connections.length === 0) {
-    activeConnectionId = undefined;
-    await context.globalState.update(ACTIVE_CONNECTION_STATE_KEY, undefined);
-  } else {
-    let storedActive = context.globalState.get<string>(ACTIVE_CONNECTION_STATE_KEY);
-    if (!storedActive || !validIds.has(storedActive)) {
-      storedActive = connections[0].id;
-      await context.globalState.update(ACTIVE_CONNECTION_STATE_KEY, storedActive);
-    }
-    activeConnectionId = storedActive;
+  const persistedActive = context.globalState.get<string>(ACTIVE_CONNECTION_STATE_KEY);
+  const { activeConnectionId: resolvedActiveId, requiresPersistence } = resolveActiveConnectionId(
+    persistedActive,
+    connections
+  );
+
+  activeConnectionId = resolvedActiveId;
+
+  if (requiresPersistence) {
+    await context.globalState.update(ACTIVE_CONNECTION_STATE_KEY, resolvedActiveId);
   }
 
   notifyConnectionsList();
@@ -1071,12 +749,13 @@ async function ensureConnectionsInitialized(context: vscode.ExtensionContext) {
 }
 
 /**
+ * LEGACY AUTH REMOVED - Device code callback no longer used in FSM architecture
  * Device code callback for Entra ID authentication
  * Shows VS Code notification with device code and verification URL
  */
 const createDeviceCodeCallback =
-  (_context: vscode.ExtensionContext, connection?: ProjectConnection): DeviceCodeCallback =>
-  async (_deviceCode, userCode, verificationUrl, expiresIn) => {
+  (_context: vscode.ExtensionContext, connection?: ProjectConnection): any =>
+  async (_deviceCode: any, userCode: any, verificationUrl: any, expiresIn: any) => {
     verbose('[EntraAuth] Device code received', { userCode, verificationUrl, expiresIn });
 
     const connectionLabel = connection ? describeConnection(connection) : 'Microsoft Entra ID';
@@ -1154,39 +833,19 @@ async function ensureActiveConnection(
   }
 
   const settings = getConfig();
-  const authMethod = connection.authMethod || 'pat';
+  const authMethod: AuthMethod = connection.authMethod || 'pat';
 
   // Get or create authentication service
   let credential: string | undefined;
 
   if (authMethod === 'entra') {
-    verbose('[ensureActiveConnection] using Entra ID authentication', { id: targetId });
-    const entraResult = await ensureEntraAuthService(context, connection, { interactive: false });
-
-    state = entraResult.state;
-    credential = entraResult.token;
-
-    if (!entraResult.success || !credential) {
-      verbose('[azureDevOpsInt] Entra ID token unavailable; triggering interactive auth', {
-        connectionId: targetId,
-        error: entraResult.error,
-      });
-      // Trigger interactive auth automatically instead of just showing reminder
-      triggerAuthReminderSignIn(targetId, 'authFailed', {
-        detail: entraResult.error ? `Details: ${entraResult.error}` : undefined,
-        force: true,
-        startInteractive: true,
-      });
-      provider = undefined;
-      client = undefined;
-      state.client = undefined;
-      state.provider = undefined;
-      await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
-      return state;
-    }
-
-    clearAuthReminder(targetId);
-    state.accessToken = credential;
+    verbose('[ensureActiveConnection] Entra ID authentication not available - FSM implementation needed', { id: targetId });
+    
+    // LEGACY AUTH REMOVED - Return gracefully until FSM authentication is implemented
+    state.client = undefined;
+    state.provider = undefined;
+    await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
+    return state;
   } else {
     // PAT authentication (existing logic)
     verbose('[ensureActiveConnection] using PAT authentication', { id: targetId });
@@ -1215,7 +874,7 @@ async function ensureActiveConnection(
   const needsNewClient =
     !state.client ||
     (authMethod === 'pat' && state.pat !== credential) ||
-    (authMethod === 'entra' && state.accessToken !== credential) ||
+    ((authMethod as AuthMethod) === 'entra' && state.accessToken !== credential) ||
     state.client.organization !== connection.organization ||
     state.client.project !== connection.project ||
     state.client.team !== team;
@@ -1246,7 +905,10 @@ async function ensureActiveConnection(
         team,
         baseUrl: connection.baseUrl,
         apiBaseUrl: connection.apiBaseUrl, // Pass manual API URL override if provided
-        authType: authMethod === 'entra' ? 'bearer' : 'pat',
+        authType: (() => {
+          const method = authMethod as AuthMethod;
+          return method === 'entra' ? 'bearer' : 'pat';
+        })(),
         identityName: connection.identityName, // Pass through for on-prem identity fallback
         onAuthFailure: (error) => {
           state.accessToken = undefined;
@@ -1278,20 +940,19 @@ async function ensureActiveConnection(
     verbose('[ensureActiveConnection] creating provider', {
       id: state.id,
     });
-    state.provider = new WorkItemsProvider(
-      state.id,
-      activeClient,
-      (msg: any) => forwardProviderMessage(state.id, msg),
-      {
-        logger: providerLogger,
-        transformWorkItems: (payload) => enrichWorkItemsForConnection(state, payload),
-      }
-    );
-  } else {
-    state.provider.setPostMessage((msg: any) => forwardProviderMessage(state.id, msg));
-    state.provider.setLogger(providerLogger);
-    state.provider.setTransformWorkItems((payload) => enrichWorkItemsForConnection(state, payload));
+    state.provider = createConnectionProvider({
+      connectionId: state.id,
+      client: activeClient,
+      postMessage: (msg: unknown) => forwardProviderMessage(state.id, msg),
+      logger: providerLogger,
+    });
   }
+
+  const branchSource = { id: state.id, client: state.client };
+
+  state.provider?.setPostMessage((msg: any) => forwardProviderMessage(state.id, msg));
+  state.provider?.setLogger(providerLogger);
+  state.provider?.setTransformWorkItems(createBranchAwareTransform(branchSource));
 
   verbose('[ensureActiveConnection] provider ready', {
     id: state.id,
@@ -1317,6 +978,13 @@ async function ensureActiveConnection(
       query: selectedQuery,
     });
     provider.refresh(selectedQuery);
+  }
+
+  const hadReminder = getPendingAuthReminderMap().has(state.id);
+  clearAuthReminder(state.id);
+  if ((state.authMethod ?? 'pat') === 'entra' || hadReminder) {
+    // Keep FSM auth reminder state in sync once the connection is healthy again
+    dispatchApplicationEvent({ type: 'AUTHENTICATION_SUCCESS', connectionId: state.id });
   }
 
   return state;
@@ -1367,6 +1035,8 @@ function ensureTimer(context: vscode.ExtensionContext) {
             },
             5 * 60 * 1000
           );
+        }).then(() => {}, (error) => {
+          console.error('❌ [TIMER] Failed to show Pomodoro break dialog:', error);
         });
     },
     persist: (data: { state?: any; timeEntries?: any[]; updateLastSave?: boolean }) =>
@@ -1383,21 +1053,13 @@ function ensureTimer(context: vscode.ExtensionContext) {
       });
       updateTimerContext(s);
     },
-    onInfo: (m: any) => console.log('[timer]', m),
+    onInfo: (m: any) => verbose('[timer]', m),
     onWarn: (m: any) => console.warn('[timer]', m),
     onError: (m: any) => console.error('[timer]', m),
   });
   timer.loadFromPersisted();
   return timer;
 }
-let extensionContextRef: vscode.ExtensionContext | undefined; // keep a reference for later ops
-let cachedExtensionVersion: string | undefined; // cache package.json version for cache-busting
-let openAiClient: OpenAIClient | undefined;
-// Self-test tracking (prove Svelte webview round‑trip works)
-// Self-test pending promise handlers (typed loosely to avoid unused param lint churn)
-let selfTestPending:
-  | { nonce: string; resolve: Function; reject: Function; timeout: NodeJS.Timeout }
-  | undefined;
 
 // Enable a minimal smoke-test mode for CI/integration tests to avoid heavy initialization
 // Primary signal: VSCODE_INTEGRATION_SMOKE=1
@@ -1434,6 +1096,122 @@ type ConfigGetter = {
   get<T>(section: string): T | undefined;
   inspect?<T>(section: string): ConfigInspection<T> | undefined;
 };
+
+type SendToWebviewOptions = {
+  panel?: vscode.WebviewView;
+  logger?: LoggerFn;
+};
+
+type SendWorkItemsSnapshotOptions = Omit<PostWorkItemsSnapshotParams, 'panel' | 'logger'> &
+  SendToWebviewOptions;
+
+function sendToWebview(message: any, options: SendToWebviewOptions = {}): void {
+  const targetPanel = options.panel ?? panel;
+  const logger = options.logger ?? verbose;
+  const messageType = message?.type;
+
+  if (messageType === 'workItemsLoaded') {
+    const items = Array.isArray(message.workItems) ? [...message.workItems] : [];
+    dispatchApplicationEvent({
+      type: 'WORK_ITEMS_LOADED',
+      workItems: items,
+      connectionId: typeof message.connectionId === 'string' ? message.connectionId : undefined,
+      query: typeof message.query === 'string' ? message.query : undefined,
+      kanbanView: !!message.kanbanView,
+      types: Array.isArray(message.types) ? [...message.types] : undefined,
+    });
+  }
+
+  if (!targetPanel) {
+    logger?.('[sendToWebview] dropping message (no panel)', { type: messageType });
+    return;
+  }
+
+  try {
+    targetPanel.webview.postMessage(message);
+  } catch (error) {
+    logger?.(
+      '[sendToWebview] failed to post message',
+      error instanceof Error ? error.message : error
+    );
+  }
+}
+
+function resolveSnapshotTypes(
+  providerRef: WorkItemsProvider | undefined,
+  explicit: string[] | undefined,
+  logger: LoggerFn | undefined
+): string[] | undefined {
+  if (Array.isArray(explicit)) {
+    return [...explicit];
+  }
+  if (!providerRef || typeof (providerRef as any).getWorkItemTypeOptions !== 'function') {
+    return undefined;
+  }
+  try {
+    const raw = (providerRef as any).getWorkItemTypeOptions();
+    return Array.isArray(raw) ? [...raw] : undefined;
+  } catch (error) {
+    logger?.('[sendWorkItemsSnapshot] failed to read provider type options', error instanceof Error ? error.message : error);
+    return undefined;
+  }
+}
+
+function resolveBranchContextPayload(
+  connectionId: string | undefined,
+  explicit: PostWorkItemsSnapshotParams['branchContext']
+): PostWorkItemsSnapshotParams['branchContext'] {
+  if (explicit !== undefined) {
+    return explicit;
+  }
+  if (!connectionId) {
+    return null;
+  }
+  const enrichment = getBranchEnrichmentState(connectionId);
+  return enrichment?.context ?? null;
+}
+
+function enrichWorkItems(
+  items: any[],
+  connectionId: string | undefined,
+  branchContext: PostWorkItemsSnapshotParams['branchContext']
+): any[] {
+  if (!Array.isArray(items) || items.length === 0) {
+    return [];
+  }
+  return items.map((item) => ({ ...item, connectionId, branchContext }));
+}
+
+function sendWorkItemsSnapshot(options: SendWorkItemsSnapshotOptions): void {
+  const targetPanel = options.panel ?? panel;
+  const logger = options.logger ?? verbose;
+  const connectionId = options.connectionId ?? activeConnectionId;
+  const items = Array.isArray(options.items) ? options.items : [];
+  const branchContext = resolveBranchContextPayload(connectionId, options.branchContext);
+  const types = resolveSnapshotTypes(options.provider, options.types, logger);
+
+  postWorkItemsSnapshot({
+    panel: targetPanel,
+    connectionId,
+    items,
+    kanbanView: options.kanbanView,
+    provider: options.provider,
+    types,
+    query: options.query,
+    logger,
+    branchContext,
+  });
+
+  const enrichedWorkItems = enrichWorkItems(items, connectionId, branchContext);
+  dispatchApplicationEvent({
+    type: 'WORK_ITEMS_LOADED',
+    workItems: enrichedWorkItems,
+    connectionId,
+    query: options.query,
+    kanbanView: !!options.kanbanView,
+    types,
+  });
+}
 
 function hasConfigOverride<T>(metadata: ConfigInspection<T> | undefined): boolean {
   if (!metadata) return false;
@@ -1512,12 +1290,132 @@ async function migrateLegacyConfigIfNeeded() {
   }
 }
 
-export function activate(context: vscode.ExtensionContext) {
+/**
+ * Apply startup patches to fix user settings and configuration issues.
+ * This system automatically resolves problems without requiring manual user intervention.
+ * 
+ * Each patch has a version identifier to ensure it only runs once per user.
+ * Add new patches here for future bug fixes that need to modify user settings.
+ * 
+ * @param context VS Code extension context for accessing settings and state
+ */
+async function applyStartupPatches(context: vscode.ExtensionContext): Promise<void> {
+  try {
+    const patchState = context.globalState;
+    const PATCH_VERSION_KEY = 'azureDevOpsInt.appliedPatches';
+    const appliedPatches = patchState.get<string[]>(PATCH_VERSION_KEY, []);
+    
+    // Patch 1.0.0-clientid-removal: Remove clientId from connection configurations
+    // This fixes authentication issues caused by storing incorrect client IDs per connection
+    if (!appliedPatches.includes('1.0.0-clientid-removal')) {
+      await applyClientIdRemovalPatch();
+      appliedPatches.push('1.0.0-clientid-removal');
+      await patchState.update(PATCH_VERSION_KEY, appliedPatches);
+      console.log('[azureDevOpsInt] Applied patch: 1.0.0-clientid-removal');
+    }
+    
+    // Future patches can be added here following the same pattern:
+    // if (!appliedPatches.includes('1.1.0-some-other-fix')) {
+    //   await applySomeOtherPatch();
+    //   appliedPatches.push('1.1.0-some-other-fix');
+    //   await patchState.update(PATCH_VERSION_KEY, appliedPatches);
+    //   console.log('[azureDevOpsInt] Applied patch: 1.1.0-some-other-fix');
+    // }
+    
+  } catch (error) {
+    console.warn('[azureDevOpsInt] Failed to apply startup patches:', error);
+    // Don't fail activation if patches fail - log and continue
+  }
+}
+
+/**
+ * Patch to remove clientId from connection configurations.
+ * 
+ * PROBLEM: Earlier versions allowed users to configure clientId per connection,
+ * which caused authentication failures when users stored incorrect client IDs.
+ * 
+ * SOLUTION: Remove all clientId fields from stored connections. The extension
+ * now hardcodes the correct Azure DevOps client ID (872cd9fa-d31f-45e0-9eab-6e460a02d1f1)
+ * in the authentication code, preventing user configuration errors.
+ */
+async function applyClientIdRemovalPatch(): Promise<void> {
+  try {
+    const config = vscode.workspace.getConfiguration('azureDevOpsIntegration');
+    const connections = config.get<ProjectConnection[]>('connections', []);
+    
+    let patchedCount = 0;
+    const patchedConnections = connections.map(conn => {
+      if ('clientId' in conn) {
+        patchedCount++;
+        const { clientId, ...connWithoutClientId } = conn as any;
+        return connWithoutClientId;
+      }
+      return conn;
+    });
+    
+    if (patchedCount > 0) {
+      await config.update('connections', patchedConnections, vscode.ConfigurationTarget.Global);
+      console.log(`[azureDevOpsInt] Startup patch: Removed clientId from ${patchedCount} connection(s)`);
+    }
+  } catch (error) {
+    console.warn('[azureDevOpsInt] Client ID removal patch failed:', error);
+    throw error; // Re-throw to be caught by applyStartupPatches
+  }
+}
+
+export async function activate(context: vscode.ExtensionContext) {
+  // Store reference to our rejection handler for proper cleanup
+  rejectionHandler = (reason: any, promise: Promise<any>) => {
+    // Only handle rejections that originate from our extension
+    const isFromOurExtension = reason && typeof reason === 'object' && 'stack' in reason && 
+      typeof reason.stack === 'string' && 
+      (reason.stack.includes('azuredevops-integration-extension') || 
+       reason.stack.includes('azureDevOpsInt') ||
+       reason.stack.includes('activation.ts') ||
+       reason.stack.includes('src\\fsm\\') ||
+       reason.stack.includes('src/fsm/'));
+    
+    // Skip rejections from other extensions
+    if (!isFromOurExtension) {
+      return;
+    }
+    
+    // Suppress cancellation errors which are normal during VS Code shutdown
+    if (reason && typeof reason === 'object') {
+      // Check for cancellation by name, message, or stack trace content
+      const isCancellation = 
+        ('name' in reason && reason.name === 'Canceled') ||
+        ('message' in reason && reason.message === 'Canceled') ||
+        (reason.toString && reason.toString().includes('Canceled')) ||
+        ('stack' in reason && typeof reason.stack === 'string' && reason.stack.includes('Canceled'));
+      
+      if (isCancellation) {
+        verbose('[azureDevOpsInt] Promise cancelled during shutdown (normal)');
+        return;
+      }
+    }
+    console.error('[azureDevOpsInt] Unhandled Promise Rejection:', reason);
+    console.error('[azureDevOpsInt] Promise:', promise);
+  };
+  
+  // Add global unhandled promise rejection handler
+  process.on('unhandledRejection', rejectionHandler);
+
+  // Add global uncaught exception handler
+  process.on('uncaughtException', (error) => {
+    console.error('[azureDevOpsInt] Uncaught Exception:', error);
+  });
+
   extensionContextRef = context;
+  setExtensionContextRefBridge(context);
+  
+  // Apply startup patches to fix user settings and configuration issues
+  await applyStartupPatches(context);
+  
   // In smoke mode (integration tests), minimize activation work to avoid any potential stalls.
   if (IS_SMOKE) {
     try {
-      vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
+      vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false).then(() => {}, () => {});
     } catch {
       /* ignore */
     }
@@ -1552,28 +1450,18 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(authStatusBarItem);
   authStatusBarItem.hide(); // Hidden by default, shown only for Entra ID connections
 
-  const authenticationProvider = new EntraAuthenticationProvider(context);
-  entraAuthProvider = authenticationProvider;
-  context.subscriptions.push(authenticationProvider);
+  // LEGACY AUTH REMOVED - EntraAuthenticationProvider replaced by FSM authentication
   const authenticationProviderOptions: vscode.AuthenticationProviderOptions & {
     supportsAccountManagement?: boolean;
   } = {
     supportsMultipleAccounts: true,
     supportsAccountManagement: true,
   };
-  context.subscriptions.push(
-    vscode.authentication.registerAuthenticationProvider(
-      'azureDevOpsInt.entra',
-      'Azure DevOps (Entra)',
-      authenticationProvider,
-      authenticationProviderOptions
-    )
-  );
-  void authenticationProvider.initialize();
+  // LEGACY AUTH REMOVED - Authentication provider registration replaced by FSM authentication
 
   // Register the work items webview view resolver (guard against duplicate registration)
   if (!viewProviderRegistered) {
-    console.log('[azureDevOpsInt] Registering webview view provider: azureDevOpsWorkItems');
+    verbose('[azureDevOpsInt] Registering webview view provider: azureDevOpsWorkItems');
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(
         'azureDevOpsWorkItems',
@@ -1583,13 +1471,65 @@ export function activate(context: vscode.ExtensionContext) {
     );
     viewProviderRegistered = true;
   }
+  // Register FSM trace commands for full replay capability
+  registerTraceCommands(context);
+  
+  // Register quick debug commands for instant troubleshooting
+  import('./fsm/commands/quickDebugCommands.js').then(({ registerQuickDebugCommands }) => {
+    registerQuickDebugCommands(context);
+    verbose('[ACTIVATION] Quick debug commands registered');
+  }).catch(error => {
+    console.error('❌ [ACTIVATION] Failed to import quick debug commands:', error);
+  });
+
+  // Register output channel reader for programmatic log access
+  import('./fsm/commands/outputChannelReader.js').then(({ registerOutputChannelReader }) => {
+    registerOutputChannelReader(context);
+    verbose('[ACTIVATION] Output channel reader registered for automated debugging');
+  }).catch(error => {
+    console.error('❌ [ACTIVATION] Failed to import output channel reader:', error);
+  });
+
+  // AUTO-START FSM TRACING AND SHOW OUTPUT FOR DEBUGGING
+  verbose('[ACTIVATION] Starting FSM tracing session automatically...');
+  
+  // Import FSM tracing modules
+  import('./fsm/logging/FSMTracer.js').then(({ startTraceSession, fsmTracer }) => {
+    try {
+      const sessionId = startTraceSession('Extension Activation - Auto Debug Session');
+      verbose(`[ACTIVATION] FSM tracing started: ${sessionId}`);
+      
+      // Show the FSM output channel immediately for visibility  
+      import('./fsm/logging/FSMLogger.js').then(({ fsmLogger, FSMComponent }) => {
+        fsmLogger.showOutputChannel();
+        verbose('[ACTIVATION] FSM Output Channel opened for debugging visibility');
+        
+        // Log activation start
+        fsmLogger.info(FSMComponent.APPLICATION, 'Extension activation started', {
+          component: FSMComponent.APPLICATION,
+          event: 'ACTIVATE',
+          state: 'activating'
+        });
+      }).catch(error => {
+        console.error('❌ [ACTIVATION] Failed to import FSM logger for activation:', error);
+      });
+    } catch (error) {
+      console.error('❌ [ACTIVATION] Failed to start FSM tracing:', error);
+    }
+  }).catch(error => {
+    console.error('❌ [ACTIVATION] Failed to import FSM tracing modules:', error);
+  });
+
   // Core commands
   context.subscriptions.push(
-    vscode.commands.registerCommand('azureDevOpsInt.setup', () => setupConnection(context)),
-    vscode.commands.registerCommand('azureDevOpsInt.setOpenAIApiKey', () =>
-      setOpenAIApiKey(context)
-    ),
-    vscode.commands.registerCommand('azureDevOpsInt.openLogs', async () => {
+    vscode.commands.registerCommand('azureDevOpsInt.setup', safeCommandHandler(() => {
+      return setupConnection(context);
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.setOpenAIApiKey', safeCommandHandler(() => {
+      return setOpenAIApiKey(context);
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.openLogs', () => {
+      (async () => {
       try {
         let channel = getOutputChannel();
         if (!channel) {
@@ -1613,8 +1553,10 @@ export function activate(context: vscode.ExtensionContext) {
       } catch (e: any) {
         vscode.window.showErrorMessage('Failed to open logs: ' + (e?.message || String(e)));
       }
+      })().catch(err => console.error('[azureDevOpsInt.openLogs] Error:', err));
     }),
-    vscode.commands.registerCommand('azureDevOpsInt.copyLogsToClipboard', async () => {
+    vscode.commands.registerCommand('azureDevOpsInt.copyLogsToClipboard', () => {
+      (async () => {
       try {
         const version = extensionContextRef ? getExtensionVersion(extensionContextRef) : 'dev';
         const buffer = getLogBufferSnapshot();
@@ -1628,15 +1570,16 @@ export function activate(context: vscode.ExtensionContext) {
           'Failed to copy logs to clipboard: ' + (e?.message || String(e))
         );
       }
+      })().catch(err => console.error('[azureDevOpsInt.copyLogsToClipboard] Error:', err));
     }),
-    vscode.commands.registerCommand('azureDevOpsInt.diagnoseWorkItems', async () => {
+    vscode.commands.registerCommand('azureDevOpsInt.diagnoseWorkItems', safeCommandHandler(async () => {
       try {
         await diagnoseWorkItemsIssue(context);
       } catch (e: any) {
         vscode.window.showErrorMessage('Diagnostic failed: ' + (e?.message || String(e)));
       }
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.openLogsFolder', async () => {
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.openLogsFolder', safeCommandHandler(async () => {
       try {
         await vscode.commands.executeCommand('workbench.action.openLogsFolder');
       } catch {
@@ -1648,11 +1591,12 @@ export function activate(context: vscode.ExtensionContext) {
           );
         }
       }
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.focusWorkItemsView', () =>
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.focusWorkItemsView', safeCommandHandler(() =>
       revealWorkItemsView()
-    ),
-    vscode.commands.registerCommand('azureDevOpsInt.setDefaultElapsedLimit', async () => {
+    )),
+
+    vscode.commands.registerCommand('azureDevOpsInt.setDefaultElapsedLimit', safeCommandHandler(async () => {
       try {
         const cfg = getConfig();
         const prev = cfg.get<number>('defaultElapsedLimitHours') ?? 3.5;
@@ -1686,33 +1630,44 @@ export function activate(context: vscode.ExtensionContext) {
           'Failed to update default elapsed cap: ' + (err?.message || String(err))
         );
       }
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.showWorkItems', () => revealWorkItemsView()),
-    vscode.commands.registerCommand('azureDevOpsInt.refreshWorkItems', () =>
-      (async () => {
-        const query = getDefaultQuery();
-        verbose('[command] refreshWorkItems invoked', {
-          hasProvider: !!provider,
-          query,
-        });
-        if (!provider && extensionContextRef) {
-          verbose('[command] refreshWorkItems no provider; attempting ensureActiveConnection');
-          try {
-            await ensureActiveConnection(extensionContextRef, activeConnectionId, {
-              refresh: false,
-            });
-          } catch (e: any) {
-            verbose('[command] ensureActiveConnection failed in refreshWorkItems', e?.message || e);
-          }
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.showWorkItems', safeCommandHandler(() => revealWorkItemsView())),
+    vscode.commands.registerCommand('azureDevOpsInt.refreshWorkItems', safeCommandHandler(async () => {
+      // Use connection-specific query instead of global default
+      const connectionSpecificQuery = activeConnectionId 
+        ? getStoredQueryForConnection(activeConnectionId)
+        : getDefaultQuery();
+      
+      verbose('[command] refreshWorkItems invoked', {
+        hasProvider: !!provider,
+        query: connectionSpecificQuery,
+        activeConnectionId
+      });
+      if (!provider && extensionContextRef) {
+        verbose('[command] refreshWorkItems no provider; attempting ensureActiveConnection');
+        try {
+          await ensureActiveConnection(extensionContextRef, activeConnectionId, {
+            refresh: false,
+          });
+        } catch (e: any) {
+          verbose('[command] ensureActiveConnection failed in refreshWorkItems', e?.message || e);
         }
-        provider?.refresh(query);
-      })()
-    ),
-    vscode.commands.registerCommand('azureDevOpsInt.createWorkItem', () => quickCreateWorkItem()),
-    vscode.commands.registerCommand('azureDevOpsInt.startTimer', () => startTimerInteractive()),
-    vscode.commands.registerCommand('azureDevOpsInt.pauseTimer', () => timer?.pause()),
-    vscode.commands.registerCommand('azureDevOpsInt.resumeTimer', () => timer?.resume()),
-    vscode.commands.registerCommand('azureDevOpsInt.stopTimer', async () => {
+      }
+      provider?.refresh(connectionSpecificQuery);
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.createWorkItem', safeCommandHandler(() => {
+      return quickCreateWorkItem();
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.startTimer', safeCommandHandler(() => {
+      return startTimerInteractive();
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.pauseTimer', safeCommandHandler(() => {
+      timer?.pause();
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.resumeTimer', safeCommandHandler(() => {
+      timer?.resume();
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.stopTimer', safeCommandHandler(async () => {
       if (!timer) {
         vscode.window.showInformationMessage('No active timer to stop.');
         return;
@@ -1727,37 +1682,37 @@ export function activate(context: vscode.ExtensionContext) {
           connection: timerConnectionSnapshot,
         });
       }
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.showTimeReport', () => showTimeReport()),
-    vscode.commands.registerCommand('azureDevOpsInt.createBranch', () =>
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.showTimeReport', safeCommandHandler(() => showTimeReport())),
+    vscode.commands.registerCommand('azureDevOpsInt.createBranch', safeCommandHandler(() =>
       createBranchFromWorkItem()
-    ),
-    vscode.commands.registerCommand('azureDevOpsInt.createPullRequest', () =>
+    )),
+    vscode.commands.registerCommand('azureDevOpsInt.createPullRequest', safeCommandHandler(() =>
       createPullRequestInteractive()
-    ),
-    vscode.commands.registerCommand('azureDevOpsInt.showPullRequests', () => showMyPullRequests()),
-    vscode.commands.registerCommand('azureDevOpsInt.showBuildStatus', () => showBuildStatus()),
-    vscode.commands.registerCommand('azureDevOpsInt.toggleKanbanView', () => toggleKanbanView()),
-    vscode.commands.registerCommand('azureDevOpsInt.selectTeam', () => selectTeam()),
-    vscode.commands.registerCommand('azureDevOpsInt.resetPreferredRepositories', () =>
+    )),
+    vscode.commands.registerCommand('azureDevOpsInt.showPullRequests', safeCommandHandler(() => showMyPullRequests())),
+    vscode.commands.registerCommand('azureDevOpsInt.showBuildStatus', safeCommandHandler(() => showBuildStatus())),
+    vscode.commands.registerCommand('azureDevOpsInt.toggleKanbanView', safeCommandHandler(() => toggleKanbanView())),
+    vscode.commands.registerCommand('azureDevOpsInt.selectTeam', safeCommandHandler(() => selectTeam())),
+    vscode.commands.registerCommand('azureDevOpsInt.resetPreferredRepositories', safeCommandHandler(() =>
       resetPreferredRepositories()
-    ),
-    vscode.commands.registerCommand('azureDevOpsInt.selfTestWebview', () => selfTestWebview()),
-    vscode.commands.registerCommand('azureDevOpsInt.signInWithEntra', (target?: unknown) =>
-      signInWithEntra(
+    )),
+    vscode.commands.registerCommand('azureDevOpsInt.selfTestWebview', safeCommandHandler(() => selfTestWebview())),
+    vscode.commands.registerCommand('azureDevOpsInt.signInWithEntra', safeCommandHandler((target?: unknown) => {
+      return signInWithEntra(
         context,
         typeof target === 'string' ? target : (target as ProjectConnection | undefined)?.id
-      )
-    ),
-    vscode.commands.registerCommand('azureDevOpsInt.signOutEntra', (target?: unknown) =>
-      signOutEntra(
+      );
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.signOutEntra', safeCommandHandler((target?: unknown) => {
+      return signOutEntra(
         context,
         typeof target === 'string' ? target : (target as ProjectConnection | undefined)?.id
-      )
-    ),
-    vscode.commands.registerCommand('azureDevOpsInt.convertConnectionToEntra', () =>
+      );
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.convertConnectionToEntra', safeCommandHandler(() =>
       convertConnectionToEntra(context)
-    ),
+    )),
     vscode.commands.registerCommand('azureDevOpsInt.clearFilter', () => {
       sendToWebview({ type: 'clearFilters' });
     }),
@@ -1774,30 +1729,30 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('azureDevOpsInt.forceGC', () => {
       forceGarbageCollection();
     }),
-    vscode.commands.registerCommand('azureDevOpsInt.bulkAssign', () => {
+    vscode.commands.registerCommand('azureDevOpsInt.bulkAssign', safeCommandHandler(() => {
       bulkAssignWorkItems();
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.bulkMove', () => {
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.bulkMove', safeCommandHandler(() => {
       bulkMoveWorkItems();
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.bulkAddTags', () => {
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.bulkAddTags', safeCommandHandler(() => {
       bulkAddTags();
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.bulkDelete', () => {
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.bulkDelete', safeCommandHandler(() => {
       bulkDeleteWorkItems();
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.exportFilters', () => {
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.exportFilters', safeCommandHandler(() => {
       exportFiltersToFile();
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.importFilters', () => {
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.importFilters', safeCommandHandler(() => {
       importFiltersFromFile();
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.manageFilters', () => {
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.manageFilters', safeCommandHandler(() => {
       manageSavedFilters();
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.showQueryBuilder', () => {
+    })),
+    vscode.commands.registerCommand('azureDevOpsInt.showQueryBuilder', safeCommandHandler(() => {
       showQueryBuilder();
-    })
+    }))
   );
 
   // Initialize performance monitoring
@@ -1805,7 +1760,7 @@ export function activate(context: vscode.ExtensionContext) {
   performanceMonitor.setEnabled(true);
 
   // Periodic memory optimization
-  setInterval(() => {
+  gcInterval = setInterval(() => {
     MemoryOptimizer.forceGCIfNeeded();
   }, 60000); // Every minute
 
@@ -1814,7 +1769,7 @@ export function activate(context: vscode.ExtensionContext) {
     migrateLegacyConfigIfNeeded().finally(() => silentInit(context));
   } else {
     try {
-      vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
+      vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false).then(() => {}, () => {});
     } catch {
       /* ignore */
     }
@@ -1822,211 +1777,105 @@ export function activate(context: vscode.ExtensionContext) {
 
   // React to configuration changes (connections, org, project, PAT) to (re)initialize without requiring reload
   context.subscriptions.push(
-    vscode.workspace.onDidChangeConfiguration(async (e) => {
-      if (
-        e.affectsConfiguration(`${CONFIG_NS}.connections`) ||
-        e.affectsConfiguration(`${CONFIG_NS}.organization`) ||
-        e.affectsConfiguration(`${CONFIG_NS}.project`) ||
-        e.affectsConfiguration(`${CONFIG_NS}.personalAccessToken`)
-      ) {
-        try {
-          (vscode.commands.registerCommand('azureDevOpsInt.signInWithEntraCycle', async () =>
-            cycleAuthSignIn(context)
-          ),
-            await migrateLegacyPAT(context));
-        } catch {
-          /* ignore */
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      (async () => {
+        if (
+          e.affectsConfiguration(`${CONFIG_NS}.connections`) ||
+          e.affectsConfiguration(`${CONFIG_NS}.organization`) ||
+          e.affectsConfiguration(`${CONFIG_NS}.project`) ||
+          e.affectsConfiguration(`${CONFIG_NS}.personalAccessToken`)
+        ) {
+          try {
+            vscode.commands.registerCommand('azureDevOpsInt.signInWithEntraCycle', safeCommandHandler(() => {
+              return cycleAuthSignIn(context);
+            }));
+            await migrateLegacyPAT(context);
+          } catch {
+            /* ignore */
+          }
+          // Force reload connections array from config when connections setting changes
+          if (e.affectsConfiguration(`${CONFIG_NS}.connections`)) {
+            connections.length = 0; // Clear array to force reload
+            await loadConnectionsFromConfig(context);
+            notifyConnectionsList(); // Update webview with new connections list
+          }
+          // Reset client/provider so silentInit can rebuild from new settings
+          client = undefined;
+          provider = undefined;
+          await silentInit(context);
+          // If a view is attached, refresh to reflect new connection via command
+          try {
+            await vscode.commands.executeCommand('azureDevOpsInt.refreshWorkItems');
+          } catch {
+            /* ignore */
+          }
         }
-        // Force reload connections array from config when connections setting changes
-        if (e.affectsConfiguration(`${CONFIG_NS}.connections`)) {
-          connections.length = 0; // Clear array to force reload
-          await loadConnectionsFromConfig(context);
-          notifyConnectionsList(); // Update webview with new connections list
-        }
-        // Reset client/provider so silentInit can rebuild from new settings
-        client = undefined;
-        provider = undefined;
-        await silentInit(context);
-        // If a view is attached, refresh to reflect new connection via command
-        try {
-          await vscode.commands.executeCommand('azureDevOpsInt.refreshWorkItems');
-        } catch {
-          /* ignore */
-        }
-      }
+      })().catch(err => console.error('[onDidChangeConfiguration] Error:', err));
     })
   );
 
   // Background token refresh for Entra ID connections
-  // Check every 30 minutes and refresh tokens that are expiring soon
-  const TOKEN_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-  tokenRefreshInterval = setInterval(async () => {
-    try {
-      for (const [connectionId, state] of connectionStates.entries()) {
-        if (state.authMethod === 'entra' && state.authService) {
-          try {
-            // Check if we're in a backoff period due to repeated failures
-            if (state.refreshBackoffUntil && state.refreshBackoffUntil.getTime() > Date.now()) {
-              verbose('[TokenRefresh] Skipping connection due to backoff period', {
-                connectionId,
-                backoffUntil: state.refreshBackoffUntil.toISOString(),
-              });
-              continue;
-            }
+  // LEGACY AUTH REMOVED - Token refresh now handled by FSM
+  // PAT connections don't require token refresh
+  verbose('[TokenRefresh] Legacy token refresh disabled - FSM handles authentication');
 
-            const tokenInfo = await state.authService.getTokenInfo();
-            const isExpiringSoon = await state.authService.isTokenExpiringSoon();
-
-            // Log expiration status for debugging
-            if (isExpiringSoon && tokenInfo) {
-              const expiresInMs = tokenInfo.expiresAt.getTime() - Date.now();
-              const expiresInMinutes = Math.floor(expiresInMs / (60 * 1000));
-              verbose('[TokenRefresh] Token expiring soon for connection', {
-                connectionId,
-                expiresInMinutes,
-              });
-            }
-
-            // Check if token is expired
-            const isExpired = tokenInfo ? tokenInfo.expiresAt.getTime() < Date.now() : false;
-
-            // Refresh if token is expiring within 5 minutes or already expired
-            if (isExpired || isExpiringSoon) {
-              verbose('[TokenRefresh] Attempting to get fresh token for connection', {
-                connectionId,
-              });
-
-              // Use getAccessToken() which has backoff logic built-in
-              const newToken = await state.authService.getAccessToken();
-              if (newToken) {
-                state.accessToken = newToken;
-                // Update client credential if this connection has an active client
-                if (state.client) {
-                  state.client.updateCredential(newToken);
-                }
-                verbose('[TokenRefresh] Successfully refreshed token', { connectionId });
-
-                // Reset failure tracking on success
-                state.refreshFailureCount = 0;
-                state.lastRefreshFailure = undefined;
-                state.refreshBackoffUntil = undefined;
-
-                clearAuthReminder(connectionId);
-
-                // Update status bar if this is the active connection
-                if (connectionId === activeConnectionId) {
-                  await updateAuthStatusBar();
-                }
-
-                if (entraAuthProvider) {
-                  await entraAuthProvider.updateSessionForConnection(connectionId);
-                }
-              } else {
-                console.warn(
-                  `[TokenRefresh] Failed to get fresh token for connection ${connectionId} - likely in backoff period`
-                );
-
-                triggerAuthReminderSignIn(connectionId, 'refreshFailed', {
-                  detail: 'Token refresh failed. Click "Sign In" to re-authenticate.',
-                  force: true,
-                });
-              }
-            }
-          } catch (error: any) {
-            console.error(
-              `[TokenRefresh] Error checking/refreshing token for connection ${connectionId}:`,
-              error
-            );
-          }
-        }
-      }
-    } catch (error: any) {
-      console.error('[TokenRefresh] Error in background token refresh:', error);
-    }
-  }, TOKEN_CHECK_INTERVAL_MS);
-
-  // Run an initial check after 5 seconds (after extension activates)
-  setTimeout(async () => {
-    try {
-      for (const [connectionId, state] of connectionStates.entries()) {
-        if (state.authMethod === 'entra' && state.authService) {
-          // Skip if we're in a backoff period
-          if (state.refreshBackoffUntil && state.refreshBackoffUntil.getTime() > Date.now()) {
-            verbose('[TokenRefresh] Skipping initial check due to backoff period', {
-              connectionId,
-              backoffUntil: state.refreshBackoffUntil.toISOString(),
-            });
-            continue;
-          }
-
-          const isExpiringSoon = await state.authService.isTokenExpiringSoon();
-          const tokenInfo = await state.authService.getTokenInfo();
-          const isExpired = tokenInfo ? tokenInfo.expiresAt.getTime() < Date.now() : false;
-
-          if (isExpiringSoon || isExpired) {
-            verbose(
-              '[TokenRefresh] Initial token check - attempting to get fresh token for connection',
-              {
-                connectionId,
-              }
-            );
-
-            // Use getAccessToken() which has backoff logic built-in
-            const refreshedToken = await state.authService.getAccessToken();
-            if (refreshedToken) {
-              state.accessToken = refreshedToken;
-              if (state.client) {
-                state.client.updateCredential(refreshedToken);
-              }
-
-              // Reset failure tracking on success
-              state.refreshFailureCount = 0;
-              state.lastRefreshFailure = undefined;
-              state.refreshBackoffUntil = undefined;
-
-              clearAuthReminder(connectionId);
-
-              if (connectionId === activeConnectionId) {
-                await updateAuthStatusBar();
-              }
-
-              if (entraAuthProvider) {
-                await entraAuthProvider.updateSessionForConnection(connectionId);
-              }
-            } else {
-              verbose(
-                '[TokenRefresh] Initial check - could not get fresh token, likely in backoff period',
-                {
-                  connectionId,
-                }
-              );
-
-              triggerAuthReminderSignIn(connectionId, 'refreshFailed', {
-                detail: 'Token refresh failed. Click "Sign In" to re-authenticate.',
-                force: true,
-              });
-
-              if (entraAuthProvider) {
-                await entraAuthProvider.removeSessionForConnection(connectionId);
-              }
-            }
-          }
-        }
-      }
-    } catch (error: any) {
-      console.error('[TokenRefresh] Error in initial token check:', error);
-    }
-  }, 5000);
+  // LEGACY AUTH REMOVED - Initial token check now handled by FSM
+  verbose('[TokenRefresh] Legacy initial token check disabled - FSM handles authentication');
 }
 
 export function deactivate() {
-  // Clean up performance monitoring
-  stopCacheCleanup();
-  performanceMonitor.setEnabled(false);
-  // Clean up token refresh interval
-  if (tokenRefreshInterval) {
-    clearInterval(tokenRefreshInterval);
-    tokenRefreshInterval = undefined;
+  console.log('[azureDevOpsInt] Extension deactivating...');
+  
+  // Set flag to prevent new async operations during shutdown
+  isDeactivating = true;
+
+  setWebviewMessageHandler(undefined);
+  
+  try {
+    // Remove only our specific error handlers
+    if (rejectionHandler) {
+      process.removeListener('unhandledRejection', rejectionHandler);
+      rejectionHandler = undefined;
+    }
+    
+    // Clean up performance monitoring
+    stopCacheCleanup();
+    performanceMonitor.setEnabled(false);
+    
+    // Clean up token refresh interval
+    if (tokenRefreshInterval) {
+      clearInterval(tokenRefreshInterval);
+      tokenRefreshInterval = undefined;
+    }
+    
+    // Clean up memory optimization interval
+    if (gcInterval) {
+      clearInterval(gcInterval);
+      gcInterval = undefined;
+    }
+    
+    // Clean up timer
+    if (timer) {
+      timer.stop();
+    }
+    
+    // Reset VS Code context - handle promises properly to avoid unhandled rejections
+    try {
+      vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false)
+        .then(() => {}, () => {}); // Explicitly handle both resolve and reject
+      vscode.commands.executeCommand('setContext', 'azureDevOpsInt.timerActive', false)
+        .then(() => {}, () => {}); // Explicitly handle both resolve and reject
+      vscode.commands.executeCommand('setContext', 'azureDevOpsInt.timerRunning', false)
+        .then(() => {}, () => {}); // Explicitly handle both resolve and reject
+      vscode.commands.executeCommand('setContext', 'azureDevOpsInt.timerPaused', false)
+        .then(() => {}, () => {}); // Explicitly handle both resolve and reject
+    } catch {
+      // Ignore any context setting errors during shutdown
+    }
+    
+    console.log('[azureDevOpsInt] Extension deactivated successfully');
+  } catch (error) {
+    console.error('[azureDevOpsInt] Error during deactivation:', error);
   }
 }
 
@@ -2036,45 +1885,102 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
     this.ctx = context;
   }
 
-  resolveWebviewView(webviewView: vscode.WebviewView): void | Thenable<void> {
+  async resolveWebviewView(webviewView: vscode.WebviewView): Promise<void> {
     if (IS_SMOKE) {
       // Avoid doing any webview work in smoke/integration test mode
       try {
-        vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
+        vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false).then(() => {}, () => {});
       } catch {
         /* ignore */
       }
       return undefined;
     }
-    console.log('[azureDevOpsInt] resolveWebviewView invoked for view:', webviewView.viewType);
+    console.log('[azureDevOpsInt] 🔍 resolveWebviewView invoked for view:', webviewView.viewType);
+    console.log('[azureDevOpsInt] 🔍 Webview visibility:', webviewView.visible);
+    console.log('[azureDevOpsInt] 🔍 Extension context URI:', this.ctx.extensionUri.toString());
+    
     panel = webviewView;
     const webview = webviewView.webview;
+    const contextBridge = await ensureSharedContextBridge(this.ctx);
+    contextBridge.attachWebview(webview);
+    contextBridge.sync();
+    
+    console.log('[azureDevOpsInt] 🔍 Setting webview options...');
+    console.log('📺 [WEBVIEW] Webview panel created and assigned');
+    
+    // Log to FSM system
+    import('./fsm/logging/FSMLogger.js').then(({ fsmLogger, FSMComponent }) => {
+      fsmLogger.info(FSMComponent.WEBVIEW, 'Webview panel created', {
+        component: FSMComponent.WEBVIEW,
+        event: 'PANEL_CREATED'
+      }, { 
+        viewType: webviewView.viewType,
+        visible: webviewView.visible 
+      });
+    }).catch(error => {
+      console.error('❌ [FSM] Failed to import FSM logger for webview panel creation:', error);
+    });
+    const mediaPath = vscode.Uri.joinPath(this.ctx.extensionUri, 'media', 'webview');
+    console.log('[azureDevOpsInt] 🔍 Media path for local resources:', mediaPath.toString());
+    
     webview.options = {
       enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.ctx.extensionUri, 'media', 'webview')],
+      localResourceRoots: [mediaPath],
     };
+    console.log('[azureDevOpsInt] 🔍 Webview options set successfully');
 
     const nonce = getNonce();
+    console.log('[azureDevOpsInt] 🔍 Generated nonce for webview:', nonce);
+    
     webview.onDidReceiveMessage((msg: any) => {
-      handleMessage(msg);
+      console.log('[azureDevOpsInt] 🔍 Received message from webview:', msg?.type || 'unknown');
+      if (contextBridge.handleWebviewMessage(msg)) {
+        return;
+      }
+      dispatchApplicationEvent({ type: 'WEBVIEW_MESSAGE', message: msg });
     });
 
+    webviewView.onDidDispose(() => {
+      contextBridge.detachWebview();
+    });
+
+    console.log('[azureDevOpsInt] 🔍 Building webview HTML...');
     const html = buildMinimalWebviewHtml(this.ctx, webview, nonce);
+    console.log('[azureDevOpsInt] 🔍 HTML length:', html.length);
+    console.log('[azureDevOpsInt] 🔍 HTML preview (first 500 chars):', html.substring(0, 500));
+    
     webview.html = html;
-    resendPendingAuthReminders();
+    console.log('[azureDevOpsInt] 🔍 Webview HTML set successfully');
+    
+    // Add visibility tracking
+    webviewView.onDidChangeVisibility(() => {
+      console.log('[azureDevOpsInt] 🔍 Webview visibility changed to:', webviewView.visible);
+    });
+    
     if (!IS_SMOKE) {
+      console.log('[azureDevOpsInt] 🔍 Initializing domain objects...');
       initDomainObjects(this.ctx).catch((err) =>
         console.error('[azureDevOpsInt] Failed to initialize domain objects', err)
       );
     } else {
       // In smoke mode, avoid heavy initialization and network calls.
       // Still send minimal ready state so the webview can render.
+      console.log('[azureDevOpsInt] 🔍 SMOKE mode - sending minimal snapshot');
+      const initialQuery = getStoredQueryForConnection(activeConnectionId, getDefaultQuery(getConfig()));
       sendWorkItemsSnapshot({
         connectionId: activeConnectionId,
         items: [],
         kanbanView: false,
         types: [],
-        query: getStoredQueryForConnection(activeConnectionId, getDefaultQuery(getConfig())),
+        query: initialQuery,
+      });
+      
+      // Also send initial query to webview in SMOKE mode
+      sendToWebview({
+        type: 'queryChanged',
+        query: initialQuery,
+        connectionId: activeConnectionId,
+        description: `SMOKE mode query for connection ${activeConnectionId}`
       });
     }
   }
@@ -2110,6 +2016,15 @@ async function initDomainObjects(context: vscode.ExtensionContext) {
 
   if (panel && state?.provider) {
     const selectedQuery = getStoredQueryForConnection(state.id, getDefaultQuery(config));
+    
+    // Send current query to webview so UI shows correct selection on initial load
+    sendToWebview({
+      type: 'queryChanged',
+      query: selectedQuery,
+      connectionId: state.id,
+      description: `Initial query for connection ${state.id}`
+    });
+    
     if (!initialRefreshedConnections.has(state.id)) {
       initialRefreshedConnections.add(state.id);
     }
@@ -2130,8 +2045,98 @@ async function initDomainObjects(context: vscode.ExtensionContext) {
   }
 }
 
-async function handleMessage(msg: any) {
+async function switchActiveConnectionLegacy(targetId: string, options: { refresh?: boolean } = {}): Promise<void> {
+  console.log('[azureDevOpsInt] 🔄 Legacy connection switch requested via FSM bridge:', {
+    targetId,
+    currentActiveConnectionId: activeConnectionId,
+    options,
+  });
+
+  if (!targetId) {
+    verbose('[switchActiveConnectionLegacy] missing connectionId in request');
+    return;
+  }
+
+  if (!extensionContextRef) {
+    verbose('[switchActiveConnectionLegacy] extension context not available');
+    return;
+  }
+
+  try {
+    const state = await ensureActiveConnection(extensionContextRef, targetId, {
+      refresh: options.refresh ?? false,
+    });
+
+    const activeProvider = state?.provider;
+    const cfg = getConfig();
+    const selectedQuery = getStoredQueryForConnection(targetId, getDefaultQuery(cfg));
+
+    console.log('[azureDevOpsInt] 🔄 Legacy connection switch completed:', {
+      newActiveConnectionId: activeConnectionId,
+      targetId,
+      selectedQuery,
+      hasProvider: !!activeProvider,
+    });
+
+    sendToWebview({
+      type: 'queryChanged',
+      query: selectedQuery,
+      connectionId: targetId,
+      description: `Query for connection ${targetId}`,
+    });
+
+    const cachedItems =
+      activeProvider && typeof (activeProvider as any).getWorkItems === 'function'
+        ? (activeProvider as any).getWorkItems() || []
+        : [];
+
+    sendWorkItemsSnapshot({
+      connectionId: targetId,
+      items: cachedItems,
+      kanbanView: false,
+      provider: activeProvider,
+      query: selectedQuery,
+    });
+
+    if (activeProvider && cachedItems.length === 0) {
+      activeProvider.refresh(selectedQuery);
+    } else if (activeProvider && cachedItems.length > 0) {
+      setTimeout(() => {
+        try {
+          activeProvider.refresh(selectedQuery);
+        } catch (error: any) {
+          verbose('[switchActiveConnectionLegacy] refresh after cached post failed', error?.message || error);
+        }
+      }, 0);
+    } else if (!activeProvider) {
+      sendWorkItemsSnapshot({
+        connectionId: targetId,
+        items: [],
+        kanbanView: false,
+        types: [],
+        query: selectedQuery,
+      });
+    }
+  } catch (error: any) {
+    console.error('[switchActiveConnectionLegacy] failed', error);
+    vscode.window.showErrorMessage(
+      'Failed to switch Azure DevOps project: ' + (error?.message || String(error))
+    );
+  }
+}
+
+async function handleLegacyMessage(msg: any) {
   verbose('[webview->ext]', JSON.stringify(msg));
+  
+  // Log to FSM system
+  import('./fsm/logging/FSMLogger.js').then(({ fsmLogger, FSMComponent }) => {
+    fsmLogger.debug(FSMComponent.WEBVIEW, `Webview message: ${msg?.type || 'unknown'}`, {
+      component: FSMComponent.WEBVIEW,
+      event: msg?.type || 'UNKNOWN_MESSAGE'
+    }, msg);
+  }).catch(error => {
+    console.error('❌ [FSM] Failed to import FSM logger for webview message:', error);
+  });
 
   // Handle async cases first
   if (msg?.type === 'editWorkItemInEditor') {
@@ -2162,12 +2167,25 @@ async function handleMessage(msg: any) {
 
   switch (msg?.type) {
     case 'authReminderAction': {
+      // Log to FSM system
+      import('./fsm/logging/FSMLogger.js').then(({ fsmLogger, FSMComponent }) => {
+        fsmLogger.info(FSMComponent.AUTH, 'Authentication reminder action received', {
+          component: FSMComponent.AUTH,
+          connectionId: msg.connectionId,
+          event: 'AUTH_REMINDER_ACTION'
+        }, { action: msg.action });
+      }).catch(error => {
+        console.error('❌ [FSM] Failed to import FSM logger for auth reminder action:', error);
+      });
+      
       const connectionId = typeof msg.connectionId === 'string' ? msg.connectionId.trim() : '';
       if (!connectionId) {
+        console.warn('🔴 [webview->ext] authReminderAction: missing connectionId');
         break;
       }
       const action = typeof msg.action === 'string' ? msg.action : '';
       if (!action) {
+        console.warn('🔴 [webview->ext] authReminderAction: missing action');
         break;
       }
 
@@ -2181,17 +2199,107 @@ async function handleMessage(msg: any) {
       }
 
       if (action === 'dismiss') {
-        const reminder = pendingAuthReminders.get(connectionId) ?? {
-          status: 'dismissed' as const,
-        };
-        reminder.status = 'dismissed';
-        reminder.snoozeUntil = Date.now() + AUTH_REMINDER_SNOOZE_MS;
-        reminder.deliveredToWebview = false;
-        pendingAuthReminders.set(connectionId, reminder);
-        sendToWebview({ type: 'authReminderClear', connectionId });
+        const actor = getApplicationActor();
+        const send = actor?.send;
+        if (!send) {
+          break;
+        }
+
+        const pendingReminders = getPendingAuthReminderMap();
+        const existingReminder = pendingReminders.get(connectionId);
+        const snoozeUntil = Date.now() + AUTH_REMINDER_SNOOZE_MS;
+
+        if (existingReminder) {
+          send({ type: 'AUTH_REMINDER_DISMISSED', connectionId, snoozeUntil });
+        } else {
+          send({
+            type: 'AUTH_REMINDER_SET',
+            connectionId,
+            reminder: {
+              connectionId,
+              status: 'dismissed',
+              reason: 'authFailed',
+              snoozeUntil,
+            },
+          });
+        }
         break;
       }
 
+      console.warn('🔴 [webview->ext] Unknown authReminderAction action:', action);
+      break;
+    }
+    case 'requireAuthentication': {
+      // Log to FSM system
+      import('./fsm/logging/FSMLogger.js').then(({ fsmLogger, FSMComponent }) => {
+        fsmLogger.info(FSMComponent.AUTH, 'Manual authentication required', {
+          component: FSMComponent.AUTH,
+          connectionId: msg.connectionId,
+          event: 'REQUIRE_AUTHENTICATION'
+        });
+      }).catch(error => {
+        console.error('❌ [FSM] Failed to import FSM logger for require authentication:', error);
+      });
+      
+      const connectionId = typeof msg.connectionId === 'string' ? msg.connectionId.trim() : '';
+      if (!connectionId) {
+        console.warn('🔴 [webview->ext] requireAuthentication: missing connectionId');
+        break;
+      }
+
+      console.log('🔐 [webview->ext] Manual authentication required for connection:', connectionId);
+      
+      // Check if authentication is already in progress for this connection
+      const connectionState = connectionStates.get(connectionId);
+      if (connectionState?.reauthInProgress) {
+        console.log('⏳ [webview->ext] Authentication already in progress for:', connectionId);
+        break;
+      }
+      
+      // Use FSM-based authentication for both PAT and Entra ID
+      try {
+        const { getConnectionFSMManager } = await import('./fsm/ConnectionFSMManager.js');
+        const fsmManager = getConnectionFSMManager();
+        
+        // Get connection state to determine auth method and config
+        if (connectionState?.config) {
+          // Mark authentication as in progress
+          if (connectionState) {
+            connectionState.reauthInProgress = true;
+          }
+          
+          // Enable FSM for this operation
+          fsmManager.setEnabled(true);
+          
+          // Connect using FSM with authentication refresh
+          const result = await fsmManager.connectToConnection(connectionState.config, {
+            refresh: true,
+            interactive: true
+          });
+          
+          if (result.success) {
+            console.log('✅ [webview->ext] FSM authentication successful for:', connectionId);
+          } else {
+            console.warn('⚠️ [webview->ext] FSM authentication failed, falling back to legacy:', result.error);
+            throw new Error(result.error || 'FSM authentication failed');
+          }
+        } else {
+          console.warn('⚠️ [webview->ext] No connection config found for FSM authentication');
+          throw new Error('No connection config available');
+        }
+      } catch (error) {
+        console.error('❌ [webview->ext] Failed to trigger FSM authentication:', error);
+        // Fallback to legacy authentication
+        triggerAuthReminderSignIn(connectionId, 'authFailed', {
+          force: true,
+          startInteractive: true,
+        });
+      } finally {
+        // Clear the in-progress flag
+        if (connectionState) {
+          connectionState.reauthInProgress = false;
+        }
+      }
       break;
     }
     case 'webviewReady': {
@@ -2362,6 +2470,13 @@ async function handleMessage(msg: any) {
     case 'setQuery': {
       const connectionIdRaw = typeof msg.connectionId === 'string' ? msg.connectionId.trim() : '';
       const targetId = connectionIdRaw || activeConnectionId || '';
+      console.log('[azureDevOpsInt] 🔍 Query update requested:', {
+        messageConnectionId: connectionIdRaw,
+        resolvedTargetId: targetId,
+        activeConnectionId,
+        newQuery: msg.query
+      });
+      
       if (!targetId) {
         verbose('[setQuery] no connection id resolved; skipping');
         break;
@@ -2373,6 +2488,14 @@ async function handleMessage(msg: any) {
       const state = connectionStates.get(targetId);
       const targetProvider =
         state?.provider ?? (targetId === activeConnectionId ? provider : undefined);
+      
+      console.log('[azureDevOpsInt] 🔍 Query updated:', {
+        connectionId: targetId,
+        storedQuery,
+        hasProvider: !!targetProvider,
+        isActiveConnection: targetId === activeConnectionId
+      });
+      
       verbose('[setQuery] applied new query', {
         connectionId: targetId,
         query: storedQuery,
@@ -2384,58 +2507,13 @@ async function handleMessage(msg: any) {
     case 'switchConnection':
     case 'setActiveConnection': {
       const targetId = typeof msg.connectionId === 'string' ? msg.connectionId.trim() : '';
-      if (!targetId) {
-        verbose('[setActiveConnection] missing connectionId in message');
-        break;
-      }
-      if (!extensionContextRef) {
-        verbose('[setActiveConnection] missing extension context');
-        break;
-      }
-      try {
-        const state = await ensureActiveConnection(extensionContextRef, targetId, {
-          refresh: false,
-        });
-        const activeProvider = state?.provider;
-        const cfg = getConfig();
-        const selectedQuery = getStoredQueryForConnection(targetId, getDefaultQuery(cfg));
-        const cachedItems =
-          activeProvider && typeof (activeProvider as any).getWorkItems === 'function'
-            ? (activeProvider as any).getWorkItems() || []
-            : [];
-        sendWorkItemsSnapshot({
-          connectionId: targetId,
-          items: cachedItems,
-          kanbanView: false,
-          provider: activeProvider,
-          query: selectedQuery,
-        });
-        if (activeProvider && cachedItems.length === 0) {
-          activeProvider.refresh(selectedQuery);
-        } else if (activeProvider && cachedItems.length > 0) {
-          // still trigger a background refresh to keep results current
-          setTimeout(() => {
-            try {
-              activeProvider.refresh(selectedQuery);
-            } catch (e: any) {
-              verbose('[setActiveConnection] refresh after cached post failed', e?.message || e);
-            }
-          }, 0);
-        } else if (!activeProvider) {
-          sendWorkItemsSnapshot({
-            connectionId: targetId,
-            items: [],
-            kanbanView: false,
-            types: [],
-            query: selectedQuery,
-          });
-        }
-      } catch (e: any) {
-        console.error('[setActiveConnection] failed', e);
-        vscode.window.showErrorMessage(
-          'Failed to switch Azure DevOps project: ' + (e?.message || String(e))
-        );
-      }
+      console.log('[azureDevOpsInt] 🔄 Connection switch requested:', {
+        targetId,
+        currentActiveConnectionId: activeConnectionId,
+        messageType: msg.type,
+      });
+
+      await switchActiveConnectionLegacy(targetId, { refresh: false });
       break;
     }
     case 'moveWorkItem': {
@@ -2825,7 +2903,7 @@ async function handleMessage(msg: any) {
     case 'addComment': {
       const workItemId: number | undefined =
         typeof msg.workItemId === 'number' ? msg.workItemId : undefined;
-      let comment: string | undefined =
+      const comment: string | undefined =
         typeof msg.comment === 'string' ? msg.comment.trim() : undefined;
 
       if (!workItemId) {
@@ -2871,6 +2949,24 @@ async function handleMessage(msg: any) {
       }
       break;
     }
+    case 'ready': {
+      console.log('✅ [webview->ext] Webview ready message received');
+      // Send initial state to webview
+      if (panel && activeConnectionId) {
+        const currentQuery = getStoredQueryForConnection(activeConnectionId);
+        console.log('📤 [webview->ext] Sending initial query to webview:', {
+          connectionId: activeConnectionId,
+          query: currentQuery
+        });
+        sendToWebview({
+          type: 'queryChanged',
+          query: currentQuery,
+          connectionId: activeConnectionId,
+          description: `Initial query for connection ${activeConnectionId}`
+        });
+      }
+      break;
+    }
     default:
       console.warn('Unknown webview message', msg);
       verbose('Unknown message type');
@@ -2906,61 +3002,6 @@ async function selfTestWebview() {
   } catch (e: any) {
     verbose('[selfTest] failed', e?.message || e);
     vscode.window.showErrorMessage(`Webview self-test failed: ${e?.message || e}`);
-  }
-}
-
-async function _migrateGlobalPATToConnection(
-  context: vscode.ExtensionContext,
-  connection: ProjectConnection
-): Promise<void> {
-  // Only migrate into connections that are PAT-authenticated
-  if (!connection.patKey || connection.authMethod === 'entra') return;
-
-  // Check if connection already has a PAT
-  const existingPAT = await context.secrets.get(connection.patKey);
-  if (existingPAT) return; // Already migrated
-
-  // Check if global PAT exists
-  const globalPAT = await context.secrets.get(PAT_KEY);
-  if (globalPAT) {
-    // Migrate global PAT to connection-specific key
-    await context.secrets.store(connection.patKey, globalPAT);
-    console.log(`[azureDevOpsInt] Migrated global PAT to connection ${connection.id}`);
-  }
-}
-
-/**
- * Migrate the global PAT into all connection-specific secret keys where missing.
- * After copying, the global PAT will be deleted to enforce connection-scoped secrets.
- */
-async function migrateGlobalPATToConnections(
-  context: vscode.ExtensionContext,
-  conns: ProjectConnection[]
-): Promise<void> {
-  try {
-    const global = await context.secrets.get(PAT_KEY);
-    if (!global) return;
-    for (const c of conns) {
-      if (!c.patKey) continue;
-      try {
-        const existing = await context.secrets.get(c.patKey);
-        if (!existing) {
-          await context.secrets.store(c.patKey, global);
-          console.log(`[azureDevOpsInt] Migrated global PAT into connection ${c.id}`);
-        }
-      } catch (e) {
-        console.warn(`[azureDevOpsInt] Failed migrating PAT to connection ${c.id}`, e);
-      }
-    }
-    // Remove global PAT to enforce single-source per-connection credentials
-    try {
-      await context.secrets.delete(PAT_KEY);
-      console.log('[azureDevOpsInt] Deleted global PAT after migrating to connections');
-    } catch (e) {
-      console.warn('[azureDevOpsInt] Failed to delete global PAT after migration', e);
-    }
-  } catch (e) {
-    console.warn('[azureDevOpsInt] migrateGlobalPATToConnections failed', e);
   }
 }
 
@@ -3049,12 +3090,23 @@ function buildMinimalWebviewHtml(
 ): string {
   // Use Svelte UI exclusively - no more legacy fallback
   const htmlPath = path.join(context.extensionPath, 'media', 'webview', 'svelte.html');
+  console.log('[azureDevOpsInt] 🔍 buildMinimalWebviewHtml: Starting HTML generation');
+  console.log('[azureDevOpsInt] 🔍 Extension path:', context.extensionPath);
+  console.log('[azureDevOpsInt] 🔍 Extension URI:', context.extensionUri.toString());
+  console.log('[azureDevOpsInt] 🔍 HTML path:', htmlPath);
+  console.log('[azureDevOpsInt] 🔍 Nonce:', nonce);
+  
   let html: string;
 
   try {
+    console.log('[azureDevOpsInt] 🔍 Attempting to read HTML file...');
     html = fs.readFileSync(htmlPath, 'utf8');
+    console.log('[azureDevOpsInt] 🔍 Successfully read HTML file, length:', html.length);
+    console.log('[azureDevOpsInt] 🔍 HTML content preview (first 200 chars):', html.substring(0, 200));
   } catch (error) {
-    console.error('[azureDevOpsInt] Failed to read HTML file:', error);
+    console.error('[azureDevOpsInt] 🔍 Failed to read HTML file:', error);
+    console.error('[azureDevOpsInt] 🔍 HTML file path:', htmlPath);
+    console.error('[azureDevOpsInt] 🔍 HTML file exists:', fs.existsSync(htmlPath));
     // Fallback to basic HTML if file read fails
     return `<!DOCTYPE html><html><head><title>Error</title></head><body><h1>Failed to load webview</h1></body></html>`;
   }
@@ -3063,50 +3115,83 @@ function buildMinimalWebviewHtml(
   const mediaRoot = vscode.Uri.joinPath(context.extensionUri, 'media', 'webview');
   const version = getExtensionVersion(context);
   // Load svelte-main.js exclusively
-  const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'svelte-main.js'));
+  const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'reactive-main.js'));
   // Append a cache-busting version query so VS Code doesn’t serve stale cached assets after upgrade
   const scriptUriWithVersion = scriptUri.with({ query: `v=${encodeURIComponent(version)}` });
   const scriptUriStr = scriptUriWithVersion.toString();
+  console.log('[azureDevOpsInt] 🔍 Media root URI:', mediaRoot.toString());
+  console.log('[azureDevOpsInt] 🔍 Extension version:', version);
+  console.log('[azureDevOpsInt] 🔍 Script URI (before version):', scriptUri.toString());
+  console.log('[azureDevOpsInt] 🔍 Script URI (with version):', scriptUriStr);
+
+  // Check if the script file exists
+  const scriptFsPath = path.join(context.extensionPath, 'media', 'webview', 'reactive-main.js');
+  console.log('[azureDevOpsInt] 🔍 Script file path:', scriptFsPath);
+  console.log('[azureDevOpsInt] 🔍 Script file exists:', fs.existsSync(scriptFsPath));
 
   // Include the extracted CSS bundle
   let cssLinkTag = '';
   try {
-    const cssFsPath = path.join(context.extensionPath, 'media', 'webview', 'svelte-main.css');
+    const cssFsPath = path.join(context.extensionPath, 'media', 'webview', 'reactive-main.css');
+    console.log('[azureDevOpsInt] 🔍 CSS file path:', cssFsPath);
+    console.log('[azureDevOpsInt] 🔍 CSS file exists:', fs.existsSync(cssFsPath));
+    
     if (fs.existsSync(cssFsPath)) {
       const cssUri = webview
-        .asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'svelte-main.css'))
+        .asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'reactive-main.css'))
         .with({ query: `v=${encodeURIComponent(version)}` })
         .toString();
       cssLinkTag = `<link rel="stylesheet" href="${cssUri}" />`;
+      console.log('[azureDevOpsInt] 🔍 CSS link tag:', cssLinkTag);
+    } else {
+      console.log('[azureDevOpsInt] 🔍 CSS file not found, skipping CSS injection');
     }
-  } catch {
+  } catch (cssError) {
+    console.error('[azureDevOpsInt] 🔍 CSS injection error:', cssError);
     // ignore css injection errors; webview will still work but unstyled
   }
 
   // Update CSP and script nonces
   const csp = `default-src 'none'; img-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${webview.cspSource}`;
+  console.log('[azureDevOpsInt] 🔍 CSP:', csp);
+  
   const consoleBridge = `(function(){try{var vs=window.vscode||acquireVsCodeApi();['log','warn','error'].forEach(function(m){var orig=console[m];console[m]=function(){try{vs.postMessage({type:'webviewConsole', level:m, args:Array.from(arguments).map(a=>{try{return a&&a.stack?String(a.stack):typeof a==='object'?JSON.stringify(a):String(a);}catch{return String(a);}})});}catch{};return orig.apply(console,arguments);};});console.log('[webview] Azure DevOps Integration v${version}');}catch(e){/* ignore */}})();`;
 
+  console.log('[azureDevOpsInt] 🔍 Starting HTML transformations...');
+  
   // Replace placeholders in the static HTML
+  const originalHtml = html;
   html = html.replace(
     '<meta charset="UTF-8">',
     `<meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}">`
   );
+  console.log('[azureDevOpsInt] 🔍 CSP replacement done, changed:', originalHtml !== html);
 
-  // Replace script source
-  html = html.replace('./svelte-main.js', scriptUriStr);
+  // Replace script source with the correct reactive-main.js file
+  const beforeScriptReplace = html;
+  html = html.replace('./reactive-main.js', scriptUriStr);
+  console.log('[azureDevOpsInt] 🔍 Script source replacement done, changed:', beforeScriptReplace !== html);
 
   // Inject CSS link just before </head> if available
   if (cssLinkTag) {
+    const beforeCssReplace = html;
     html = html.replace('</head>', `${cssLinkTag}\n</head>`);
+    console.log('[azureDevOpsInt] 🔍 CSS injection done, changed:', beforeCssReplace !== html);
   }
 
+  const beforeFinalReplace = html;
+  // Replace the final script tag with proper nonce and VS Code API setup
   html = html.replace(
-    '<script type="module" crossorigin src="' + scriptUriStr + '"></script>',
+    '<script type="module" crossorigin src="./reactive-main.js"></script>',
     `<script nonce="${nonce}">(function(){try{if(!window.vscode){window.vscode=acquireVsCodeApi();}}catch(e){console.error('[webview] acquireVsCodeApi failed',e);}})();</script>` +
       `<script nonce="${nonce}">${consoleBridge}</script>` +
       `<script type="module" nonce="${nonce}" src="${scriptUriStr}"></script>`
   );
+  
+  console.log('[azureDevOpsInt] 🔍 Final script replacement done, changed:', beforeFinalReplace !== html);
+
+  console.log('[azureDevOpsInt] 🔍 Final HTML length:', html.length);
+  console.log('[azureDevOpsInt] 🔍 Final HTML preview (last 200 chars):', html.substring(html.length - 200));
 
   return html;
 }
@@ -3125,7 +3210,7 @@ async function setupConnection(context: vscode.ExtensionContext) {
   await migrateLegacyPAT(context);
 
   const hasExistingConnections = connections.length > 0;
-  let action: SetupWizardAction | undefined;
+  let action: SetupAction | undefined;
 
   if (!hasExistingConnections) {
     action = 'add';
@@ -3136,7 +3221,7 @@ async function setupConnection(context: vscode.ExtensionContext) {
     );
     const hasEntraConnections = connections.some((connection) => connection.authMethod === 'entra');
 
-    const quickPickItems: Array<vscode.QuickPickItem & { action: SetupWizardAction }> = [];
+    const quickPickItems: Array<vscode.QuickPickItem & { action: SetupAction }> = [];
 
     // Main project management options
     quickPickItems.push(
@@ -3200,9 +3285,9 @@ async function setupConnection(context: vscode.ExtensionContext) {
   }
 
   if (action === 'add') {
-    // Use the modern SetupWizard which supports both PAT and Entra ID authentication
-    const wizard = new SetupWizard(context);
-    const result = await wizard.start();
+    // Use the FSM-based setup service for connection setup
+    const setupService = new FSMSetupService(context);
+    const result = await setupService.startSetup();
 
     if (result.status === 'success') {
       // Reload connections after successful setup
@@ -3222,9 +3307,9 @@ async function setupConnection(context: vscode.ExtensionContext) {
       }
     }
   } else if (action === 'manage') {
-    // Use the SetupWizard to manage existing projects - skip initial choice and go straight to project list
-    const wizard = new SetupWizard(context);
-    const result = await wizard.start({ skipInitialChoice: true });
+    // Use the FSM-based setup service to manage existing connections
+    const setupService = new FSMSetupService(context);
+    const result = await setupService.startSetup({ skipInitialChoice: true });
 
     if (result.status === 'success') {
       // Reload connections after successful management
@@ -3323,55 +3408,56 @@ async function signInWithEntra(
   }
 
   const connectionLabel = describeConnection(connection);
+  
+  // Show immediate feedback
+  const statusMsg = vscode.window.setStatusBarMessage(`🔐 Starting Entra ID authentication...`, 5000);
+  
+  // Use FSM-based Entra ID authentication
   try {
-    const result = await ensureEntraAuthService(context, connection, {
-      interactive: true,
-      forceInteractive: options.forceInteractive === true,
+    console.log(`🔐 [signInWithEntra] Starting FSM-based Entra authentication for ${connection.id}`);
+    
+    const { getConnectionFSMManager } = await import('./fsm/ConnectionFSMManager.js');
+    const fsmManager = getConnectionFSMManager();
+    
+    // Enable FSM for authentication
+    fsmManager.setEnabled(true);
+    
+    // Ensure connection has Entra auth method
+    const connectionState = connectionStates.get(connection.id);
+    if (connectionState) {
+      connectionState.authMethod = 'entra';
+    }
+    
+    // Update connection config to ensure it has Entra auth method
+    const updatedConnection = {
+      ...connection,
+      authMethod: 'entra' as const
+    };
+    
+    // Use FSM to authenticate with Entra ID
+    const result = await fsmManager.connectToConnection(updatedConnection, {
+      refresh: true,
+      interactive: options.forceInteractive || true
     });
-
-    if (!result.success || !result.token) {
-      vscode.window.showErrorMessage(
-        `Authentication failed: ${result.error || 'Unknown error'}. Please try again.`
-      );
-      ensureAuthReminder(connection.id, 'authFailed', {
-        detail: result.error ? `Details: ${result.error}` : undefined,
-      });
-      return;
+    
+    if (result.success) {
+      statusMsg.dispose(); // Clear the status message
+      console.log(`✅ [signInWithEntra] Entra authentication successful for ${connection.id}`);
+      if (options.showSuccessMessage) {
+        vscode.window.showInformationMessage(
+          `Successfully signed in to ${connectionLabel} with Microsoft Entra ID.`
+        );
+      }
+    } else {
+      statusMsg.dispose(); // Clear the status message
+      throw new Error(result.error || 'Entra authentication failed');
     }
-
-    // Update connection to use Entra ID
-    if (connection.authMethod !== 'entra') {
-      connection.authMethod = 'entra';
-      await saveConnectionsToConfig(context, connections);
-    }
-
-    // Reset refresh failure tracking since sign-in was successful
-    const state = connectionStates.get(connection.id);
-    if (state) {
-      state.refreshFailureCount = 0;
-      state.lastRefreshFailure = undefined;
-      state.refreshBackoffUntil = undefined;
-    }
-
-    clearAuthReminder(connection.id);
-
-    if (options.showSuccessMessage !== false) {
-      vscode.window.showInformationMessage(
-        `Successfully signed in to "${connectionLabel}" with Microsoft Entra ID!`
-      );
-    }
-
-    // Refresh connection to use new auth
-    await ensureActiveConnection(context, connection.id, { refresh: true });
-
-    await updateAuthStatusBar();
-    if (entraAuthProvider) {
-      await entraAuthProvider.updateSessionForConnection(connection.id);
-    }
-  } catch (error: any) {
-    console.error('[azureDevOpsInt] Sign in with Entra ID failed:', error);
-    vscode.window.showErrorMessage(`Sign in failed: ${error.message}`);
-    return;
+  } catch (error) {
+    statusMsg.dispose(); // Clear the status message
+    console.error(`❌ [signInWithEntra] Failed to authenticate with Entra ID:`, error);
+    vscode.window.showErrorMessage(
+      `Failed to sign in to ${connectionLabel} with Microsoft Entra ID: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 
@@ -3430,7 +3516,7 @@ async function signOutEntra(
 
     // Clear auth service from state
     if (state) {
-      state.authService = undefined;
+      // LEGACY AUTH REMOVED - authService cleanup no longer needed
       state.accessToken = undefined;
     }
 
@@ -3449,9 +3535,7 @@ async function signOutEntra(
       await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
     }
 
-    if (entraAuthProvider) {
-      await entraAuthProvider.removeSessionForConnection(connection.id);
-    }
+    // LEGACY AUTH REMOVED - FSM authentication needed
   } catch (error: any) {
     console.error('[azureDevOpsInt] Sign out failed:', error);
     vscode.window.showErrorMessage(`Sign out failed: ${error.message}`);
@@ -3503,74 +3587,17 @@ async function convertConnectionToEntra(context: vscode.ExtensionContext): Promi
 
   const settings = getConfig();
   const defaultClientId =
-    settings.get<string>('entra.defaultClientId') || '872cd9fa-d31f-45e0-9eab-6e460a02d1f1';
+  settings.get<string>('entra.defaultClientId') || '872cd9fa-d31f-45e0-9eab-6e460a02d1f1';
   const defaultTenantId = settings.get<string>('entra.defaultTenantId') || 'organizations';
 
-  try {
-    // Create auth service
-    const authService = await createAuthService('entra', context.secrets, connection.id, {
-      entraConfig: {
-        clientId: connection.clientId || defaultClientId,
-        tenantId: connection.tenantId || defaultTenantId,
-        scopes: ['499b84ac-1321-427f-aa17-267ca6975798/.default'],
-      },
-      deviceCodeCallback: createDeviceCodeCallback(context, connection),
-    });
+  // LEGACY AUTH REMOVED - FSM authentication needed
+  vscode.window.showInformationMessage(
+    `Entra ID authentication conversion is not yet implemented in the FSM architecture. Please use PAT authentication for now.`
+  );
+  console.log('[azureDevOpsInt] Entra ID conversion requested but not yet implemented in FSM architecture');
+  return;
 
-    // Authenticate
-    const result = await authService.authenticate();
-    if (!result.success) {
-      vscode.window.showErrorMessage(
-        `Authentication failed: ${result.error || 'Unknown error'}. Conversion cancelled.`
-      );
-      return;
-    }
-
-    // Update connection
-    connection.authMethod = 'entra';
-    if (!connection.clientId) {
-      connection.clientId = defaultClientId;
-    }
-    if (!connection.tenantId) {
-      connection.tenantId = defaultTenantId;
-    }
-
-    // Delete old PAT
-    if (connection.patKey) {
-      await context.secrets.delete(connection.patKey);
-      connection.patKey = undefined;
-    }
-
-    // Save updated connection
-    await saveConnectionsToConfig(context, connections);
-
-    // Update state
-    let state = connectionStates.get(connection.id);
-    if (!state) {
-      state = { id: connection.id, config: connection, authMethod: 'entra' };
-      connectionStates.set(connection.id, state);
-    } else {
-      state.authMethod = 'entra';
-      state.pat = undefined;
-    }
-    state.authService = authService;
-
-    vscode.window.showInformationMessage(
-      `Successfully converted "${connection.label || connection.organization}" to Microsoft Entra ID!`
-    );
-
-    // Refresh connection
-    if (connection.id === activeConnectionId) {
-      await ensureActiveConnection(context, connection.id, { refresh: true });
-    }
-
-    if (entraAuthProvider) {
-      await entraAuthProvider.updateSessionForConnection(connection.id);
-    }
-  } catch (error: any) {
-    console.error('[azureDevOpsInt] Conversion to Entra ID failed:', error);
-    vscode.window.showErrorMessage(`Conversion failed: ${error.message}`);
-  }
+  // Function implementation removed - not needed since we return early above
 }
 
 async function promptSwitchActiveConnection(context: vscode.ExtensionContext): Promise<boolean> {
@@ -3634,7 +3661,7 @@ async function promptSwitchActiveConnection(context: vscode.ExtensionContext): P
 /**
  * Legacy add connection function - DEPRECATED
  * This function is kept for reference but is no longer used.
- * Use SetupWizard instead, which supports both PAT and Entra ID authentication.
+ * Use FSM-based setup instead, which supports both PAT and Entra ID authentication.
  */
 async function _promptAddConnection_DEPRECATED(context: vscode.ExtensionContext): Promise<boolean> {
   const _existingPat = await getSecretPAT(context);
@@ -3790,7 +3817,7 @@ async function _promptAddConnection_DEPRECATED(context: vscode.ExtensionContext)
   // If we detected a baseUrl from a pasted work item URL or manual on-prem setup, use that.
   // Otherwise ask for cloud instance type.
   let baseUrl: string | undefined = detectedBaseUrl;
-  let apiBaseUrl: string | undefined = detectedApiBaseUrl;
+  const apiBaseUrl: string | undefined = detectedApiBaseUrl;
 
   if (!baseUrl && !isOnPremManual) {
     const baseUrlChoice = await vscode.window.showQuickPick(
@@ -3886,7 +3913,6 @@ async function _promptAddConnection_DEPRECATED(context: vscode.ExtensionContext)
 
   // Always prompt for a PAT for PAT-authenticated connections. Store the PAT
   // under a connection-specific secret key so credentials are never global.
-  let pat: string | undefined;
   const entered = await vscode.window.showInputBox({
     prompt: 'Personal Access Token (scopes: Work Items Read/Write)',
     password: true,
@@ -3896,7 +3922,7 @@ async function _promptAddConnection_DEPRECATED(context: vscode.ExtensionContext)
     vscode.window.showWarningMessage('A Personal Access Token is required to complete setup.');
     return false;
   }
-  pat = entered.trim();
+  const pat = entered.trim();
 
   // For on-prem connections, validate and potentially correct the URL structure
   const lowerBase = (baseUrl || '').toLowerCase();
@@ -4115,12 +4141,12 @@ function revealWorkItemsView() {
   }
   // Show our custom Activity Bar container. Since it's the only view in the container,
   // revealing the container is sufficient and avoids potential focus race conditions.
-  vscode.commands.executeCommand('workbench.view.extension.azureDevOpsIntegration');
+  vscode.commands.executeCommand('workbench.view.extension.azureDevOpsIntegration').then(() => {}, () => {});
   // Also explicitly focus the view to force creation/resolve if VS Code didn't materialize it yet.
   // VS Code generates a '<viewId>.focus' command for contributed views.
   setTimeout(() => {
     try {
-      vscode.commands.executeCommand('azureDevOpsWorkItems.focus');
+      vscode.commands.executeCommand('azureDevOpsWorkItems.focus').then(() => {}, () => {});
       verbose('Focused Work Items view');
     } catch {
       // ignore focus error
@@ -4336,16 +4362,25 @@ async function selectTeam() {
           burst,
           team: chosen.label,
         });
-        provider = client
-          ? new WorkItemsProvider(
-              'default',
-              client,
-              (m: any) => postToWebview({ panel, message: m, logger: verbose }),
-              {}
-            )
-          : provider;
-        // refresh view if attached
-        provider?.refresh(getDefaultQuery(cfg));
+        if (client) {
+          provider = createConnectionProvider({
+            connectionId: 'default',
+            client,
+            postMessage: (m: unknown) => forwardProviderMessage('default', m),
+          });
+        }
+        // refresh view if attached - use connection-specific query
+        const connectionSpecificQuery = activeConnectionId 
+          ? getStoredQueryForConnection(activeConnectionId)
+          : getDefaultQuery(cfg);
+        
+        console.log('🔄 [Query Debug] selectTeam - refreshing with connection-specific query:', {
+          activeConnectionId,
+          connectionSpecificQuery,
+          globalDefault: getDefaultQuery(cfg)
+        });
+        
+        provider?.refresh(connectionSpecificQuery);
       } catch {
         /* ignore */
       }
@@ -5407,9 +5442,13 @@ async function showQueryBuilder() {
 function updateTimerContext(s: any) {
   const running = !!s && !s.isPaused;
   const paused = !!s && s.isPaused;
-  vscode.commands.executeCommand('setContext', 'azureDevOpsInt.timerActive', !!s);
-  vscode.commands.executeCommand('setContext', 'azureDevOpsInt.timerRunning', running);
-  vscode.commands.executeCommand('setContext', 'azureDevOpsInt.timerPaused', paused);
+  
+  // Avoid setting context during deactivation to prevent cancelled promise errors
+  if (!isDeactivating) {
+    vscode.commands.executeCommand('setContext', 'azureDevOpsInt.timerActive', !!s).then(() => {}, () => {});
+    vscode.commands.executeCommand('setContext', 'azureDevOpsInt.timerRunning', running).then(() => {}, () => {});
+    vscode.commands.executeCommand('setContext', 'azureDevOpsInt.timerPaused', paused).then(() => {}, () => {});
+  }
   if (statusBarItem) {
     if (s) {
       const connectionLabel = getActiveTimerConnectionLabel();
@@ -5449,532 +5488,21 @@ function verbose(msg: string, extra?: any) {
   }
 }
 
-// ---------------- Branch & Build Enrichment Helpers ----------------
-
-async function getGitApi(): Promise<any | undefined> {
-  if (cachedGitApi) return cachedGitApi;
-  try {
-    const gitExt = vscode.extensions.getExtension('vscode.git');
-    if (!gitExt) return undefined;
-    const exports = gitExt.isActive ? gitExt.exports : await gitExt.activate();
-    const api = exports?.getAPI?.(1);
-    cachedGitApi = api;
-    return api;
-  } catch (error) {
-    console.warn('[azureDevOpsInt] Failed to acquire git API', error);
-    return undefined;
-  }
-}
-
-type ParsedBranchLink = {
-  projectId?: string;
-  repositoryId?: string;
-  refName?: string;
-  shortName?: string;
-};
-
-function normalizeBranchRef(ref?: string | null): { full: string; short: string } | null {
-  if (!ref) return null;
-  const trimmed = String(ref).trim();
-  if (!trimmed) return null;
-  if (trimmed.startsWith('refs/')) {
-    const short = trimmed.startsWith('refs/heads/') ? trimmed.slice('refs/heads/'.length) : trimmed;
-    return { full: trimmed, short };
-  }
-  return { full: `refs/heads/${trimmed}`, short: trimmed };
-}
-
-function parseBranchArtifactLink(url?: string | null): ParsedBranchLink | null {
-  if (!url || typeof url !== 'string') return null;
-  const prefix = 'vstfs:///Git/Ref/';
-  if (!url.startsWith(prefix)) return null;
-  try {
-    const remainder = url.slice(prefix.length);
-    const parts = remainder.split('%2F');
-    if (parts.length < 3) return null;
-    const projectId = decodeURIComponent(parts[0]);
-    const repositoryId = decodeURIComponent(parts[1]);
-    const encodedRef = parts.slice(2).join('%2F');
-    const rawRef = decodeURIComponent(encodedRef);
-    let refName = rawRef;
-    let shortName: string | undefined;
-    if (refName.startsWith('GB')) {
-      shortName = refName.slice(2);
-      if (shortName.startsWith('refs/')) {
-        refName = shortName;
-        shortName = refName.replace(/^refs\/heads\//, '');
-      } else {
-        refName = `refs/heads/${shortName}`;
-      }
-    } else if (refName.startsWith('GT')) {
-      shortName = refName.slice(2);
-      refName = `refs/tags/${shortName}`;
-    } else if (refName.startsWith('refs/')) {
-      shortName = refName.replace(/^refs\/heads\//, '');
-    }
-    return { projectId, repositoryId, refName, shortName };
-  } catch (error) {
-    console.warn('[azureDevOpsInt] Failed to parse branch artifact link', { url, error });
-    return null;
-  }
-}
-
-type ParsedRemote = {
-  organization?: string;
-  project?: string;
-  repositoryName?: string;
-};
-
-function normalizeRepositoryName(name?: string | null): string | undefined {
-  if (!name) return undefined;
-  const trimmed = name.trim().replace(/\.git$/i, '');
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function parseAzureRemote(remoteUrl?: string | null): ParsedRemote | undefined {
-  if (!remoteUrl) return undefined;
-  try {
-    if (/^https?:/i.test(remoteUrl)) {
-      const url = new URL(remoteUrl);
-      const segments = url.pathname.split('/').filter(Boolean);
-      const gitIndex = segments.findIndex((segment) => segment.toLowerCase() === '_git');
-      if (gitIndex >= 0 && segments.length > gitIndex + 1) {
-        return {
-          organization: segments[0],
-          project: segments[1],
-          repositoryName: normalizeRepositoryName(segments[gitIndex + 1]),
-        };
-      }
-      if (segments.length >= 3) {
-        return {
-          organization: segments[0],
-          project: segments[1],
-          repositoryName: normalizeRepositoryName(segments[segments.length - 1]),
-        };
-      }
-    } else if (remoteUrl.includes('ssh.dev.azure.com')) {
-      const marker = 'ssh.dev.azure.com:v3/';
-      const idx = remoteUrl.indexOf(marker);
-      if (idx >= 0) {
-        const parts = remoteUrl
-          .slice(idx + marker.length)
-          .split(/[\\/]/)
-          .filter(Boolean);
-        if (parts.length >= 3) {
-          return {
-            organization: parts[0],
-            project: parts[1],
-            repositoryName: normalizeRepositoryName(parts[2]),
-          };
-        }
-      }
-    } else if (remoteUrl.includes('vs-ssh.visualstudio.com')) {
-      const marker = 'vs-ssh.visualstudio.com:';
-      const idx = remoteUrl.indexOf(marker);
-      if (idx >= 0) {
-        const after = remoteUrl.slice(idx + marker.length).replace(/^v[23]\//i, '');
-        const parts = after.split(/[\\/]/).filter(Boolean);
-        if (parts.length >= 3) {
-          return {
-            organization: parts[0],
-            project: parts[1],
-            repositoryName: normalizeRepositoryName(parts[2]),
-          };
-        }
-      }
-    }
-  } catch (error) {
-    console.warn('[azureDevOpsInt] Failed to parse Azure remote URL', { remoteUrl, error });
-  }
-  return undefined;
-}
-
-async function getAzureRepositoryByName(
-  connectionId: string,
-  client: AzureDevOpsIntClient,
-  repoName?: string
-): Promise<any | null> {
-  if (!repoName) return null;
-  const normalized = repoName.trim().toLowerCase();
-  if (!normalized) return null;
-  const cached = repositoryCacheByConnection.get(connectionId);
-  const now = Date.now();
-  let repos: any[] | null = null;
-  if (cached && now - cached.fetchedAt < REPOSITORY_CACHE_TTL_MS) {
-    repos = cached.repos;
-  } else {
-    try {
-      const fetched = await client.getRepositories();
-      if (Array.isArray(fetched)) {
-        repos = fetched;
-        repositoryCacheByConnection.set(connectionId, { fetchedAt: now, repos: fetched });
-      }
-    } catch (error) {
-      console.warn('[azureDevOpsInt] Failed to fetch repositories', error);
-      return null;
-    }
-  }
-  if (!Array.isArray(repos)) return null;
-  return (
-    repos.find(
-      (r: any) => typeof r?.name === 'string' && r.name.trim().toLowerCase() === normalized
-    ) ||
-    repos.find((r: any) => typeof r?.id === 'string' && r.id.trim().toLowerCase() === normalized) ||
-    null
-  );
-}
-
-async function resolveBranchContext(state: ConnectionState): Promise<BranchContext | null> {
-  const api = await getGitApi();
-  if (!api) return null;
-  const repo = Array.isArray(api.repositories) ? api.repositories[0] : undefined;
-  if (!repo) return null;
-  const head = repo.state?.HEAD;
-  const normalized = normalizeBranchRef(head?.name || head?.upstream?.name);
-  if (!normalized) return null;
-  const remotes: any[] = Array.isArray(repo.state?.remotes) ? repo.state.remotes : [];
-  const remote =
-    remotes.find((r: any) => !r?.isReadOnly && (r?.pushUrl || r?.fetchUrl)) || remotes[0];
-  const remoteUrl = remote?.pushUrl || remote?.fetchUrl;
-  const parsedRemote = parseAzureRemote(remoteUrl);
-  let repositoryId: string | undefined = undefined;
-  let repositoryName = parsedRemote?.repositoryName;
-  if (repositoryName && state.client) {
-    const repoMeta = await getAzureRepositoryByName(state.id, state.client, repositoryName);
-    if (repoMeta) {
-      if (typeof repoMeta.id === 'string') repositoryId = repoMeta.id;
-      if (typeof repoMeta.name === 'string' && repoMeta.name.trim().length > 0) {
-        repositoryName = repoMeta.name.trim();
-      }
-    }
-  }
-  return {
-    branchName: normalized.short,
-    branchRef: normalized.full,
-    repositoryId,
-    repositoryName,
-    remoteUrl,
-    lastUpdated: Date.now(),
-  };
-}
-
-async function getBuildsForBranch(
-  connectionId: string,
-  client: AzureDevOpsIntClient,
-  branchRef: string,
-  repositoryId?: string
-): Promise<WorkItemBuildSummary[]> {
-  const key = `${connectionId}|${repositoryId ?? 'any'}|${branchRef}`;
-  const cached = buildCacheByKey.get(key);
-  const now = Date.now();
-  if (cached && now - cached.fetchedAt < BUILD_CACHE_TTL_MS) {
-    return cached.builds;
-  }
-  try {
-    const builds = await client.getRecentBuilds({
-      top: 5,
-      branchName: branchRef,
-      repositoryId,
-    });
-    if (Array.isArray(builds)) {
-      buildCacheByKey.set(key, { fetchedAt: now, builds });
-      return builds;
-    }
-  } catch (error) {
-    console.warn('[azureDevOpsInt] Failed to fetch builds for branch', {
-      branchRef,
-      repositoryId,
-      error,
-    });
-  }
-  buildCacheByKey.set(key, { fetchedAt: now, builds: [] });
-  return [];
-}
-
-type BranchMatchResult = {
-  relation: WorkItemBranchLink;
-  parsed: ParsedBranchLink;
-  confidence: WorkItemBranchMetadata['matchConfidence'];
-};
-
-const FINISHED_BUILD_STATUSES = new Set(['completed', 'postponed']);
-const FINISHED_BUILD_RESULTS = new Set([
-  'succeeded',
-  'failed',
-  'canceled',
-  'cancelled',
-  'partiallysucceeded',
-]);
-
-function isBuildActive(summary?: WorkItemBuildSummary | null): boolean {
-  if (!summary) return false;
-  const status = typeof summary.status === 'string' ? summary.status.toLowerCase() : '';
-  if (status) {
-    return !FINISHED_BUILD_STATUSES.has(status);
-  }
-  const result = typeof summary.result === 'string' ? summary.result.toLowerCase() : '';
-  if (!result) return true;
-  return !FINISHED_BUILD_RESULTS.has(result);
-}
-
-function findBestBranchMatch(
-  relations: WorkItemBranchLink[],
-  targetBranchRef: string,
-  targetBranchName: string,
-  targetRepositoryId?: string
-): BranchMatchResult | null {
-  if (!Array.isArray(relations) || relations.length === 0) return null;
-  let best: { score: number; result: BranchMatchResult } | null = null;
-  for (const relation of relations) {
-    const parsed = parseBranchArtifactLink(relation.url);
-    if (!parsed) continue;
-    const normalized = normalizeBranchRef(parsed.refName || relation.refName);
-    const relationRef = normalized?.full?.toLowerCase();
-    const relationShort = (normalized?.short || parsed.shortName || '').toLowerCase();
-    const desiredRef = targetBranchRef.toLowerCase();
-    const desiredShort = targetBranchName.toLowerCase();
-    const refMatches = !!relationRef && relationRef === desiredRef;
-    const nameMatches = relationShort === desiredShort && desiredShort.length > 0;
-    if (!refMatches && !nameMatches) continue;
-    const repoMatch =
-      targetRepositoryId && parsed.repositoryId
-        ? parsed.repositoryId.toLowerCase() === targetRepositoryId.toLowerCase()
-        : !targetRepositoryId;
-    let score = 0;
-    let confidence: WorkItemBranchMetadata['matchConfidence'] = 'name';
-    if (refMatches) {
-      score += 2;
-      confidence = repoMatch ? 'exact' : 'refOnly';
-    } else if (nameMatches) {
-      score += 1;
-      confidence = 'name';
-    }
-    if (repoMatch) score += 1;
-    if (!best || score > best.score) {
-      const result: BranchMatchResult = {
-        relation,
-        parsed: {
-          projectId: parsed.projectId,
-          repositoryId: parsed.repositoryId,
-          refName: normalized?.full || parsed.refName,
-          shortName: normalized?.short || parsed.shortName,
-        },
-        confidence,
-      };
-      best = { score, result };
-    }
-  }
-  return best?.result ?? null;
-}
-
-async function enrichWorkItemsForConnection(
-  state: ConnectionState,
-  payload: { items: WorkItem[]; connectionId: string }
-): Promise<WorkItem[]> {
-  const sourceItems = Array.isArray(payload.items) ? payload.items : [];
-  const client = state.client;
-  if (!client || sourceItems.length === 0) {
-    branchStateByConnection.set(state.id, {
-      context: null,
-      hasActiveBuild: false,
-      lastUpdated: Date.now(),
-    });
-    return [...sourceItems];
-  }
-
-  const branchContext = await resolveBranchContext(state);
-  if (!branchContext) {
-    branchStateByConnection.set(state.id, {
-      context: null,
-      hasActiveBuild: false,
-      lastUpdated: Date.now(),
-    });
-    return sourceItems.map((item) => {
-      const clone: WorkItem = { ...item };
-      if ((clone as any).branchMetadata) delete (clone as any).branchMetadata;
-      if (Array.isArray(item.relations)) {
-        clone.relations = item.relations.map((rel) => ({ ...rel }));
-      }
-      return clone;
-    });
-  }
-
-  const normalizedContext = normalizeBranchRef(branchContext.branchRef || branchContext.branchName);
-  if (!normalizedContext) {
-    branchStateByConnection.set(state.id, {
-      context: null,
-      hasActiveBuild: false,
-      lastUpdated: Date.now(),
-    });
-    return sourceItems;
-  }
-
-  const matchedItems: WorkItem[] = [];
-  const unmatchedItems: WorkItem[] = [];
-  const matches: Array<{
-    item: WorkItem;
-    repositoryId?: string;
-    parsed: ParsedBranchLink;
-  }> = [];
-
-  for (const original of sourceItems) {
-    const clone: WorkItem = { ...original };
-    const relations = Array.isArray(original.relations)
-      ? original.relations.map((rel) => {
-          const relClone: WorkItemBranchLink = { ...rel };
-          const parsed = parseBranchArtifactLink(rel.url);
-          if (parsed) {
-            relClone.repositoryId = parsed.repositoryId;
-            relClone.projectId = parsed.projectId;
-            relClone.refName = parsed.refName;
-          }
-          return relClone;
-        })
-      : [];
-    if (relations.length > 0) {
-      clone.relations = relations;
-    }
-
-    const match = findBestBranchMatch(
-      relations,
-      normalizedContext.full,
-      normalizedContext.short,
-      branchContext.repositoryId
-    );
-
-    if (match) {
-      const repositoryIdForMatch = match.parsed.repositoryId ?? branchContext.repositoryId;
-      const metadata: WorkItemBranchMetadata = {
-        isCurrentBranch: true,
-        branchName: normalizedContext.short,
-        refName: normalizedContext.full,
-        repositoryId: repositoryIdForMatch,
-        repositoryName: branchContext.repositoryName,
-        matchConfidence: match.confidence,
-        link: { ...match.relation },
-        hasActiveBuild: false,
-        lastUpdated: new Date().toISOString(),
-      };
-      clone.branchMetadata = metadata;
-      matches.push({ item: clone, repositoryId: repositoryIdForMatch, parsed: match.parsed });
-      matchedItems.push(clone);
-    } else {
-      if ((clone as any).branchMetadata) delete (clone as any).branchMetadata;
-      unmatchedItems.push(clone);
-    }
-  }
-
-  let hasActiveBuild = false;
-  let resolvedRepositoryId = branchContext.repositoryId ?? matches[0]?.repositoryId;
-  if (matches.length > 0) {
-    const buildInfoByRepo = new Map<string, { build?: WorkItemBuildSummary; hasActive: boolean }>();
-    const repoKeys = new Set<string>();
-    for (const entry of matches) {
-      repoKeys.add(entry.repositoryId ?? '__default__');
-    }
-    for (const repoKey of repoKeys) {
-      const resolvedRepoId = repoKey === '__default__' ? branchContext.repositoryId : repoKey;
-      const builds = await getBuildsForBranch(
-        state.id,
-        client,
-        normalizedContext.full,
-        resolvedRepoId
-      );
-      const latest = Array.isArray(builds) && builds.length > 0 ? builds[0] : undefined;
-      const active = isBuildActive(latest);
-      if (active) hasActiveBuild = true;
-      buildInfoByRepo.set(repoKey, { build: latest, hasActive: active });
-    }
-
-    for (const entry of matches) {
-      const info = buildInfoByRepo.get(entry.repositoryId ?? '__default__');
-      if (info && entry.item.branchMetadata) {
-        entry.item.branchMetadata.build = info.build;
-        entry.item.branchMetadata.hasActiveBuild = info.hasActive;
-        entry.item.branchMetadata.lastUpdated = new Date().toISOString();
-      }
-    }
-  }
-
-  let resolvedRepositoryName = branchContext.repositoryName;
-  if (!resolvedRepositoryName && resolvedRepositoryId && state.client) {
-    const repoMeta = await getAzureRepositoryByName(state.id, state.client, resolvedRepositoryId);
-    if (repoMeta?.name && typeof repoMeta.name === 'string') {
-      resolvedRepositoryName = repoMeta.name.trim();
-    }
-  }
-
-  if (resolvedRepositoryName) {
-    for (const entry of matches) {
-      if (entry.item.branchMetadata) {
-        entry.item.branchMetadata.repositoryName = resolvedRepositoryName;
-      }
-    }
-  }
-
-  if (resolvedRepositoryId) {
-    for (const entry of matches) {
-      if (entry.item.branchMetadata && !entry.item.branchMetadata.repositoryId) {
-        entry.item.branchMetadata.repositoryId = resolvedRepositoryId;
-      }
-    }
-  }
-
-  const sortedItems = [...matchedItems, ...unmatchedItems];
-
-  resolvedRepositoryId = branchContext.repositoryId ?? resolvedRepositoryId;
-  branchStateByConnection.set(state.id, {
-    context: {
-      ...branchContext,
-      branchName: normalizedContext.short,
-      branchRef: normalizedContext.full,
-      repositoryId: resolvedRepositoryId,
-      repositoryName: resolvedRepositoryName ?? branchContext.repositoryName,
-    },
-    hasActiveBuild,
-    lastUpdated: Date.now(),
-  });
-
-  return sortedItems;
-}
-
-function updateBuildRefreshTimer(connectionId: string, shouldPoll: boolean) {
-  const existing = buildRefreshTimers.get(connectionId);
-  if (shouldPoll) {
-    if (existing) return;
-    const state = connectionStates.get(connectionId);
-    const providerInstance = state?.provider;
-    if (!providerInstance) return;
-    const timer = setTimeout(() => {
-      buildRefreshTimers.delete(connectionId);
-      Promise.resolve(providerInstance.refresh()).catch((error) =>
-        console.warn('[azureDevOpsInt] Build polling refresh failed', error)
-      );
-    }, BRANCH_REFRESH_INTERVAL_MS);
-    buildRefreshTimers.set(connectionId, timer);
-  } else if (existing) {
-    try {
-      clearTimeout(existing);
-    } catch {
-      /* ignore */
-    }
-    buildRefreshTimers.delete(connectionId);
-  }
-}
-
 function forwardProviderMessage(connectionId: string, message: any) {
   // CRITICAL: Always include connectionId in provider messages so webview can
   // filter/ignore messages that don't match the active connection. This prevents
   // stale data from inactive connections from appearing in the UI.
   if (message?.type === 'workItemsLoaded') {
-    const enrichment = branchStateByConnection.get(connectionId);
+    const enrichment = getBranchEnrichmentState(connectionId);
+    const providerInstance =
+      connectionStates.get(connectionId)?.provider ?? (connectionId === 'default' ? provider : undefined);
     const merged = {
       ...message,
       connectionId,
       branchContext: enrichment?.context ?? null,
     };
     postToWebview({ panel, message: merged, logger: verbose });
-    updateBuildRefreshTimer(connectionId, !!enrichment?.hasActiveBuild);
+    updateBuildRefreshTimer(connectionId, providerInstance, !!enrichment?.hasActiveBuild);
     return;
   }
 
@@ -6178,8 +5706,9 @@ export function __setTestContext(
   if (ctx.statusBarItem !== undefined) statusBarItem = ctx.statusBarItem;
   if (ctx.outputChannel !== undefined) setOutputChannel(ctx.outputChannel);
 }
-// Export handleMessage for testing
-export { handleMessage };
+// Export legacy handler for testing while keeping backwards compatibility
+export { handleLegacyMessage };
+export { handleLegacyMessage as handleMessage };
 
 // Export self test helper for tests
 export { selfTestWebview };
@@ -6804,8 +6333,9 @@ async function diagnoseWorkItemsIssue(context: vscode.ExtensionContext) {
     try {
       const workItemTypes = await state.client.getWorkItemTypes();
       logLine(`[DIAGNOSIS] ✅ Found ${workItemTypes.length} work item types:`);
-      workItemTypes.slice(0, 5).forEach((type) => {
-        logLine(`[DIAGNOSIS]     - ${type.name || type}`);
+      workItemTypes.slice(0, 5).forEach((item: { name?: string } | string) => {
+        const label = typeof item === 'string' ? item : item?.name ?? 'Unknown';
+        logLine(`[DIAGNOSIS]     - ${label}`);
       });
     } catch (error: any) {
       logLine(`[DIAGNOSIS] ❌ Failed to get work item types: ${error.message}`);
@@ -6859,3 +6389,29 @@ async function diagnoseWorkItemsIssue(context: vscode.ExtensionContext) {
     vscode.window.showErrorMessage(`Diagnostic failed: ${error.message}`);
   }
 }
+
+// Export for FSM machine integration
+export function registerAllCommands(context: vscode.ExtensionContext): void {
+  // FSM-based setup command is registered separately in the main activate function
+  console.log('[registerAllCommands] Commands are already registered in the activate function');
+}
+
+export { extensionContextRef };
+
+// Export additional functions needed by FSM adapters
+export function getLoadedConnections() {
+  return connections;
+}
+
+export function getActiveConnectionId(): string | null {
+  return activeConnectionId ?? null;
+}
+
+export { forwardProviderMessage };
+
+setRegisterAllCommands(registerAllCommands);
+setForwardProviderMessage(forwardProviderMessage);
+setGetSecretPAT(getSecretPAT);
+setLoadedConnectionsReader(() => connections);
+setActiveConnectionIdReader(() => activeConnectionId ?? null);
+setWebviewMessageHandler(handleLegacyMessage);

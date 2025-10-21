@@ -1,391 +1,61 @@
----
-applyTo: '**'
----
+# Azure DevOps Integration Extension – Architecture Guardrails
+
+## Core Product Intent
+- Hydrate the FSM context from persisted settings on activation; never start with an empty runtime when configuration exists.
+- Represent every Azure DevOps connection as its own tab container. A tab owns all UI and state beneath it: authentication status, filters, timers, drafts, and history. Switching tabs hides all other tabs’ content and fully activates the selected connection.
+- Deliver a low-friction cockpit for work items: fast filtering, intuitive time tracking, and focused comment composition.
+
+## Architectural Principles
+- **FSM-first flow:** All business logic moves through XState machines. The extension host, webview, and data actors interact only via FSM events and actions.
+- **Pure functions only:** Place business helpers in `src/fsm/functions/**`. They accept FSM context (plus payload), return new data, and never mutate shared state or touch VS Code APIs.
+- **Context is the source of truth:** Active connection, auth state, timers, filters, drafts, branch context—everything that matters lives inside FSM context so it can be replayed and inspected.
+- **Structured logging:** Use `fsmLogger` with `FSMComponent` metadata for every logworthy event. Remove ad-hoc console logging before commit.
+- **Deterministic hydration:** Reuse normalized configuration values (URLs, IDs, auth metadata, preferences). Do not recompute or duplicate them.
+- **Functional-first implementation:** Prefer functional code style. Compose behaviour from pure helpers that receive context and data rather than relying on mutation.
+
+## Webview & Reactive UX
+- Svelte v5 components read reactive stores derived from FSM context. They do not issue side effects or reimplement business rules.
+- Build each tab as a shell component that receives a connection-specific view model. Shells render work-item lists, timers, and notes for their connection only.
+- Filters, searches, and sort controls dispatch intent events. The FSM interprets them and coordinates providers so host and webview stay synchronized.
+- Authentication prompts and manual sign-in UI render solely inside the owning tab.
+
+## Extension Host Responsibilities
+- On activation: load settings, normalize connections, and send an `APP_BOOTSTRAP` event with hydrated context to the FSM.
+- When a connection is selected: refresh providers, timers, and drafts for that connection, then post a single `CONNECTION_VIEW_STATE` message to the webview.
+- Route every webview message through the FSM. Example: `{ type: 'setActiveConnection', connectionId }` → `fsm.send({ type: 'SELECT_CONNECTION', connectionId })`.
+- Keep data actors (work-item providers, timer persistence, auth handlers) thin and pure so FSM actions remain testable.
+
+## Testing & Quality Gates
+- Unit-test pure functions for hydration logic, tab state projection, filter composition, and timer calculations.
+- Maintain FSM diagrams and documents (`docs/FSM_*.md`) whenever states or transitions change.
+- Add integration tests validating tab switching, auth reminders, filter application, timer flow, and comment drafting.
+- Manual regression: start with multiple connections, switch tabs, authenticate, apply filters, and exercise timers before release.
+
+## Change Workflow
+1. **Plan** the state/event updates and tab UX implications before editing.
+2. **Implement** pure functions, FSM definitions, and Svelte components together to keep data flow coherent.
+3. **Validate** with `npm test`, `npm run test:integration`, and a smoke run covering multi-connection scenarios.
+4. **Document** updates to settings, FSM transitions, or user workflows in the FSM, using principles of self documenting code. Update the big picture summaries in `docs/`, changelog, and the README as needed.
+
+These guardrails keep the FSM-driven, multi-connection experience coherent and ensure every tab delivers the focused productivity flow the extension promises.
+
+## Continuous Learning
+- Regularly consult the latest official references for the core stack: Git best practices, TypeScript docs, Svelte 5 guides, XState 5 manuals, the VS Code Extension API, Azure DevOps documentation, and Agile development guidance. Keep instructions aligned with upstream changes.
+
+## AI Assistant Operating Guidelines
+- Track progress, preferences, and lessons learned while working; reuse them to speed up future iterations.
+- Apply the **Critical Thinking Rule** before writing code:
+	1. Are we recreating existing logic?
+	2. Should this be computed once and stored?
+	3. Are we duplicating data, URLs, or configuration?
+	4. Could the change break currently working behaviour?
+	5. Is this the simplest solution that reuses proven code?
+- Enforce the **Critical FSM Rules** in every change:
+	- Business logic only flows through FSM state machines.
+	- All data passes through FSM context for traceability.
+	- Every helper lives in `src/fsm/functions/**`, is single-purpose, pure, and accepts context.
+	- Use `fsmLogger` for structured logging instead of ad-hoc console statements.
+	- Capture errors through FSM error states with structured metadata.
+- Prefer working through pure functions and FSM actions rather than adding side effects in the webview or extension host.
+- When modifying message contracts or FSM transitions, update both the source of truth (`docs/`, tests) and any dependent integration tests.
 
-###############################################################################
-
-# VSCode Extension
-
-# Purpose: Comprehensive template for creating production-ready VSCode extensions
-
-# following modern best practices for security, performance, and UX
-
-# Author: Instructions-as-Code Pipeline
-
-# Version: 1.0.0
-
-###############################################################################
-
-machine VsCodeExtensionLifecycle {
-
-###########################################################################
-
-# STATE: Init - Project Foundation & Setup
-
-###########################################################################
-state Init {
-entry => [
-action.setupProjectStructure,
-action.createPackageJson,
-action.configureActivationEvents
-]
-guard => guard.structureValid
-exit => action.commitFoundation
-on => { foundation-ready -> Architecture }
-}
-
-###########################################################################
-
-# STATE: Architecture - Extension Host & Services
-
-###########################################################################
-state Architecture {
-entry => [
-action.createActivationEntrypoint,
-action.setupServicesLayer,
-action.configureStateManagement,
-action.addPerformanceOptimizations
-]
-guard => guard.activationOptimal
-exit => action.commitArchitecture
-on => { architecture-ready -> Commands }
-}
-
-###########################################################################
-
-# STATE: Commands - Command Registration & Hygiene
-
-###########################################################################
-state Commands {
-entry => [
-action.registerCoreCommands,
-action.addCommandValidation,
-action.implementProgressHandling,
-action.setupConcurrencyGuards
-]
-guard => guard.commandsSecure
-exit => action.commitCommands
-on => { commands-ready -> Views }
-}
-
-###########################################################################
-
-# STATE: Views - Tree Views & Data Management
-
-###########################################################################
-state Views {
-entry => [
-action.createTreeViewProviders,
-action.implementIncrementalRefresh,
-action.addDataCaching,
-action.setupApiThrottling
-]
-guard => guard.viewsEfficient
-exit => action.commitViews
-on => { views-ready -> Webviews }
-}
-
-###########################################################################
-
-# STATE: Webviews - UI Components & Security
-
-###########################################################################
-state Webviews {
-entry => [
-action.setupWebviewSecurity,
-action.configureContentSecurityPolicy,
-action.createMessageContracts,
-action.bundleWebviewAssets,
-action.implementAccessibility
-]
-guard => guard.webviewsSecure
-exit => action.commitWebviews
-on => { webviews-ready -> Tooling }
-}
-
-###########################################################################
-
-# STATE: Tooling - Build, Test & Type Safety
-
-###########################################################################
-state Tooling {
-entry => [
-action.setupBuildScripts,
-action.configureTypeChecking,
-action.createTestingSuite,
-action.setupCoverageReporting,
-action.addLintingConfiguration
-]
-guard => guard.toolingComplete
-exit => action.commitTooling
-on => { tooling-ready -> Diagnostics }
-}
-
-###########################################################################
-
-# STATE: Diagnostics - Telemetry, Logging & Error Handling
-
-###########################################################################
-state Diagnostics {
-entry => [
-action.setupTelemetryFramework,
-action.createOutputChannel,
-action.implementErrorReporting,
-action.addDiagnosticTools,
-action.setupSecretsManagement
-]
-guard => guard.diagnosticsPrivacyCompliant
-exit => action.commitDiagnostics
-on => { diagnostics-ready -> Security }
-}
-
-###########################################################################
-
-# STATE: Security - Privacy & Dependency Management
-
-###########################################################################
-state Security {
-entry => [
-action.auditDependencies,
-action.implementContentSanitization,
-action.configureLeastPrivilege,
-action.setupSecretStorage,
-action.documentSecurityMeasures
-]
-guard => guard.securityAudited
-exit => action.commitSecurity
-on => { security-ready -> Release }
-}
-
-###########################################################################
-
-# STATE: Release - Packaging & Distribution
-
-###########################################################################
-state Release {
-entry => [
-action.setupVersioning,
-action.createChangelogTemplate,
-action.configurePackagingPipeline,
-action.setupValidationWorkflow,
-action.addFeatureFlags
-]
-guard => guard.releaseReady
-exit => action.commitRelease
-on => { release-ready -> Collaboration }
-}
-
-###########################################################################
-
-# STATE: Collaboration - Documentation & Process
-
-###########################################################################
-state Collaboration {
-entry => [
-action.createContributionDocs,
-action.setupArchitectureNotes,
-action.addDebuggingGuides,
-action.createIssueTemplates,
-action.setupUserFeedbackLoop
-]
-guard => guard.documentationComplete
-exit => action.commitCollaboration
-on => { collaboration-ready -> Ready }
-}
-
-###########################################################################
-
-# STATE: Ready - Extension Complete
-
-###########################################################################
-state Ready {
-entry => [
-action.runFinalValidation,
-action.generateQuickStart,
-action.createPerformanceBenchmarks
-]
-guard => guard.extensionProduction
-exit => action.markComplete
-on => { complete -> Ready }
-}
-}
-
-###############################################################################
-
-# CONFIGURATION
-
-###############################################################################
-
-## Project Structure Layout
-
-projectStructure:
-src/
-extension.ts # Main activation entrypoint
-commands/ # Command implementations
-providers/ # Tree view and data providers
-services/ # Business logic and API clients
-webview/ # UI components and assets
-utils/ # Shared utilities
-webview/
-src/ # Webview source (React/Svelte/Vanilla)
-dist/ # Bundled webview assets
-tests/
-unit/ # Unit tests (Mocha/Jest)
-integration/ # Extension Test Runner
-webview/ # UI component tests
-scripts/
-build.js # Build automation
-diagnose.ts # Debugging utilities
-docs/
-CONTRIBUTING.md # Contribution guidelines
-ARCHITECTURE.md # System design notes
-DEBUGGING.md # Troubleshooting guide
-
-## Activation Events (Lazy Loading)
-
-activationEvents:
-
-- onCommand:myext.activate
-- onView:myext.treeView
-- workspaceContains:\*_/_.myfile
-
-## Security CSP Template
-
-contentSecurityPolicy: |
-default-src 'none';
-img-src ${webview.cspSource} https:;
-  script-src 'nonce-${nonce}';
-style-src ${webview.cspSource} 'unsafe-inline';
-font-src ${webview.cspSource};
-
-## Performance Budgets
-
-performanceTargets:
-activationTime: 100ms
-commandResponseTime: 500ms
-webviewLoadTime: 1000ms
-memoryUsage: 50MB
-
-## Testing Strategy
-
-testingLayers:
-unit: "Services, parsers, utilities"
-integration: "Command registration, activation flow"
-webview: "UI components, message contracts"
-e2e: "Full extension workflows"
-
-## Telemetry Schema
-
-telemetryEvents:
-
-- name: "command.executed"
-  properties: ["commandId", "duration", "success"]
-- name: "webview.loaded"
-  properties: ["viewType", "loadTime"]
-- name: "error.occurred"
-  properties: ["errorType", "stack", "context"]
-
-## Feature Flags
-
-featureFlags:
-
-- experimentalFeatures: false
-- betaWebviews: false
-- advancedTelemetry: true
-
-## Build Configuration
-
-buildScripts:
-compile: "tsc -p ./"
-build:webview: "npm run build --prefix webview"
-build:all: "npm run compile && npm run build:webview"
-package: "vsce package --no-dependencies"
-test: "npm run test:unit && npm run test:integration"
-
-## Dependencies Strategy
-
-dependencies:
-production: "Minimal, audited, locked versions"
-development: "Latest stable tooling"
-security: "Regular npm audit, Dependabot enabled"
-
-###############################################################################
-
-# IMPLEMENTATION ACTIONS
-
-###############################################################################
-
-action.setupProjectStructure:
-
-- Create directory structure following VSCode conventions
-- Initialize package.json with extension metadata
-- Configure TypeScript with strict settings
-- Setup .vscodeignore and .gitignore
-
-action.createActivationEntrypoint:
-
-- Implement activate() function as orchestrator
-- Register commands via ExtensionContext
-- Setup disposables management
-- Add deactivate() cleanup
-
-action.setupWebviewSecurity:
-
-- Configure strict CSP headers
-- Implement nonce-based script loading
-- Add HTML content sanitization
-- Validate all webview messages
-
-action.setupTelemetryFramework:
-
-- Respect VS Code telemetry settings
-- Define event schemas
-- Implement consent checking
-- Add telemetry documentation
-
-action.configurePackagingPipeline:
-
-- Setup vsce packaging automation
-- Configure CI/CD validation
-- Add smoke tests for packaged extension
-- Implement signing for distribution
-
-###############################################################################
-
-# GUARDS & VALIDATIONS
-
-###############################################################################
-
-guard.activationOptimal:
-
-- Activation time under 100ms
-- No synchronous file system operations
-- Proper error handling in activate()
-- All services properly disposed
-
-guard.webviewsSecure:
-
-- CSP headers properly configured
-- No inline scripts or styles
-- Message validation implemented
-- Accessibility standards met
-
-guard.securityAudited:
-
-- No high/critical vulnerabilities
-- Secrets properly stored
-- External API calls documented
-- Minimal privilege permissions
-
-guard.releaseReady:
-
-- All tests passing
-- Performance budgets met
-- Documentation up to date
-- CHANGELOG.md updated
-
-###############################################################################
-
-# END OF FILE
-
-###############################################################################

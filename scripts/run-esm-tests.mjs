@@ -1,14 +1,21 @@
 #!/usr/bin/env node
 /* eslint-env node */
 /* global process, console */
-// ESM test runner: registers ts-node/esm for on-the-fly TypeScript ESM support, then runs Mocha programmatically.
+// ESM test runner: registers @esbuild-kit/esm-loader for on-the-fly TypeScript ESM support, then runs Mocha programmatically.
 import { register } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import fs from 'fs';
 import path from 'path';
 
-// Register ts-node/esm via Node's `register` to apply the ESM loader
-register('ts-node/esm', pathToFileURL('./'));
+process.env.ESBK_TSCONFIG_PATH =
+  process.env.ESBK_TSCONFIG_PATH ?? path.resolve('tsconfig.tests.json');
+
+const loaderModulePath = path.resolve(process.cwd(), 'scripts', 'ts-esm-loader.mjs');
+const loaderModuleUrl = pathToFileURL(loaderModulePath).href;
+const mochaStubModulePath = path.resolve(process.cwd(), 'scripts', 'mocha-diagnostics-stub.mjs');
+const mochaStubModuleUrl = pathToFileURL(mochaStubModulePath).href;
+
+register(loaderModuleUrl, pathToFileURL('./'));
 
 // Remove precompiled JS directories that would otherwise be resolved before TS sources
 function rmDirIfExists(dir) {
@@ -39,12 +46,11 @@ const testDir = path.resolve(process.cwd(), 'tests');
 const files = collectTests(testDir).filter(
   (f) =>
     !f.includes(path.sep + 'integration' + path.sep) &&
-    !f.includes(path.sep + 'integration-tests' + path.sep)
+    !f.includes(path.sep + 'integration-tests' + path.sep) &&
+    !f.includes(path.sep + 'disabled' + path.sep) &&
+    // Skip query-selector test during diagnostics because it executes assertions at module load
+    !f.endsWith(`${path.sep}query-selector.test.ts`)
 );
-
-// Ensure ts-node operates in transpile-only mode at runtime (no type-check) and emits NodeNext ESM
-process.env.TS_NODE_TRANSPILE_ONLY = 'true';
-process.env.TS_NODE_COMPILER_OPTIONS = JSON.stringify({ module: 'NodeNext' });
 
 // Diagnostic: try importing activation and its top-level imports directly to surface the failing sub-import
 async function diagnoseActivationImports() {
@@ -118,35 +124,69 @@ async function __run() {
 
   // Phase 1: dynamically import each test file to surface import-time failures without creating
   // separate Mocha instances (avoids test registration going to the wrong Mocha instance).
-  for (const f of files) {
-    try {
-      await import(pathToFileURL(f).href);
-    } catch (err) {
-      console.error(`\nERROR importing test file: ${f}`);
-      console.error('Error message:', err && err.message);
-      if (err && err.stack) {
-        console.error('\nStack:\n', err.stack);
-        const m = err.stack
-          .split('\n')
-          .find((l) => l.includes('node_modules') || l.includes('/src/') || l.includes('\\src\\'));
-        if (m) console.error('\nLikely offending module (from stack):', m.trim());
+  process.env.MOCHA_DIAGNOSTIC_STUB = '1';
+  const { createRequire } = await import('node:module');
+  const requireForDiag = createRequire(import.meta.url);
+  const mochaResolvePath = requireForDiag.resolve('mocha');
+  const priorMochaCacheEntry = requireForDiag.cache[mochaResolvePath];
+  try {
+    const mochaStubNamespace = await import(mochaStubModuleUrl);
+    const stubExports = {
+      ...mochaStubNamespace,
+      ...(mochaStubNamespace.default || {}),
+    };
+    // Ensure describe/it aliases remain attached when spreads overwrite order
+    if (mochaStubNamespace.describe) stubExports.describe = mochaStubNamespace.describe;
+    if (mochaStubNamespace.it) stubExports.it = mochaStubNamespace.it;
+    requireForDiag.cache[mochaResolvePath] = {
+      id: mochaResolvePath,
+      filename: mochaResolvePath,
+      loaded: true,
+      exports: stubExports,
+      children: [],
+      paths: [],
+    };
+  } catch (err) {
+    console.error('Failed to install Mocha diagnostics stub:', err);
+  }
+  try {
+    for (const f of files) {
+      try {
+        await import(pathToFileURL(f).href);
+      } catch (err) {
+        console.error(`\nERROR importing test file: ${f}`);
+        console.error('Error message:', err && err.message);
+        if (err && err.stack) {
+          console.error('\nStack:\n', err.stack);
+          const m = err.stack
+            .split('\n')
+            .find((l) => l.includes('node_modules') || l.includes('/src/') || l.includes('\\src\\'));
+          if (m) console.error('\nLikely offending module (from stack):', m.trim());
+        }
+        // restore any pre-existing globals before exiting
+        for (const n of names) {
+          if (!hadGlobals[n]) delete globalThis[n];
+        }
+        delete process.env.MOCHA_DIAGNOSTIC_STUB;
+        if (priorMochaCacheEntry) requireForDiag.cache[mochaResolvePath] = priorMochaCacheEntry;
+        else delete requireForDiag.cache[mochaResolvePath];
+        process.exit(3);
       }
-      // restore any pre-existing globals before exiting
-      for (const n of names) {
-        if (!hadGlobals[n]) delete globalThis[n];
-      }
-      process.exit(3);
     }
+  } finally {
+    if (priorMochaCacheEntry) requireForDiag.cache[mochaResolvePath] = priorMochaCacheEntry;
+    else delete requireForDiag.cache[mochaResolvePath];
+    delete process.env.MOCHA_DIAGNOSTIC_STUB;
   }
 
-  // Phase 2: spawn the Mocha CLI under the ts-node/esm loader so Mocha sets up its own ESM
+  // Phase 2: spawn the Mocha CLI under the @esbuild-kit/esm-loader so Mocha sets up its own ESM
   // globals and runs tests in a reliable way. This avoids issues with programmatic
   // Mocha + ESM registration differences across environments.
   const { spawn } = await import('node:child_process');
   const mochaBin = path.resolve(process.cwd(), 'node_modules', 'mocha', 'bin', 'mocha');
   const nodeArgs = [
     '--loader',
-    'ts-node/esm',
+    loaderModuleUrl,
     mochaBin,
     '--exit', // force node to exit even if handles remain (safe for CI/runner)
     '--extension',
@@ -159,6 +199,8 @@ async function __run() {
     'tests/integration/**',
     '--exclude',
     'tests/integration-tests/**',
+    '--exclude',
+    'tests/disabled/**',
   ];
   console.log('Spawning mocha CLI:', process.execPath, nodeArgs.join(' '));
   const child = spawn(process.execPath, nodeArgs, { stdio: 'inherit' });

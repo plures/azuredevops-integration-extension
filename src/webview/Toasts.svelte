@@ -1,6 +1,10 @@
-<script>
+<script lang="ts">
   import { toasts, removeToast } from './toastStore';
-  export let ariaLabel = 'Notifications';
+  interface Props {
+    ariaLabel?: string;
+  }
+
+  let { ariaLabel = 'Notifications' }: Props = $props();
 </script>
 
 <div class="toast-region" role="region" aria-live="polite" aria-label={ariaLabel}>
@@ -11,7 +15,7 @@
         class="close"
         title="Dismiss"
         aria-label="Dismiss notification"
-        on:click={() => removeToast(t.id)}>&times;</button
+        onclick={() => removeToast(t.id)}>&times;</button
       >
     </div>
   {/each}

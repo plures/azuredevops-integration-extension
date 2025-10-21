@@ -45,8 +45,8 @@ type ConnectionEntry = {
   organization?: string;
   project?: string;
   authMethod?: AuthMethod;
-  baseUrl?: string; // For on-premises detection
-  hasIdentityName?: boolean; // Flag indicating if identity is configured
+  baseUrl?: string;
+  hasIdentityName?: boolean;
 };
 
 let connections: ConnectionEntry[] = [];
@@ -199,6 +199,292 @@ function normalizeQueryValue(raw: unknown): string {
   return DEFAULT_QUERY;
 }
 
+function normalizeConnectionsList(raw: unknown): ConnectionEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const results: ConnectionEntry[] = [];
+  for (const entry of raw as unknown[]) {
+    if (!entry || typeof entry !== 'object') continue;
+    const candidate = entry as Record<string, unknown>;
+    const id = typeof candidate.id === 'string' ? candidate.id.trim() : '';
+    if (!id) continue;
+    const label =
+      typeof candidate.label === 'string' && candidate.label.trim().length > 0
+        ? candidate.label.trim()
+        : typeof candidate.project === 'string' && candidate.project.trim().length > 0
+          ? candidate.project.trim()
+          : id;
+    const organization =
+      typeof candidate.organization === 'string' && candidate.organization.trim().length > 0
+        ? candidate.organization.trim()
+        : undefined;
+    const project =
+      typeof candidate.project === 'string' && candidate.project.trim().length > 0
+        ? candidate.project.trim()
+        : undefined;
+    const authMethod =
+      candidate.authMethod === 'entra'
+        ? 'entra'
+        : candidate.authMethod === 'pat'
+          ? 'pat'
+          : undefined;
+    const normalized: ConnectionEntry = {
+      id,
+      label,
+      organization,
+      project,
+      authMethod,
+    };
+    results.push(normalized);
+  }
+  return results;
+}
+
+function cleanupRemovedConnections(validIds: Set<string>): void {
+  Array.from(workItemsByConnection.keys()).forEach((id) => {
+    if (!validIds.has(id)) {
+      workItemsByConnection.delete(id);
+      fallbackNotices.delete(id);
+      typeOptionsByConnection.delete(id);
+      filterStateByConnection.delete(id);
+    }
+  });
+
+  Array.from(selectedQueryByConnection.keys()).forEach((key) => {
+    if (key === DEFAULT_QUERY_KEY) return;
+    if (!validIds.has(key)) {
+      selectedQueryByConnection.delete(key);
+    }
+  });
+}
+
+function deriveActiveConnectionIdFromContext(
+  list: ConnectionEntry[],
+  tabView: any,
+  fallbackActiveId: unknown
+): string | null {
+  const fromTab =
+    typeof tabView?.connectionId === 'string' && tabView.connectionId.trim().length > 0
+      ? tabView.connectionId.trim()
+      : '';
+  if (fromTab) return fromTab;
+  const fallback =
+    typeof fallbackActiveId === 'string' && fallbackActiveId.trim().length > 0
+      ? fallbackActiveId.trim()
+      : '';
+  if (fallback) return fallback;
+  return list.length > 0 ? list[0].id : null;
+}
+
+function readWorkItemNumericId(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function findWorkItemById(collection: unknown[], targetId: number | null): any | null {
+  if (!Array.isArray(collection) || targetId === null) {
+    return null;
+  }
+
+  for (const candidate of collection) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const record = candidate as Record<string, unknown>;
+    const directId = readWorkItemNumericId(record.id);
+    if (directId !== null && directId === targetId) {
+      return candidate;
+    }
+    const fields = record.fields;
+    if (fields && typeof fields === 'object') {
+      const fieldId = readWorkItemNumericId((fields as Record<string, unknown>)['System.Id']);
+      if (fieldId !== null && fieldId === targetId) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractWorkItemTitleFromCandidate(candidate: any): string | undefined {
+  if (!candidate || typeof candidate !== 'object') return undefined;
+  const record = candidate as Record<string, unknown>;
+  if (typeof record.title === 'string') {
+    const trimmed = record.title.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  const fields = record.fields;
+  if (fields && typeof fields === 'object') {
+    const value = (fields as Record<string, unknown>)['System.Title'];
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) return trimmed;
+    }
+  }
+  return undefined;
+}
+
+function normalizeTimerFromTabView(tabView: any, connectionId: string | null): any | null {
+  if (!tabView || typeof tabView !== 'object') return null;
+  const timer = tabView.timer;
+  if (!timer || typeof timer !== 'object') return null;
+
+  const timerRecord = timer as Record<string, unknown>;
+  const workItemId = readWorkItemNumericId(timerRecord.workItemId);
+  const elapsedSeconds =
+    typeof timerRecord.elapsed === 'number'
+      ? Number(timerRecord.elapsed)
+      : typeof timerRecord.elapsedSeconds === 'number'
+        ? Number(timerRecord.elapsedSeconds)
+        : 0;
+  const running = timerRecord.isRunning === true || timerRecord.running === true;
+  const isActive = timerRecord.isActive === true || running;
+
+  const sources: unknown[][] = [];
+  if (Array.isArray(tabView.rawWorkItems)) {
+    sources.push(tabView.rawWorkItems);
+  }
+  if (connectionId) {
+    const cached = workItemsByConnection.get(connectionId);
+    if (Array.isArray(cached)) {
+      sources.push(cached);
+    }
+  }
+  if (Array.isArray(tabView.workItems)) {
+    sources.push(tabView.workItems);
+  }
+
+  const match =
+    sources
+      .map((collection) => findWorkItemById(collection, workItemId))
+      .find((candidate) => candidate != null) ?? null;
+  const resolvedTitle = match ? extractWorkItemTitleFromCandidate(match) : undefined;
+
+  const normalized: Record<string, unknown> = { ...timerRecord };
+  normalized.workItemId = workItemId;
+  normalized.workItemTitle =
+    typeof resolvedTitle === 'string' && resolvedTitle.trim().length > 0
+      ? resolvedTitle.trim()
+      : workItemId !== null
+        ? `#${workItemId}`
+        : '';
+  normalized.elapsedSeconds = elapsedSeconds;
+  normalized.duration =
+    typeof timerRecord.duration === 'number' ? Number(timerRecord.duration) : elapsedSeconds;
+  normalized.running = running;
+  normalized.isRunning = running;
+  normalized.isActive = isActive;
+  normalized.elapsed = elapsedSeconds;
+
+  return normalized;
+}
+
+function updateConnectionCache(
+  connectionId: string | null,
+  rawItems: any[],
+  loading: boolean
+): void {
+  if (connectionId && (!loading || rawItems.length > 0)) {
+    workItemsByConnection.set(connectionId, rawItems);
+  }
+}
+
+function getCachedConnectionItems(connectionId: string | null): any[] {
+  if (!connectionId) return [];
+  return workItemsByConnection.get(connectionId) ?? [];
+}
+
+function handleConnectionWorkItems(
+  connectionId: string | null,
+  rawItems: any[],
+  cachedItems: any[],
+  loading: boolean
+): void {
+  if (connectionId) {
+    if (rawItems.length > 0) {
+      handleWorkItemsLoaded(
+        rawItems,
+        connectionId,
+        {
+          fromCache: false,
+          query: getSelectedQueryForConnection(connectionId),
+        },
+        undefined
+      );
+      return;
+    }
+
+    if (!loading) {
+      handleWorkItemsLoaded(
+        [],
+        connectionId,
+        {
+          fromCache: false,
+          query: getSelectedQueryForConnection(connectionId),
+        },
+        undefined
+      );
+      return;
+    }
+
+    if (cachedItems.length > 0) {
+      handleWorkItemsLoaded(
+        cachedItems,
+        connectionId,
+        {
+          fromCache: true,
+          query: getSelectedQueryForConnection(connectionId),
+        },
+        undefined
+      );
+      return;
+    }
+
+    isLoading = true;
+    showLoadingState();
+    return;
+  }
+
+  if (rawItems.length > 0) {
+    handleWorkItemsLoaded(rawItems, null, { fromCache: false }, undefined);
+  }
+}
+
+function shouldRequestConnectionItems(
+  connectionId: string | null,
+  loading: boolean,
+  rawItems: any[],
+  cachedItems: any[]
+): boolean {
+  return Boolean(connectionId && !loading && rawItems.length === 0 && cachedItems.length === 0);
+}
+
+function applyTabContextToUi(tabView: any, connectionId: string | null): void {
+  const normalizedConnectionId = normalizeConnectionId(connectionId ?? null);
+  const rawItems = Array.isArray(tabView?.rawWorkItems) ? tabView.rawWorkItems : [];
+  const status = tabView && typeof tabView === 'object' ? tabView.status : null;
+  const loading = Boolean(status?.isLoading);
+
+  updateConnectionCache(normalizedConnectionId, rawItems, loading);
+
+  const cachedItems = getCachedConnectionItems(normalizedConnectionId);
+
+  handleConnectionWorkItems(normalizedConnectionId, rawItems, cachedItems, loading);
+
+  isLoading = loading;
+
+  if (shouldRequestConnectionItems(normalizedConnectionId, loading, rawItems, cachedItems)) {
+    requestWorkItems();
+  }
+
+  const timerPayload = normalizeTimerFromTabView(tabView, normalizedConnectionId);
+  handleTimerUpdate(timerPayload);
+}
+
 function ensureQueryOption(value: string) {
   const select = elements.queryFilter;
   if (!select) return;
@@ -288,6 +574,22 @@ function persistCurrentFilterState() {
   state.excludeInReview = !!elements.excludeInReview?.checked;
 }
 
+function resetFiltersToDefaults(): void {
+  if (elements.searchInput) elements.searchInput.value = '';
+  if (elements.sprintFilter) elements.sprintFilter.value = '';
+  if (elements.typeFilter) elements.typeFilter.value = '';
+  if (elements.assignedToFilter) elements.assignedToFilter.value = '';
+  if (elements.excludeDone) elements.excludeDone.checked = false;
+  if (elements.excludeClosed) elements.excludeClosed.checked = false;
+  if (elements.excludeRemoved) elements.excludeRemoved.checked = false;
+  if (elements.excludeInReview) elements.excludeInReview.checked = false;
+
+  const connectionId = activeConnectionId;
+  if (!connectionId) return;
+  const state = getFilterStateForConnection(connectionId);
+  Object.assign(state, getDefaultFilterState());
+}
+
 function applyFilterStateToUi(connectionId: string) {
   const state = getFilterStateForConnection(connectionId);
 
@@ -348,326 +650,258 @@ const elements = {
   generatePromptBtn: null as HTMLButtonElement | null,
 };
 
-// Initialize the application
-function init() {
-  // Get DOM element references for new structure
-  elements.searchInput = document.getElementById('searchInput') as HTMLInputElement;
-  elements.statusOverview = document.getElementById('statusOverview');
-  elements.connectionTabs = document.getElementById('connectionTabs');
-  elements.sprintFilter = document.getElementById('sprintFilter') as HTMLSelectElement;
-  elements.typeFilter = document.getElementById('typeFilter') as HTMLSelectElement;
-  elements.queryFilter = document.getElementById('queryFilter') as HTMLSelectElement;
-  elements.assignedToFilter = document.getElementById('assignedToFilter') as HTMLSelectElement;
-  elements.excludeDone = document.getElementById('excludeDone') as HTMLInputElement;
-  elements.excludeClosed = document.getElementById('excludeClosed') as HTMLInputElement;
-  elements.excludeRemoved = document.getElementById('excludeRemoved') as HTMLInputElement;
-  elements.excludeInReview = document.getElementById('excludeInReview') as HTMLInputElement;
-  elements.workItemsContainer = document.getElementById('workItemsContainer');
-  elements.timerContainer = document.getElementById('timerContainer');
-  elements.timerDisplay = document.getElementById('timerDisplay');
-  elements.timerInfo = document.getElementById('timerInfo');
-
-  // Timer button elements
-  const startTimerBtn = document.getElementById('startTimerBtn') as HTMLButtonElement;
-  const pauseTimerBtn = document.getElementById('pauseTimerBtn') as HTMLButtonElement;
-  const stopTimerBtn = document.getElementById('stopTimerBtn') as HTMLButtonElement;
-
-  (elements as any).startTimerBtn = startTimerBtn;
-  (elements as any).pauseTimerBtn = pauseTimerBtn;
-  (elements as any).stopTimerBtn = stopTimerBtn;
-  // Note: 'content' element is not required in new layout
-  elements.content = document.getElementById('content');
-
-  // New summary element references
-  elements.draftSummary = document.getElementById('draftSummary') as HTMLTextAreaElement;
-  elements.summarySection = document.getElementById('summarySection');
-  elements.summaryContainer = document.getElementById('summaryContainer');
-  (elements as any).toggleSummaryBtn = document.getElementById(
-    'toggleSummaryBtn'
-  ) as HTMLButtonElement;
-  elements.summaryStatus = document.getElementById('summaryStatus');
-  elements.submitComposeBtn = document.getElementById('submitComposeBtn') as HTMLButtonElement;
-  elements.generatePromptBtn = document.getElementById('generatePromptBtn') as HTMLButtonElement;
-
-  if (elements.summarySection) elements.summarySection.setAttribute('hidden', '');
-  if (elements.summaryContainer) elements.summaryContainer.setAttribute('hidden', '');
-  const toggleBtn = (elements as any).toggleSummaryBtn as HTMLButtonElement | null;
-  if (toggleBtn) {
-    toggleBtn.setAttribute('aria-expanded', 'false');
-    toggleBtn.textContent = 'Compose Comment ▾';
+function handleGenerateCopilotPrompt(rawId: number | null): void {
+  const timerId = currentTimer ? Number(currentTimer.workItemId) : null;
+  const workItemId =
+    rawId ?? composeState?.workItemId ?? (Number.isFinite(timerId) ? timerId : null);
+  const draft = elements.draftSummary ? elements.draftSummary.value : '';
+  if (!workItemId) {
+    console.warn('[webview] generateCopilotPrompt: no work item id available');
+    setComposeStatus('No work item selected to generate prompt.');
+    return;
   }
+  setComposeStatus('Preparing Copilot prompt and copying to clipboard...');
+  postMessage({ type: 'generateCopilotPrompt', workItemId, draftSummary: draft });
+}
 
-  if (elements.connectionTabs) {
-    elements.connectionTabs.setAttribute('hidden', '');
-  }
+function handleComposeSubmit(): void {
+  const draft = elements.draftSummary ? elements.draftSummary.value : '';
+  const mode = composeState?.mode ?? (currentTimer ? 'timerStop' : null);
+  const workItemId = composeState?.workItemId;
 
-  if (!elements.workItemsContainer) {
-    console.error('[webview] Critical: workItemsContainer element not found');
+  if (!workItemId) {
+    setComposeStatus('No work item selected to add a comment.');
     return;
   }
 
-  initializeQueryDropdown();
-  applyQuerySelectionToUi(activeConnectionId);
+  if (!draft.trim()) {
+    setComposeStatus('Write a comment before submitting.');
+    if (elements.draftSummary) {
+      requestAnimationFrame(() => elements.draftSummary?.focus());
+    }
+    return;
+  }
 
-  // Set up event listeners
-  console.log('[webview] Initializing webview...');
-  setupEventListeners();
+  if (mode === 'addComment') {
+    setComposeStatus(`Adding a comment to work item #${workItemId}...`);
+  } else {
+    setComposeStatus('Stopping timer and applying updates...');
+  }
 
-  // Set up message handling
-  setupMessageHandling();
+  const message: any = {
+    type: 'submitComposeComment',
+    workItemId,
+    comment: draft,
+    mode: mode || 'addComment',
+  };
 
-  // Ensure timer is hidden initially
-  console.log('[webview] Setting timer visibility to false during init');
-  updateTimerVisibility(false);
+  if (mode === 'timerStop' && composeState) {
+    message.timerData = (composeState as any).timerData;
+    message.connectionInfo = (composeState as any).connectionInfo;
+  }
 
-  // Signal readiness to extension and request work items
-  postMessage({ type: 'webviewReady' });
-  requestWorkItems();
+  postMessage(message);
 }
 
-function setupEventListeners() {
-  // Event delegation for all buttons and clickable elements (from original pattern)
-  document.addEventListener('click', function (e) {
-    // Handle status badge clicks
-    const statusBadge = (e.target as HTMLElement).closest('.status-badge');
-    if (statusBadge) {
-      const status = statusBadge.getAttribute('data-status');
-      if (status) {
-        filterByStatus(status);
-      }
-      return;
+type ButtonActionPayload = {
+  id: number | null;
+  button: HTMLElement;
+  event: MouseEvent;
+};
+
+function toggleSummaryPanel(): void {
+  if (!composeState) return;
+  const container = elements.summaryContainer;
+  if (!container) return;
+  const isHidden = container.hasAttribute('hidden');
+  if (isHidden) {
+    container.removeAttribute('hidden');
+    updateComposeToggle(true);
+  } else {
+    container.setAttribute('hidden', '');
+    updateComposeToggle(false);
+  }
+}
+
+function tryHandleStatusBadgeClick(event: MouseEvent): boolean {
+  const statusBadge = (event.target as HTMLElement).closest('.status-badge');
+  if (!statusBadge) return false;
+  const status = statusBadge.getAttribute('data-status');
+  if (!status) return false;
+  filterByStatus(status);
+  return true;
+}
+
+function tryHandleConnectionTabClick(event: MouseEvent): boolean {
+  const connectionTab = (event.target as HTMLElement).closest('.connection-tab');
+  if (!connectionTab) return false;
+  const id = connectionTab.getAttribute('data-connection-id');
+  if (!id) return false;
+  selectConnection(id);
+  return true;
+}
+
+function tryHandleWorkItemCardClick(event: MouseEvent): boolean {
+  const workItemCard = (event.target as HTMLElement).closest('[data-action="selectWorkItem"]');
+  if (!workItemCard) return false;
+  if ((event.target as HTMLElement).closest('button')) return false;
+  const idValue = workItemCard.getAttribute('data-id');
+  if (!idValue) return false;
+  const parsedId = Number.parseInt(idValue, 10);
+  if (!Number.isFinite(parsedId)) return false;
+  selectWorkItem(parsedId.toString());
+  return true;
+}
+
+function handleToggleView(payload: ButtonActionPayload): void {
+  console.log('[webview] toggleView clicked');
+  const datasetView =
+    payload.button.dataset.view || (payload.event.target as HTMLElement)?.dataset.view;
+  const view = datasetView === 'kanban' ? 'kanban' : datasetView === 'list' ? 'list' : null;
+  console.log('[webview] View button clicked:', view, 'Current view:', currentView);
+  if (view && view !== currentView) {
+    currentView = view;
+    updateViewToggle();
+    console.log('[webview] Switching to view:', currentView);
+    if (currentView === 'kanban') {
+      renderKanbanView();
+    } else {
+      renderWorkItems();
     }
+  }
+}
 
-    // Handle connection tab clicks
-    const connectionTab = (e.target as HTMLElement).closest('.connection-tab');
-    if (connectionTab) {
-      const id = connectionTab.getAttribute('data-connection-id');
-      if (id) selectConnection(id);
-      return;
+function handleToggleKanban(): void {
+  currentView = currentView === 'list' ? 'kanban' : 'list';
+  updateViewToggle();
+  if (currentView === 'kanban') {
+    renderKanbanView();
+  } else {
+    renderWorkItems();
+  }
+}
+
+function handleSearchAction(): void {
+  const query = elements.searchInput?.value;
+  if (query) {
+    postMessage({ type: 'search', query });
+  }
+}
+
+function handleStartTimer(id: number | null): void {
+  const targetId =
+    id ?? selectedWorkItemId ?? (currentTimer ? Number(currentTimer.workItemId) : null);
+  if (targetId) {
+    if (currentTimer && Number(currentTimer.workItemId) === Number(targetId)) {
+      postMessage({ type: 'stopTimer' });
+    } else {
+      postMessage({ type: 'startTimer', workItemId: Number(targetId) });
     }
+  } else {
+    console.warn('[webview] startTimer requested but no work item is selected and no active timer');
+  }
+}
 
-    // Handle work item card clicks
-    const workItemCard = (e.target as HTMLElement).closest('[data-action="selectWorkItem"]');
-    if (workItemCard && !(e.target as HTMLElement).closest('button')) {
-      const id = parseInt(workItemCard.getAttribute('data-id') || '0');
-      selectWorkItem(id.toString());
-      return;
+const buttonActionHandlers: Record<string, (payload: ButtonActionPayload) => void> = {
+  refresh: () => requestWorkItems(),
+  toggleSummary: () => toggleSummaryPanel(),
+  generateCopilotPrompt: (payload) => handleGenerateCopilotPrompt(payload.id),
+  stopAndApply: () => handleComposeSubmit(),
+  submitCompose: () => handleComposeSubmit(),
+  createWorkItem: () => postMessage({ type: 'createWorkItem' }),
+  toggleView: (payload) => handleToggleView(payload),
+  toggleKanban: () => handleToggleKanban(),
+  search: () => handleSearchAction(),
+  pauseTimer: () => postMessage({ type: 'pauseTimer' }),
+  resumeTimer: () => postMessage({ type: 'resumeTimer' }),
+  stopTimer: () => postMessage({ type: 'stopTimer' }),
+  startTimer: (payload) => handleStartTimer(payload.id),
+  createBranch: (payload) => {
+    if (payload.id) postMessage({ type: 'createBranch', id: payload.id });
+  },
+  openInBrowser: (payload) => {
+    if (payload.id) postMessage({ type: 'openInBrowser', id: payload.id });
+  },
+  copyId: (payload) => {
+    if (payload.id) postMessage({ type: 'copyId', id: payload.id });
+  },
+  viewDetails: (payload) => {
+    if (payload.id) postMessage({ type: 'viewWorkItem', workItemId: payload.id });
+  },
+  editWorkItem: (payload) => {
+    if (payload.id) postMessage({ type: 'editWorkItemInEditor', workItemId: payload.id });
+  },
+  addComment: (payload) => {
+    if (payload.id) handleAddComment(payload.id);
+  },
+};
+
+function handleButtonAction(action: string | null, payload: ButtonActionPayload): void {
+  if (!action) return;
+  console.log('[webview] Button clicked:', action, 'id:', payload.id);
+  const handler = buttonActionHandlers[action];
+  if (handler) {
+    handler(payload);
+  }
+}
+
+function handleButtonClick(event: MouseEvent): void {
+  const target = (event.target as HTMLElement).closest('button[data-action]');
+  if (!(target instanceof HTMLElement)) return;
+  const button = target as HTMLElement;
+  event.stopPropagation();
+  const idAttr = button.getAttribute('data-id');
+  const payload: ButtonActionPayload = {
+    id: idAttr ? parseInt(idAttr, 10) : null,
+    button,
+    event,
+  };
+  handleButtonAction(button.getAttribute('data-action'), payload);
+}
+
+function handleDocumentClick(event: MouseEvent): void {
+  if (tryHandleStatusBadgeClick(event)) return;
+  if (tryHandleConnectionTabClick(event)) return;
+  if (tryHandleWorkItemCardClick(event)) return;
+  handleButtonClick(event);
+}
+
+function handleDocumentChange(event: Event): void {
+  const target = event.target as HTMLElement;
+  const select = target.closest('select[data-action]');
+  if (select) {
+    if (select.getAttribute('data-action') === 'applyFilters') {
+      applyFilters();
     }
+    return;
+  }
 
-    // Handle button clicks
-    const button = (e.target as HTMLElement).closest('button[data-action]');
-    if (!button) return;
-
-    e.stopPropagation(); // Prevent bubbling to work item card
-
-    const action = button.getAttribute('data-action');
-    const id = button.getAttribute('data-id')
-      ? parseInt(button.getAttribute('data-id') || '0')
-      : null;
-
-    console.log('[webview] Button clicked:', action, 'id:', id);
-
-    switch (action) {
-      case 'refresh':
-        requestWorkItems();
-        break;
-      case 'toggleSummary': {
-        if (!composeState) return;
-        const container = elements.summaryContainer;
-        if (!container) return;
-        const isHidden = container.hasAttribute('hidden');
-        if (isHidden) {
-          container.removeAttribute('hidden');
-          updateComposeToggle(true);
-        } else {
-          container.setAttribute('hidden', '');
-          updateComposeToggle(false);
-        }
-        break;
-      }
-      case 'generateCopilotPrompt': {
-        // Use current timer's work item id when available; otherwise try button id
-        const workItemId =
-          id ?? composeState?.workItemId ?? (currentTimer ? currentTimer.workItemId : undefined);
-        const draft = elements.draftSummary ? elements.draftSummary.value : '';
-        if (!workItemId) {
-          console.warn('[webview] generateCopilotPrompt: no work item id available');
-          setComposeStatus('No work item selected to generate prompt.');
-          return;
-        }
-        // Provide visual feedback
-        setComposeStatus('Preparing Copilot prompt and copying to clipboard...');
-        postMessage({ type: 'generateCopilotPrompt', workItemId, draftSummary: draft });
-        break;
-      }
-      case 'stopAndApply':
-      case 'submitCompose': {
-        const draft = elements.draftSummary ? elements.draftSummary.value : '';
-        const mode = composeState?.mode ?? (currentTimer ? 'timerStop' : null);
-        const workItemId = composeState?.workItemId;
-
-        if (!workItemId) {
-          setComposeStatus('No work item selected to add a comment.');
-          return;
-        }
-
-        if (!draft.trim()) {
-          setComposeStatus('Write a comment before submitting.');
-          if (elements.draftSummary) {
-            requestAnimationFrame(() => elements.draftSummary?.focus());
-          }
-          return;
-        }
-
-        if (mode === 'addComment') {
-          setComposeStatus(`Adding a comment to work item #${workItemId}...`);
-        } else {
-          setComposeStatus('Stopping timer and applying updates...');
-        }
-
-        // Use unified message with additional data for timer stops
-        const message: any = {
-          type: 'submitComposeComment',
-          workItemId,
-          comment: draft,
-          mode: mode || 'addComment',
-        };
-
-        // Include timer data and connection info for timer stops
-        if (mode === 'timerStop' && composeState) {
-          message.timerData = (composeState as any).timerData;
-          message.connectionInfo = (composeState as any).connectionInfo;
-        }
-
-        postMessage(message);
-        break;
-      }
-      case 'createWorkItem':
-        postMessage({ type: 'createWorkItem' });
-        break;
-      case 'toggleView': {
-        console.log('[webview] toggleView clicked');
-        const viewBtn = e.target as HTMLElement;
-        const view = viewBtn.dataset.view as 'list' | 'kanban';
-        console.log('[webview] View button clicked:', view, 'Current view:', currentView);
-        if (view && view !== currentView) {
-          currentView = view;
-          updateViewToggle();
-          console.log('[webview] Switching to view:', currentView);
-          if (currentView === 'kanban') {
-            renderKanbanView();
-          } else {
-            renderWorkItems();
-          }
-        }
-        break;
-      }
-      case 'toggleKanban':
-        // Legacy support - toggle between views
-        currentView = currentView === 'list' ? 'kanban' : 'list';
-        updateViewToggle();
-        if (currentView === 'kanban') {
-          renderKanbanView();
-        } else {
-          renderWorkItems();
-        }
-        break;
-      case 'search': {
-        const query = elements.searchInput?.value;
-        if (query) {
-          postMessage({ type: 'search', query });
-        }
-        break;
-      }
-      case 'pauseTimer':
-        postMessage({ type: 'pauseTimer' });
-        break;
-      case 'resumeTimer':
-        postMessage({ type: 'resumeTimer' });
-        break;
-      case 'stopTimer':
-        postMessage({ type: 'stopTimer' });
-        break;
-      case 'startTimer': {
-        // Support toggle behavior everywhere the start button appears.
-        // If an id is provided, use it; otherwise fall back to selected work item or current timer.
-        const targetId =
-          id ?? selectedWorkItemId ?? (currentTimer ? Number(currentTimer.workItemId) : null);
-        if (targetId) {
-          if (currentTimer && Number(currentTimer.workItemId) === Number(targetId)) {
-            // Toggle: same item is running -> stop
-            postMessage({ type: 'stopTimer' });
-          } else {
-            postMessage({ type: 'startTimer', workItemId: Number(targetId) });
-          }
-        } else {
-          // No target available; optionally we could surface a hint here.
-          console.warn(
-            '[webview] startTimer requested but no work item is selected and no active timer'
-          );
-        }
-        break;
-      }
-      case 'createBranch':
-        if (id) postMessage({ type: 'createBranch', id });
-        break;
-      case 'openInBrowser':
-        if (id) postMessage({ type: 'openInBrowser', id });
-        break;
-      case 'copyId':
-        if (id) postMessage({ type: 'copyId', id });
-        break;
-      case 'viewDetails':
-        if (id) postMessage({ type: 'viewWorkItem', workItemId: id });
-        break;
-      case 'editWorkItem':
-        if (id) postMessage({ type: 'editWorkItemInEditor', workItemId: id });
-        break;
-      case 'addComment':
-        if (id) handleAddComment(id);
-        break;
+  const checkbox = target.closest('input[data-action]');
+  if (checkbox && (checkbox as HTMLInputElement).type === 'checkbox') {
+    if (checkbox.getAttribute('data-action') === 'applyFilters') {
+      applyFilters();
     }
-  });
+  }
+}
 
-  // Event delegation for change events (filters)
-  document.addEventListener('change', function (e) {
-    const target = e.target as HTMLElement;
+function handleSearchInputKeypress(event: KeyboardEvent): void {
+  if (event.key === 'Enter') {
+    handleSearchAction();
+  }
+}
 
-    // Handle select filters
-    const select = target.closest('select[data-action]');
-    if (select) {
-      const action = select.getAttribute('data-action');
-      if (action === 'applyFilters') {
-        applyFilters();
-      }
-      return;
-    }
-
-    // Handle checkbox filters
-    const checkbox = target.closest('input[data-action]');
-    if (checkbox && (checkbox as HTMLInputElement).type === 'checkbox') {
-      const action = checkbox.getAttribute('data-action');
-      if (action === 'applyFilters') {
-        applyFilters();
-      }
-    }
-  });
-
-  // Search input handler
-  elements.searchInput?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      const query = elements.searchInput?.value;
-      if (query) {
-        postMessage({ type: 'search', query });
-      }
-    }
-  });
-
-  // Directly wire filter dropdowns to apply filters (no data-action attribute in HTML)
+function bindFilterListeners(): void {
   elements.sprintFilter?.addEventListener('change', applyFilters);
   elements.typeFilter?.addEventListener('change', applyFilters);
   elements.assignedToFilter?.addEventListener('change', applyFilters);
   elements.queryFilter?.addEventListener('change', handleQuerySelectionChange);
+}
+
+function setupEventListeners(): void {
+  document.addEventListener('click', handleDocumentClick);
+  document.addEventListener('change', handleDocumentChange);
+  elements.searchInput?.addEventListener('keypress', handleSearchInputKeypress);
+  bindFilterListeners();
 }
 
 // Filter and render functions
@@ -841,138 +1075,10 @@ function getNormalizedState(item: any): string {
 }
 
 function filterByStatus(status: string) {
-  // Filter work items by status and re-render
-  const filteredItems = workItems.filter((item) => {
-    const s = getNormalizedState(item);
-    return s === status;
-  });
-
-  // Clear other filters
-  if (elements.searchInput) elements.searchInput.value = '';
-  if (elements.sprintFilter) elements.sprintFilter.value = '';
-  if (elements.typeFilter) elements.typeFilter.value = '';
-  if (elements.assignedToFilter) elements.assignedToFilter.value = '';
+  const filteredItems = workItems.filter((item) => getNormalizedState(item) === status);
+  resetFiltersToDefaults();
   persistCurrentFilterState();
-
-  // Update the work items display
-  elements.workItemsContainer!.innerHTML = filteredItems
-    .map((item) => {
-      const id = item.id;
-      const title = item.title || `Work Item #${id}`;
-      const state = item.state || 'Unknown';
-      const type = item.type || 'Unknown';
-      const assignedTo = item.assignedTo || 'Unassigned';
-      const priority = item.priority || 2;
-      const description = item.description || '';
-      const tags = item.tags || [];
-      const iterationPath = item.iterationPath || '';
-
-      const isSelected = selectedWorkItemId === id;
-
-      // Get work item type icon
-      const typeIcon = getWorkItemTypeIcon(type);
-
-      // Get priority class
-      const priorityClass = getPriorityClass(priority);
-
-      // Get state class
-      const stateClass = getStateClass(getNormalizedState(item));
-
-      return `
-        <div class="work-item-card ${isSelected ? 'selected' : ''} ${stateClass}" 
-             data-id="${id}" 
-             data-action="selectWorkItem">
-          <div class="work-item-header">
-            <div class="work-item-type-icon ${typeIcon.class}">
-              ${typeIcon.icon}
-            </div>
-            <div class="work-item-id">#${id}</div>
-            <div class="work-item-priority ${priorityClass}">
-              ${getPriorityIcon(priority).icon} ${getPriorityIcon(priority).label}
-            </div>
-          </div>
-          
-          <div class="work-item-content">
-            <div class="work-item-title" title="${escapeHtml(title)}">
-              ${escapeHtml(title)}
-            </div>
-            
-            ${
-              description
-                ? `
-              <div class="work-item-description">
-                ${escapeHtml(description.substring(0, 120))}${description.length > 120 ? '...' : ''}
-              </div>
-            `
-                : ''
-            }
-            
-            <div class="work-item-details">
-              <div class="work-item-meta-row">
-                <span class="work-item-type">${escapeHtml(type)}</span>
-                <span class="work-item-state state-${state
-                  .toLowerCase()
-                  .replace(/\\s+/g, '-')}">${escapeHtml(state)}</span>
-              </div>
-              
-              ${
-                assignedTo !== 'Unassigned'
-                  ? `
-                <div class="work-item-assignee">
-                  <span class="assignee-icon">👤</span>
-                  <span>${escapeHtml(assignedTo)}</span>
-                </div>
-              `
-                  : ''
-              }
-              
-              ${
-                iterationPath
-                  ? `
-                <div class="work-item-iteration">
-                  <span class="iteration-icon">🔄</span>
-                  <span>${escapeHtml(iterationPath.split('\\\\').pop() || iterationPath)}</span>
-                </div>
-              `
-                  : ''
-              }
-              
-              ${
-                tags.length > 0
-                  ? `
-                <div class="work-item-tags">
-                  ${tags
-                    .slice(0, 3)
-                    .map(
-                      (tag: any) => `
-                    <span class="tag">${escapeHtml(tag)}</span>
-                  `
-                    )
-                    .join('')}
-                  ${tags.length > 3 ? `<span class="tag-overflow">+${tags.length - 3}</span>` : ''}
-                </div>
-              `
-                  : ''
-              }
-            </div>
-          </div>
-          
-          <div class="work-item-actions">
-            ${
-              currentTimer && Number(currentTimer.workItemId) === Number(id)
-                ? `<button class="action-btn timer-btn" data-action="stopTimer" data-id="${id}" title="Start/Stop Timer">⏹️</button>`
-                : `<button class="action-btn timer-btn" data-action="startTimer" data-id="${id}" title="Start/Stop Timer">⏱️</button>`
-            }
-            <button class="action-btn view-btn" data-action="viewDetails" data-id="${id}" title="View Details">👁️</button>
-            <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${id}" title="Edit">✏️</button>
-          </div>
-        </div>
-      `;
-    })
-    .join('');
-
-  // Update status overview to show only the filtered status
-  updateStatusOverview(filteredItems);
+  renderWorkItemCards(filteredItems, { bannerHtml: '', showEmptyState: true });
 }
 
 function updateStatusOverview(items = workItems) {
@@ -1083,260 +1189,338 @@ function selectConnection(connectionId: string, options: { fromMessage?: boolean
   }
 }
 
-function setupMessageHandling() {
-  window.addEventListener('message', (event) => {
-    const message = event.data;
+type WebviewMessage = Record<string, any> & { type?: string };
+type WebviewMessageHandler = (message: WebviewMessage) => void;
 
-    switch (message.type) {
-      case 'workItemsLoaded': {
-        fallbackNotice = null;
-        const normalizedConnection =
-          normalizeConnectionId(message.connectionId) ?? activeConnectionId ?? null;
-        const hasBranchContext = Object.prototype.hasOwnProperty.call(message, 'branchContext');
-        let branchContextPayload: BranchContextState = null;
-        if (hasBranchContext) {
-          branchContextPayload = message.branchContext ?? null;
-        } else if (normalizedConnection) {
-          branchContextPayload = branchContextByConnection.get(normalizedConnection) ?? null;
-        }
-        if (normalizedConnection) {
-          branchContextByConnection.set(normalizedConnection, branchContextPayload);
-        }
-        handleWorkItemsLoaded(
-          message.workItems || [],
-          normalizedConnection,
-          {
-            query: message.query,
-          },
-          branchContextPayload
-        );
-        break;
-      }
-      case 'workItemsFallback':
-        handleWorkItemsFallback(message);
-        break;
-      case 'copilotPromptCopied': {
-        const id = message.workItemId;
-        setComposeStatus(
-          'Copilot prompt copied to clipboard. Paste into Copilot chat to generate a comment.'
-        );
-        // Briefly show feedback then clear
-        setTimeout(() => {
-          setComposeStatus(null);
-        }, 3500);
-        break;
-      }
-      case 'stopAndApplyResult': {
-        const id = message.workItemId;
-        const hours = message.hours;
-        setComposeStatus(`Applied ${hours.toFixed(2)} hours to work item #${id}.`);
-        try {
-          if (typeof id === 'number') removeDraftForWorkItem(id);
-        } catch (e) {
-          console.warn('[webview] Failed to remove persisted draft after apply', e);
-        }
-        setTimeout(() => {
-          hideComposePanel({ clearDraft: true });
-        }, 3500);
-        break;
-      }
-      case 'addCommentResult': {
-        const id = typeof message.workItemId === 'number' ? message.workItemId : null;
-        if (message?.success === false) {
-          const errorMessage =
-            typeof message.error === 'string' && message.error.trim().length > 0
-              ? message.error.trim()
-              : 'Failed to add comment.';
-          setComposeStatus(errorMessage);
-          break;
-        }
-        if (id) {
-          try {
-            removeDraftForWorkItem(id);
-          } catch (e) {
-            console.warn('[webview] Failed to remove persisted draft after add comment', e);
-          }
-        }
-        setComposeStatus('Comment added successfully.');
-        setTimeout(() => {
-          hideComposePanel({ clearDraft: true });
-        }, 2000);
-        break;
-      }
-      case 'showComposeComment': {
-        const workItemId = typeof message.workItemId === 'number' ? message.workItemId : null;
-        const mode = typeof message.mode === 'string' ? message.mode : 'addComment';
-        let presetText = '';
-        let statusMessage = '';
+function handleWorkItemsLoadedMessage(message: WebviewMessage): void {
+  fallbackNotice = null;
+  const normalizedConnection =
+    normalizeConnectionId(message.connectionId) ?? activeConnectionId ?? null;
+  const hasBranchContext = Object.prototype.hasOwnProperty.call(message, 'branchContext');
+  let branchContextPayload: BranchContextState = null;
+  if (hasBranchContext) {
+    branchContextPayload = message.branchContext ?? null;
+  } else if (normalizedConnection) {
+    branchContextPayload = branchContextByConnection.get(normalizedConnection) ?? null;
+  }
+  if (normalizedConnection) {
+    branchContextByConnection.set(normalizedConnection, branchContextPayload);
+  }
+  handleWorkItemsLoaded(
+    message.workItems || [],
+    normalizedConnection,
+    {
+      query: message.query,
+    },
+    branchContextPayload
+  );
+}
 
-        if (mode === 'timerStop' && message.timerData) {
-          const hours = Number(
-            message.timerData.hoursDecimal || message.timerData.duration / 3600 || 0
-          );
-          // Store timer data in compose state for later submission
-          if (composeState) {
-            (composeState as any).timerData = message.timerData;
-            (composeState as any).connectionInfo = message.connectionInfo;
-          }
-          presetText = `Worked approximately ${hours.toFixed(2)} hours. Summarize the key updates you completed.`;
-          statusMessage = `Timer stopped. Review the comment and submit to apply time updates to work item #${workItemId}.`;
-        } else {
-          statusMessage = `Compose a comment for work item #${workItemId}.`;
-        }
+function handleWorkItemsFallbackMessage(message: WebviewMessage): void {
+  handleWorkItemsFallback(message);
+}
 
-        showComposePanel({
-          mode: mode as ComposeMode,
-          workItemId,
-          presetText,
-          message: statusMessage,
-          focus: true,
-          expand: true,
-        });
-        break;
-      }
-      case 'composeCommentResult': {
-        const id = message.workItemId;
-        const mode = message.mode;
-        const success = message.success;
+function handleCopilotPromptCopiedMessage(_message: WebviewMessage): void {
+  setComposeStatus(
+    'Copilot prompt copied to clipboard. Paste into Copilot chat to generate a comment.'
+  );
+  setTimeout(() => {
+    setComposeStatus(null);
+  }, 3500);
+}
 
-        if (!success) {
-          const errorMessage =
-            typeof message.error === 'string' && message.error.trim().length > 0
-              ? message.error.trim()
-              : `Failed to ${mode === 'timerStop' ? 'apply timer update' : 'add comment'}.`;
-          setComposeStatus(errorMessage);
-          break;
-        }
+function handleStopAndApplyResultMessage(message: WebviewMessage): void {
+  const id = message.workItemId;
+  const hours = message.hours;
+  setComposeStatus(`Applied ${hours.toFixed(2)} hours to work item #${id}.`);
+  try {
+    if (typeof id === 'number') removeDraftForWorkItem(id);
+  } catch (e) {
+    console.warn('[webview] Failed to remove persisted draft after apply', e);
+  }
+  setTimeout(() => {
+    hideComposePanel({ clearDraft: true });
+  }, 3500);
+}
 
-        // Success case
-        if (typeof id === 'number') {
-          try {
-            removeDraftForWorkItem(id);
-          } catch (e) {
-            console.warn('[webview] Failed to remove persisted draft after compose', e);
-          }
-        }
-
-        if (mode === 'timerStop') {
-          const hours = message.hours || 0;
-          setComposeStatus(`Applied ${hours.toFixed(2)} hours and comment to work item #${id}.`);
-        } else {
-          setComposeStatus('Comment added successfully.');
-        }
-
-        setTimeout(() => {
-          hideComposePanel({ clearDraft: true });
-        }, 3000);
-        break;
-      }
-      case 'workItemsError':
-        handleWorkItemsError(message.error);
-        break;
-      case 'timerUpdate':
-        handleTimerUpdate(message.timer);
-        break;
-      case 'toggleKanbanView':
-        handleToggleKanbanView();
-        break;
-      case 'selfTestPing':
-        handleSelfTestPing(message.nonce);
-        break;
-      case 'workItemTypeOptions': {
-        const connectionId = normalizeConnectionId(message.connectionId) ?? activeConnectionId;
-        const incoming: string[] = Array.isArray(message.types)
-          ? message.types
-              .map((value: any) => (typeof value === 'string' ? value.trim() : ''))
-              .filter((value: string) => value.length > 0)
-          : [];
-
-        if (!connectionId) {
-          break;
-        }
-
-        setTypeOptionsForConnection(connectionId, incoming, { merge: true });
-
-        if (connectionId === activeConnectionId) {
-          populateFilterDropdowns(connectionId);
-          applyFilterStateToUi(connectionId);
-          applyFilters();
-        }
-        break;
-      }
-      case 'connectionsUpdate': {
-        const list: ConnectionEntry[] = Array.isArray(message.connections)
-          ? message.connections
-              .map((entry: any) => {
-                const id = typeof entry?.id === 'string' ? entry.id.trim() : '';
-                if (!id) return null;
-                const labelCandidate =
-                  typeof entry?.label === 'string' && entry.label.trim().length > 0
-                    ? entry.label.trim()
-                    : typeof entry?.project === 'string' && entry.project.trim().length > 0
-                      ? entry.project.trim()
-                      : id;
-                const authMethod =
-                  entry?.authMethod === 'entra'
-                    ? 'entra'
-                    : entry?.authMethod === 'pat'
-                      ? 'pat'
-                      : undefined;
-                return {
-                  id,
-                  label: labelCandidate,
-                  organization:
-                    typeof entry?.organization === 'string' && entry.organization.trim().length > 0
-                      ? entry.organization.trim()
-                      : undefined,
-                  project:
-                    typeof entry?.project === 'string' && entry.project.trim().length > 0
-                      ? entry.project.trim()
-                      : undefined,
-                  authMethod,
-                } satisfies ConnectionEntry;
-              })
-              .filter((entry: ConnectionEntry | null): entry is ConnectionEntry => entry !== null)
-          : [];
-
-        connections = list;
-        const validIds = new Set(list.map((conn) => conn.id));
-        Array.from(workItemsByConnection.keys()).forEach((id) => {
-          if (!validIds.has(id)) {
-            workItemsByConnection.delete(id);
-            fallbackNotices.delete(id);
-            typeOptionsByConnection.delete(id);
-            filterStateByConnection.delete(id);
-          }
-        });
-        Array.from(selectedQueryByConnection.keys()).forEach((id) => {
-          if (id === DEFAULT_QUERY_KEY) return;
-          if (!validIds.has(id)) {
-            selectedQueryByConnection.delete(id);
-          }
-        });
-
-        const nextActiveId =
-          typeof message.activeConnectionId === 'string' &&
-          message.activeConnectionId.trim().length > 0
-            ? message.activeConnectionId.trim()
-            : list.length > 0
-              ? list[0].id
-              : null;
-
-        if (nextActiveId) {
-          selectConnection(nextActiveId, { fromMessage: true });
-        } else {
-          activeConnectionId = null;
-          workItems = [];
-          fallbackNotice = null;
-          renderConnectionTabs();
-          renderWorkItems();
-        }
-        break;
-      }
-      default:
-        console.log('[webview] Unknown message type:', message.type);
+function handleAddCommentResultMessage(message: WebviewMessage): void {
+  const id = typeof message.workItemId === 'number' ? message.workItemId : null;
+  if (message?.success === false) {
+    const errorMessage =
+      typeof message.error === 'string' && message.error.trim().length > 0
+        ? message.error.trim()
+        : 'Failed to add comment.';
+    setComposeStatus(errorMessage);
+    return;
+  }
+  if (id) {
+    try {
+      removeDraftForWorkItem(id);
+    } catch (e) {
+      console.warn('[webview] Failed to remove persisted draft after add comment', e);
     }
+  }
+  setComposeStatus('Comment added successfully.');
+  setTimeout(() => {
+    hideComposePanel({ clearDraft: true });
+  }, 2000);
+}
+
+function handleShowComposeCommentMessage(message: WebviewMessage): void {
+  const workItemId = typeof message.workItemId === 'number' ? message.workItemId : null;
+  const mode = typeof message.mode === 'string' ? message.mode : 'addComment';
+  let presetText = '';
+  let statusMessage = '';
+
+  if (mode === 'timerStop' && message.timerData) {
+    const hours = Number(message.timerData.hoursDecimal || message.timerData.duration / 3600 || 0);
+    if (composeState) {
+      (composeState as any).timerData = message.timerData;
+      (composeState as any).connectionInfo = message.connectionInfo;
+    }
+    presetText = `Worked approximately ${hours.toFixed(2)} hours. Summarize the key updates you completed.`;
+    statusMessage = `Timer stopped. Review the comment and submit to apply time updates to work item #${workItemId}.`;
+  } else {
+    statusMessage = `Compose a comment for work item #${workItemId}.`;
+  }
+
+  showComposePanel({
+    mode: mode as ComposeMode,
+    workItemId,
+    presetText,
+    message: statusMessage,
+    focus: true,
+    expand: true,
   });
+}
+
+function handleComposeCommentResultMessage(message: WebviewMessage): void {
+  const id = message.workItemId;
+  const mode = message.mode;
+  const success = message.success;
+
+  if (!success) {
+    const errorMessage =
+      typeof message.error === 'string' && message.error.trim().length > 0
+        ? message.error.trim()
+        : `Failed to ${mode === 'timerStop' ? 'apply timer update' : 'add comment'}.`;
+    setComposeStatus(errorMessage);
+    return;
+  }
+
+  if (typeof id === 'number') {
+    try {
+      removeDraftForWorkItem(id);
+    } catch (e) {
+      console.warn('[webview] Failed to remove persisted draft after compose', e);
+    }
+  }
+
+  if (mode === 'timerStop') {
+    const hours = message.hours || 0;
+    setComposeStatus(`Applied ${hours.toFixed(2)} hours and comment to work item #${id}.`);
+  } else {
+    setComposeStatus('Comment added successfully.');
+  }
+
+  setTimeout(() => {
+    hideComposePanel({ clearDraft: true });
+  }, 3000);
+}
+
+function handleWorkItemsErrorMessage(message: WebviewMessage): void {
+  handleWorkItemsError(message.error);
+}
+
+function handleTimerUpdateMessage(message: WebviewMessage): void {
+  handleTimerUpdate(message.timer);
+}
+
+function handleToggleKanbanViewMessage(_message: WebviewMessage): void {
+  handleToggleKanbanView();
+}
+
+function handleSelfTestPingMessage(message: WebviewMessage): void {
+  handleSelfTestPing(message.nonce);
+}
+
+function handleWorkItemTypeOptionsMessage(message: WebviewMessage): void {
+  const connectionId = normalizeConnectionId(message.connectionId) ?? activeConnectionId;
+  const incoming: string[] = Array.isArray(message.types)
+    ? message.types
+        .map((value: any) => (typeof value === 'string' ? value.trim() : ''))
+        .filter((value: string) => value.length > 0)
+    : [];
+  if (!connectionId) {
+    return;
+  }
+
+  setTypeOptionsForConnection(connectionId, incoming, { merge: true });
+
+  if (connectionId === activeConnectionId) {
+    populateFilterDropdowns(connectionId);
+    applyFilterStateToUi(connectionId);
+    applyFilters();
+  }
+}
+
+function handleConnectionsUpdateMessage(message: WebviewMessage): void {
+  const list = normalizeConnectionsList(message.connections);
+  connections = list;
+  const validIds = new Set(list.map((conn) => conn.id));
+  cleanupRemovedConnections(validIds);
+
+  const nextActiveId =
+    typeof message.activeConnectionId === 'string' && message.activeConnectionId.trim().length > 0
+      ? message.activeConnectionId.trim()
+      : list.length > 0
+        ? list[0].id
+        : null;
+
+  if (nextActiveId) {
+    selectConnection(nextActiveId, { fromMessage: true });
+  } else {
+    activeConnectionId = null;
+    workItems = [];
+    fallbackNotice = null;
+    renderConnectionTabs();
+    renderWorkItems();
+  }
+}
+
+function handleContextUpdateMessage(message: WebviewMessage): void {
+  console.log('[webview] Received contextUpdate - displaying based on current context', message);
+
+  const contextPayload = message.context;
+  if (!contextPayload || typeof contextPayload !== 'object') {
+    console.warn('[webview] contextUpdate missing payload context', message);
+    return;
+  }
+
+  const list = normalizeConnectionsList(contextPayload.connections);
+  connections = list;
+
+  const validIds = new Set(list.map((conn) => conn.id));
+  cleanupRemovedConnections(validIds);
+
+  const tabView = contextPayload.tab ?? null;
+  const fallbackActiveId =
+    typeof contextPayload.activeConnectionId === 'string'
+      ? contextPayload.activeConnectionId
+      : null;
+  const nextActiveId = deriveActiveConnectionIdFromContext(list, tabView, fallbackActiveId);
+
+  if (nextActiveId) {
+    selectConnection(nextActiveId, { fromMessage: true });
+  } else {
+    activeConnectionId = null;
+    workItems = [];
+    fallbackNotice = null;
+    renderConnectionTabs();
+    renderWorkItems();
+  }
+
+  if (tabView) {
+    applyTabContextToUi(tabView, nextActiveId ?? null);
+  } else {
+    isLoading = Boolean(contextPayload.isLoading);
+    if (isLoading) {
+      showLoadingState();
+    } else {
+      renderWorkItems();
+    }
+    const fallbackTimer = normalizeTimerFromTabView(contextPayload, nextActiveId ?? null);
+    handleTimerUpdate(fallbackTimer);
+  }
+}
+
+function handleFsmConnectionsUpdateMessage(message: WebviewMessage): void {
+  console.log('[webview] ✅ Received FSM connections-update message', message);
+  const list = normalizeConnectionsList(message.connections);
+  connections = list;
+
+  const validIds = new Set(list.map((conn) => conn.id));
+  cleanupRemovedConnections(validIds);
+
+  const nextActiveId = message.activeConnectionId || (list.length > 0 ? list[0].id : null);
+  console.log(
+    '[webview] FSM connections update - connections:',
+    list.length,
+    'activeId:',
+    nextActiveId
+  );
+
+  if (list.length > 0 && nextActiveId) {
+    selectConnection(nextActiveId, { fromMessage: true });
+
+    const cachedItems = workItemsByConnection.get(nextActiveId);
+    if (!cachedItems || cachedItems.length === 0) {
+      console.log('[webview] FSM update - No cached work items, requesting data');
+      workItems = [];
+      renderWorkItems();
+      requestWorkItems();
+    }
+  } else {
+    activeConnectionId = null;
+    workItems = [];
+    fallbackNotice = null;
+    renderConnectionTabs();
+    renderWorkItems();
+  }
+}
+
+function handleFsmWorkItemsUpdateMessage(message: WebviewMessage): void {
+  console.log('[webview] ✅ Received FSM work-items-update message', message);
+
+  const workItemsArray = Array.isArray(message.workItems) ? message.workItems : [];
+  const connectionId = message.metadata?.connectionId || activeConnectionId;
+
+  if (connectionId) {
+    handleWorkItemsLoaded(
+      workItemsArray,
+      connectionId,
+      {
+        query: message.metadata?.query,
+      },
+      null
+    );
+  }
+}
+
+const messageHandlers: Record<string, WebviewMessageHandler> = {
+  workItemsLoaded: handleWorkItemsLoadedMessage,
+  workItemsFallback: handleWorkItemsFallbackMessage,
+  copilotPromptCopied: handleCopilotPromptCopiedMessage,
+  stopAndApplyResult: handleStopAndApplyResultMessage,
+  addCommentResult: handleAddCommentResultMessage,
+  showComposeComment: handleShowComposeCommentMessage,
+  composeCommentResult: handleComposeCommentResultMessage,
+  workItemsError: handleWorkItemsErrorMessage,
+  timerUpdate: handleTimerUpdateMessage,
+  toggleKanbanView: handleToggleKanbanViewMessage,
+  selfTestPing: handleSelfTestPingMessage,
+  workItemTypeOptions: handleWorkItemTypeOptionsMessage,
+  connectionsUpdate: handleConnectionsUpdateMessage,
+  contextUpdate: handleContextUpdateMessage,
+  'connections-update': handleFsmConnectionsUpdateMessage,
+  'work-items-update': handleFsmWorkItemsUpdateMessage,
+};
+
+function handleWindowMessage(event: MessageEvent<WebviewMessage>): void {
+  const message = event.data;
+  if (!message || typeof message !== 'object') return;
+
+  const type = typeof message.type === 'string' ? message.type : '';
+  const handler = messageHandlers[type];
+  if (handler) {
+    handler(message);
+  } else {
+    console.log('[webview] Unknown message type:', type);
+  }
+}
+
+function setupMessageHandling() {
+  window.addEventListener('message', handleWindowMessage);
 }
 
 function getComposeSubmitLabel(mode: ComposeMode | null): string {
@@ -1464,6 +1648,13 @@ function hideComposePanel(options?: HideComposeOptions) {
   if (options?.clearDraft && elements.draftSummary) {
     elements.draftSummary.value = '';
   }
+}
+
+function requestContext() {
+  console.log('[webview] Requesting initial context (connections, state) instead of work items');
+  postMessage({
+    type: 'requestContext',
+  });
 }
 
 function requestWorkItems() {
@@ -2004,222 +2195,239 @@ function renderBranchBadge(meta: any): string {
   `;
 }
 
+type RenderWorkItemOptions = {
+  bannerHtml?: string;
+  showEmptyState?: boolean;
+};
+
+function getWorkItemField(item: any, field: string): unknown {
+  if (item == null) return undefined;
+  switch (field) {
+    case 'System.Id':
+      return item.id ?? item.fields?.['System.Id'];
+    case 'System.Title':
+      return item.title ?? item.fields?.['System.Title'];
+    case 'System.State':
+      return item.state ?? item.fields?.['System.State'];
+    case 'System.WorkItemType':
+      return item.type ?? item.fields?.['System.WorkItemType'];
+    case 'System.AssignedTo': {
+      const value = item.assignedTo ?? item.fields?.['System.AssignedTo'];
+      if (value && typeof value === 'object') {
+        return value.displayName || value.uniqueName || value.name;
+      }
+      return value;
+    }
+    case 'System.Tags':
+      if (item.tags) {
+        return Array.isArray(item.tags) ? item.tags.join(';') : item.tags;
+      }
+      return item.fields?.['System.Tags'];
+    case 'Microsoft.VSTS.Common.Priority':
+      return item.priority ?? item.fields?.['Microsoft.VSTS.Common.Priority'];
+    case 'System.IterationPath':
+      return item.iterationPath ?? item.fields?.['System.IterationPath'];
+    default:
+      return item[field] ?? item.fields?.[field];
+  }
+}
+
+function normalizeTags(tagsField: unknown): string[] {
+  if (typeof tagsField === 'string') {
+    return tagsField
+      .split(';')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+  }
+  if (Array.isArray(tagsField)) {
+    return tagsField.map((tag) => String(tag).trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function buildWorkItemCardHtml(item: any): string {
+  const idRaw = getWorkItemField(item, 'System.Id');
+  const id = typeof idRaw === 'number' ? idRaw : Number(idRaw);
+  const safeId = Number.isFinite(id) ? id : Number(item?.id) || 0;
+  const title = getWorkItemField(item, 'System.Title') || `Work Item #${safeId}`;
+  const state = getWorkItemField(item, 'System.State') || 'Unknown';
+  const type = getWorkItemField(item, 'System.WorkItemType') || 'Unknown';
+  const assigned = getWorkItemField(item, 'System.AssignedTo') || 'Unassigned';
+  const priority = getWorkItemField(item, 'Microsoft.VSTS.Common.Priority') || 2;
+  const tags = normalizeTags(getWorkItemField(item, 'System.Tags'));
+  const iterationPath = getWorkItemField(item, 'System.IterationPath') || '';
+  const description = item.description || item.fields?.['System.Description'] || '';
+
+  const isSelected = selectedWorkItemId === safeId;
+  const typeIcon = getWorkItemTypeIcon(String(type));
+  const priorityClass = getPriorityClass(Number(priority));
+  const priorityIcon = getPriorityIcon(Number(priority));
+  const stateClass = getStateClass(String(state));
+
+  const hasActiveTimer = !!currentTimer && Number(currentTimer.workItemId) === Number(safeId);
+  const timerDisplay = hasActiveTimer ? formatTimerDuration(currentTimer.elapsedSeconds || 0) : '';
+
+  const descriptionSnippet = description
+    ? `<div class="work-item-description">${escapeHtml(String(description).substring(0, 120))}${
+        String(description).length > 120 ? '...' : ''
+      }</div>`
+    : '';
+
+  const assigneeHtml =
+    assigned && assigned !== 'Unassigned'
+      ? `<div class="work-item-assignee"><span class="assignee-icon">👤</span><span>${escapeHtml(
+          String(assigned)
+        )}</span></div>`
+      : '';
+
+  const iterationHtml = iterationPath
+    ? `<div class="work-item-iteration"><span class="iteration-icon">🔄</span><span>${escapeHtml(
+        String(iterationPath).split('\\').pop() || String(iterationPath)
+      )}</span></div>`
+    : '';
+
+  const tagsHtml =
+    tags.length > 0
+      ? `<div class="work-item-tags">${tags
+          .slice(0, 3)
+          .map((tag) => `<span class="work-item-tag">${escapeHtml(tag)}</span>`)
+          .join('')}${
+          tags.length > 3 ? `<span class="tag-overflow">+${tags.length - 3}</span>` : ''
+        }</div>`
+      : '';
+
+  const timerIndicator = hasActiveTimer
+    ? `<div class="timer-indicator" title="Timer running: ${timerDisplay}">⏱️ ${timerDisplay}</div>`
+    : '';
+
+  const timerButton = hasActiveTimer
+    ? `<button class="action-btn timer-btn" data-action="stopTimer" data-id="${safeId}" title="Start/Stop Timer">⏹️</button>`
+    : `<button class="action-btn timer-btn" data-action="startTimer" data-id="${safeId}" title="Start/Stop Timer">⏱️</button>`;
+
+  return `
+    <div class="work-item-card ${isSelected ? 'selected' : ''} ${stateClass} ${
+      hasActiveTimer ? 'has-active-timer' : ''
+    }" data-id="${safeId}" data-action="selectWorkItem">
+      <div class="work-item-header">
+        <div class="work-item-type-icon ${typeIcon.class}">${typeIcon.icon}</div>
+        <div class="work-item-id">#${safeId}</div>
+        ${timerIndicator}
+        <div class="work-item-priority ${priorityClass}">${priorityIcon.icon} ${priorityIcon.label}</div>
+      </div>
+      <div class="work-item-content">
+        <div class="work-item-title" title="${escapeHtml(String(title))}">${escapeHtml(
+          String(title)
+        )}</div>
+        ${descriptionSnippet}
+        <div class="work-item-details">
+          <div class="work-item-meta-row">
+            <span class="work-item-type">${escapeHtml(String(type))}</span>
+            <span class="work-item-state state-${String(state)
+              .toLowerCase()
+              .replace(/\s+/g, '-')}">${escapeHtml(String(state))}</span>
+          </div>
+          ${assigneeHtml}
+          ${iterationHtml}
+          ${tagsHtml}
+        </div>
+      </div>
+      <div class="work-item-actions">
+        ${timerButton}
+        <button class="action-btn comment-btn" data-action="addComment" data-id="${safeId}" title="Add Comment">💬</button>
+        <button class="action-btn view-btn" data-action="viewDetails" data-id="${safeId}" title="View Details">👁️</button>
+        <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${safeId}" title="Edit">✏️</button>
+      </div>
+    </div>`;
+}
+
+function renderWorkItemCards(items: any[], options: RenderWorkItemOptions = {}): void {
+  if (!elements.workItemsContainer) return;
+  const { bannerHtml = '', showEmptyState = true } = options;
+
+  if (items.length === 0) {
+    const emptyHtml = showEmptyState
+      ? `${bannerHtml}<div class="status-message">
+            <div>No work items found</div>
+            <div style="font-size: 0.9em; color: var(--vscode-descriptionForeground); margin-top: 0.5rem;">Use the refresh button (🔄) in the header to reload work items</div>
+          </div>`
+      : bannerHtml;
+    preserveScroll('y', () => {
+      elements.workItemsContainer!.innerHTML = emptyHtml;
+    });
+    updateStatusOverview(items);
+    return;
+  }
+
+  const html = items.map((item) => buildWorkItemCardHtml(item)).join('');
+  preserveScroll('y', () => {
+    elements.workItemsContainer!.innerHTML = `${bannerHtml}${html}`;
+  });
+  updateStatusOverview(items);
+}
+
+function buildFallbackBannerHtml(notice: FallbackNoticeData | null): string {
+  if (!notice) return '';
+  const original = escapeHtml(String(notice.originalQuery || 'Configured Query'));
+  const fallback = escapeHtml(String(notice.fallbackQuery || 'My Activity'));
+  const defaultQueryText = notice.defaultQuery
+    ? ` (default query: ${escapeHtml(String(notice.defaultQuery))})`
+    : '';
+  const fetchedSnippet =
+    typeof notice.fetchedCount === 'number' ? ` ${notice.fetchedCount} work items loaded.` : '';
+  const activeConnection = activeConnectionId
+    ? connections.find((conn) => conn.id === activeConnectionId)
+    : null;
+  const fallbackAuthMethod = activeConnection?.authMethod === 'entra' ? 'entra' : 'pat';
+  const fallbackAuthDescription =
+    fallbackAuthMethod === 'entra'
+      ? 'the Microsoft Entra ID connection'
+      : 'the saved Personal Access Token';
+  const fallbackRemediation =
+    fallbackAuthMethod === 'entra'
+      ? "If this isn't you, sign out and sign in with the correct Microsoft Entra ID account under Azure DevOps Integration settings."
+      : "If this isn't you, update the PAT under Azure DevOps Integration settings.";
+  const identity = notice.fallbackIdentity;
+  const assignees = Array.isArray(notice.assignees)
+    ? notice.assignees.filter((value) => typeof value === 'string' && value.trim().length > 0)
+    : [];
+  let identityHtml = '';
+  if (identity && (identity.displayName || identity.uniqueName || identity.id)) {
+    const label = escapeHtml(
+      identity.displayName || identity.uniqueName || identity.id || 'this connection'
+    );
+    identityHtml = `
+        <div style="margin-top: 0.5rem; font-size: 0.85em; color: var(--vscode-descriptionForeground);">
+          Results were loaded using ${fallbackAuthDescription} for <strong>${label}</strong>.
+          ${escapeHtml(fallbackRemediation)}
+        </div>`;
+  } else if (assignees.length > 0) {
+    const preview = assignees
+      .slice(0, 3)
+      .map((value) => escapeHtml(value))
+      .join(', ');
+    const overflow = assignees.length > 3 ? ', …' : '';
+    identityHtml = `
+        <div style="margin-top: 0.5rem; font-size: 0.85em; color: var(--vscode-descriptionForeground);">
+          Work items in these fallback results are assigned to: ${preview}${overflow}
+        </div>`;
+  }
+  return `
+      <div class="info-banner" style="margin: 0 0 0.75rem 0; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--vscode-inputValidationInfoBorder, rgba(0, 122, 204, 0.6)); background: var(--vscode-inputValidationInfoBackground, rgba(0, 122, 204, 0.1));">
+        <div style="font-weight: 600;">Showing fallback results</div>
+        <div style="margin-top: 0.25rem;">No work items matched <code>${original}</code>. Loaded <code>${fallback}</code> instead.${defaultQueryText}${fetchedSnippet}</div>
+        <div style="margin-top: 0.5rem; font-size: 0.85em; color: var(--vscode-descriptionForeground);">
+          Update <strong>Azure DevOps Integration › Default Query</strong> in settings to customize the default list.
+        </div>
+        ${identityHtml}
+      </div>`;
+}
+
 function renderWorkItems() {
   const itemsToRender = getVisibleItems();
   console.log('[webview] renderWorkItems called, itemsToRender.length:', itemsToRender.length);
   if (!elements.workItemsContainer) return;
-  const notice = fallbackNotice;
-  let bannerHtml = '';
-  if (notice) {
-    const original = escapeHtml(String(notice.originalQuery || 'Configured Query'));
-    const fallback = escapeHtml(String(notice.fallbackQuery || 'My Activity'));
-    const defaultQueryText = notice.defaultQuery
-      ? ` (default query: ${escapeHtml(String(notice.defaultQuery))})`
-      : '';
-    const fetchedSnippet =
-      typeof notice.fetchedCount === 'number' ? ` ${notice.fetchedCount} work items loaded.` : '';
-    const activeConnection = activeConnectionId
-      ? connections.find((conn) => conn.id === activeConnectionId)
-      : null;
-    const fallbackAuthMethod = activeConnection?.authMethod === 'entra' ? 'entra' : 'pat';
-    const fallbackAuthDescription =
-      fallbackAuthMethod === 'entra'
-        ? 'the Microsoft Entra ID connection'
-        : 'the saved Personal Access Token';
-    const fallbackRemediation =
-      fallbackAuthMethod === 'entra'
-        ? "If this isn't you, sign out and sign in with the correct Microsoft Entra ID account under Azure DevOps Integration settings."
-        : "If this isn't you, update the PAT under Azure DevOps Integration settings.";
-    const identity = notice.fallbackIdentity;
-    const assignees = Array.isArray(notice.assignees)
-      ? notice.assignees.filter((value) => typeof value === 'string' && value.trim().length > 0)
-      : [];
-    let identityHtml = '';
-    if (identity && (identity.displayName || identity.uniqueName || identity.id)) {
-      const label = escapeHtml(
-        identity.displayName || identity.uniqueName || identity.id || 'this connection'
-      );
-      identityHtml = `
-          <div style="margin-top: 0.5rem; font-size: 0.85em; color: var(--vscode-descriptionForeground);">
-            Results were loaded using ${fallbackAuthDescription} for <strong>${label}</strong>.
-            ${escapeHtml(fallbackRemediation)}
-          </div>`;
-    } else if (assignees.length > 0) {
-      const preview = assignees
-        .slice(0, 3)
-        .map((value) => escapeHtml(value))
-        .join(', ');
-      const overflow = assignees.length > 3 ? ', …' : '';
-      identityHtml = `
-          <div style="margin-top: 0.5rem; font-size: 0.85em; color: var(--vscode-descriptionForeground);">
-            Work items in these fallback results are assigned to: ${preview}${overflow}
-          </div>`;
-    }
-    bannerHtml = `
-        <div class="info-banner" style="margin: 0 0 0.75rem 0; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--vscode-inputValidationInfoBorder, rgba(0, 122, 204, 0.6)); background: var(--vscode-inputValidationInfoBackground, rgba(0, 122, 204, 0.1));">
-          <div style="font-weight: 600;">Showing fallback results</div>
-          <div style="margin-top: 0.25rem;">No work items matched <code>${original}</code>. Loaded <code>${fallback}</code> instead.${defaultQueryText}${fetchedSnippet}</div>
-          <div style="margin-top: 0.5rem; font-size: 0.85em; color: var(--vscode-descriptionForeground);">
-            Update <strong>Azure DevOps Integration › Default Query</strong> in settings to customize the default list.
-          </div>
-          ${identityHtml}
-        </div>`;
-  }
-  if (itemsToRender.length === 0) {
-    preserveScroll('y', () => {
-      elements.workItemsContainer!.innerHTML = `
-          ${bannerHtml}
-          <div class="status-message">
-            <div>No work items found</div>
-            <div style="font-size: 0.9em; color: var(--vscode-descriptionForeground); margin-top: 0.5rem;">Use the refresh button (🔄) in the header to reload work items</div>
-          </div>`;
-    });
-    return;
-  }
-
-  // Normalized field accessor reused from kanban logic
-  const getField = (item: any, field: string) => {
-    if (item == null) return undefined;
-    switch (field) {
-      case 'System.Id':
-        return item.id ?? item.fields?.['System.Id'];
-      case 'System.Title':
-        return item.title ?? item.fields?.['System.Title'];
-      case 'System.State':
-        return item.state ?? item.fields?.['System.State'];
-      case 'System.WorkItemType':
-        return item.type ?? item.fields?.['System.WorkItemType'];
-      case 'System.AssignedTo': {
-        const a = item.assignedTo || item.fields?.['System.AssignedTo'];
-        if (a && typeof a === 'object') return a.displayName || a.uniqueName || a.name;
-        return a;
-      }
-      case 'System.Tags':
-        return item.tags
-          ? Array.isArray(item.tags)
-            ? item.tags.join(';')
-            : item.tags
-          : item.fields?.['System.Tags'];
-      case 'Microsoft.VSTS.Common.Priority':
-        return item.priority ?? item.fields?.['Microsoft.VSTS.Common.Priority'];
-      default:
-        return item[field] ?? item.fields?.[field];
-    }
-  };
-
-  const html = itemsToRender
-    .map((item) => {
-      const idRaw = getField(item, 'System.Id');
-      const id = typeof idRaw === 'number' ? idRaw : Number(idRaw);
-      const title = getField(item, 'System.Title') || `Work Item #${id}`;
-      const state = getField(item, 'System.State') || 'Unknown';
-      const type = getField(item, 'System.WorkItemType') || 'Unknown';
-      const assignedRaw = getField(item, 'System.AssignedTo');
-      const assignedTo = assignedRaw || 'Unassigned';
-      const priority = getField(item, 'Microsoft.VSTS.Common.Priority') || 2;
-      const tagsField = getField(item, 'System.Tags');
-      const tags =
-        typeof tagsField === 'string'
-          ? tagsField.split(';').filter(Boolean)
-          : Array.isArray(tagsField)
-            ? tagsField
-            : [];
-      const iterationPath = getField(item, 'System.IterationPath') || '';
-      // areaPath not currently displayed
-      const description = item.description || item.fields?.['System.Description'] || '';
-
-      const isSelected = selectedWorkItemId === id;
-      const typeIcon = getWorkItemTypeIcon(String(type));
-      const priorityClass = getPriorityClass(Number(priority));
-      const stateClass = getStateClass(String(state));
-
-      // Check if timer is running on this work item
-      const hasActiveTimer = !!currentTimer && Number(currentTimer.workItemId) === Number(id);
-      const timerDisplay = hasActiveTimer
-        ? formatTimerDuration(currentTimer.elapsedSeconds || 0)
-        : '';
-
-      return `
-        <div class="work-item-card ${isSelected ? 'selected' : ''} ${stateClass} ${
-          hasActiveTimer ? 'has-active-timer' : ''
-        }" data-id="${id}" data-action="selectWorkItem">
-          <div class="work-item-header">
-            <div class="work-item-type-icon ${typeIcon.class}">${typeIcon.icon}</div>
-            <div class="work-item-id">#${id}</div>
-            ${
-              hasActiveTimer
-                ? `<div class="timer-indicator" title="Timer running: ${timerDisplay}">⏱️ ${timerDisplay}</div>`
-                : ''
-            }
-            <div class="work-item-priority ${priorityClass}">${
-              getPriorityIcon(Number(priority)).icon
-            } ${getPriorityIcon(Number(priority)).label}</div>
-          </div>
-          <div class="work-item-content">
-            <div class="work-item-title" title="${escapeHtml(String(title))}">${escapeHtml(
-              String(title)
-            )}</div>
-            ${
-              description
-                ? `<div class="work-item-description">${escapeHtml(
-                    String(description).substring(0, 120)
-                  )}${String(description).length > 120 ? '...' : ''}</div>`
-                : ''
-            }
-            <div class="work-item-details">
-              <div class="work-item-meta-row">
-                <span class="work-item-type">${escapeHtml(String(type))}</span>
-                <span class="work-item-state state-${String(state)
-                  .toLowerCase()
-                  .replace(/\s+/g, '-')}">${escapeHtml(String(state))}</span>
-              </div>
-              ${
-                assignedTo && assignedTo !== 'Unassigned'
-                  ? `<div class="work-item-assignee"><span class="assignee-icon">👤</span><span>${escapeHtml(
-                      String(assignedTo)
-                    )}</span></div>`
-                  : ''
-              }
-              ${
-                iterationPath
-                  ? `<div class="work-item-iteration"><span class="iteration-icon">🔄</span><span>${escapeHtml(
-                      String(iterationPath).split('\\').pop() || String(iterationPath)
-                    )}</span></div>`
-                  : ''
-              }
-              ${
-                tags.length
-                  ? `<div class="work-item-tags">${tags
-                      .slice(0, 3)
-                      .map(
-                        (t: any) =>
-                          `<span class="work-item-tag">${escapeHtml(String(t).trim())}</span>`
-                      )
-                      .join('')}${
-                      tags.length > 3 ? `<span class="tag-overflow">+${tags.length - 3}</span>` : ''
-                    }</div>`
-                  : ''
-              }
-            </div>
-          </div>
-          <div class="work-item-actions">
-            ${
-              hasActiveTimer
-                ? `<button class="action-btn timer-btn" data-action="stopTimer" data-id="${id}" title="Start/Stop Timer">⏹️</button>`
-                : `<button class="action-btn timer-btn" data-action="startTimer" data-id="${id}" title="Start/Stop Timer">⏱️</button>`
-            }
-            <button class="action-btn comment-btn" data-action="addComment" data-id="${id}" title="Add Comment">💬</button>
-            <button class="action-btn view-btn" data-action="viewDetails" data-id="${id}" title="View Details">👁️</button>
-            <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${id}" title="Edit">✏️</button>
-          </div>
-        </div>`;
-    })
-    .join('');
-
-  preserveScroll('y', () => {
-    elements.workItemsContainer!.innerHTML = `${bannerHtml}${html}`;
-  });
-  updateStatusOverview(itemsToRender);
+  const bannerHtml = buildFallbackBannerHtml(fallbackNotice);
+  renderWorkItemCards(itemsToRender, { bannerHtml, showEmptyState: true });
 }
 
 function updateViewToggle() {
@@ -2244,13 +2452,127 @@ function updateViewToggle() {
   });
 }
 
+const KANBAN_STATE_ORDER = [
+  'New',
+  'To Do',
+  'Active',
+  'In Progress',
+  'Doing',
+  'Code Review',
+  'Testing',
+  'Resolved',
+  'Done',
+  'Closed',
+];
+
+function groupWorkItemsByState(items: any[]): Record<string, any[]> {
+  return items.reduce<Record<string, any[]>>((groups, item) => {
+    const rawState = getWorkItemField(item, 'System.State') ?? 'Unknown';
+    const state = typeof rawState === 'string' ? rawState : String(rawState ?? 'Unknown');
+    if (!groups[state]) groups[state] = [];
+    groups[state].push(item);
+    return groups;
+  }, {});
+}
+
+function getOrderedKanbanStates(stateGroups: Record<string, any[]>): string[] {
+  const prioritized = KANBAN_STATE_ORDER.filter((state) => stateGroups[state]);
+  const extras = Object.keys(stateGroups).filter((state) => !prioritized.includes(state));
+  return [...prioritized, ...extras];
+}
+
+function buildKanbanCardHtml(item: any): string {
+  const idField = getWorkItemField(item, 'System.Id');
+  const candidateId = typeof idField === 'number' ? idField : Number(idField);
+  const id = Number.isFinite(candidateId) ? candidateId : Number(item?.id) || 0;
+  const title = getWorkItemField(item, 'System.Title') || `Work Item #${id}`;
+  const type = getWorkItemField(item, 'System.WorkItemType') || 'Unknown';
+  const assigned = getWorkItemField(item, 'System.AssignedTo') || 'Unassigned';
+  const priorityValue = Number(getWorkItemField(item, 'Microsoft.VSTS.Common.Priority') || 2);
+  const tags = normalizeTags(getWorkItemField(item, 'System.Tags'));
+
+  const isSelected = selectedWorkItemId === id;
+  const typeIcon = getWorkItemTypeIcon(String(type));
+  const priorityClass = getPriorityClass(priorityValue);
+  const priorityIcon = getPriorityIcon(priorityValue);
+  const hasActiveTimer = !!currentTimer && Number(currentTimer.workItemId) === Number(id);
+  const timerDisplay = hasActiveTimer ? formatTimerDuration(currentTimer.elapsedSeconds || 0) : '';
+  const shortAssigned =
+    typeof assigned === 'string' && assigned.includes(' ') ? assigned.split(' ')[0] : assigned;
+
+  const timerIndicator = hasActiveTimer
+    ? `<div class="timer-indicator" title="Timer running: ${timerDisplay}">⏱️ ${timerDisplay}</div>`
+    : '';
+  const timerButton = hasActiveTimer
+    ? `<button class="action-btn timer-btn" data-action="stopTimer" data-id="${id}" title="Start/Stop Timer">⏹️</button>`
+    : `<button class="action-btn timer-btn" data-action="startTimer" data-id="${id}" title="Start/Stop Timer">⏱️</button>`;
+
+  const assigneeHtml =
+    assigned && assigned !== 'Unassigned'
+      ? `<span class="work-item-assignee"><span class="assignee-icon">👤</span>${escapeHtml(
+          String(shortAssigned)
+        )}</span>`
+      : '';
+
+  const tagsHtml = tags.length
+    ? `<div class="work-item-tags">${tags
+        .slice(0, 2)
+        .map((tag) => `<span class="work-item-tag">${escapeHtml(tag)}</span>`)
+        .join(
+          ''
+        )}${tags.length > 2 ? `<span class="tag-overflow">+${tags.length - 2}</span>` : ''}</div>`
+    : '';
+
+  return `
+    <div class="kanban-card ${isSelected ? 'selected' : ''} ${
+      hasActiveTimer ? 'has-active-timer' : ''
+    }" data-id="${id}" data-action="selectWorkItem">
+      <div class="kanban-card-header">
+        <div class="work-item-type-icon ${typeIcon.class}">${typeIcon.icon}</div>
+        <div class="work-item-id">#${id}</div>
+        ${timerIndicator}
+        <div class="work-item-priority ${priorityClass}">${priorityIcon.icon} ${priorityIcon.label}</div>
+      </div>
+      <div class="kanban-card-content">
+        <div class="work-item-title" title="${escapeHtml(String(title))}">${escapeHtml(
+          String(title)
+        )}</div>
+        <div class="kanban-card-meta">
+          <span class="work-item-type">${escapeHtml(String(type))}</span>
+          ${assigneeHtml}
+        </div>
+        ${tagsHtml}
+      </div>
+      <div class="kanban-card-actions">
+        ${timerButton}
+        <button class="action-btn comment-btn" data-action="addComment" data-id="${id}" title="Add Comment">💬</button>
+        <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${id}" title="Edit">✏️</button>
+        <button class="action-btn view-btn" data-action="viewDetails" data-id="${id}" title="View Details">👁️</button>
+      </div>
+    </div>`;
+}
+
+function buildKanbanColumnHtml(state: string, items: any[]): string {
+  const stateClass = getStateClass(state);
+  const cardsHtml = items.map((item) => buildKanbanCardHtml(item)).join('');
+  return `
+    <div class="kanban-column">
+      <div class="kanban-column-header ${stateClass}">
+        <h3>${escapeHtml(state)}</h3>
+        <span class="item-count">${items.length}</span>
+      </div>
+      <div class="kanban-column-content">
+        ${cardsHtml}
+      </div>
+    </div>`;
+}
+
 function renderKanbanView() {
   const itemsToRender = getVisibleItems();
   console.log('[webview] renderKanbanView called, itemsToRender.length:', itemsToRender.length);
   if (!elements.workItemsContainer) return;
 
   if (itemsToRender.length === 0) {
-    // No board content, simple render
     elements.workItemsContainer!.innerHTML = `
           <div class="status-message">
             <div>No work items found</div>
@@ -2262,188 +2584,14 @@ function renderKanbanView() {
     return;
   }
 
-  // Helper to normalize field access (supports flattened or original Azure DevOps shape)
-  const getField = (item: any, field: string) => {
-    if (item == null) return undefined;
-    // flattened mapping first
-    switch (field) {
-      case 'System.Id':
-        return item.id ?? item.fields?.['System.Id'];
-      case 'System.Title':
-        return item.title ?? item.fields?.['System.Title'];
-      case 'System.State':
-        return item.state ?? item.fields?.['System.State'];
-      case 'System.WorkItemType':
-        return item.type ?? item.fields?.['System.WorkItemType'];
-      case 'System.AssignedTo': {
-        const a = item.assignedTo || item.fields?.['System.AssignedTo'];
-        // flattened assignedTo is already a displayName string
-        if (a && typeof a === 'object') return a.displayName || a.uniqueName || a.name;
-        return a;
-      }
-      case 'System.Tags':
-        return item.tags
-          ? Array.isArray(item.tags)
-            ? item.tags.join(';')
-            : item.tags
-          : item.fields?.['System.Tags'];
-      case 'Microsoft.VSTS.Common.Priority':
-        return item.priority ?? item.fields?.['Microsoft.VSTS.Common.Priority'];
-      default:
-        return item[field] ?? item.fields?.[field];
-    }
-  };
-
-  // Build grouping by normalized state
-  const stateGroups = itemsToRender.reduce(
-    (groups: any, item) => {
-      let state = getField(item, 'System.State') || 'Unknown';
-      if (typeof state !== 'string') state = String(state ?? 'Unknown');
-      if (!groups[state]) groups[state] = [];
-      groups[state].push(item);
-      return groups;
-    },
-    {} as Record<string, any[]>
-  );
-
-  // Define common states order
-  const stateOrder = [
-    'New',
-    'To Do',
-    'Active',
-    'In Progress',
-    'Doing',
-    'Code Review',
-    'Testing',
-    'Resolved',
-    'Done',
-    'Closed',
-  ];
-  const orderedStates = stateOrder.filter((state) => stateGroups[state]);
-
-  // Add any additional states not in the predefined order
-  Object.keys(stateGroups).forEach((state) => {
-    if (!orderedStates.includes(state)) {
-      orderedStates.push(state);
-    }
-  });
-
+  const stateGroups = groupWorkItemsByState(itemsToRender);
+  const orderedStates = getOrderedKanbanStates(stateGroups);
   const kanbanHtml = `
       <div class="kanban-board">
-        ${orderedStates
-          .map((state) => {
-            const items = stateGroups[state];
-            const stateClass = getStateClass(state);
-
-            return `
-            <div class="kanban-column">
-              <div class="kanban-column-header ${stateClass}">
-                <h3>${state}</h3>
-                <span class="item-count">${items.length}</span>
-              </div>
-              <div class="kanban-column-content">
-                ${items
-                  .map((item: any) => {
-                    const idRaw = getField(item, 'System.Id');
-                    const id = typeof idRaw === 'number' ? idRaw : Number(idRaw);
-                    const title = getField(item, 'System.Title') || `Work Item #${id}`;
-                    const type = getField(item, 'System.WorkItemType') || 'Unknown';
-                    const assignedRaw = getField(item, 'System.AssignedTo');
-                    const assignedTo = assignedRaw || 'Unassigned';
-                    const priority = getField(item, 'Microsoft.VSTS.Common.Priority') || 2;
-                    const tagsField = getField(item, 'System.Tags');
-                    const tags =
-                      typeof tagsField === 'string'
-                        ? tagsField.split(';').filter(Boolean)
-                        : Array.isArray(tagsField)
-                          ? tagsField
-                          : [];
-
-                    const isSelected = selectedWorkItemId === id;
-                    const typeIcon = getWorkItemTypeIcon(type);
-                    const priorityClass = getPriorityClass(Number(priority));
-
-                    // Check if timer is running on this work item
-                    const hasActiveTimer =
-                      !!currentTimer && Number(currentTimer.workItemId) === Number(id);
-                    const timerDisplay = hasActiveTimer
-                      ? formatTimerDuration(currentTimer.elapsedSeconds || 0)
-                      : '';
-
-                    let shortAssigned = assignedTo;
-                    if (typeof shortAssigned === 'string' && shortAssigned.includes(' '))
-                      shortAssigned = shortAssigned.split(' ')[0];
-
-                    return `
-                    <div class="kanban-card ${isSelected ? 'selected' : ''} ${
-                      hasActiveTimer ? 'has-active-timer' : ''
-                    }" data-id="${id}" data-action="selectWorkItem">
-                      <div class="kanban-card-header">
-                        <div class="work-item-type-icon ${typeIcon.class}">${typeIcon.icon}</div>
-                        <div class="work-item-id">#${id}</div>
-                        ${
-                          hasActiveTimer
-                            ? `<div class="timer-indicator" title="Timer running: ${timerDisplay}">⏱️ ${timerDisplay}</div>`
-                            : ''
-                        }
-                        <div class="work-item-priority ${priorityClass}">${
-                          getPriorityIcon(Number(priority)).icon
-                        } ${getPriorityIcon(Number(priority)).label}</div>
-                      </div>
-                      <div class="kanban-card-content">
-                        <div class="work-item-title" title="${escapeHtml(
-                          String(title)
-                        )}">${escapeHtml(String(title))}</div>
-                        <div class="kanban-card-meta">
-                          <span class="work-item-type">${escapeHtml(String(type))}</span>
-                          ${
-                            assignedTo && assignedTo !== 'Unassigned'
-                              ? `<span class="work-item-assignee"><span class="assignee-icon">👤</span>${escapeHtml(
-                                  String(shortAssigned)
-                                )}</span>`
-                              : ''
-                          }
-                        </div>
-                        ${
-                          tags.length
-                            ? `<div class="work-item-tags">${tags
-                                .slice(0, 2)
-                                .map(
-                                  (t: any) =>
-                                    `<span class="work-item-tag">${escapeHtml(
-                                      String(t).trim()
-                                    )}</span>`
-                                )
-                                .join('')}${
-                                tags.length > 2
-                                  ? `<span class="tag-overflow">+${tags.length - 2}</span>`
-                                  : ''
-                              }</div>`
-                            : ''
-                        }
-                      </div>
-                      <div class="kanban-card-actions">
-                        ${
-                          hasActiveTimer
-                            ? `<button class="action-btn timer-btn" data-action="stopTimer" data-id="${id}" title="Start/Stop Timer">⏹️</button>`
-                            : `<button class="action-btn timer-btn" data-action="startTimer" data-id="${id}" title="Start/Stop Timer">⏱️</button>`
-                        }
-                        <button class="action-btn comment-btn" data-action="addComment" data-id="${id}" title="Add Comment">💬</button>
-                        <button class="action-btn edit-btn" data-action="editWorkItem" data-id="${id}" title="Edit">✏️</button>
-                        <button class="action-btn view-btn" data-action="viewDetails" data-id="${id}" title="View Details">👁️</button>
-                      </div>
-                    </div>`;
-                  })
-                  .join('')}
-              </div>
-            </div>
-          `;
-          })
-          .join('')}
+        ${orderedStates.map((state) => buildKanbanColumnHtml(state, stateGroups[state])).join('')}
       </div>
     `;
 
-  // Preserve horizontal scroll of the inner kanban board rather than the outer container
   const prevLeft =
     (elements.workItemsContainer!.querySelector('.kanban-board') as HTMLElement | null)
       ?.scrollLeft ?? 0;
@@ -2656,6 +2804,71 @@ style.textContent = `
     }
   `;
 document.head.appendChild(style);
+
+function init() {
+  elements.searchInput = document.getElementById('searchInput') as HTMLInputElement;
+  elements.statusOverview = document.getElementById('statusOverview');
+  elements.connectionTabs = document.getElementById('connectionTabs');
+  elements.sprintFilter = document.getElementById('sprintFilter') as HTMLSelectElement;
+  elements.typeFilter = document.getElementById('typeFilter') as HTMLSelectElement;
+  elements.queryFilter = document.getElementById('queryFilter') as HTMLSelectElement;
+  elements.assignedToFilter = document.getElementById('assignedToFilter') as HTMLSelectElement;
+  elements.excludeDone = document.getElementById('excludeDone') as HTMLInputElement;
+  elements.excludeClosed = document.getElementById('excludeClosed') as HTMLInputElement;
+  elements.excludeRemoved = document.getElementById('excludeRemoved') as HTMLInputElement;
+  elements.excludeInReview = document.getElementById('excludeInReview') as HTMLInputElement;
+  elements.workItemsContainer = document.getElementById('workItemsContainer');
+  elements.timerContainer = document.getElementById('timerContainer');
+  elements.timerDisplay = document.getElementById('timerDisplay');
+  elements.timerInfo = document.getElementById('timerInfo');
+
+  const startTimerBtn = document.getElementById('startTimerBtn') as HTMLButtonElement;
+  const pauseTimerBtn = document.getElementById('pauseTimerBtn') as HTMLButtonElement;
+  const stopTimerBtn = document.getElementById('stopTimerBtn') as HTMLButtonElement;
+
+  (elements as any).startTimerBtn = startTimerBtn;
+  (elements as any).pauseTimerBtn = pauseTimerBtn;
+  (elements as any).stopTimerBtn = stopTimerBtn;
+  elements.content = document.getElementById('content');
+
+  elements.draftSummary = document.getElementById('draftSummary') as HTMLTextAreaElement;
+  elements.summarySection = document.getElementById('summarySection');
+  elements.summaryContainer = document.getElementById('summaryContainer');
+  (elements as any).toggleSummaryBtn = document.getElementById(
+    'toggleSummaryBtn'
+  ) as HTMLButtonElement;
+  elements.summaryStatus = document.getElementById('summaryStatus');
+  elements.submitComposeBtn = document.getElementById('submitComposeBtn') as HTMLButtonElement;
+  elements.generatePromptBtn = document.getElementById('generatePromptBtn') as HTMLButtonElement;
+
+  if (elements.summarySection) elements.summarySection.setAttribute('hidden', '');
+  if (elements.summaryContainer) elements.summaryContainer.setAttribute('hidden', '');
+  const toggleBtn = (elements as any).toggleSummaryBtn as HTMLButtonElement | null;
+  if (toggleBtn) {
+    toggleBtn.setAttribute('aria-expanded', 'false');
+    toggleBtn.textContent = 'Compose Comment ▾';
+  }
+
+  if (elements.connectionTabs) {
+    elements.connectionTabs.setAttribute('hidden', '');
+  }
+
+  if (!elements.workItemsContainer) {
+    console.error('[webview] Critical: workItemsContainer element not found');
+    return;
+  }
+
+  initializeQueryDropdown();
+  applyQuerySelectionToUi(activeConnectionId);
+
+  setupEventListeners();
+  setupMessageHandling();
+
+  updateTimerVisibility(false);
+
+  postMessage({ type: 'webviewReady' });
+  requestWorkItems();
+}
 
 // Initialize when DOM is ready
 function startApp() {

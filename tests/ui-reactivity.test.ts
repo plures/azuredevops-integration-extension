@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-// Import directly from source paths using ts-node/esm loader
+// Import directly from source paths using the esbuild ESM loader
 import { createMemoryRepository } from '../packages/core/src/memoryRepo.ts';
 import type { WorkItem } from '../packages/core/src/types.ts';
 import type { RepositoryProvider as CoreRepoProvider } from '../packages/core/src/repository.ts';

@@ -1,8 +1,5 @@
 #!/usr/bin/env node
-// ESM wrapper that sets TS_NODE env vars before launching the ESM test runner
-// Replaces the legacy .cjs wrapper so the repo is ESM-only.
-process.env.TS_NODE_TRANSPILE_ONLY = 'true';
-process.env.TS_NODE_COMPILER_OPTIONS = JSON.stringify({ module: 'NodeNext' });
+// ESM wrapper that ensures the VS Code stub exists before launching the ESM test runner.
 
 import { spawnSync } from 'child_process';
 import fs from 'fs';
@@ -10,6 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+process.env.ESBK_TSCONFIG_PATH = path.resolve('tsconfig.tests.json');
 
 // Ensure a local 'vscode' stub exists in node_modules so unit tests can import it
 try {

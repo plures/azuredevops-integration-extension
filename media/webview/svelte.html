@@ -84,7 +84,25 @@
   </head>
   <body>
     <div id="svelte-root"></div>
+    <!-- Acquire VS Code API first, before any other scripts -->
+    <script>
+      // Global VS Code API setup - must be done before any other scripts
+      (function() {
+        try {
+          if (typeof acquireVsCodeApi !== 'undefined' && !window.vscode) {
+            window.vscode = acquireVsCodeApi();
+            console.log('[webview] VS Code API acquired successfully');
+          } else if (window.vscode) {
+            console.log('[webview] VS Code API already available');
+          } else {
+            console.warn('[webview] VS Code API not available');
+          }
+        } catch (e) {
+          console.error('[webview] Failed to acquire VS Code API:', e);
+        }
+      })();
+    </script>
     <!-- The extension replaces this path at runtime -->
-    <script type="module" crossorigin src="./svelte-main.js"></script>
+    <script type="module" crossorigin src="./reactive-main.js"></script>
   </body>
 </html>

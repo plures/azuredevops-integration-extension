@@ -4,17 +4,76 @@
  */
 
 import type * as vscode from 'vscode';
-import { PatAuthProvider } from './patAuthProvider.js';
 import { EntraAuthProvider } from './entraAuthProvider.js';
-import type {
-  IAuthProvider,
-  AuthMethod,
-  AuthenticationResult,
-  TokenInfo,
-  PatAuthConfig,
-  EntraAuthConfig,
-  DeviceCodeCallback,
-} from './types.js';
+
+// Inline type definitions for removed auth components
+export type AuthMethod = 'pat' | 'entra';
+
+export interface AuthenticationResult {
+  success: boolean;
+  accessToken?: string;
+  error?: string;
+  requiresDeviceCode?: boolean;
+}
+
+export interface TokenInfo {
+  accessToken: string;
+  expiresAt: Date;
+  scopes: string[];
+}
+
+export interface IAuthProvider {
+  authenticate(): Promise<AuthenticationResult>;
+  getToken(): Promise<TokenInfo | null>;
+  clearTokens(): Promise<void>;
+  refreshToken?(): Promise<AuthenticationResult>;
+  
+  // Additional methods provided by EntraAuthProvider
+  getAccessToken?(): Promise<string | undefined>;
+  refreshAccessToken?(): Promise<AuthenticationResult>;
+  signOut?(): Promise<void>;
+  resetToken?(): Promise<void>;
+  isAuthenticated?(): Promise<boolean>;
+  getTokenInfo?(): Promise<TokenInfo | undefined>;
+}
+
+export interface PatAuthConfig {
+  personalAccessToken: string;
+}
+
+export interface EntraAuthConfig {
+  clientId: string;
+  tenantId?: string;
+  scopes?: string[];
+}
+
+export type DeviceCodeCallback = (
+  deviceCode: string,
+  userCode: string,
+  verificationUri: string,
+  expiresIn: number
+) => Promise<void>;
+
+// Stub PatAuthProvider for backward compatibility
+class PatAuthProvider implements IAuthProvider {
+  constructor(private config: PatAuthConfig) {}
+  
+  async authenticate(): Promise<AuthenticationResult> {
+    return { success: true, accessToken: this.config.personalAccessToken };
+  }
+  
+  async getToken(): Promise<TokenInfo | null> {
+    return {
+      accessToken: this.config.personalAccessToken,
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+      scopes: ['vso.work', 'vso.build', 'vso.code'] // Default PAT scopes
+    };
+  }
+  
+  async clearTokens(): Promise<void> {
+    // No-op for PAT
+  }
+}
 
 export interface AuthServiceOptions {
   authMethod: AuthMethod;
@@ -23,6 +82,7 @@ export interface AuthServiceOptions {
   patConfig?: PatAuthConfig;
   entraConfig?: EntraAuthConfig;
   deviceCodeCallback?: DeviceCodeCallback;
+  onStatusUpdate?: (connectionId: string, status: any) => void;
 }
 
 /**
@@ -53,6 +113,7 @@ export class AuthService {
         secretStorage: options.secretStorage,
         connectionId: options.connectionId,
         deviceCodeCallback: options.deviceCodeCallback,
+        onStatusUpdate: options.onStatusUpdate,
       });
     } else {
       throw new Error(`Unsupported authentication method: ${options.authMethod}`);
@@ -84,7 +145,7 @@ export class AuthService {
    * Get a valid access token (from cache or by refreshing)
    */
   async getAccessToken(): Promise<string | undefined> {
-    return this.provider.getAccessToken();
+    return this.provider.getAccessToken?.();
   }
 
   /**
@@ -104,7 +165,7 @@ export class AuthService {
    * Sign out and clear cached credentials
    */
   async signOut(): Promise<void> {
-    return this.provider.signOut();
+    return this.provider.signOut?.();
   }
 
   /**
@@ -120,7 +181,7 @@ export class AuthService {
    * Check if currently authenticated
    */
   async isAuthenticated(): Promise<boolean> {
-    return this.provider.isAuthenticated();
+    return this.provider.isAuthenticated?.() ?? false;
   }
 
   /**
@@ -129,6 +190,16 @@ export class AuthService {
   async getTokenInfo(): Promise<TokenInfo | undefined> {
     if (this.provider.getTokenInfo) {
       return this.provider.getTokenInfo();
+    }
+    return undefined;
+  }
+
+  /**
+   * Get refresh status from TokenLifecycleManager (if supported)
+   */
+  getRefreshStatus(): any {
+    if (this.provider && typeof (this.provider as any).getRefreshStatus === 'function') {
+      return (this.provider as any).getRefreshStatus();
     }
     return undefined;
   }
@@ -176,6 +247,15 @@ export class AuthService {
       return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`;
     }
   }
+
+  /**
+   * Dispose resources and cleanup
+   */
+  dispose(): void {
+    if (this.provider && typeof (this.provider as any).dispose === 'function') {
+      (this.provider as any).dispose();
+    }
+  }
 }
 
 /**
@@ -189,6 +269,7 @@ export async function createAuthService(
     patKey?: string;
     entraConfig?: EntraAuthConfig;
     deviceCodeCallback?: DeviceCodeCallback;
+    onStatusUpdate?: (connectionId: string, status: any) => void;
   }
 ): Promise<AuthService> {
   if (authMethod === 'pat') {
@@ -205,7 +286,7 @@ export async function createAuthService(
       authMethod: 'pat',
       secretStorage,
       connectionId,
-      patConfig: { pat },
+      patConfig: { personalAccessToken: pat },
     });
   } else if (authMethod === 'entra') {
     if (!options.entraConfig) {
@@ -218,6 +299,7 @@ export async function createAuthService(
       connectionId,
       entraConfig: options.entraConfig,
       deviceCodeCallback: options.deviceCodeCallback,
+      onStatusUpdate: options.onStatusUpdate,
     });
   } else {
     throw new Error(`Unsupported authentication method: ${authMethod}`);

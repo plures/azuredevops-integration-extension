@@ -1,6 +1,8 @@
 import { execSync } from 'child_process';
 import path from 'path';
 
+process.env.ESBK_TSCONFIG_PATH = path.resolve('tsconfig.tests.json');
+
 // Files which should always trigger full test suite when changed
 const GLOBAL_TRIGGERS = [
   'package.json',
@@ -103,7 +105,7 @@ function main() {
     process.exit(execSync('npm test', { stdio: 'inherit' }));
   }
   console.log('Running tests for changed files, patterns:', selected.join(', '));
-  const mochaCmd = `node --loader ts-node/esm ./node_modules/mocha/bin/mocha --extensions ts ${selected.join(
+  const mochaCmd = `node --loader @esbuild-kit/esm-loader ./node_modules/mocha/bin/mocha --extensions ts ${selected.join(
     ' '
   )}`;
   try {

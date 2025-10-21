@@ -62,7 +62,7 @@ function validateQuery(query: string): { isValid: boolean; error?: string } {
     /alter\s+table/i,
     /create\s+table/i,
     /insert\s+into/i,
-    /update\s+set/i,
+    /update\s+.+\s+set/i,
   ];
 
   for (const pattern of dangerousPatterns) {

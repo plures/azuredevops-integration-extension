@@ -570,7 +570,7 @@
         <button
           class="connection-tab"
           class:active={connection.id === activeConnectionId}
-          on:click={() => dispatch('connectionChanged', { connectionId: connection.id })}
+          onclick={() => dispatch('connectionChanged', { connectionId: connection.id })}
           role="tab"
           aria-selected={connection.id === activeConnectionId}
           aria-label={`Switch to ${connection.label}`}
@@ -600,10 +600,10 @@
             </div>
           </div>
           <div class="auth-reminder-actions">
-            <button class="primary" on:click={() => onReminderSignIn(reminder.connectionId)}>
+            <button class="primary" onclick={() => onReminderSignIn(reminder.connectionId)}>
               Sign In
             </button>
-            <button class="secondary" on:click={() => onReminderDismiss(reminder.connectionId)}>
+            <button class="secondary" onclick={() => onReminderDismiss(reminder.connectionId)}>
               Dismiss
             </button>
           </div>
@@ -620,7 +620,7 @@
         id="querySelect"
         class="query-selector"
         bind:value={selectedQuery}
-        on:change={onQueryChange}
+        onchange={onQueryChange}
         title="Select a query to filter work items"
         aria-label="Select query"
       >
@@ -638,19 +638,19 @@
   {#if selectedItems.size > 0}
     <div class="bulk-actions-toolbar" role="toolbar" aria-label="Bulk actions">
       <span class="selected-count">{selectedItems.size} selected</span>
-      <button class="bulk-btn" on:click={() => dispatch('bulkAssign')} title="Bulk Assign">
+      <button class="bulk-btn" onclick={() => dispatch('bulkAssign')} title="Bulk Assign">
         <span class="codicon codicon-person-add"></span> Assign
       </button>
-      <button class="bulk-btn" on:click={() => dispatch('bulkMove')} title="Bulk Move">
+      <button class="bulk-btn" onclick={() => dispatch('bulkMove')} title="Bulk Move">
         <span class="codicon codicon-arrow-right"></span> Move
       </button>
-      <button class="bulk-btn" on:click={() => dispatch('bulkAddTags')} title="Bulk Add Tags">
+      <button class="bulk-btn" onclick={() => dispatch('bulkAddTags')} title="Bulk Add Tags">
         <span class="codicon codicon-tag"></span> Tags
       </button>
-      <button class="bulk-btn danger" on:click={() => dispatch('bulkDelete')} title="Bulk Delete">
+      <button class="bulk-btn danger" onclick={() => dispatch('bulkDelete')} title="Bulk Delete">
         <span class="codicon codicon-trash"></span> Delete
       </button>
-      <button class="bulk-btn secondary" on:click={clearSelection} title="Clear Selection (Esc)">
+      <button class="bulk-btn secondary" onclick={clearSelection} title="Clear Selection (Esc)">
         <span class="codicon codicon-close"></span> Clear
       </button>
     </div>
@@ -673,7 +673,7 @@
       >
       {#if activeId}
         <button
-          on:click={onOpenActive}
+          onclick={onOpenActive}
           title={activeTitle || 'Open active work item'}
           aria-label={`Open active work item #${activeId}`}>#{activeId}</button
         >
@@ -689,11 +689,11 @@
         <input
           placeholder="Filter..."
           value={filterText}
-          on:input={onFilterInput}
+          oninput={onFilterInput}
           aria-label="Filter work items"
         />
         <select
-          on:change={onTypeFilterChange}
+          onchange={onTypeFilterChange}
           bind:value={typeFilter}
           aria-label="Filter by work item type"
         >
@@ -705,7 +705,7 @@
           {/if}
         </select>
         <select
-          on:change={onStateFilterChange}
+          onchange={onStateFilterChange}
           bind:value={stateFilter}
           aria-label="Filter by state"
         >
@@ -720,7 +720,7 @@
             {/each}
           {/if}
         </select>
-        <select on:change={onSortChange} bind:value={sortKey} aria-label="Sort items">
+        <select onchange={onSortChange} bind:value={sortKey} aria-label="Sort items">
           <option value="updated-desc">Updated ↓</option>
           <option value="id-desc">ID ↓</option>
           <option value="id-asc">ID ↑</option>
@@ -732,7 +732,7 @@
 
   <div
     class="pane-body"
-    on:keydown={handleKeydown}
+    onkeydown={handleKeydown}
     tabindex="0"
     role="listbox"
     aria-label="Work items list"
@@ -756,8 +756,8 @@
         {#each columnDefs as col}
           <div
             class="kanban-column state-{col.key}"
-            on:dragover={allowDrop}
-            on:drop={(e) => handleDrop(e, col.key)}
+            ondragover={allowDrop}
+            ondrop={(e) => handleDrop(e, col.key)}
             role="listbox"
             tabindex="0"
             aria-label={`${col.label} column - drop items here`}
@@ -777,8 +777,8 @@
                       : ''} {selectedItems.has(Number(it.id)) ? 'selected' : ''}"
                     tabindex="0"
                     draggable="true"
-                    on:dragstart={(e) => handleDragStart(e, it)}
-                    on:keydown={(e) => {
+                    ondragstart={(e) => handleDragStart(e, it)}
+                    onkeydown={(e) => {
                       if (
                         kanbanView &&
                         (e.ctrlKey || e.metaKey) &&
@@ -809,7 +809,7 @@
                         type="checkbox"
                         class="work-item-checkbox"
                         checked={selectedItems.has(Number(it.id))}
-                        on:click|stopPropagation={() => toggleItemSelection(Number(it.id))}
+                        onclick|stopPropagation={() => toggleItemSelection(Number(it.id))}
                         aria-label="Select work item #{it.id}"
                       />
                       <span class="work-item-type-icon"
@@ -861,7 +861,7 @@
                               {/if}
                               <button
                                 class="action-btn cancel compact"
-                                on:click|preventDefault={onCancelSummary}
+                                onclick|preventDefault={onCancelSummary}
                                 title="Cancel"
                                 aria-label="Cancel"
                               >
@@ -873,9 +873,9 @@
                             class="summary-textarea"
                             placeholder="Draft a concise update for this work item…"
                             value={summaryDraft}
-                            on:input={onSummaryInput}
-                            on:blur={onSummaryBlur}
-                            on:keydown|stopPropagation
+                            oninput={onSummaryInput}
+                            onblur={onSummaryBlur}
+                            onkeydown|stopPropagation
                             rows="3"
                             disabled={summaryAreaDisabled}
                             data-disable-keynav
@@ -884,7 +884,7 @@
                             <div class="summary-buttons">
                               <button
                                 class="action-btn summary-generate"
-                                on:click|preventDefault={onGenerateSummary}
+                                onclick|preventDefault={onGenerateSummary}
                                 title={summaryButtonLabel}
                                 aria-label={summaryButtonLabel}
                                 disabled={summaryGenerateDisabled}
@@ -895,7 +895,7 @@
                               <!-- {#if timerActive && activeId === Number(it.id)}
                                 <button
                                   class="action-btn summary-apply"
-                                  on:click|preventDefault={onStopAndApplySummary}
+                                  onclick|preventDefault={onStopAndApplySummary}
                                   title="Stop timer and apply time entry with this summary"
                                   aria-label="Stop timer and apply time entry with this summary"
                                   disabled={summaryApplyDisabled}
@@ -906,7 +906,7 @@
                               {:else} -->
                                 <button
                                   class="action-btn summary-apply"
-                                  on:click|preventDefault={() =>
+                                  onclick|preventDefault={() =>
                                     dispatch('applySummary', { workItemId: it.id })}
                                   title="Apply summary as comment"
                                   aria-label="Apply summary as comment"
@@ -943,7 +943,7 @@
                       {#if timerActive && activeId === Number(it.id)}
                         <button
                           class="action-btn stop compact"
-                          on:click|stopPropagation={() => dispatch('stopTimer')}
+                          onclick|stopPropagation={() => dispatch('stopTimer')}
                           title="Stop timer"
                           aria-label={`Stop timer for #${it.id}`}
                         >
@@ -952,7 +952,7 @@
                       {:else}
                         <button
                           class="action-btn start compact"
-                          on:click|stopPropagation={() => dispatch('startItem', { id: it.id })}
+                          onclick|stopPropagation={() => dispatch('startItem', { id: it.id })}
                           title="Start timer"
                           aria-label={`Start timer for #${it.id}`}
                           disabled={timerActive}
@@ -962,7 +962,7 @@
                       {/if}
                       <button
                         class="action-btn view compact"
-                        on:click|stopPropagation={() => dispatch('openItem', { id: it.id })}
+                        onclick|stopPropagation={() => dispatch('openItem', { id: it.id })}
                         title="View"
                         aria-label={`View work item #${it.id}`}
                       >
@@ -970,7 +970,7 @@
                       </button>
                       <button
                         class="action-btn edit compact"
-                        on:click|stopPropagation={() => dispatch('editItem', { id: it.id })}
+                        onclick|stopPropagation={() => dispatch('editItem', { id: it.id })}
                         title="Edit"
                         aria-label={`Edit work item #${it.id}`}
                       >
@@ -978,7 +978,7 @@
                       </button>
                       <button
                         class="action-btn comment compact"
-                        on:click|stopPropagation={() => dispatch('commentItem', { id: it.id })}
+                        onclick|stopPropagation={() => dispatch('commentItem', { id: it.id })}
                         title="Comment"
                         aria-label={`Add comment to #${it.id}`}
                       >
@@ -1007,7 +1007,7 @@
             role="button"
             data-index={index}
             aria-label={`Work item #${it.id}: ${it.fields?.['System.Title']} - use action buttons to interact`}
-            on:click={(e) => {
+            onclick={(e) => {
               focusedIndex = index;
               updateFocus();
               // Ctrl/Cmd+Click for multi-select
@@ -1016,7 +1016,7 @@
                 toggleItemSelection(Number(it.id));
               }
             }}
-            on:keydown={(e) => {
+            onkeydown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 focusedIndex = index;
@@ -1034,7 +1034,7 @@
                 type="checkbox"
                 class="work-item-checkbox"
                 checked={selectedItems.has(Number(it.id))}
-                on:click|stopPropagation={() => toggleItemSelection(Number(it.id))}
+                onclick|stopPropagation={() => toggleItemSelection(Number(it.id))}
                 aria-label="Select work item #{it.id}"
               />
               <span class="work-item-type-icon"
@@ -1083,7 +1083,7 @@
                       {/if}
                       <button
                         class="action-btn cancel compact"
-                        on:click|preventDefault={onCancelSummary}
+                        onclick|preventDefault={onCancelSummary}
                         title="Cancel"
                         aria-label="Cancel"
                       >
@@ -1095,9 +1095,9 @@
                     class="summary-textarea"
                     placeholder="Draft a concise update for this work item…"
                     value={summaryDraft}
-                    on:input={onSummaryInput}
-                    on:blur={onSummaryBlur}
-                    on:keydown|stopPropagation
+                    oninput={onSummaryInput}
+                    onblur={onSummaryBlur}
+                    onkeydown|stopPropagation
                     rows="3"
                     disabled={summaryAreaDisabled}
                     data-disable-keynav
@@ -1106,7 +1106,7 @@
                     <div class="summary-buttons">
                       <button
                         class="action-btn summary-generate"
-                        on:click|preventDefault={onGenerateSummary}
+                        onclick|preventDefault={onGenerateSummary}
                         title={summaryButtonLabel}
                         aria-label={summaryButtonLabel}
                         disabled={summaryGenerateDisabled}
@@ -1117,7 +1117,7 @@
                       <!-- {#if timerActive && activeId === Number(it.id)}
                         <button
                           class="action-btn summary-apply"
-                          on:click|preventDefault={onStopAndApplySummary}
+                          onclick|preventDefault={onStopAndApplySummary}
                           title="Stop timer and apply time entry with this summary"
                           aria-label="Stop timer and apply time entry with this summary"
                           disabled={summaryApplyDisabled}
@@ -1128,7 +1128,7 @@
                       {:else} -->
                         <button
                           class="action-btn summary-apply"
-                          on:click|preventDefault={() =>
+                          onclick|preventDefault={() =>
                             dispatch('applySummary', { workItemId: it.id })}
                           title="Apply summary as comment"
                           aria-label="Apply summary as comment"
@@ -1167,7 +1167,7 @@
               {#if timerActive && activeId === Number(it.id)}
                 <button
                   class="action-btn stop"
-                  on:click|stopPropagation={() => dispatch('stopTimer')}
+                  onclick|stopPropagation={() => dispatch('stopTimer')}
                   title="Stop timer"
                   aria-label={`Stop timer for #${it.id}`}
                 >
@@ -1176,7 +1176,7 @@
               {:else}
                 <button
                   class="action-btn start"
-                  on:click|stopPropagation={() => dispatch('startItem', { id: it.id })}
+                  onclick|stopPropagation={() => dispatch('startItem', { id: it.id })}
                   title="Start timer"
                   aria-label={`Start timer for #${it.id}`}
                   disabled={timerActive}
@@ -1186,7 +1186,7 @@
               {/if}
               <button
                 class="action-btn view"
-                on:click|stopPropagation={() => dispatch('openItem', { id: it.id })}
+                onclick|stopPropagation={() => dispatch('openItem', { id: it.id })}
                 title="View in browser"
                 aria-label={`View work item #${it.id}`}
               >
@@ -1194,7 +1194,7 @@
               </button>
               <button
                 class="action-btn edit"
-                on:click|stopPropagation={() => dispatch('editItem', { id: it.id })}
+                onclick|stopPropagation={() => dispatch('editItem', { id: it.id })}
                 title="Edit work item"
                 aria-label={`Edit work item #${it.id}`}
               >
@@ -1202,7 +1202,7 @@
               </button>
               <button
                 class="action-btn comment"
-                on:click|stopPropagation={() => dispatch('commentItem', { id: it.id })}
+                onclick|stopPropagation={() => dispatch('commentItem', { id: it.id })}
                 title="Add comment"
                 aria-label={`Add comment to #${it.id}`}
               >

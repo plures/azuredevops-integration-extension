@@ -1,10 +1,13 @@
-import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 type TelemetryDatabaseOptions = {
   storageFile?: vscode.Uri;
 };
+
+// Lazy-loaded types for SQL.js to avoid build-time dependency
+type Database = any;
+type SqlJsStatic = any;
 
 export class TelemetryDatabase {
   private db: Database | undefined;
@@ -88,10 +91,20 @@ export class TelemetryDatabase {
   }
 
   private async init() {
-    this.sqlJs = await initSqlJs();
-    const bytes = await this.loadFromDisk();
-    this.db = this.sqlJs ? new this.sqlJs.Database(bytes ?? undefined) : undefined;
-    this.createTables();
+    try {
+      // Lazy load sql.js only when needed
+      const sqlJsModule = await import('sql.js');
+      const initSqlJs = sqlJsModule.default || sqlJsModule;
+      this.sqlJs = await initSqlJs();
+      const bytes = await this.loadFromDisk();
+      this.db = this.sqlJs ? new this.sqlJs.Database(bytes ?? undefined) : undefined;
+      this.createTables();
+    } catch (error) {
+      console.warn('[TelemetryDatabase] Failed to initialize SQLite, disabling database features:', error);
+      // Gracefully degrade - we'll rely on sessionTelemetry's workspaceState fallback
+      this.db = undefined;
+      this.sqlJs = undefined;
+    }
   }
 
   private createTables() {

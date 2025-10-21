@@ -330,8 +330,18 @@ export class SessionTelemetryManager {
       !this.telemetryDbUri ||
       this.telemetryDbUri.fsPath !== sqliteUri.fsPath
     ) {
-      this.telemetryDb = new TelemetryDatabase(this.context, { storageFile: sqliteUri });
-      this.telemetryDbUri = sqliteUri;
+      try {
+        this.telemetryDb = new TelemetryDatabase(this.context, { storageFile: sqliteUri });
+        this.telemetryDbUri = sqliteUri;
+      } catch (error) {
+        console.warn('[SessionTelemetry] Failed to create TelemetryDatabase, falling back to workspaceState:', error);
+        // Auto-fallback to workspaceState mode when SQLite initialization fails
+        const config = vscode.workspace.getConfiguration('azureDevOpsIntegration');
+        await config.update(STORAGE_MODE_CONFIG_KEY, 'workspaceState', vscode.ConfigurationTarget.Global);
+        this.telemetryDb = undefined;
+        this.telemetryDbUri = undefined;
+        return undefined;
+      }
     }
 
     return this.telemetryDb;

@@ -1,12 +1,9 @@
 /* eslint-env node */
 /* eslint-disable no-console */
-// Enable ts-node transpile-only mode to avoid full type-checking errors during test runs.
-process.env.TS_NODE_TRANSPILE_ONLY = 'true';
-// Ensure ts-node picks the tests tsconfig (NodeNext) for proper ESM transpilation
 import path from 'node:path';
-process.env.TS_NODE_PROJECT = path.resolve('tsconfig.tests.json');
+process.env.ESBK_TSCONFIG_PATH = path.resolve('tsconfig.tests.json');
 
-// Wrapper to register ts-node's ESM loader using the Node `module` register API
+// Wrapper to register the esbuild-based ESM loader using the Node `module` register API
 // This avoids using the deprecated --experimental-loader flag and follows Node's
 // suggested pattern for registering ESM loaders.
 import { register } from 'node:module';
@@ -19,12 +16,12 @@ process.on('unhandledRejection', (reason) => {
   process.exit(1);
 });
 
-// Register ts-node/esm so we can import TypeScript test files directly.
+// Register @esbuild-kit/esm-loader so we can import TypeScript test files directly.
 // Use import.meta.url as the parent URL per Node's recommendation for loader registration.
 try {
-  register('ts-node/esm', import.meta.url);
+  register('@esbuild-kit/esm-loader', import.meta.url);
 } catch (err) {
-  console.error('Failed to register ts-node/esm:', util.inspect(err, { depth: null }));
+  console.error('Failed to register @esbuild-kit/esm-loader:', util.inspect(err, { depth: null }));
   process.exit(2);
 }
 

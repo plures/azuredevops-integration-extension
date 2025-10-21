@@ -146,11 +146,57 @@ vite.config.ts.timestamp-*
 *.vsix
 *.bundle
 
+# Build artifacts and transpiled files
+dist/
+*.js.map
+*.d.ts.map
+
 # Generated webview files
-#media/webview
+media/webview/main.js
+media/webview/*.map
+
+# Svelte build output
+src/webview/**/*.js
+src/webview/**/*.js.map
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
 
 # Loading frame assets (generated screenshots)
 images/loading-frames/*.png
 
 # Demo files (for testing only)
 demo/
+
+# Test artifacts
+coverage/
+.nyc_output/
+junit.xml
+
+# Build logs
+build.log
+compile.log
+
+# VS Code extension development
+.vscode-test-web/
+.vscode-test/
+
+# MCP server compiled output
+mcp-server/dist/
+mcp-server/**/*.js
+mcp-server/**/*.js.map
+!mcp-server/src/**/*.js

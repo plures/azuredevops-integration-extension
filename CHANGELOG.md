@@ -6,6 +6,21 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.10.0] - 2025-10-15
+
+### Added
+
+- **Finite State Machine Architecture**: Implemented XState v5-based state machine architecture to replace complex messaging system interactions. Added experimental FSM support for timer operations with feature flag control (`experimental.useFSM`), visual debugging via XState Inspector, and backward compatibility adapter. This resolves race conditions and conflicting function names while providing a robust foundation for future state management improvements.
+
+### Changed
+
+- **Timer State Management**: Enhanced timer operations with predictable state transitions through FSM implementation. Timer now properly handles idle → running → paused state changes with improved error handling and validation.
+
+### Developer Experience
+
+- **Debug Tools**: Added FSM inspector integration accessible at `http://localhost:8080` when `enableFSMInspector` is enabled, plus FSM status and debug commands in the command palette.
+- **Configuration**: Added experimental FSM settings under `azureDevOpsIntegration.experimental.useFSM`, `fsmComponents.enableTimer`, and `enableFSMInspector` for granular control over FSM features.
+
 ## [1.9.14] - 2025-10-15
 
 ### Fixed

@@ -4,20 +4,52 @@
  */
 
 import * as msal from '@azure/msal-node';
+import { PublicClientApplication } from '@azure/msal-node';
 import type * as vscode from 'vscode';
-import type {
-  IAuthProvider,
-  AuthenticationResult,
-  EntraAuthConfig,
-  TokenInfo,
-  DeviceCodeCallback,
-} from './types.js';
+// Inline type definitions (previously from deleted types.js)
+interface AuthenticationResult {
+  success: boolean;
+  accessToken?: string;
+  expiresAt?: Date;
+  error?: string;
+}
+
+interface EntraAuthConfig {
+  clientId: string;
+  tenantId?: string;
+  scopes?: string[];
+}
+
+interface TokenInfo {
+  accessToken: string;
+  expiresAt: Date;
+  scopes: string[];
+}
+
+type DeviceCodeCallback = (
+  deviceCode: string,
+  userCode: string,
+  verificationUri: string,
+  expiresIn: number
+) => Promise<void>;
+
+interface IAuthProvider {
+  authenticate(): Promise<AuthenticationResult>;
+  getAccessToken(): Promise<string | undefined>;
+  refreshAccessToken(): Promise<AuthenticationResult>;
+  signOut(): Promise<void>;
+  resetToken(): Promise<void>;
+  isAuthenticated(): Promise<boolean>;
+  getTokenInfo(): Promise<TokenInfo | undefined>;
+}
+// Removed TokenLifecycleManager dependency for FSM-based architecture
 
 export interface EntraAuthProviderOptions {
   config: EntraAuthConfig;
   secretStorage: vscode.SecretStorage;
   connectionId: string;
   deviceCodeCallback?: DeviceCodeCallback;
+  onStatusUpdate?: (connectionId: string, status: any) => void; // Simplified type
 }
 
 /**
@@ -26,7 +58,7 @@ export interface EntraAuthProviderOptions {
 const AZURE_DEVOPS_RESOURCE_ID = '499b84ac-1321-427f-aa17-267ca6975798';
 
 /**
- * Default scopes for Azure DevOps access
+ * Default scopes for Azure DevOps access  
  */
 const DEFAULT_BASE_SCOPES = [`${AZURE_DEVOPS_RESOURCE_ID}/.default`];
 const OFFLINE_ACCESS_SCOPE = 'offline_access';
@@ -52,10 +84,10 @@ export class EntraAuthProvider implements IAuthProvider {
     this.secretStorage = options.secretStorage;
     this.connectionId = options.connectionId;
     this.deviceCodeCallback = options.deviceCodeCallback;
-    this.refreshTokenKey = `azureDevOpsInt.entra.refreshToken.${this.connectionId}`;
-    this.tokenCacheKey = `azureDevOpsInt.entra.tokenCache.${this.connectionId}`;
+    this.refreshTokenKey = `azureDevOpsInt.entra.refreshToken.${this.connectionId}`;  
+    this.tokenCacheKey = `azureDevOpsInt.entra.tokenCache.${this.connectionId}`;      
 
-    // Initialize MSAL with device code flow configuration
+    // Initialize MSAL with device code flow configuration (v1.9.3 proven approach)
     const msalConfig: msal.Configuration = {
       auth: {
         clientId: this.config.clientId,
@@ -79,11 +111,14 @@ export class EntraAuthProvider implements IAuthProvider {
     this.msalClient = new msal.PublicClientApplication(msalConfig);
   }
 
+  // Removed TokenLifecycleManager-specific methods
+
   /**
    * Get the authority URL for MSAL
    */
   private getAuthority(): string {
     const tenantId = this.config.tenantId || 'organizations';
+    console.log('[EntraAuthProvider] Using authority tenant:', tenantId);
     return `https://login.microsoftonline.com/${tenantId}`;
   }
 
@@ -106,6 +141,7 @@ export class EntraAuthProvider implements IAuthProvider {
       }
     }
 
+    // Add offline_access for refresh token support
     scopeSet.add(OFFLINE_ACCESS_SCOPE);
 
     return Array.from(scopeSet);
@@ -141,19 +177,23 @@ export class EntraAuthProvider implements IAuthProvider {
   }
 
   /**
-   * Authenticate using device code flow
+   * Authenticate using device code flow (v1.9.3 proven approach)
    */
   async authenticate(): Promise<AuthenticationResult> {
     try {
       const scopes = this.resolveScopes();
 
-      // First, try silent authentication with cached refresh token
+      // Try silent authentication first
       const silentResult = await this.trySilentAuthentication(scopes);
       if (silentResult.success) {
+        // Reset refresh failure tracking on successful authentication
+        this.refreshFailureCount = 0;
+        this.lastRefreshFailure = undefined;
+        this.refreshBackoffUntil = undefined;
         return silentResult;
       }
 
-      // If silent auth fails, use device code flow
+      // If silent auth fails, fall back to device code flow
       const deviceCodeRequest: msal.DeviceCodeRequest = {
         deviceCodeCallback: async (response) => {
           // Call the provided callback to show device code to user
@@ -170,7 +210,6 @@ export class EntraAuthProvider implements IAuthProvider {
       };
 
       const response = await this.msalClient.acquireTokenByDeviceCode(deviceCodeRequest);
-
       if (!response) {
         return {
           success: false,
@@ -268,61 +307,10 @@ export class EntraAuthProvider implements IAuthProvider {
       return this.cachedToken.accessToken;
     }
 
-    // Check if we're in a backoff period due to repeated refresh failures
-    if (this.refreshBackoffUntil && this.refreshBackoffUntil.getTime() > Date.now()) {
-      console.log('[EntraAuthProvider] Skipping token refresh due to backoff period', {
-        connectionId: this.connectionId,
-        backoffUntil: this.refreshBackoffUntil.toISOString(),
-        failureCount: this.refreshFailureCount,
-      });
-      return undefined; // Don't try to refresh during backoff
-    }
-
     // Try to refresh the token
     const result = await this.refreshAccessToken();
     if (result.success && result.accessToken) {
-      // Reset failure tracking on success
-      this.refreshFailureCount = 0;
-      this.lastRefreshFailure = undefined;
-      this.refreshBackoffUntil = undefined;
       return result.accessToken;
-    } else {
-      // Track failures and implement backoff
-      this.refreshFailureCount += 1;
-      this.lastRefreshFailure = new Date();
-
-      // Stop trying after max failures - no more refresh attempts
-      if (this.refreshFailureCount >= this.maxRefreshFailures) {
-        console.warn(
-          '[EntraAuthProvider] Max refresh failures reached, stopping all refresh attempts',
-          {
-            connectionId: this.connectionId,
-            maxFailures: this.maxRefreshFailures,
-            error: result.error,
-          }
-        );
-        return undefined;
-      }
-
-      // Progressive backoff: 1 hour, 4 hours, 12 hours, then 24 hours
-      let backoffHours: number;
-      if (this.refreshFailureCount <= 1) {
-        backoffHours = 1;
-      } else if (this.refreshFailureCount <= 2) {
-        backoffHours = 4;
-      } else {
-        backoffHours = 12;
-      }
-
-      this.refreshBackoffUntil = new Date(Date.now() + backoffHours * 60 * 60 * 1000);
-
-      console.warn('[EntraAuthProvider] Token refresh failed, implementing backoff', {
-        connectionId: this.connectionId,
-        failureCount: this.refreshFailureCount,
-        backoffHours,
-        backoffUntil: this.refreshBackoffUntil.toISOString(),
-        error: result.error,
-      });
     }
 
     return undefined;
@@ -332,32 +320,6 @@ export class EntraAuthProvider implements IAuthProvider {
    * Refresh the access token using silent flow
    */
   async refreshAccessToken(): Promise<AuthenticationResult> {
-    // Check if we've exceeded max failures - stop trying
-    if (this.refreshFailureCount >= this.maxRefreshFailures) {
-      console.warn('[EntraAuthProvider] Refresh blocked - max failures reached', {
-        connectionId: this.connectionId,
-        maxFailures: this.maxRefreshFailures,
-        failureCount: this.refreshFailureCount,
-      });
-      return {
-        success: false,
-        error: `Max refresh failures (${this.maxRefreshFailures}) reached. Please re-authenticate.`,
-      };
-    }
-
-    // Check if we're in backoff period
-    if (this.refreshBackoffUntil && this.refreshBackoffUntil.getTime() > Date.now()) {
-      console.log('[EntraAuthProvider] Refresh blocked - in backoff period', {
-        connectionId: this.connectionId,
-        backoffUntil: this.refreshBackoffUntil.toISOString(),
-        failureCount: this.refreshFailureCount,
-      });
-      return {
-        success: false,
-        error: 'In backoff period due to previous failures.',
-      };
-    }
-
     const scopes = this.resolveScopes();
     return this.trySilentAuthentication(scopes);
   }
@@ -381,7 +343,7 @@ export class EntraAuthProvider implements IAuthProvider {
   }
 
   /**
-   * Reset token cache and failure tracking
+   * Reset token cache
    */
   async resetToken(): Promise<void> {
     // Clear cached token
@@ -392,11 +354,20 @@ export class EntraAuthProvider implements IAuthProvider {
     this.lastRefreshFailure = undefined;
     this.refreshBackoffUntil = undefined;
 
-    // Clear MSAL cache
+    // Clear MSAL cache completely
     try {
       await this.secretStorage.delete(this.tokenCacheKey);
-      console.log('[EntraAuthProvider] Token cache and failure tracking reset', {
+      await this.secretStorage.delete(this.refreshTokenKey);
+      
+      // Also clear all accounts from MSAL cache
+      const accounts = await this.msalClient.getTokenCache().getAllAccounts();
+      for (const account of accounts) {
+        await this.msalClient.getTokenCache().removeAccount(account);
+      }
+      
+      console.log('[EntraAuthProvider] Token cache completely reset', {
         connectionId: this.connectionId,
+        clearedAccounts: accounts.length
       });
     } catch (error) {
       console.error('[EntraAuthProvider] Failed to clear token cache:', error);
@@ -426,6 +397,8 @@ export class EntraAuthProvider implements IAuthProvider {
     return this.cachedToken;
   }
 
+
+
   /**
    * Store account info securely
    */
@@ -452,4 +425,6 @@ export class EntraAuthProvider implements IAuthProvider {
       return undefined;
     }
   }
+
+
 }

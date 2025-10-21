@@ -8,6 +8,13 @@ export interface ParsedAzureDevOpsUrl {
   error?: string;
 }
 
+const UNSUPPORTED_URL_ERROR =
+  'Unsupported URL format. Provide an Azure DevOps URL that includes the organization and project.';
+
+function trimSegment(segment: string | undefined): string {
+  return typeof segment === 'string' ? segment.trim() : '';
+}
+
 function buildApiBaseUrl(
   baseUrl: string,
   organization: string,
@@ -17,30 +24,23 @@ function buildApiBaseUrl(
   const trimmedBase = baseUrl.replace(/\/$/, '');
   const lowerBase = trimmedBase.toLowerCase();
 
-  if (lowerBase.includes('visualstudio.com')) {
+  if (
+    lowerBase.includes('visualstudio.com') ||
+    lowerBase.endsWith('.dev.azure.com') ||
+    lowerBase.includes('dev.azure.com/') ||
+    lowerBase === 'https://dev.azure.com'
+  ) {
     return `https://dev.azure.com/${organization}/${project}/_apis`;
   }
 
   if (lowerBase.includes('dev.azure.com')) {
-    return `${trimmedBase}/${project}/_apis`;
+    return `https://dev.azure.com/${organization}/${project}/_apis`;
   }
 
-  // On-prem: baseUrl already includes collection
-  // For simplified format (https://server/collection), don't add organization (it's same as collection)
-  // For full format (https://server/collection with separate org), add org/project
   const apiUrl = isSimplifiedOnPrem
     ? `${trimmedBase}/${project}/_apis`
     : `${trimmedBase}/${organization}/${project}/_apis`;
-  console.log('[buildApiBaseUrl] On-prem API URL:', apiUrl);
   return apiUrl;
-}
-
-function normalizeProjectSegment(segment: string | undefined): string {
-  if (!segment) {
-    return '';
-  }
-
-  return decodeURIComponent(segment.trim());
 }
 
 function extractWorkItemId(segments: string[], searchParams: URLSearchParams): number | undefined {
@@ -67,276 +67,212 @@ function extractWorkItemId(segments: string[], searchParams: URLSearchParams): n
   return undefined;
 }
 
-/**
- * Simplified parser that extracts API base URL from a work item URL.
- * This approach works universally for cloud and on-premises without needing to understand
- * the collection/org/project structure.
- *
- * @param url - Work item URL (must contain _workitems)
- * @returns Parsed URL information with API base URL
- */
-function parseWorkItemUrl(url: string): ParsedAzureDevOpsUrl {
-  if (!url || typeof url !== 'string' || !url.trim()) {
-    return {
-      organization: '',
-      project: '',
-      baseUrl: '',
-      apiBaseUrl: '',
-      isValid: false,
-      error: 'Invalid URL: URL must be a non-empty string',
-    };
-  }
-
-  const cleanUrl = url.trim();
-  let parsed: URL;
-
-  try {
-    parsed = new URL(cleanUrl);
-  } catch (_error) {
-    void _error;
-    return {
-      organization: '',
-      project: '',
-      baseUrl: '',
-      apiBaseUrl: '',
-      isValid: false,
-      error: 'Invalid URL: URL must include a valid protocol (http or https)',
-    };
-  }
-
-  const segments = parsed.pathname
-    .split('/')
-    .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0);
-
-  // Find _workitems segment
-  const workItemsIndex = segments.findIndex((s) => s.toLowerCase() === '_workitems');
-
-  if (workItemsIndex < 0) {
-    return {
-      organization: '',
-      project: '',
-      baseUrl: '',
-      apiBaseUrl: '',
-      isValid: false,
-      error: 'URL must be a work item URL (must contain _workitems)',
-    };
-  }
-
-  if (workItemsIndex === 0) {
-    return {
-      organization: '',
-      project: '',
-      baseUrl: '',
-      apiBaseUrl: '',
-      isValid: false,
-      error: 'Invalid URL structure: _workitems cannot be the first segment',
-    };
-  }
-
-  // Project is the segment immediately before _workitems
-  const project = normalizeProjectSegment(segments[workItemsIndex - 1]);
-
-  // API base is everything up to (and including) project, then add /_apis
-  const pathUpToProject = segments.slice(0, workItemsIndex).join('/');
-  const apiBaseUrl = `${parsed.protocol}//${parsed.host}/${pathUpToProject}/_apis`;
-
-  // For baseUrl, use the server root
-  const baseUrl = `${parsed.protocol}//${parsed.host}`;
-
-  // Organization extraction:
-  // - For cloud (dev.azure.com): first segment is the org
-  // - For on-prem with collections: everything before the project is the org/collection path
-  // We use a heuristic: if there are multiple segments before project, it's likely on-prem
-  // and we should use the full path (minus project) as the "organization" identifier
-  let organization: string;
-
-  const isCloud =
-    parsed.host.toLowerCase().includes('dev.azure.com') ||
-    parsed.host.toLowerCase().includes('visualstudio.com');
-
-  if (isCloud) {
-    // Cloud: first segment is the organization
-    organization = segments[0] || 'default';
-  } else {
-    // On-premises: use everything before the project as the org/collection identifier
-    // For URLs like: https://server/tfs/Collection/Project/_workitems
-    // segments = ['tfs', 'Collection', 'Project', '_workitems']
-    // We want organization = 'tfs/Collection' (path up to project, excluding project itself)
-    const segmentsBeforeProject = segments.slice(0, workItemsIndex - 1);
-    if (segmentsBeforeProject.length > 1) {
-      // Multiple segments before project - join them as the collection path
-      organization = segmentsBeforeProject.join('/');
-    } else {
-      // Single segment - use it as-is
-      organization = segmentsBeforeProject[0] || 'default';
-    }
-  }
-
-  // Extract work item ID if present
-  const workItemId = extractWorkItemId(segments, parsed.searchParams);
-
-  console.log('[parseWorkItemUrl] Parsed:', {
-    project,
-    organization,
-    baseUrl,
-    apiBaseUrl,
-    workItemId,
-    isCloud,
-  });
-
+function makeInvalid(error: string): ParsedAzureDevOpsUrl {
   return {
-    organization: normalizeProjectSegment(organization),
-    project,
-    baseUrl,
-    apiBaseUrl,
-    workItemId,
-    isValid: true,
+    organization: '',
+    project: '',
+    baseUrl: '',
+    apiBaseUrl: '',
+    isValid: false,
+    error,
   };
 }
 
-/**
- * Parses an Azure DevOps URL to extract organization, project, and base URL information.
- * Accepts work item URLs as well as broader project URLs (boards, repos, etc.).
- */
-export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
-  if (!url || typeof url !== 'string' || !url.trim()) {
-    return {
-      organization: '',
-      project: '',
-      baseUrl: '',
-      apiBaseUrl: '',
-      isValid: false,
-      error: 'Invalid URL: URL must be a non-empty string',
-    };
-  }
-
-  const cleanUrl = url.trim();
-
-  // If it's a work item URL, use the simplified parser
-  if (cleanUrl.includes('/_workitems/') || cleanUrl.includes('/_workitems?')) {
-    return parseWorkItemUrl(cleanUrl);
-  }
-
-  // Otherwise fall back to the complex parser for non-work-item URLs
-  let parsed: URL;
-
-  try {
-    parsed = new URL(cleanUrl);
-  } catch (_error) {
-    void _error;
-    return {
-      organization: '',
-      project: '',
-      baseUrl: '',
-      apiBaseUrl: '',
-      isValid: false,
-      error: 'Invalid URL: URL must include a valid protocol (http or https)',
-    };
-  }
-
-  const host = parsed.hostname.toLowerCase();
+function splitPathSegments(parsed: URL): {
+  segments: string[];
+  pathSegments: string[];
+  trailingSegments: string[];
+} {
   const segments = parsed.pathname
     .split('/')
     .map((segment) => segment.trim())
     .filter((segment) => segment.length > 0);
+
+  const specialIndex = segments.findIndex((segment) => segment.startsWith('_'));
+  if (specialIndex < 0) {
+    return { segments, pathSegments: segments, trailingSegments: [] };
+  }
+
+  return {
+    segments,
+    pathSegments: segments.slice(0, specialIndex),
+    trailingSegments: segments.slice(specialIndex),
+  };
+}
+
+function resolveCloudRoot(
+  parsed: URL,
+  pathSegments: string[]
+): { organization: string; project: string; baseUrl: string } | null {
+  if (pathSegments.length < 2) {
+    return null;
+  }
+
+  const organization = trimSegment(pathSegments[0]);
+  const project = trimSegment(pathSegments[1]);
+  if (!organization || !project) {
+    return null;
+  }
+
+  return {
+    organization,
+    project,
+    baseUrl: `${parsed.protocol}//${parsed.host}/${organization}`,
+  };
+}
+
+function resolveCloudSubdomain(
+  parsed: URL,
+  pathSegments: string[]
+): { organization: string; project: string; baseUrl: string } | null {
+  const parts = parsed.hostname.split('.');
+  const organization = trimSegment(parts[0]);
+  const project = trimSegment(pathSegments[0]);
+  if (!organization || !project) {
+    return null;
+  }
+
+  return {
+    organization,
+    project,
+    baseUrl: `${parsed.protocol}//${parsed.host}`,
+  };
+}
+
+function resolveVisualStudio(
+  parsed: URL,
+  pathSegments: string[]
+): { organization: string; project: string; baseUrl: string } | null {
+  const parts = parsed.hostname.split('.');
+  const organization = trimSegment(parts[0]);
+  const project = trimSegment(pathSegments[0]);
+  if (!organization || !project) {
+    return null;
+  }
+
+  const canonicalHost = parsed.hostname.includes('.vsrm.')
+    ? parsed.hostname.replace('.vsrm.', '.')
+    : parsed.hostname;
+
+  return {
+    organization,
+    project,
+    baseUrl: `${parsed.protocol}//${canonicalHost}`,
+  };
+}
+
+function resolveOnPrem(
+  parsed: URL,
+  pathSegments: string[]
+): {
+  organization: string;
+  project: string;
+  baseUrl: string;
+  isSimplified: boolean;
+} | null {
+  if (pathSegments.length < 2) {
+    return null;
+  }
+
+  const collection = trimSegment(pathSegments[0]);
+  const project = trimSegment(pathSegments[pathSegments.length - 1]);
+  if (!collection || !project) {
+    return null;
+  }
+
+  const hasSeparateOrg = pathSegments.length >= 3;
+  const organization = hasSeparateOrg
+    ? trimSegment(pathSegments[pathSegments.length - 2])
+    : collection;
+  if (!organization) {
+    return null;
+  }
+
+  return {
+    organization,
+    project,
+    baseUrl: `${parsed.protocol}//${parsed.host}/${collection}`,
+    isSimplified: !hasSeparateOrg,
+  };
+}
+
+export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
+  if (!url || typeof url !== 'string' || !url.trim()) {
+    return makeInvalid('Invalid URL: URL must be a non-empty string');
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url.trim());
+  } catch (_error) {
+    return makeInvalid('Invalid URL: URL must include a valid protocol (http or https)');
+  }
+
+  const { segments, pathSegments, trailingSegments } = splitPathSegments(parsed);
+  if (trailingSegments.length === 0) {
+    return makeInvalid(UNSUPPORTED_URL_ERROR);
+  }
+
+  const firstSpecial = trailingSegments[0].toLowerCase();
+  const isWorkItemPath = firstSpecial === '_workitems';
+  const isBoardsPath = firstSpecial === '_boards';
+  if (!isWorkItemPath && !isBoardsPath) {
+    return makeInvalid(UNSUPPORTED_URL_ERROR);
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const isCloudRoot = host === 'dev.azure.com' || host === 'vsrm.dev.azure.com';
+  const isCloudSubdomain = host.endsWith('.dev.azure.com');
+  const isVisualStudio = host.endsWith('.visualstudio.com') || host.endsWith('.vsrm.visualstudio.com');
 
   let organization = '';
   let project = '';
   let baseUrl = '';
+  let isSimplifiedOnPrem = false;
 
-  if (host === 'dev.azure.com' || host === 'vsrm.dev.azure.com') {
-    organization = normalizeProjectSegment(segments[0]);
-    project = normalizeProjectSegment(segments[1]);
-    if (organization) {
-      baseUrl = `https://dev.azure.com/${organization}`;
+  if (isCloudRoot) {
+    const resolved = resolveCloudRoot(parsed, pathSegments);
+    if (!resolved) {
+      return makeInvalid(UNSUPPORTED_URL_ERROR);
     }
-  } else if (host.endsWith('.dev.azure.com')) {
-    const parts = host.split('.');
-    organization = decodeURIComponent(parts[0]);
-    project = normalizeProjectSegment(segments[0]);
-    baseUrl = `https://${parts[0]}.dev.azure.com`;
-  } else if (host.endsWith('.visualstudio.com') || host.endsWith('.vsrm.visualstudio.com')) {
-    const parts = host.split('.');
-    organization = decodeURIComponent(parts[0]);
-    project = normalizeProjectSegment(segments[0]);
-    baseUrl = `https://${parts[0]}.visualstudio.com`;
+    organization = resolved.organization;
+    project = resolved.project;
+    baseUrl = resolved.baseUrl;
+  } else if (isCloudSubdomain) {
+    const resolved = resolveCloudSubdomain(parsed, pathSegments);
+    if (!resolved) {
+      return makeInvalid(UNSUPPORTED_URL_ERROR);
+    }
+    organization = resolved.organization;
+    project = resolved.project;
+    baseUrl = resolved.baseUrl;
+  } else if (isVisualStudio) {
+    const resolved = resolveVisualStudio(parsed, pathSegments);
+    if (!resolved) {
+      return makeInvalid(UNSUPPORTED_URL_ERROR);
+    }
+    organization = resolved.organization;
+    project = resolved.project;
+    baseUrl = resolved.baseUrl;
   } else {
-    // Handle on-premises Azure DevOps Server URLs
-    // Format: https://server/collection/org/project/...
-    // OR simplified format: https://server/collection/project/... (when collection serves as both)
-    // We need at least 2 segments for minimal on-prem, but prefer 3 for full collection/org/project
-    let isSimplifiedOnPrem = false;
-
-    if (segments.length >= 3) {
-      // Full on-prem format: collection/org/project
-      const collection = normalizeProjectSegment(segments[0]);
-      organization = normalizeProjectSegment(segments[1]);
-      project = normalizeProjectSegment(segments[2]);
-      // Base URL includes protocol, host, and collection
-      baseUrl = `${parsed.protocol}//${parsed.host}/${collection}`;
-      console.log('[parseAzureDevOpsUrl] Parsed on-prem URL (3-segment):', {
-        collection,
-        organization,
-        project,
-        baseUrl,
-      });
-    } else if (segments.length >= 2) {
-      // Simplified on-prem format: collection/project (no separate org)
-      const collection = normalizeProjectSegment(segments[0]);
-      organization = collection; // Use collection as org for simplified format
-      project = normalizeProjectSegment(segments[1]);
-      baseUrl = `${parsed.protocol}//${parsed.host}/${collection}`;
-      isSimplifiedOnPrem = true;
-      console.log('[parseAzureDevOpsUrl] Parsed on-prem URL (2-segment):', {
-        collection,
-        organization,
-        project,
-        baseUrl,
-        isSimplifiedOnPrem,
-      });
+    const resolved = resolveOnPrem(parsed, pathSegments);
+    if (!resolved) {
+      return makeInvalid(UNSUPPORTED_URL_ERROR);
     }
-
-    if (!organization || !project) {
-      return {
-        organization: '',
-        project: '',
-        baseUrl: '',
-        apiBaseUrl: '',
-        isValid: false,
-        error:
-          'Unsupported URL format. Provide an Azure DevOps URL that includes the organization and project.',
-      };
-    }
-
-    const apiBaseUrl = buildApiBaseUrl(baseUrl, organization, project, isSimplifiedOnPrem);
-    const workItemId = extractWorkItemId(segments, parsed.searchParams);
-
-    return {
-      organization,
-      project,
-      baseUrl,
-      apiBaseUrl,
-      workItemId,
-      isValid: true,
-    };
+    organization = resolved.organization;
+    project = resolved.project;
+    baseUrl = resolved.baseUrl;
+    isSimplifiedOnPrem = resolved.isSimplified;
   }
 
-  // This should never be reached due to the else block above, but keeping for safety
-  if (!organization || !project) {
-    return {
-      organization: '',
-      project: '',
-      baseUrl: '',
-      apiBaseUrl: '',
-      isValid: false,
-      error:
-        'Unsupported URL format. Provide an Azure DevOps URL that includes the organization and project.',
-    };
-  }
-
-  const apiBaseUrl = buildApiBaseUrl(baseUrl, organization, project, false);
   const workItemId = extractWorkItemId(segments, parsed.searchParams);
+  const mode = trailingSegments[1]?.toLowerCase();
+  const requiresId = isWorkItemPath && (mode === 'edit' || mode === 'view');
+  if (requiresId && !workItemId) {
+    return makeInvalid(UNSUPPORTED_URL_ERROR);
+  }
+
+  const apiBaseUrl = buildApiBaseUrl(baseUrl, organization, project, isSimplifiedOnPrem);
 
   return {
     organization,
@@ -348,14 +284,12 @@ export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
   };
 }
 
-/**
- * Validates if a URL looks like an Azure DevOps work item URL.
- *
- * @param url - The URL to validate
- * @returns True if the URL appears to be an Azure DevOps work item URL
- */
 export function isAzureDevOpsWorkItemUrl(url: string): boolean {
-  return parseAzureDevOpsUrl(url).isValid;
+  const parsed = parseAzureDevOpsUrl(url);
+  if (!parsed.isValid) {
+    return false;
+  }
+  return typeof parsed.workItemId === 'number' && !Number.isNaN(parsed.workItemId);
 }
 
 /**

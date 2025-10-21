@@ -1,10 +1,14 @@
 import { expect } from 'chai';
 import nock from 'nock';
 import { AzureDevOpsIntClient } from '../src/azureClient.ts';
+import { workItemCache } from '../src/cache.ts';
 
 // Tests for core client logic (WIQL build and basic fetch behaviors)
 describe('AzureDevOpsIntClient', function () {
-  afterEach(() => nock.cleanAll());
+  afterEach(() => {
+    nock.cleanAll();
+    workItemCache.clear();
+  });
 
   it('buildWIQL returns expected string for "My Activity"', function () {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
@@ -68,7 +72,7 @@ describe('AzureDevOpsIntClient', function () {
   it('getWorkItems builds mention query with authenticated identity', async function () {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
     nock('https://dev.azure.com')
-      .get('/org/_apis/connectionData?api-version=7.0')
+      .get(/\/org\/_apis\/connectionData\?api-version=.*/)
       .reply(200, {
         authenticatedUser: { displayName: 'Test User', uniqueName: 'user@example.com' },
       });
@@ -91,8 +95,8 @@ describe('AzureDevOpsIntClient', function () {
         ],
       });
     const items = await client.getWorkItems('Mentioned');
-    expect(items).to.have.length(1);
     expect(wiqlScope.isDone()).to.equal(true);
+    expect(items).to.have.length(1);
   });
 
   it('getWorkItems handles empty WIQL response gracefully', async function () {
@@ -100,6 +104,12 @@ describe('AzureDevOpsIntClient', function () {
     // intercept WIQL POST
     nock('https://dev.azure.com')
       .post(/.*wit\/wiql/)
+      .reply(200, { workItems: [] });
+    nock('https://dev.azure.com')
+      .post(/.*wit\/wiql/, (body) => {
+        expect(body.query).to.match(/SELECT \[System.Id\], \[System.Title\]/);
+        return true;
+      })
       .reply(200, { workItems: [] });
     const items = await client.getWorkItems('Some Query');
     expect(items).to.be.an('array').that.is.empty;
@@ -151,6 +161,9 @@ describe('AzureDevOpsIntClient', function () {
       .reply(404, { message: 'Team not found' });
     // WIQL query still called
     const wiqlScope = nock('https://dev.azure.com')
+      .post(/.*wit\/wiql.*/)
+      .reply(200, { workItems: [] });
+    nock('https://dev.azure.com')
       .post(/.*wit\/wiql.*/)
       .reply(200, { workItems: [] });
     const items = await client.getWorkItems('Current Sprint');

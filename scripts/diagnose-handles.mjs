@@ -1,10 +1,11 @@
-// Diagnostic helper: register ts-node/esm in transpile-only mode and import key modules
+// Diagnostic helper: register the esbuild ESM loader and import key modules
 // then print active handles so we can identify timers/sockets that keep the process alive.
 import { register } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import util from 'node:util';
+import path from 'node:path';
 
-process.env.TS_NODE_TRANSPILE_ONLY = 'true';
+process.env.ESBK_TSCONFIG_PATH = path.resolve('tsconfig.tests.json');
 
 process.on('unhandledRejection', (r) => {
   console.error('UnhandledRejection:', util.inspect(r, { depth: null }));
@@ -12,9 +13,9 @@ process.on('unhandledRejection', (r) => {
 });
 
 try {
-  register('ts-node/esm', pathToFileURL('./'));
+  register('@esbuild-kit/esm-loader', pathToFileURL('./'));
 } catch (err) {
-  console.error('Failed to register ts-node/esm:', util.inspect(err, { depth: null }));
+  console.error('Failed to register @esbuild-kit/esm-loader:', util.inspect(err, { depth: null }));
   process.exit(2);
 }
 

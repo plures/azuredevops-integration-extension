@@ -4,6 +4,49 @@ import { RateLimiter } from './rateLimiter.js';
 import { workItemCache, WorkItemCache } from './cache.js';
 import { measureAsync } from './performance.js';
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const stripProjectSegment = (
+  url: string,
+  encodedProject: string,
+  rawProject?: string
+): string => {
+  const candidates = new Set<string>();
+  if (encodedProject) {
+    candidates.add(encodedProject);
+    const doubleEncoded = encodeURIComponent(encodedProject);
+    if (doubleEncoded && doubleEncoded !== encodedProject) {
+      candidates.add(doubleEncoded);
+    }
+  }
+
+  if (rawProject?.trim()) {
+    candidates.add(rawProject.trim());
+  }
+
+  try {
+    const decoded = decodeURIComponent(encodedProject);
+    if (decoded) {
+      candidates.add(decoded);
+      const fullyDecoded = decodeURIComponent(decoded);
+      if (fullyDecoded) {
+        candidates.add(fullyDecoded);
+      }
+    }
+  } catch {
+    // ignore decode issues
+  }
+
+  return Array.from(candidates).reduce((current, candidate) => {
+    if (!candidate) {
+      return current;
+    }
+
+    const pattern = new RegExp(`/${escapeRegExp(candidate)}$`);
+    return current.replace(pattern, '');
+  }, url);
+};
+
 type AuthType = 'pat' | 'bearer';
 
 interface ClientOptions {
@@ -38,6 +81,20 @@ export class AzureDevOpsIntClient {
   private identityName?: string; // Fallback identity name for on-prem servers
   public baseUrl: string; // Store the base URL for browser URL generation
   private apiBaseUrl: string; // Store the API base URL (for on-premises support)
+  private static readonly connectionDataApiVersions = [
+    '7.1-preview.1',
+    '7.0-preview.1',
+    '6.0-preview.1',
+    '5.1-preview.2',
+    '5.0-preview.3',
+    '5.0-preview',
+    '5.0',
+  ];
+
+  private _authorizedGet(url: string) {
+    // Use existing axios instance so interceptors attach auth headers; override baseURL to avoid double prefixing
+    return this.axios.get(url, { baseURL: undefined });
+  }
 
   constructor(
     organization: string,
@@ -65,43 +122,63 @@ export class AzureDevOpsIntClient {
 
     // Determine the base URL and API base URL
     // Priority: manual apiBaseUrl override > derived from baseUrl > default cloud
+    const trimTrailingSlash = (value?: string) => (value ? value.replace(/\/+$/, '') : undefined);
+
+    const normalizeBaseUrl = (value?: string): string => {
+      const fallback = `https://dev.azure.com/${this.encodedOrganization}`;
+      if (!value) {
+        return fallback;
+      }
+
+      const trimmed = trimTrailingSlash(value) ?? fallback;
+      const withoutApis = trimmed.replace(/\/_apis$/i, '');
+
+      if (/visualstudio\.com/i.test(withoutApis)) {
+        return fallback;
+      }
+
+      if (/dev\.azure\.com/i.test(withoutApis)) {
+        return `https://dev.azure.com/${this.encodedOrganization}`;
+      }
+
+      const normalized = stripProjectSegment(withoutApis, this.encodedProject, this.project);
+      return trimTrailingSlash(normalized) ?? fallback;
+    };
+
+    const ensureApiSuffix = (value: string): string => {
+      const trimmed = trimTrailingSlash(value) ?? value;
+      return /\/_apis$/i.test(trimmed) ? trimmed : `${trimmed}/_apis`;
+    };
+
     if (options.apiBaseUrl) {
-      // Manual API URL override - use as-is
-      this.apiBaseUrl = options.apiBaseUrl.replace(/\/$/, '');
-      this.baseUrl = options.baseUrl || `https://dev.azure.com/${organization}`;
+      const manualApi = ensureApiSuffix(options.apiBaseUrl);
+      const derivedBase = stripProjectSegment(
+        manualApi.replace(/\/_apis$/i, ''),
+        this.encodedProject,
+        this.project
+      );
+      const preferredBase = options.baseUrl
+        ? normalizeBaseUrl(options.baseUrl)
+        : normalizeBaseUrl(derivedBase);
+
+      this.baseUrl = preferredBase;
+      this.apiBaseUrl = manualApi.replace(/\/+$/, '');
+
       console.log('[AzureClient] Using manual API URL override:', {
         apiBaseUrl: this.apiBaseUrl,
         baseUrl: this.baseUrl,
       });
     } else if (options.baseUrl) {
-      this.baseUrl = options.baseUrl;
-      const trimmedBase = this.baseUrl.replace(/\/$/, '');
-      const lowerBase = trimmedBase.toLowerCase();
-
-      // For cloud Azure DevOps (dev.azure.com or visualstudio.com),
-      // baseUrl already includes org, so just add project
-      if (lowerBase.includes('dev.azure.com')) {
-        this.apiBaseUrl = `${trimmedBase}/${project}/_apis`;
-      } else if (lowerBase.includes('visualstudio.com')) {
-        // Visual Studio redirects to dev.azure.com for API calls
-        this.apiBaseUrl = `https://dev.azure.com/${organization}/${project}/_apis`;
-      } else {
-        // For on-premises, construct API URL with org/project path
-        // baseUrl format: https://server/collection
-        // API URL format: https://server/collection/org/project/_apis
-        this.apiBaseUrl = `${trimmedBase}/${organization}/${project}/_apis`;
-        console.log('[AzureClient] On-prem configuration:', {
-          baseUrl: this.baseUrl,
-          organization,
-          project,
-          apiBaseUrl: this.apiBaseUrl,
-        });
-      }
+      this.baseUrl = normalizeBaseUrl(options.baseUrl);
+      this.apiBaseUrl = `${this.baseUrl}/${this.encodedProject}/_apis`;
     } else {
       // Default to dev.azure.com
-      this.baseUrl = `https://dev.azure.com/${organization}`;
-      this.apiBaseUrl = `https://dev.azure.com/${organization}/${project}/_apis`;
+      this.baseUrl = `https://dev.azure.com/${this.encodedOrganization}`;
+      this.apiBaseUrl = `${this.baseUrl}/${this.encodedProject}/_apis`;
     }
+
+    this.baseUrl = this.baseUrl.replace(/\/+$/, '');
+    this.apiBaseUrl = this.apiBaseUrl.replace(/\/+$/, '');
 
     this.axios = axios.create({
       baseURL: this.apiBaseUrl,
@@ -325,33 +402,45 @@ export class AzureDevOpsIntClient {
       let resp: any;
       const attempts: Array<{ desc: string; url: string }> = [];
 
+      const attemptConnectionData = async (
+        basePath: string,
+        desc: string,
+        useAxiosBase: boolean
+      ) => {
+        let lastError: unknown;
+        const sanitized = basePath.replace(/([&?]+)api-version=[^&]+/i, '').replace(/[&?]+$/, '');
+        for (const version of AzureDevOpsIntClient.connectionDataApiVersions) {
+          const separator = sanitized.includes('?') ? '&' : '?';
+          const fullUrl = `${sanitized}${separator}api-version=${version}`;
+          attempts.push({ desc: `${desc} (v=${version})`, url: fullUrl });
+          try {
+            return useAxiosBase ? await this.axios.get(fullUrl) : await this._authorizedGet(fullUrl);
+          } catch (error) {
+            lastError = error;
+            if (!this._shouldRetryConnectionDataVersion(error)) {
+              throw error;
+            }
+          }
+        }
+        throw lastError || new Error('connectionData api-version attempts exhausted');
+      };
+
       try {
-        // Strategy 1: Use baseUrl (org/collection level) - works for cloud and most on-prem
-        const orgLevel = this.baseUrl.replace(/\/$/, '') + '/_apis/connectionData?api-version=5.0';
-        attempts.push({ desc: 'baseUrl org-level', url: orgLevel });
-        resp = await this.axios.get(orgLevel);
+        const orgLevel = this.baseUrl.replace(/\/$/, '') + '/_apis/connectionData';
+        resp = await attemptConnectionData(orgLevel, 'baseUrl org-level', false);
       } catch (err1) {
         try {
-          // Strategy 2: For on-prem with collections, try removing project from apiBaseUrl
-          // apiBaseUrl: https://server/collection/project/_apis
-          // Target:     https://server/collection/_apis/connectionData
-          const apiRoot = this.apiBaseUrl
-            .replace(/\/_apis\/?$/, '') // Remove /_apis suffix
-            .replace(new RegExp(`/${this.encodedProject}$`), ''); // Remove /project suffix
-          const apiConn = apiRoot.replace(/\/$/, '') + '/_apis/connectionData?api-version=5.0';
-          attempts.push({ desc: 'apiBaseUrl without project', url: apiConn });
-          resp = await this.axios.get(apiConn);
+          const apiRoot = stripProjectSegment(
+            this.apiBaseUrl.replace(/\/_apis\/?$/, ''),
+            this.encodedProject,
+            this.project
+          );
+          const apiConn = apiRoot.replace(/\/$/, '') + '/_apis/connectionData';
+          resp = await attemptConnectionData(apiConn, 'apiBaseUrl without project', false);
         } catch (err2) {
           try {
-            // Strategy 3: Try relative path (will use axios baseURL which is project-scoped)
-            // This likely won't work but try as final fallback
-            attempts.push({
-              desc: 'relative to axios baseURL',
-              url: '/connectionData?api-version=5.0',
-            });
-            resp = await this.axios.get('/connectionData?api-version=5.0');
+            resp = await attemptConnectionData('/connectionData', 'relative to axios baseURL', true);
           } catch (err3) {
-            // If all fail, throw the first error to preserve original failure context
             console.error('[azureDevOpsInt] connectionData attempts:', attempts);
             throw err1 || err2 || err3;
           }
@@ -429,6 +518,20 @@ export class AzureDevOpsIntClient {
       }
       return null;
     }
+  }
+  private _shouldRetryConnectionDataVersion(error: any): boolean {
+    const status = error?.response?.status;
+    if (status !== 400) {
+      return false;
+    }
+    const message = String(
+      error?.response?.data?.message ||
+        error?.response?.data?.error?.message ||
+        error?.response?.data ||
+        error?.message ||
+        ''
+    );
+    return /preview/i.test(message) || /api[- ]?version/i.test(message);
   }
 
   buildWIQL(queryNameOrText: string) {

@@ -45,6 +45,7 @@ export class WorkItemsProvider {
   private _currentQuery: string = DEFAULT_QUERY;
   private transformWorkItemsFn: WorkItemTransform | undefined;
 
+
   constructor(
     connectionOrClient: string | AzureDevOpsIntClient,
     clientOrPostMessage: AzureDevOpsIntClient | PostMessageFn,
@@ -72,6 +73,7 @@ export class WorkItemsProvider {
     this._kanbanView = options.kanbanView ?? this._kanbanView;
     this._currentFilters = options.currentFilters ?? this._currentFilters;
     this.logger = options.logger ?? this.logger;
+
     if (typeof options.debounceMs === 'number' && options.debounceMs >= 0) {
       this.debounceMs = options.debounceMs;
     }
@@ -169,7 +171,8 @@ export class WorkItemsProvider {
       // Always update the work items, even if empty
       this._workItems = processed;
       this._mergeWorkItemTypesFromItems(processed);
-      this._postWorkItemsLoaded();
+      // FSM will handle posting work items via syncDataToWebview
+      this._notifyWorkItemsChanged();
 
       if (processed.length === 0) {
         this.log('debug', 'refresh(): no results for query', {
@@ -288,7 +291,8 @@ export class WorkItemsProvider {
       this._workItems = processed;
     }
     this._mergeWorkItemTypesFromItems(shouldIgnoreEmpty ? this._workItems : processed);
-    this._postWorkItemsLoaded();
+    // FSM will handle posting work items via syncDataToWebview
+    this._notifyWorkItemsChanged();
   }
 
   selectWorkItem(item: WorkItem) {
@@ -310,13 +314,18 @@ export class WorkItemsProvider {
     this._workItemTypes = [];
   }
 
-  private _postWorkItemsLoaded() {
+  private _notifyWorkItemsChanged() {
+    // CRITICAL: Send workItemsLoaded message so FSM can receive the data via forwardProviderMessage
     this._post({
       type: 'workItemsLoaded',
-      workItems: this._workItems,
-      kanbanView: this._kanbanView,
+      workItems: [...this._workItems],
+      connectionId: this.connectionId,
       query: this._currentQuery,
+      kanbanView: this._kanbanView,
+      types: [...this._workItemTypes],
     });
+    
+    // Send supplementary data
     this._postWorkItemTypeOptions();
     if (Object.keys(this._currentFilters).length > 0)
       this._post({ type: 'restoreFilters', filters: this._currentFilters });
