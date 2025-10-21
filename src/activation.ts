@@ -1903,25 +1903,37 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       'azureDevOpsInt.bulkAssign',
       safeCommandHandler(() => {
-        bulkAssignWorkItems();
+        dispatchApplicationEvent({
+          type: 'WEBVIEW_MESSAGE',
+          message: { type: 'bulkAssign', connectionId: activeConnectionId },
+        });
       })
     ),
     vscode.commands.registerCommand(
       'azureDevOpsInt.bulkMove',
       safeCommandHandler(() => {
-        bulkMoveWorkItems();
+        dispatchApplicationEvent({
+          type: 'WEBVIEW_MESSAGE',
+          message: { type: 'bulkMove', connectionId: activeConnectionId },
+        });
       })
     ),
     vscode.commands.registerCommand(
       'azureDevOpsInt.bulkAddTags',
       safeCommandHandler(() => {
-        bulkAddTags();
+        dispatchApplicationEvent({
+          type: 'WEBVIEW_MESSAGE',
+          message: { type: 'bulkAddTags', connectionId: activeConnectionId },
+        });
       })
     ),
     vscode.commands.registerCommand(
       'azureDevOpsInt.bulkDelete',
       safeCommandHandler(() => {
-        bulkDeleteWorkItems();
+        dispatchApplicationEvent({
+          type: 'WEBVIEW_MESSAGE',
+          message: { type: 'bulkDelete', connectionId: activeConnectionId },
+        });
       })
     ),
     vscode.commands.registerCommand(
@@ -2382,24 +2394,6 @@ async function handleLegacyMessage(msg: any) {
     return undefined;
   }
 
-  // Handle bulk operations
-  if (msg?.type === 'bulkAssign') {
-    await bulkAssignWorkItems();
-    return undefined;
-  }
-  if (msg?.type === 'bulkMove') {
-    await bulkMoveWorkItems();
-    return;
-  }
-  if (msg?.type === 'bulkAddTags') {
-    await bulkAddTags();
-    return;
-  }
-  if (msg?.type === 'bulkDelete') {
-    await bulkDeleteWorkItems();
-    return;
-  }
-
   switch (msg?.type) {
     case 'requireAuthentication': {
       // Log to FSM system
@@ -2681,18 +2675,18 @@ async function handleLegacyMessage(msg: any) {
       targetProvider?.refresh(storedQuery);
       break;
     }
-    case 'switchConnection':
-    case 'setActiveConnection': {
-      const targetId = typeof msg.connectionId === 'string' ? msg.connectionId.trim() : '';
-      console.log('[azureDevOpsInt] 🔄 Connection switch requested:', {
-        targetId,
-        currentActiveConnectionId: activeConnectionId,
-        messageType: msg.type,
-      });
+    // case 'switchConnection':
+    // case 'setActiveConnection': {
+    //   const targetId = typeof msg.connectionId === 'string' ? msg.connectionId.trim() : '';
+    //   console.log('[azureDevOpsInt] 🔄 Connection switch requested (legacy handler - should be disabled):', {
+    //     targetId,
+    //     currentActiveConnectionId: activeConnectionId,
+    //     messageType: msg.type,
+    //   });
 
-      await switchActiveConnectionLegacy(targetId, { refresh: false });
-      break;
-    }
+    //   // await switchActiveConnectionLegacy(targetId, { refresh: false });
+    //   break;
+    // }
     case 'moveWorkItem': {
       const id: number | undefined =
         typeof msg.id === 'number'
@@ -4883,389 +4877,6 @@ function forceGarbageCollection() {
       `Failed to force garbage collection: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
-}
-
-async function bulkAssignWorkItems() {
-  try {
-    if (!client) {
-      vscode.window.showErrorMessage('No active Azure DevOps connection');
-      return;
-    }
-
-    // Request selected work items from webview
-    const selectedIds = await requestSelectedWorkItems();
-    if (!selectedIds || selectedIds.length === 0) {
-      vscode.window.showWarningMessage(
-        'No work items selected. Use Ctrl+Click to select multiple items.'
-      );
-      return;
-    }
-
-    // Get assignee
-    const assignee = await vscode.window.showInputBox({
-      prompt: `Assign ${selectedIds.length} work item(s) to:`,
-      placeHolder: 'Enter display name or email',
-      ignoreFocusOut: true,
-    });
-
-    if (!assignee) return;
-
-    // Confirm
-    const confirm = await vscode.window.showWarningMessage(
-      `Assign ${selectedIds.length} work item(s) to "${assignee}"?`,
-      { modal: true },
-      'Yes',
-      'No'
-    );
-    if (confirm !== 'Yes') return;
-
-    // Execute bulk operation
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: 'Bulk Assign',
-        cancellable: false,
-      },
-      async (progress) => {
-        let completed = 0;
-        const errors: string[] = [];
-
-        for (const id of selectedIds) {
-          try {
-            await client!.updateWorkItem(id, [
-              {
-                op: 'add',
-                path: '/fields/System.AssignedTo',
-                value: assignee,
-              },
-            ]);
-            completed++;
-            progress.report({
-              increment: 100 / selectedIds.length,
-              message: `${completed}/${selectedIds.length} completed`,
-            });
-          } catch (error: any) {
-            errors.push(`#${id}: ${error.message || 'Failed'}`);
-          }
-        }
-
-        if (errors.length > 0) {
-          vscode.window.showWarningMessage(
-            `Bulk assign completed with ${errors.length} error(s). Check Output Channel for details.`
-          );
-          errors.forEach((err) => logLine(`[bulkAssign] ${err}`));
-        } else {
-          vscode.window.showInformationMessage(
-            `Successfully assigned ${completed} work item(s) to ${assignee}`
-          );
-        }
-
-        // Refresh work items
-        const refreshQuery = getQueryForProvider(provider, activeConnectionId);
-        provider?.refresh(refreshQuery);
-      }
-    );
-  } catch (error: any) {
-    vscode.window.showErrorMessage(`Bulk assign failed: ${error.message || 'Unknown error'}`);
-  }
-}
-
-async function bulkMoveWorkItems() {
-  try {
-    if (!client) {
-      vscode.window.showErrorMessage('No active Azure DevOps connection');
-      return;
-    }
-
-    const selectedIds = await requestSelectedWorkItems();
-    if (!selectedIds || selectedIds.length === 0) {
-      vscode.window.showWarningMessage(
-        'No work items selected. Use Ctrl+Click to select multiple items.'
-      );
-      return;
-    }
-
-    // Get available states (simplified - using common states)
-    const states = ['New', 'Active', 'Resolved', 'Closed', 'Removed'];
-    const selectedState = await vscode.window.showQuickPick(states, {
-      placeHolder: `Move ${selectedIds.length} work item(s) to state:`,
-      ignoreFocusOut: true,
-    });
-
-    if (!selectedState) return;
-
-    // Confirm
-    const confirm = await vscode.window.showWarningMessage(
-      `Move ${selectedIds.length} work item(s) to "${selectedState}"?`,
-      { modal: true },
-      'Yes',
-      'No'
-    );
-    if (confirm !== 'Yes') return;
-
-    // Execute bulk operation
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: 'Bulk Move',
-        cancellable: false,
-      },
-      async (progress) => {
-        let completed = 0;
-        const errors: string[] = [];
-
-        for (const id of selectedIds) {
-          try {
-            await client!.updateWorkItem(id, [
-              {
-                op: 'replace',
-                path: '/fields/System.State',
-                value: selectedState,
-              },
-            ]);
-            completed++;
-            progress.report({
-              increment: 100 / selectedIds.length,
-              message: `${completed}/${selectedIds.length} completed`,
-            });
-          } catch (error: any) {
-            errors.push(`#${id}: ${error.message || 'Failed'}`);
-          }
-        }
-
-        if (errors.length > 0) {
-          vscode.window.showWarningMessage(
-            `Bulk move completed with ${errors.length} error(s). Check Output Channel for details.`
-          );
-          errors.forEach((err) => logLine(`[bulkMove] ${err}`));
-        } else {
-          vscode.window.showInformationMessage(
-            `Successfully moved ${completed} work item(s) to ${selectedState}`
-          );
-        }
-
-        // Refresh work items
-        const refreshQuery = getQueryForProvider(provider, activeConnectionId);
-        provider?.refresh(refreshQuery);
-      }
-    );
-  } catch (error: any) {
-    vscode.window.showErrorMessage(`Bulk move failed: ${error.message || 'Unknown error'}`);
-  }
-}
-
-async function bulkAddTags() {
-  try {
-    if (!client) {
-      vscode.window.showErrorMessage('No active Azure DevOps connection');
-      return;
-    }
-
-    const selectedIds = await requestSelectedWorkItems();
-    if (!selectedIds || selectedIds.length === 0) {
-      vscode.window.showWarningMessage(
-        'No work items selected. Use Ctrl+Click to select multiple items.'
-      );
-      return;
-    }
-
-    // Get tags
-    const tagsInput = await vscode.window.showInputBox({
-      prompt: `Add tags to ${selectedIds.length} work item(s):`,
-      placeHolder: 'Enter tags separated by semicolons (e.g., bug; high-priority; customer)',
-      ignoreFocusOut: true,
-    });
-
-    if (!tagsInput) return;
-
-    const newTags = tagsInput
-      .split(';')
-      .map((t) => t.trim())
-      .filter((t) => t);
-    if (newTags.length === 0) {
-      vscode.window.showWarningMessage('No valid tags entered');
-      return;
-    }
-
-    // Confirm
-    const confirm = await vscode.window.showWarningMessage(
-      `Add tag(s) "${newTags.join('; ')}" to ${selectedIds.length} work item(s)?`,
-      { modal: true },
-      'Yes',
-      'No'
-    );
-    if (confirm !== 'Yes') return;
-
-    // Execute bulk operation
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: 'Bulk Add Tags',
-        cancellable: false,
-      },
-      async (progress) => {
-        let completed = 0;
-        const errors: string[] = [];
-
-        for (const id of selectedIds) {
-          try {
-            // Get existing tags
-            const workItem = await client!.getWorkItemById(id);
-            const existingTags = (workItem?.fields?.['System.Tags'] as string) || '';
-            const existingTagArray = existingTags
-              .split(';')
-              .map((t) => t.trim())
-              .filter((t) => t);
-
-            // Merge with new tags (avoid duplicates)
-            const mergedTags = Array.from(new Set([...existingTagArray, ...newTags]));
-
-            await client!.updateWorkItem(id, [
-              {
-                op: 'add',
-                path: '/fields/System.Tags',
-                value: mergedTags.join('; '),
-              },
-            ]);
-            completed++;
-            progress.report({
-              increment: 100 / selectedIds.length,
-              message: `${completed}/${selectedIds.length} completed`,
-            });
-          } catch (error: any) {
-            errors.push(`#${id}: ${error.message || 'Failed'}`);
-          }
-        }
-
-        if (errors.length > 0) {
-          vscode.window.showWarningMessage(
-            `Bulk add tags completed with ${errors.length} error(s). Check Output Channel for details.`
-          );
-          errors.forEach((err) => logLine(`[bulkAddTags] ${err}`));
-        } else {
-          vscode.window.showInformationMessage(
-            `Successfully added tags to ${completed} work item(s)`
-          );
-        }
-
-        // Refresh work items
-        const refreshQuery = getQueryForProvider(provider, activeConnectionId);
-        provider?.refresh(refreshQuery);
-      }
-    );
-  } catch (error: any) {
-    vscode.window.showErrorMessage(`Bulk add tags failed: ${error.message || 'Unknown error'}`);
-  }
-}
-
-async function bulkDeleteWorkItems() {
-  try {
-    if (!client) {
-      vscode.window.showErrorMessage('No active Azure DevOps connection');
-      return;
-    }
-
-    const selectedIds = await requestSelectedWorkItems();
-    if (!selectedIds || selectedIds.length === 0) {
-      vscode.window.showWarningMessage(
-        'No work items selected. Use Ctrl+Click to select multiple items.'
-      );
-      return;
-    }
-
-    // Strong confirmation for delete
-    const confirm1 = await vscode.window.showWarningMessage(
-      `⚠️ DELETE ${selectedIds.length} work item(s)? This action cannot be undone!`,
-      { modal: true },
-      'Delete',
-      'Cancel'
-    );
-    if (confirm1 !== 'Delete') return;
-
-    // Second confirmation
-    const confirm2 = await vscode.window.showWarningMessage(
-      `Are you absolutely sure? Type 'DELETE' to confirm deletion of ${selectedIds.length} work item(s).`,
-      { modal: true },
-      'I understand, delete them',
-      'Cancel'
-    );
-    if (confirm2 !== 'I understand, delete them') return;
-
-    // Execute bulk delete
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: 'Bulk Delete',
-        cancellable: false,
-      },
-      async (progress) => {
-        let completed = 0;
-        const errors: string[] = [];
-
-        for (const id of selectedIds) {
-          try {
-            // Move to "Removed" state instead of permanent delete
-            await client!.updateWorkItem(id, [
-              {
-                op: 'replace',
-                path: '/fields/System.State',
-                value: 'Removed',
-              },
-            ]);
-            completed++;
-            progress.report({
-              increment: 100 / selectedIds.length,
-              message: `${completed}/${selectedIds.length} completed`,
-            });
-          } catch (error: any) {
-            errors.push(`#${id}: ${error.message || 'Failed'}`);
-          }
-        }
-
-        if (errors.length > 0) {
-          vscode.window.showWarningMessage(
-            `Bulk delete completed with ${errors.length} error(s). Check Output Channel for details.`
-          );
-          errors.forEach((err) => logLine(`[bulkDelete] ${err}`));
-        } else {
-          vscode.window.showInformationMessage(`Successfully removed ${completed} work item(s)`);
-        }
-
-        // Refresh work items
-        const refreshQuery = getQueryForProvider(provider, activeConnectionId);
-        provider?.refresh(refreshQuery);
-      }
-    );
-  } catch (error: any) {
-    vscode.window.showErrorMessage(`Bulk delete failed: ${error.message || 'Unknown error'}`);
-  }
-}
-
-async function requestSelectedWorkItems(): Promise<number[] | null> {
-  return new Promise((resolve) => {
-    const timeout = setTimeout(() => {
-      resolve(null);
-    }, 5000);
-
-    const handler = (msg: any) => {
-      if (msg?.type === 'selectedWorkItems') {
-        clearTimeout(timeout);
-        const ids = Array.isArray(msg.ids)
-          ? msg.ids.map((id: any) => Number(id)).filter((id: number) => id > 0)
-          : [];
-        resolve(ids);
-      }
-    };
-
-    // Temporarily listen for response
-    if (panel) {
-      panel.webview.onDidReceiveMessage(handler);
-      sendToWebview({ type: 'requestSelection' });
-    } else {
-      clearTimeout(timeout);
-      resolve(null);
-    }
-  });
 }
 
 async function exportFiltersToFile() {

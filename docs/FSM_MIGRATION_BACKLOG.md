@@ -6,8 +6,8 @@ This backlog captures the remaining legacy pathways that still bypass the applic
 
 | Message Type | Current Handler | Legacy Behaviors | FSM Target | Notes |
 | --- | --- | --- | --- | --- |
-| `authReminderAction` | `handleLegacyMessage` (activation.ts §2405) | Triggers `clearAuthReminder`, pushes sign-in or snooze flows via imperative helpers. | Create dedicated FSM event (e.g. `AUTH_REMINDER_ACTION`) handled in `routeWebviewMessage` → pure auth reminder helpers. | Requires extracting `clearAuthReminder` + `triggerAuthReminderSignIn` into FSM-aware services. |
-| `requireAuthentication` | `handleLegacyMessage` (activation.ts §2467) | Directly inspects `connectionStates`, fires `triggerAuthReminderSignIn`. | Convert to FSM event and actor that orchestrates reminder + interactive auth. | Reuse pending reminder map stored in context. |
+| `authReminderAction` | `applicationMachine.routeWebviewMessage` | Routed through `handleAuthReminderAction` helper to update reminders and trigger FSM-driven sign-in. | [DONE] Covered by `tests/fsm/authReminderActions.test.ts`. | Pending reminder map now owned by FSM context. |
+| `requireAuthentication` | `applicationMachine.routeWebviewMessage` | Manual webview auth requests fan into `planRequireAuthentication` and FSM sign-in flow. | [DONE] Covered by `tests/fsm/requireAuthentication.test.ts`. | Legacy activation handler removed. |
 | `bulkAssign`, `bulkMove`, `bulkAddTags`, `bulkDelete` | `handleLegacyMessage` (activation.ts pre-switch) | Requests selected IDs, prompts user via VS Code APIs, performs client updates with progress UI. | Introduce `webviewBulkActionMachine` or dedicated actors invoked from `routeWebviewMessage`. Use pure helpers in `src/fsm/functions/workItems/`. | Requires splitting UI prompting (VS Code commands) from data mutation for testability. |
 | `refresh`, `getWorkItems`, `setQuery` | `handleLegacyMessage` | Calls provider directly, mutates legacy caches, posts snapshots. | Replace with FSM events (`REFRESH_DATA`, `WEBVIEW_QUERY_CHANGED`) and let connection/timer machines emit work item snapshots. | Align with `syncDataToWebview` action already in `applicationMachine`. |
 | `switchConnection`, `setActiveConnection` | `handleLegacyMessage` | Calls `switchActiveConnectionLegacy`, manipulates `activeConnectionId`. | Route to `CONNECTION_SELECTED` event; move switching logic into connection FSM actors. | Needs bootstrap of provider caching via FSM context. |
@@ -55,9 +55,8 @@ This backlog captures the remaining legacy pathways that still bypass the applic
 
 ## Immediate Next Actions
 
-1. Extract authentication reminder handling into a pure helper (`src/fsm/functions/auth/handleReminderAction.ts`) and wire `routeWebviewMessage` to use it.
-2. Define FSM events for bulk work item operations and begin migrating progress UI into dedicated actors.
-3. Document bootstrap payload contract (`docs/FSM_BOOTSTRAP_SCHEMA.md`) before wiring `APP_BOOTSTRAP` in activation.
-4. Schedule a repository-wide `npm run format` once documentation owners approve automated formatting.
+1. Define FSM events for bulk work item operations and begin migrating progress UI into dedicated actors.
+2. Document bootstrap payload contract (`docs/FSM_BOOTSTRAP_SCHEMA.md`) before wiring `APP_BOOTSTRAP` in activation.
+3. Schedule a repository-wide `npm run format` once documentation owners approve automated formatting.
 
 This backlog should be revisited after each migration increment. Update entries as logic moves from activation/services into FSM machines.
