@@ -133,7 +133,6 @@ let timerConnectionInfo: TimerConnectionInfo = {};
 const DEFAULT_QUERY = 'My Activity';
 const activeQueryByConnection = new Map<string, string>();
 
-const AUTH_REMINDER_SNOOZE_MS = 30 * 60 * 1000;
 let nextAuthConnectionIndex = 0;
 const INTERACTIVE_REAUTH_THROTTLE_MS = 5 * 60 * 1000;
 
@@ -2402,68 +2401,6 @@ async function handleLegacyMessage(msg: any) {
   }
 
   switch (msg?.type) {
-    case 'authReminderAction': {
-      // Log to FSM system
-      import('./fsm/logging/FSMLogger.js')
-        .then(({ fsmLogger, FSMComponent }) => {
-          fsmLogger.info(
-            FSMComponent.AUTH,
-            'Authentication reminder action received',
-            {
-              component: FSMComponent.AUTH,
-              connectionId: msg.connectionId,
-              event: 'AUTH_REMINDER_ACTION',
-            },
-            { action: msg.action }
-          );
-        })
-        .catch((error) => {
-          console.error('❌ [FSM] Failed to import FSM logger for auth reminder action:', error);
-        });
-
-      const connectionId = typeof msg.connectionId === 'string' ? msg.connectionId.trim() : '';
-      if (!connectionId) {
-        console.warn('🔴 [webview->ext] authReminderAction: missing connectionId');
-        break;
-      }
-      const action = typeof msg.action === 'string' ? msg.action : '';
-      if (!action) {
-        console.warn('🔴 [webview->ext] authReminderAction: missing action');
-        break;
-      }
-
-      if (action === 'signIn') {
-        clearAuthReminder(connectionId);
-        triggerAuthReminderSignIn(connectionId, 'authFailed', {
-          force: true,
-          startInteractive: true,
-        });
-        break;
-      }
-
-      if (action === 'dismiss') {
-        const actor = getApplicationActor();
-        const send = actor?.send;
-        if (!send) {
-          break;
-        }
-
-        const pendingReminders = getPendingAuthReminderMap();
-        const existingReminder = pendingReminders.get(connectionId);
-        const snoozeUntil = Date.now() + AUTH_REMINDER_SNOOZE_MS;
-
-        if (existingReminder) {
-          send({ type: 'AUTH_REMINDER_DISMISSED', connectionId, snoozeUntil });
-        } else {
-          send({ type: 'AUTH_REMINDER_REQUESTED', connectionId, reason: 'authFailed' });
-          send({ type: 'AUTH_REMINDER_DISMISSED', connectionId, snoozeUntil });
-        }
-        break;
-      }
-
-      console.warn('🔴 [webview->ext] Unknown authReminderAction action:', action);
-      break;
-    }
     case 'requireAuthentication': {
       // Log to FSM system
       import('./fsm/logging/FSMLogger.js')

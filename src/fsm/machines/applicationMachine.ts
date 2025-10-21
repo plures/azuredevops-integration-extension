@@ -31,6 +31,10 @@ import type {
 } from '../functions/activation/connectionNormalization.js';
 import { migrateGlobalPATToConnections } from '../functions/secrets/patMigration.js';
 import { buildAuthReminder } from '../functions/auth/buildAuthReminder.js';
+import {
+  handleAuthReminderAction,
+  type AuthReminderActionMessage,
+} from '../functions/auth/authReminderActions.js';
 
 // ============================================================================
 // CONTEXT-PRESERVING ASSIGN HELPER
@@ -1870,6 +1874,31 @@ function routeWebviewMessage(context: ApplicationContext, message: any) {
   let handled = false;
 
   switch ((message as { type?: unknown })?.type) {
+    case 'authReminderAction': {
+      const plan = handleAuthReminderAction(context, message as AuthReminderActionMessage, {
+        now: Date.now(),
+      });
+
+      if (!plan.handled) {
+        logUnhandledAuthReminderAction(plan.warnings, message);
+        break;
+      }
+
+      if (plan.pendingAuthReminders !== context.pendingAuthReminders) {
+        context.pendingAuthReminders = plan.pendingAuthReminders;
+      }
+
+      if (plan.notify?.type === 'clear' && plan.notify.connectionId) {
+        notifyAuthReminderCleared(context, plan.notify.connectionId);
+      }
+
+      if (plan.interactiveAuth) {
+        startReminderInteractiveSignIn(context, plan.interactiveAuth);
+      }
+
+      handled = true;
+      break;
+    }
     case 'timer:start':
     case 'timer:stop':
     case 'timer:pause':
@@ -1904,6 +1933,78 @@ function routeWebviewMessage(context: ApplicationContext, message: any) {
   }
 
   void invokeWebviewMessageHandler(message);
+}
+
+function logUnhandledAuthReminderAction(warnings: string[], message: unknown) {
+  if (!warnings || warnings.length === 0) {
+    return;
+  }
+
+  console.warn('[ApplicationFSM] authReminderAction handled by legacy path', {
+    warnings,
+    message,
+  });
+}
+
+function notifyAuthReminderCleared(context: ApplicationContext, connectionId: string) {
+  if (!context.webviewPanel) {
+    return;
+  }
+
+  try {
+    context.webviewPanel.webview.postMessage({
+      type: 'authReminderClear',
+      connectionId,
+    });
+  } catch (error) {
+    console.error('[ApplicationFSM] Failed to notify webview about cleared auth reminder', error);
+  }
+}
+
+function startReminderInteractiveSignIn(
+  context: ApplicationContext,
+  options: {
+    connectionId: string;
+    reason: AuthReminderReason;
+    detail?: string;
+  }
+) {
+  const { connectionId } = options;
+  const state = context.connectionStates.get(connectionId);
+  if (state) {
+    state.reauthInProgress = true;
+  }
+
+  (async () => {
+    try {
+      await invokeActiveConnectionHandler(connectionId, {
+        interactive: true,
+        refresh: true,
+        notify: true,
+      });
+    } catch (error) {
+      console.error('[ApplicationFSM] Interactive authentication reminder failed', error);
+
+      const reminder = buildAuthReminder(context, {
+        connectionId,
+        reason: options.reason,
+        detail: options.detail,
+      });
+
+      if (reminder) {
+        const updated = new Map(context.pendingAuthReminders);
+        updated.set(connectionId, reminder);
+        context.pendingAuthReminders = updated;
+      }
+    } finally {
+      if (state) {
+        state.reauthInProgress = false;
+        state.lastInteractiveAuthAt = new Date();
+      }
+    }
+  })().catch((error) => {
+    console.error('[ApplicationFSM] Unexpected auth reminder sign-in error', error);
+  });
 }
 
 // ============================================================================
