@@ -32,6 +32,16 @@ export type ConnectionContext = {
   forceInteractive: boolean;
 };
 
+export type AuthReminderReason = 'tokenExpired' | 'refreshFailed' | 'authFailed';
+
+export type AuthReminderState = {
+  connectionId: string;
+  status: 'pending' | 'dismissed';
+  reason: AuthReminderReason;
+  detail?: string;
+  snoozeUntil?: number;
+};
+
 export type ConnectionEvent =
   | { type: 'CONNECT'; config: ProjectConnection; forceInteractive?: boolean }
   | { type: 'AUTHENTICATE'; interactive?: boolean }

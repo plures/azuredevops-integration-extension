@@ -1,8 +1,7 @@
-import App from './components/App.svelte';
-import { appState } from './store.svelte.js';
-import type { ApplicationState } from '../fsm/types.js';
+import App from './App.svelte';
+import { appState } from './store.svelte';
+import type { ApplicationState } from '../fsm/types';
 
-declare function acquireVsCodeApi(): any;
 const vscode = acquireVsCodeApi();
 
 window.addEventListener('message', (event: MessageEvent<{ type: string; payload: ApplicationState }>) => {

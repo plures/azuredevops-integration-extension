@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { AzureDevOpsIntClient } from '../azureClient';
-import { WorkItemsProvider } from '../provider';
+import type { AzureDevOpsIntClient } from '../azureClient.js';
+import type { WorkItemsProvider } from '../provider.js';
 
 // Base FSM context types
 export interface ExtensionContext {
@@ -140,4 +140,64 @@ export interface TimerStopResult {
   hoursDecimal: number;
   capApplied?: boolean;
   capLimitHours?: number;
+}
+
+// =================================================================
+// NEW UNIFIED APPLICATION STATE FOR FSM-FIRST ARCHITECTURE
+// =================================================================
+
+/**
+ * The complete, serializable context for the entire application.
+ * This is the "source of truth" managed by the main FSM.
+ */
+export interface ApplicationContext {
+  user: { name: string; email: string; imageUrl: string } | null;
+  error: { message: string; details?: any } | null;
+  activeTab: 'WID' | 'BROWSE' | 'SETTINGS';
+  
+  // Settings
+  settings: { [key: string]: any };
+
+  // Azure DevOps data
+  organizations: any[];
+  projects: any[];
+  teams: any[];
+  repositories: any[];
+  branches: any[];
+  pullRequests: any[];
+  workItems: any[];
+
+  // Drafts for work items
+  drafts: { [key: number]: any };
+  currentDraft: any | null;
+
+  // Current selections
+  currentOrganization: any | null;
+  currentProject: any | null;
+  currentTeam: any | null;
+  currentRepository: any | null;
+  currentBranch: any | null;
+  currentPullRequest: any | null;
+  currentWorkItem: any | null;
+  
+  // Detailed fields for the current work item being edited/viewed
+  currentWorkItemType: string | null;
+  currentWorkItemState: string | null;
+  currentWorkItemAssignedTo: any | null;
+  currentWorkItemIterationPath: string | null;
+  currentWorkItemAreaPath: string | null;
+  currentWorkItemTitle: string | null;
+  currentWorkItemDescription: string | null;
+  currentWorkItemReproSteps: string | null;
+  currentWorkItemSystemInfo: string | null;
+  currentWorkItemAcceptanceCriteria: string | null;
+}
+
+/**
+ * The complete state object for the application, designed to be
+ * synchronized from the extension to the webview.
+ */
+export interface ApplicationState {
+  fsmState: string; // Represents the current state value of the FSM
+  context: ApplicationContext;
 }

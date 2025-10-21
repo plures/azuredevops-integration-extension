@@ -1083,7 +1083,7 @@ function ensureTimer(context: vscode.ExtensionContext) {
     pomodoroEnabled: config.get<boolean>('pomodoroEnabled') ?? false,
     breakPrompt: () => {
       const snap = timer?.snapshot?.();
-      if (!snap || snap.isPaused) return;
+      if (!snap || !snap.isPaused) return;
       vscode.window
         .showInformationMessage(
           'Time for a Pomodoro break?',
@@ -1625,6 +1625,27 @@ export async function activate(context: vscode.ExtensionContext) {
     .catch((error) => {
       console.error('❌ [ACTIVATION] Failed to import FSM tracing modules:', error);
     });
+
+  // FSM and Bridge setup
+  const fsmSetupService = new FSMSetupService();
+  context.subscriptions.push(fsmSetupService);
+  await fsmSetupService.setup(context);
+
+  const appActor = getApplicationStoreActor();
+  if (appActor && typeof appActor.subscribe === 'function') {
+    appActor.subscribe((snapshot: any) => {
+      if (panel && snapshot) {
+        const serializableState = {
+          fsmState: snapshot.value,
+          context: snapshot.context,
+        };
+        panel.webview.postMessage({
+          type: 'syncState',
+          payload: serializableState,
+        });
+      }
+    });
+  }
 
   // Core commands
   context.subscriptions.push(
@@ -2822,7 +2843,6 @@ async function handleLegacyMessage(msg: any) {
         wi.fields?.['System.Title'] || `#${id}`
       );
       if (!started) timerConnectionInfo = previousInfo;
-      break;
     }
     case 'pauseTimer':
       timer?.pause();
@@ -4784,7 +4804,7 @@ async function startTimerInteractive() {
   setTimerConnectionFrom(connection);
   const started = timer.start(
     Number(wi.id || wi.fields?.['System.Id']),
-    wi.fields?.['System.Title'] || `#${wi.id}`
+    wi.fields?.['System.Title'] || `#${id}`
   );
   if (!started) timerConnectionInfo = previousInfo;
 }
@@ -4974,7 +4994,7 @@ async function importFiltersFromFile() {
 
     vscode.window.showInformationMessage('Filters imported successfully');
 
-    // Refresh work items with new filters
+    // Refresh with new filters
     const refreshQuery = getQueryForProvider(provider, activeConnectionId);
     provider?.refresh(refreshQuery);
   } catch (error: any) {
@@ -5223,26 +5243,6 @@ async function showQueryBuilder() {
           'SELECT [fields] FROM WorkItems WHERE [conditions] ORDER BY [field]\n',
           '🔍 Common Fields:',
           '  [System.Id] - Work Item ID',
-          '  [System.Title] - Title',
-          '  [System.State] - Current state',
-          '  [System.AssignedTo] - Assigned user',
-          '  [System.WorkItemType] - Type (Bug, Task, etc.)',
-          '  [System.CreatedDate] - Creation date',
-          '  [System.ChangedDate] - Last modified date',
-          '  [System.Tags] - Tags\n',
-          '⚡ Macros:',
-          '  @Me - Current user',
-          "  @Today - Today's date",
-          '  @Project - Current project',
-          '  @CurrentIteration - Current sprint\n',
-          '🎯 Example:',
-          'SELECT [System.Id], [System.Title]',
-          'FROM WorkItems',
-          'WHERE [System.AssignedTo] = @Me',
-          "AND [System.State] <> 'Closed'",
-          'ORDER BY [System.ChangedDate] DESC',
-        ].join('\n');
-
         vscode.window.showInformationMessage(helpText, { modal: true });
         break;
       }
