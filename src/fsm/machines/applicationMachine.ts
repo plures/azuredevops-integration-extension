@@ -5,7 +5,8 @@
  * replacing the complex global state management with structured state machines.
  */
 
-import { createMachine, assign, fromPromise, createActor } from 'xstate';
+import { createMachine, assign, fromPromise, createActor, Actor } from 'xstate';
+import type { ExtensionContext } from 'vscode';
 import {
   ProjectConnection,
   AuthReminderReason,
@@ -13,6 +14,7 @@ import {
   ConnectionContext as ConnectionState,
 } from './connectionTypes.js';
 import { timerMachine } from './timerMachine.js';
+import { authMachine } from './authMachine.js';
 import { saveConnection, deleteConnection } from '../functions/connectionManagement.js';
 import { createComponentLogger, FSMComponent } from '../logging/FSMLogger.js';
 import type { NormalizationSummary } from '../functions/activation/connectionNormalization.js';
@@ -30,11 +32,11 @@ export type ApplicationContext = {
   activeConnectionId?: string;
   connectionStates: Map<string, ConnectionState>;
   pendingAuthReminders: Map<string, AuthReminderState>;
-  extensionContext?: any;
+  extensionContext?: ExtensionContext;
   webviewPanel?: any;
-  timerActor?: any;
+  timerActor?: Actor<typeof timerMachine>;
   connectionActors: Map<string, any>;
-  authActors: Map<string, any>;
+  authActors: Map<string, Actor<typeof authMachine>>;
   dataActor?: any;
   webviewActor?: any;
   pendingWorkItems?: {
@@ -47,7 +49,7 @@ export type ApplicationContext = {
 };
 
 export type ApplicationEvent =
-  | { type: 'ACTIVATE'; context: any }
+  | { type: 'ACTIVATE'; context: ExtensionContext }
   | { type: 'DEACTIVATE' }
   | { type: 'CONNECTIONS_LOADED'; connections: ProjectConnection[] }
   | { type: 'CONNECTION_SELECTED'; connectionId: string }
@@ -60,7 +62,7 @@ export type ApplicationEvent =
       query?: string;
     }
   | { type: 'AUTHENTICATION_REQUIRED'; connectionId: string }
-  | { type: 'AUTHENTICATION_SUCCESS'; connectionId: string }
+  | { type: 'AUTHENTICATION_SUCCESS'; connectionId: string; token: string }
   | { type: 'AUTHENTICATION_FAILED'; connectionId: string; error: string }
   | { type: 'AUTH_REMINDER_SET'; connectionId: string; reminder: AuthReminderState }
   | { type: 'AUTH_REMINDER_CLEARED'; connectionId: string }
@@ -85,7 +87,10 @@ export type ApplicationEvent =
   | { type: 'SAVE_CONNECTION'; connection: ProjectConnection }
   | { type: 'DELETE_CONNECTION'; connectionId: string }
   | { type: 'CONFIRM_DELETE_CONNECTION'; connectionId: string }
-  | { type: 'CANCEL_CONNECTION_MANAGEMENT' };
+  | { type: 'CANCEL_CONNECTION_MANAGEMENT' }
+  // Events from child auth machines
+  | { type: 'xstate.snapshot.auth'; snapshot: any }
+  | { type: 'xstate.error.actor.auth'; error: any };
 
 type SetupUIResult = {
   connections: ProjectConnection[];
@@ -170,7 +175,7 @@ export const applicationMachine = createMachine(
                     target: 'waiting_for_panel',
                     actions: [
                       'storeConnectionsFromSetup',
-                      'initializeConnectionActorsFromSetup',
+                      'initializeAuthActors',
                       'selectInitialConnection',
                     ],
                   },
@@ -333,6 +338,26 @@ export const applicationMachine = createMachine(
       recordActivationError: assign({
         lastError: ({ event }) => (event.type === 'ERROR' ? event.error : undefined),
       }),
+      initializeAuthActors: assign({
+        authActors: ({ context, event }) => {
+          if (!isSetupUICompletionEvent(event) || !context.extensionContext) {
+            return context.authActors;
+          }
+          const { connections } = (event as { type: 'done.invoke.setupUI'; output: SetupUIResult })
+            .output;
+          const newAuthActors = new Map<string, Actor<typeof authMachine>>();
+          for (const conn of connections) {
+            const authActor = createActor(authMachine, {
+              input: {
+                connection: conn,
+                extensionContext: context.extensionContext,
+              },
+            }).start();
+            newAuthActors.set(conn.id, authActor);
+          }
+          return newAuthActors;
+        },
+      }),
       setActiveConnectionInContext: assign({
         activeConnectionId: ({ event, context }) =>
           event.type === 'CONNECTION_SELECTED' ? event.connectionId : context.activeConnectionId,
@@ -367,8 +392,8 @@ export const applicationMachine = createMachine(
       markDeactivating: assign({
         isDeactivating: true,
       }),
-      initializeChildActors: ({ context }) => {
-        context.timerActor = createActor(timerMachine).start();
+      initializeChildActors: ({ context: _context }) => {
+        _context.timerActor = createActor(timerMachine).start();
       },
       delegateConnectionActivation: ({ context, event }) => {
         if (event.type === 'CONNECTION_SELECTED') {
@@ -442,6 +467,6 @@ function startAuthentication(context: ApplicationContext, connectionId: string) 
   if (context.isDeactivating) return;
   const authActor = context.authActors.get(connectionId);
   if (authActor) {
-    authActor.send({ type: 'START_AUTH' });
+    authActor.send({ type: 'AUTHENTICATE' });
   }
 }
