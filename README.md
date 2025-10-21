@@ -242,7 +242,7 @@ Contributions welcome! Please open an issue for substantial changes. Built with 
 ```bash
 npm run build          # Build extension
 npm run test           # Run tests
-npm run test:integration # Integration tests
+npm run test:integration # Integration tests (temporarily disabled)
 ```
 
 ## 📄 Legal
