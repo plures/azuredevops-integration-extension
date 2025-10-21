@@ -1,4 +1,9 @@
-import type { ApplicationContext, AuthReminderState, ConnectionState, ProjectConnection } from '../machines/applicationMachine.js';
+import type {
+  ApplicationContext,
+  AuthReminderState,
+  ConnectionState,
+  ProjectConnection,
+} from '../machines/applicationMachine.js';
 
 export interface TabWorkItemViewModel {
   id: number;
@@ -18,6 +23,9 @@ export interface TabTimerViewModel {
 export interface TabAuthReminderViewModel {
   reason: string;
   detail?: string;
+  message?: string;
+  label?: string;
+  authMethod?: 'pat' | 'entra';
 }
 
 export interface TabStatusViewModel {
@@ -43,7 +51,8 @@ export function deriveTabViewModel(
   context: ApplicationContext,
   rawConnectionId: string | null | undefined
 ): TabViewModel {
-  const normalizedId = normalizeConnectionId(rawConnectionId) ?? normalizeConnectionId(context.activeConnectionId);
+  const normalizedId =
+    normalizeConnectionId(rawConnectionId) ?? normalizeConnectionId(context.activeConnectionId);
   const connection = selectConnection(context.connections, normalizedId);
   const connectionId = connection?.id ?? normalizedId ?? null;
   const connectionState = connectionId ? context.connectionStates.get(connectionId) : undefined;
@@ -70,9 +79,16 @@ export function deriveTimerViewModel(context: ApplicationContext): TabTimerViewM
   }
 
   try {
-    const snapshot = timerActor.getSnapshot() as { context?: Record<string, unknown>; matches?: (value: string) => boolean; value?: unknown } | null;
+    const snapshot = timerActor.getSnapshot() as {
+      context?: Record<string, unknown>;
+      matches?: (value: string) => boolean;
+      value?: unknown;
+    } | null;
     const snapshotContext = snapshot?.context ?? {};
-    const isRunning = typeof snapshot?.matches === 'function' ? snapshot.matches('running') : snapshot?.value === 'running';
+    const isRunning =
+      typeof snapshot?.matches === 'function'
+        ? snapshot.matches('running')
+        : snapshot?.value === 'running';
 
     return {
       isActive: Boolean(snapshot),
@@ -91,7 +107,10 @@ export function normalizeWorkItems(items: unknown[]): TabWorkItemViewModel[] {
     .filter((item): item is TabWorkItemViewModel => item !== null && item.id !== null);
 }
 
-function deriveWorkItems(context: ApplicationContext, connectionId: string | null): TabWorkItemViewModel[] {
+function deriveWorkItems(
+  context: ApplicationContext,
+  connectionId: string | null
+): TabWorkItemViewModel[] {
   return normalizeWorkItems(deriveRawWorkItems(context, connectionId));
 }
 
@@ -124,8 +143,11 @@ function deriveStatus(
   }
 
   const pending = context.pendingWorkItems;
-  const pendingMatches = pending && (!pending.connectionId || pending.connectionId === connectionId);
-  const waitingForData = Boolean(pendingMatches && (!Array.isArray(pending?.workItems) || pending.workItems.length === 0));
+  const pendingMatches =
+    pending && (!pending.connectionId || pending.connectionId === connectionId);
+  const waitingForData = Boolean(
+    pendingMatches && (!Array.isArray(pending?.workItems) || pending.workItems.length === 0)
+  );
   const connectionReady = Boolean(connectionState?.client && connectionState?.provider);
   const lastError = context.lastError?.message ?? null;
 
@@ -144,13 +166,16 @@ function deriveAuthReminder(
   }
 
   const reminder = reminders.get(connectionId);
-  if (!reminder) {
+  if (!reminder || reminder.status !== 'pending') {
     return null;
   }
 
   return {
     reason: reminder.reason,
     detail: reminder.detail,
+    message: reminder.message,
+    label: reminder.label ?? connectionId ?? undefined,
+    authMethod: reminder.authMethod,
   };
 }
 
@@ -162,14 +187,20 @@ function normalizeConnectionId(connectionId: string | null | undefined): string 
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function selectConnection(connections: ProjectConnection[] | undefined, connectionId: string | null): ProjectConnection | undefined {
+function selectConnection(
+  connections: ProjectConnection[] | undefined,
+  connectionId: string | null
+): ProjectConnection | undefined {
   if (!connectionId || !Array.isArray(connections)) {
     return undefined;
   }
   return connections.find((connection) => connection.id === connectionId);
 }
 
-function deriveConnectionLabel(connection: ProjectConnection | undefined, connectionId: string | null): string {
+function deriveConnectionLabel(
+  connection: ProjectConnection | undefined,
+  connectionId: string | null
+): string {
   if (connection?.project) {
     return connection.project;
   }

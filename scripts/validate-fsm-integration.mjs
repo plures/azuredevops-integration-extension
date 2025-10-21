@@ -41,8 +41,8 @@ function validate(description, condition, details = '') {
 
 // 1. Check that build artifacts exist
 console.log('📦 Build Artifacts:');
-const extensionExists = fs.existsSync(path.join(rootDir, 'dist', 'extension.js'));
-validate('Extension build exists', extensionExists, 'dist/extension.js found');
+const extensionExists = fs.existsSync(path.join(rootDir, 'dist', 'extension.cjs'));
+validate('Extension build exists', extensionExists, 'dist/extension.cjs found');
 
 const webviewJsExists = fs.existsSync(path.join(rootDir, 'media', 'webview', 'reactive-main.js'));
 validate('Webview JS build exists', webviewJsExists, 'media/webview/reactive-main.js found');

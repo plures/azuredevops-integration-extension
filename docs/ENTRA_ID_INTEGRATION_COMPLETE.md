@@ -153,7 +153,7 @@ Created comprehensive documentation:
 ### Compilation ✅
 
 - Build successful: `npm run compile`
-- Extension size: 2.0mb (dist/extension.js)
+- Extension size: 2.0mb (dist/extension.cjs)
 - Webview size: 185.7kb (media/webview/svelte-main.js)
 - No TypeScript errors
 - All lint warnings resolved

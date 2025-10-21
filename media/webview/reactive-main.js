@@ -7871,7 +7871,7 @@ ${component_stack}
       isActivated: true
     });
     const reminderMap = /* @__PURE__ */ new Map();
-    const ensureReminder = (connectionId, reason, detail) => {
+    const ensureReminder = (connectionId, reminder) => {
       if (!connectionId) {
         return;
       }
@@ -7879,26 +7879,42 @@ ${component_stack}
       if (!normalizedId) {
         return;
       }
-      const userFacingLabel = connections4.find((connection) => connection.id === normalizedId)?.label ?? normalizedId;
+      const userFacingLabel = typeof reminder?.label === "string" && reminder.label.trim().length > 0 ? reminder.label.trim() : connections4.find((connection) => connection.id === normalizedId)?.label ?? normalizedId;
       reminderMap.set(normalizedId, {
         connectionId: normalizedId,
-        reason,
-        detail,
+        reason: reminder?.reason,
+        detail: reminder?.detail,
+        message: reminder?.message,
+        authMethod: reminder?.authMethod,
         label: userFacingLabel
       });
     };
     if (Array.isArray(context.authReminders)) {
       for (const reminder of context.authReminders) {
-        ensureReminder(reminder?.connectionId, reminder?.reason, reminder?.detail);
+        ensureReminder(reminder?.connectionId, {
+          reason: reminder?.reason,
+          detail: reminder?.detail,
+          message: reminder?.message,
+          label: reminder?.label,
+          authMethod: reminder?.authMethod
+        });
       }
     }
     if (context.tab?.authReminder) {
-      ensureReminder(context.tab.connectionId ?? activeConnectionId, context.tab.authReminder.reason, context.tab.authReminder.detail);
+      ensureReminder(context.tab.connectionId ?? activeConnectionId, {
+        reason: context.tab.authReminder.reason,
+        detail: context.tab.authReminder.detail,
+        message: context.tab.authReminder.message,
+        label: context.tab.authReminder.label,
+        authMethod: context.tab.authReminder.authMethod
+      });
     }
     const authRemindersPayload = Array.from(reminderMap.values()).map((reminder) => ({
       connectionId: reminder.connectionId,
       reason: reminder.reason,
       detail: reminder.detail,
+      message: reminder.message,
+      authMethod: reminder.authMethod,
       label: reminder.label
     }));
     handleExtensionMessage({

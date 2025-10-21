@@ -10,7 +10,7 @@ This document captures implementation details that were trimmed from the main RE
 
 ## ESM-first build
 
-- The repo is ESM‑first (`"type": "module"`). The extension is bundled with esbuild to `dist/extension.js` and runs on VS Code’s Node 20 runtime.
+- The repo is ESM‑first (`"type": "module"`). The extension is bundled with esbuild to `dist/extension.cjs` and runs on VS Code’s Node 20 runtime.
 - Unit tests run via the Mocha CLI with the ts-node ESM loader; integration tests run via `@vscode/test-electron`.
 
 ## Content Security Policy (CSP)

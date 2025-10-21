@@ -63,6 +63,9 @@ export interface SharedContextPayload {
     connectionId: string;
     reason: string;
     detail?: string;
+    message?: string;
+    label?: string;
+    authMethod?: 'pat' | 'entra';
   }>;
   connectionStateSummaries: Array<{
     id: string;
@@ -127,12 +130,55 @@ export function createSharedContextBridge({
 
     const safeConnections: SharedConnectionView[] = resolvedConnections.map((connection) => ({
       id: connection.id,
-      label: connection.project || connection.id,
+      label:
+        typeof connection.label === 'string' && connection.label.trim().length > 0
+          ? connection.label.trim()
+          : connection.project || connection.id,
       organization: connection.organization,
       project: connection.project,
       authMethod: connection.authMethod,
       lastUsed: connectionStatesSafeTimestamp(augmentedContext, connection.id),
     }));
+
+    const connectionLabelLookup = new Map(
+      resolvedConnections.map((connection) => {
+        const resolvedLabel =
+          typeof connection.label === 'string' && connection.label.trim().length > 0
+            ? connection.label.trim()
+            : connection.project || connection.id;
+        return [connection.id, resolvedLabel] as const;
+      })
+    );
+
+    const normalizeReminder = (
+      connectionId: string,
+      reminder: {
+        reason?: string;
+        detail?: string;
+        message?: string;
+        label?: string;
+        authMethod?: 'pat' | 'entra' | undefined;
+      }
+    ) => {
+      const normalizedId = typeof connectionId === 'string' ? connectionId.trim() : '';
+      if (!normalizedId) {
+        return null;
+      }
+
+      const resolvedLabel =
+        typeof reminder?.label === 'string' && reminder.label.trim().length > 0
+          ? reminder.label.trim()
+          : (connectionLabelLookup.get(normalizedId) ?? normalizedId);
+
+      return {
+        connectionId: normalizedId,
+        reason: reminder?.reason ?? 'authFailed',
+        detail: reminder?.detail,
+        message: reminder?.message,
+        label: resolvedLabel,
+        authMethod: reminder?.authMethod,
+      };
+    };
 
     const normalizedWorkItems = normalizeWorkItems(
       Array.isArray(augmentedContext.pendingWorkItems?.workItems)
@@ -151,7 +197,10 @@ export function createSharedContextBridge({
     );
 
     const timerSnapshot = deriveTimerViewModel(augmentedContext);
-    const tabView = deriveTabViewModel(augmentedContext, augmentedContext.activeConnectionId ?? null);
+    const tabView = deriveTabViewModel(
+      augmentedContext,
+      augmentedContext.activeConnectionId ?? null
+    );
 
     const connectionStateSummaries = normalizeConnectionStateSummaries(
       augmentedContext.connectionStates
@@ -165,19 +214,29 @@ export function createSharedContextBridge({
               typeof reminder?.connectionId === 'string' &&
               reminder.connectionId.trim().length > 0
           )
-          .map((reminder) => ({
-            connectionId: reminder.connectionId,
-            reason: reminder?.reason ?? 'authFailed',
-            detail: reminder?.detail,
-          }))
+          .map((reminder) =>
+            normalizeReminder(reminder.connectionId, {
+              reason: reminder?.reason,
+              detail: reminder?.detail,
+              message: reminder?.message,
+              label: reminder?.label,
+              authMethod: reminder?.authMethod,
+            })
+          )
+          .filter((reminder): reminder is NonNullable<typeof reminder> => reminder !== null)
       : context.pendingAuthReminders instanceof Map
         ? Array.from(context.pendingAuthReminders.entries())
             .filter(([, reminder]) => reminder?.status !== 'dismissed')
-            .map(([connectionId, reminder]) => ({
-              connectionId,
-              reason: reminder?.reason ?? 'authFailed',
-              detail: reminder?.detail,
-            }))
+            .map(([connectionId, reminder]) =>
+              normalizeReminder(connectionId, {
+                reason: reminder?.reason,
+                detail: reminder?.detail,
+                message: reminder?.message,
+                label: reminder?.label,
+                authMethod: reminder?.authMethod,
+              })
+            )
+            .filter((reminder): reminder is NonNullable<typeof reminder> => reminder !== null)
         : [];
 
     const lastError = augmentedContext.lastError
@@ -205,7 +264,10 @@ export function createSharedContextBridge({
     };
   }
 
-  function connectionStatesSafeTimestamp(context: ApplicationContext, connectionId: string): string | undefined {
+  function connectionStatesSafeTimestamp(
+    context: ApplicationContext,
+    connectionId: string
+  ): string | undefined {
     try {
       const rawState = context.connectionStates?.get(connectionId);
       if (!rawState) {
@@ -214,12 +276,18 @@ export function createSharedContextBridge({
       const inferred = (rawState as Record<string, unknown>).lastUsed;
       return typeof inferred === 'string' ? inferred : undefined;
     } catch (error) {
-      log('connectionStateTimestampExtractionFailed', { connectionId, error: serializeError(error) });
+      log('connectionStateTimestampExtractionFailed', {
+        connectionId,
+        error: serializeError(error),
+      });
       return undefined;
     }
   }
 
-  function maybePostContext(state: StateFrom<typeof applicationMachine> | undefined, reason: string) {
+  function maybePostContext(
+    state: StateFrom<typeof applicationMachine> | undefined,
+    reason: string
+  ) {
     if (!currentWebview || !state) {
       return;
     }
@@ -253,7 +321,7 @@ export function createSharedContextBridge({
   }
 
   function synchronizeImmediately(reason: string) {
-  const snapshot = applicationActor.getSnapshot?.();
+    const snapshot = applicationActor.getSnapshot?.();
     if (!snapshot) {
       log('snapshotUnavailable', { reason });
       return;
@@ -271,9 +339,7 @@ export function createSharedContextBridge({
     }
 
     if (isRecord(rawStates)) {
-      return Object.entries(rawStates).map(([id, state]) =>
-        createConnectionSummary(id, state)
-      );
+      return Object.entries(rawStates).map(([id, state]) => createConnectionSummary(id, state));
     }
 
     return [];
@@ -287,9 +353,7 @@ export function createSharedContextBridge({
     const explicitConnected =
       typeof baseRecord.isConnected === 'boolean' ? baseRecord.isConnected : undefined;
     const explicitReauth =
-      typeof baseRecord.reauthInProgress === 'boolean'
-        ? baseRecord.reauthInProgress
-        : undefined;
+      typeof baseRecord.reauthInProgress === 'boolean' ? baseRecord.reauthInProgress : undefined;
 
     const stateToken = toLowerCaseString(baseRecord.state);
     const statusToken = toLowerCaseString(baseRecord.status);
@@ -311,19 +375,15 @@ export function createSharedContextBridge({
       (connectedToken || readyToken);
 
     const providerCandidate =
-      baseRecord.provider ??
-      baseRecord.hasProvider ??
-      baseRecord.workItemsProvider;
+      baseRecord.provider ?? baseRecord.hasProvider ?? baseRecord.workItemsProvider;
 
     const reauthCandidate =
-      explicitReauth ??
-      baseRecord.isAuthenticating ??
-      baseRecord.authInProgress ??
-      authToken;
+      explicitReauth ?? baseRecord.isAuthenticating ?? baseRecord.authInProgress ?? authToken;
 
     const hasClient = Boolean(clientCandidate);
     const hasProvider = Boolean(providerCandidate);
-    const isConnected = explicitConnected ?? Boolean(hasClient || hasProvider || connectedToken || readyToken);
+    const isConnected =
+      explicitConnected ?? Boolean(hasClient || hasProvider || connectedToken || readyToken);
 
     return {
       id,
@@ -398,7 +458,8 @@ export function createSharedContextBridge({
       organization,
       project,
       team: readString(value.team) ?? undefined,
-      authMethod: value.authMethod === 'entra' ? 'entra' : value.authMethod === 'pat' ? 'pat' : undefined,
+      authMethod:
+        value.authMethod === 'entra' ? 'entra' : value.authMethod === 'pat' ? 'pat' : undefined,
       baseUrl: readString(value.baseUrl) ?? undefined,
       apiBaseUrl: readString(value.apiBaseUrl) ?? undefined,
       identityName: readString(value.identityName) ?? undefined,

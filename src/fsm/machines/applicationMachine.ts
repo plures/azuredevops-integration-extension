@@ -30,6 +30,7 @@ import type {
   NormalizationSummary,
 } from '../functions/activation/connectionNormalization.js';
 import { migrateGlobalPATToConnections } from '../functions/secrets/patMigration.js';
+import { buildAuthReminder } from '../functions/auth/buildAuthReminder.js';
 
 // ============================================================================
 // CONTEXT-PRESERVING ASSIGN HELPER
@@ -103,6 +104,12 @@ export type ApplicationEvent =
   | { type: 'AUTH_REMINDER_SET'; connectionId: string; reminder: AuthReminderState }
   | { type: 'AUTH_REMINDER_CLEARED'; connectionId: string }
   | { type: 'AUTH_REMINDER_DISMISSED'; connectionId: string; snoozeUntil?: number }
+  | {
+      type: 'AUTH_REMINDER_REQUESTED';
+      connectionId: string;
+      reason: AuthReminderReason;
+      detail?: string;
+    }
   | { type: 'WEBVIEW_READY' }
   | { type: 'SHOW_WEBVIEW' }
   | { type: 'WEBVIEW_MESSAGE'; message: any }
@@ -948,6 +955,9 @@ export const applicationMachine = createMachine(
               AUTHENTICATION_FAILED: {
                 actions: 'recordAuthenticationFailure',
               },
+              AUTH_REMINDER_REQUESTED: {
+                actions: 'handleAuthReminderRequest',
+              },
               AUTH_REMINDER_SET: {
                 actions: 'recordAuthReminder',
               },
@@ -1018,6 +1028,9 @@ export const applicationMachine = createMachine(
               AUTHENTICATION_FAILED: {
                 actions: 'recordAuthenticationFailure',
               },
+              AUTH_REMINDER_REQUESTED: {
+                actions: 'handleAuthReminderRequest',
+              },
               AUTH_REMINDER_SET: {
                 actions: 'recordAuthReminder',
               },
@@ -1041,6 +1054,9 @@ export const applicationMachine = createMachine(
               },
               AUTHENTICATION_FAILED: {
                 actions: 'recordAuthenticationFailure',
+              },
+              AUTH_REMINDER_REQUESTED: {
+                actions: 'handleAuthReminderRequest',
               },
               AUTH_REMINDER_SET: {
                 actions: 'recordAuthReminder',
@@ -1364,6 +1380,29 @@ export const applicationMachine = createMachine(
         return {
           ...context, // Preserve ALL existing context properties
           pendingAuthReminders: newPendingAuthReminders, // Only change what we need
+        };
+      }),
+      handleAuthReminderRequest: assign(({ context, event }) => {
+        if (event.type !== 'AUTH_REMINDER_REQUESTED') {
+          return context;
+        }
+
+        const reminder = buildAuthReminder(context, {
+          connectionId: event.connectionId,
+          reason: event.reason,
+          detail: event.detail,
+        });
+
+        if (!reminder) {
+          return context;
+        }
+
+        const newPendingAuthReminders = new Map(context.pendingAuthReminders);
+        newPendingAuthReminders.set(event.connectionId, reminder);
+
+        return {
+          ...context,
+          pendingAuthReminders: newPendingAuthReminders,
         };
       }),
       recordAuthReminder: assign(({ context, event }) => {
@@ -2075,10 +2114,12 @@ export type ConnectionState = {
   lastInteractiveAuthAt?: number;
 };
 
+export type AuthReminderReason = 'tokenExpired' | 'refreshFailed' | 'authFailed';
+
 export type AuthReminderState = {
   connectionId: string;
   status: 'pending' | 'dismissed';
-  reason: string;
+  reason: AuthReminderReason;
   detail?: string;
   label?: string;
   message?: string;

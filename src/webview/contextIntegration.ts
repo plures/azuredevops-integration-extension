@@ -1,6 +1,6 @@
 /**
  * Context-Driven Webview Integration
- * 
+ *
  * Simple reactive approach that works with the ContextManager
  * from the extension side.
  */
@@ -33,6 +33,9 @@ export interface TabStatusViewModel {
 export interface TabAuthReminderViewModel {
   reason: string;
   detail?: string;
+  message?: string;
+  label?: string;
+  authMethod?: AuthMethod;
 }
 
 export interface TabViewModel {
@@ -65,6 +68,9 @@ export interface ContextState {
     connectionId: string;
     reason: string;
     detail?: string;
+    message?: string;
+    label?: string;
+    authMethod?: AuthMethod;
   }>;
   tab?: TabViewModel;
 }
@@ -78,18 +84,15 @@ export const contextState: Writable<ContextState | null> = writable(null);
 
 // Derived stores for specific UI needs
 export const connections: Readable<any[]> = derived(
-  contextState, 
+  contextState,
   ($state) => $state?.connections || []
 );
 
-export const activeConnection: Readable<any | null> = derived(
-  [contextState], 
-  ([$state]) => {
-    if (!$state) return null;
-    const targetId = $state.tab?.connectionId ?? $state.activeConnectionId;
-    return $state.connections.find(c => c.id === targetId) || null;
-  }
-);
+export const activeConnection: Readable<any | null> = derived([contextState], ([$state]) => {
+  if (!$state) return null;
+  const targetId = $state.tab?.connectionId ?? $state.activeConnectionId;
+  return $state.connections.find((c) => c.id === targetId) || null;
+});
 
 export const workItems: Readable<any[]> = derived(
   contextState,
@@ -98,7 +101,8 @@ export const workItems: Readable<any[]> = derived(
 
 export const timerState: Readable<any> = derived(
   contextState,
-  ($state) => $state?.tab?.timer || $state?.timer || { isActive: false, isRunning: false, elapsed: 0 }
+  ($state) =>
+    $state?.tab?.timer || $state?.timer || { isActive: false, isRunning: false, elapsed: 0 }
 );
 
 export const isLoading: Readable<boolean> = derived(
@@ -116,7 +120,7 @@ export const contextActions = {
     if (window.vscode) {
       window.vscode.postMessage({
         type: 'switchConnection',
-        connectionId
+        connectionId,
       });
     }
   },
@@ -126,7 +130,7 @@ export const contextActions = {
     if (window.vscode) {
       window.vscode.postMessage({
         type: 'startTimer',
-        workItemId: parseInt(workItemId)
+        workItemId: parseInt(workItemId),
       });
     }
   },
@@ -135,7 +139,7 @@ export const contextActions = {
     console.log('[Webview Context] Stopping timer');
     if (window.vscode) {
       window.vscode.postMessage({
-        type: 'stopTimer'
+        type: 'stopTimer',
       });
     }
   },
@@ -144,10 +148,10 @@ export const contextActions = {
     console.log('[Webview Context] Refreshing work items');
     if (window.vscode) {
       window.vscode.postMessage({
-        type: 'refreshWorkItems'
+        type: 'refreshWorkItems',
       });
     }
-  }
+  },
 };
 
 // ============================================================================
@@ -165,7 +169,7 @@ function handleContextMessage(event: MessageEvent) {
 // Setup message listener
 if (typeof window !== 'undefined') {
   window.addEventListener('message', handleContextMessage);
-  
+
   // Request initial context
   if (window.vscode) {
     window.vscode.postMessage({ type: 'getContext' });
@@ -179,21 +183,21 @@ if (typeof window !== 'undefined') {
 export const contextDebug = {
   getState: () => {
     let currentState: ContextState | null = null;
-    const unsubscribe = contextState.subscribe(state => {
+    const unsubscribe = contextState.subscribe((state) => {
       currentState = state;
     });
     unsubscribe();
     return currentState;
   },
-  
+
   logState: () => {
     console.log('[Context Debug] Current state:', contextDebug.getState());
   },
-  
+
   testSwitchConnection: (connectionId: string) => {
     console.log('[Context Debug] Testing connection switch to:', connectionId);
     contextActions.switchConnection(connectionId);
-  }
+  },
 };
 
 // Make available globally for debugging

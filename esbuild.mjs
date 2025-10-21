@@ -16,7 +16,7 @@ async function buildExtension() {
     platform: 'node',
     target: ['node20'],
     external: ['vscode'],
-    outfile: path.join(__dirname, 'dist', 'extension.js'),
+  outfile: path.join(__dirname, 'dist', 'extension.cjs'),
     sourcemap: !isProd,
     minify: isProd,
     format: 'cjs',
@@ -25,7 +25,7 @@ async function buildExtension() {
     resolveExtensions: ['.ts', '.js', '.json'],
   });
   console.log(
-    `[esbuild] Built extension (CommonJS${isProd ? ' prod' : ''}) -> dist/extension.js`
+  `[esbuild] Built extension (CommonJS${isProd ? ' prod' : ''}) -> dist/extension.cjs`
   );
   return ext;
 }

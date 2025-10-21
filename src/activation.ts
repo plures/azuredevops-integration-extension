@@ -58,13 +58,12 @@ import { ConnectionAdapter } from './fsm/adapters/ConnectionAdapter.js';
 import { getConnectionFSMManager } from './fsm/ConnectionFSMManager.js';
 import type {
   AuthReminderState as FSMAuthReminderState,
+  AuthReminderReason,
   ConnectionState,
   ProjectConnection,
 } from './fsm/machines/applicationMachine.js';
 
 type AuthMethod = 'pat' | 'entra';
-type AuthReminderStatus = 'pending' | 'dismissed';
-type AuthReminderReason = 'tokenExpired' | 'refreshFailed' | 'authFailed';
 type AuthReminderState = Omit<FSMAuthReminderState, 'reason'> & {
   reason: AuthReminderReason;
   detail?: string;
@@ -374,54 +373,12 @@ function ensureAuthReminder(
   reason: AuthReminderReason,
   options: { detail?: string } = {}
 ): void {
-  const state = connectionStates.get(connectionId);
-  if (!state) return;
-
-  const now = Date.now();
-  const pendingAuthReminders = getPendingAuthReminderMap();
-  const existing = pendingAuthReminders.get(connectionId);
-  if (existing) {
-    if (existing.status === 'pending') {
-      return;
-    }
-
-    if (existing.status === 'dismissed' && existing.snoozeUntil && existing.snoozeUntil > now) {
-      return;
-    }
-  }
-
-  const label = describeConnection(state.config);
-  let message: string;
-  switch (reason) {
-    case 'refreshFailed':
-      message = `Microsoft Entra sign-in required for ${label}: token refresh failed.`;
-      break;
-    case 'authFailed':
-      message = `Microsoft Entra sign-in required for ${label}.`;
-      break;
-    default:
-      message = `Microsoft Entra access expired for ${label}.`;
-      break;
-  }
-
-  const baseDetails: string[] = [];
-  if (options.detail) baseDetails.push(options.detail.trim());
-  const webviewDetails = [
-    ...baseDetails,
-    'Use Sign In here or select the authentication status bar item to reconnect.',
-  ];
-
-  const reminderState: AuthReminderState = {
+  dispatchApplicationEvent({
+    type: 'AUTH_REMINDER_REQUESTED',
     connectionId,
-    status: 'pending',
     reason,
-    detail: webviewDetails.join('\n\n'),
-    message,
-    label,
-    authMethod: state.config.authMethod ?? 'pat',
-  };
-
-  dispatchApplicationEvent({ type: 'AUTH_REMINDER_SET', connectionId, reminder: reminderState });
+    detail: options.detail,
+  });
 }
 
 function triggerAuthReminderSignIn(
@@ -489,7 +446,7 @@ function clearAuthReminder(connectionId: string | undefined): void {
     return;
   }
 
-  dispatchApplicationEvent({ type: 'AUTH_REMINDER_CLEAR', connectionId });
+  dispatchApplicationEvent({ type: 'AUTH_REMINDER_CLEARED', connectionId });
 
   if (panel) {
     sendToWebview({
@@ -2498,16 +2455,8 @@ async function handleLegacyMessage(msg: any) {
         if (existingReminder) {
           send({ type: 'AUTH_REMINDER_DISMISSED', connectionId, snoozeUntil });
         } else {
-          send({
-            type: 'AUTH_REMINDER_SET',
-            connectionId,
-            reminder: {
-              connectionId,
-              status: 'dismissed',
-              reason: 'authFailed',
-              snoozeUntil,
-            },
-          });
+          send({ type: 'AUTH_REMINDER_REQUESTED', connectionId, reason: 'authFailed' });
+          send({ type: 'AUTH_REMINDER_DISMISSED', connectionId, snoozeUntil });
         }
         break;
       }

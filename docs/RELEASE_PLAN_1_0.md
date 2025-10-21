@@ -10,7 +10,7 @@ Pre-release checklist (must be completed before publishing):
 
 1. Bump package.json version to 1.0.0 and update CHANGELOG.md with highlights and migration notes.
 2. Verify license (MIT) and include LICENSE.txt in package.
-3. Ensure `npm run build` produces `dist/extension.js` and `media/webview` assets.
+3. Ensure `npm run build` produces `dist/extension.cjs` and `media/webview` assets.
 4. Ensure `files` field in package.json includes only necessary runtime assets (dist, media, icons, license, README, CHANGELOG).
 5. Run `npm test` locally and fix failures. Convert timer harness to unit tests (tests/timer.test.ts).
 6. Add integration smoke test using @vscode/test-electron to activate the extension and verify the webview responds to a simple ping.

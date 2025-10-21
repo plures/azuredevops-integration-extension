@@ -1,6 +1,6 @@
 /**
  * Svelte 5 + Universal Reactivity Entry Point
- * 
+ *
  * This uses the new .svelte.ts reactive patterns with FSM integration.
  * Components now reactively respond to FSM state changes through universal reactivity.
  */
@@ -15,11 +15,10 @@ import { integrationActions } from './store.svelte.js';
 // import ReactiveApp from './ReactiveApp-Step3.svelte';
 // import ReactiveApp from './ReactiveApp-Step4.svelte';
 // import ReactiveApp from './ReactiveApp.svelte';
-// @ts-expect-error Svelte component resolved by bundler during webview build
 import ReactiveApp from './ReactiveApp.svelte';
 
 // Simplified imports - comment out complex store dependencies for now
-// import { 
+// import {
 //   fsm,
 //   actions as fsmActions,
 //   startFSM,
@@ -33,7 +32,7 @@ import ReactiveApp from './ReactiveApp.svelte';
 //   handleExtensionMessage
 // } from './fsm-webview.svelte.ts';
 
-// import { 
+// import {
 //   ui,
 //   connections,
 //   uiActions,
@@ -74,13 +73,22 @@ function postMessage(message: any) {
       vscode.postMessage(message);
       console.log('[reactive-main] ✅ Message sent via VS Code API:', message.type);
     } else {
-      console.warn('[reactive-main] VS Code API not available, trying context bridge for:', message.type);
-      
+      console.warn(
+        '[reactive-main] VS Code API not available, trying context bridge for:',
+        message.type
+      );
+
       // Use context bridge for connection switching and timer control
       if (message.type === 'switchConnection' && message.connectionId) {
         if ((window as any).__EXTENSION_CONTEXT_MANAGER__) {
-          (window as any).__EXTENSION_CONTEXT_MANAGER__.applyAction('setActiveConnection', message.connectionId);
-          console.log('[reactive-main] ✅ Connection switch via context bridge:', message.connectionId);
+          (window as any).__EXTENSION_CONTEXT_MANAGER__.applyAction(
+            'setActiveConnection',
+            message.connectionId
+          );
+          console.log(
+            '[reactive-main] ✅ Connection switch via context bridge:',
+            message.connectionId
+          );
         } else {
           console.error('[reactive-main] Context bridge not available for connection switching');
         }
@@ -148,11 +156,7 @@ function toLegacyConnection(entry: any): LegacyConnectionEntry | null {
       ? record.project.trim()
       : undefined;
   const authMethod =
-    record.authMethod === 'entra'
-      ? 'entra'
-      : record.authMethod === 'pat'
-        ? 'pat'
-        : undefined;
+    record.authMethod === 'entra' ? 'entra' : record.authMethod === 'pat' ? 'pat' : undefined;
   const url = typeof record.baseUrl === 'string' ? record.baseUrl : undefined;
 
   return {
@@ -213,8 +217,9 @@ function digestContext(context: ContextState): string {
         }
       : null;
     const authReminderKeys = Array.isArray(context.authReminders)
-      ? context.authReminders.map((reminder) =>
-          `${reminder.connectionId ?? ''}:${reminder.reason ?? ''}:${reminder.detail ?? ''}`
+      ? context.authReminders.map(
+          (reminder) =>
+            `${reminder.connectionId ?? ''}:${reminder.reason ?? ''}:${reminder.detail ?? ''}`
         )
       : [];
     const tabReminderKey = context.tab?.authReminder
@@ -246,7 +251,9 @@ function hydrateLegacyStoresFromContext(context: ContextState): void {
   lastContextDigest = digest;
 
   const connections = Array.isArray(context.connections)
-    ? context.connections.map(toLegacyConnection).filter((entry): entry is LegacyConnectionEntry => entry !== null)
+    ? context.connections
+        .map(toLegacyConnection)
+        .filter((entry): entry is LegacyConnectionEntry => entry !== null)
     : [];
 
   const activeConnectionId =
@@ -288,14 +295,28 @@ function hydrateLegacyStoresFromContext(context: ContextState): void {
     isActivated: true,
   });
 
-  const reminderMap = new Map<string, {
-    connectionId: string;
-    reason?: string;
-    detail?: string;
-    label: string;
-  }>();
+  const reminderMap = new Map<
+    string,
+    {
+      connectionId: string;
+      reason?: string;
+      detail?: string;
+      message?: string;
+      authMethod?: string;
+      label: string;
+    }
+  >();
 
-  const ensureReminder = (connectionId: string | null | undefined, reason?: string, detail?: string) => {
+  const ensureReminder = (
+    connectionId: string | null | undefined,
+    reminder?: {
+      reason?: string;
+      detail?: string;
+      message?: string;
+      label?: string;
+      authMethod?: string;
+    }
+  ) => {
     if (!connectionId) {
       return;
     }
@@ -303,29 +324,48 @@ function hydrateLegacyStoresFromContext(context: ContextState): void {
     if (!normalizedId) {
       return;
     }
-    const userFacingLabel = connections.find((connection) => connection.id === normalizedId)?.label ?? normalizedId;
+    const userFacingLabel =
+      typeof reminder?.label === 'string' && reminder.label.trim().length > 0
+        ? reminder.label.trim()
+        : (connections.find((connection) => connection.id === normalizedId)?.label ?? normalizedId);
     reminderMap.set(normalizedId, {
       connectionId: normalizedId,
-      reason,
-      detail,
+      reason: reminder?.reason,
+      detail: reminder?.detail,
+      message: reminder?.message,
+      authMethod: reminder?.authMethod,
       label: userFacingLabel,
     });
   };
 
   if (Array.isArray(context.authReminders)) {
     for (const reminder of context.authReminders) {
-      ensureReminder(reminder?.connectionId, reminder?.reason, reminder?.detail);
+      ensureReminder(reminder?.connectionId, {
+        reason: reminder?.reason,
+        detail: reminder?.detail,
+        message: reminder?.message,
+        label: reminder?.label,
+        authMethod: reminder?.authMethod,
+      });
     }
   }
 
   if (context.tab?.authReminder) {
-    ensureReminder(context.tab.connectionId ?? activeConnectionId, context.tab.authReminder.reason, context.tab.authReminder.detail);
+    ensureReminder(context.tab.connectionId ?? activeConnectionId, {
+      reason: context.tab.authReminder.reason,
+      detail: context.tab.authReminder.detail,
+      message: context.tab.authReminder.message,
+      label: context.tab.authReminder.label,
+      authMethod: context.tab.authReminder.authMethod,
+    });
   }
 
   const authRemindersPayload = Array.from(reminderMap.values()).map((reminder) => ({
     connectionId: reminder.connectionId,
     reason: reminder.reason,
     detail: reminder.detail,
+    message: reminder.message,
+    authMethod: reminder.authMethod,
     label: reminder.label,
   }));
 
@@ -357,7 +397,7 @@ function processExtensionMessage(message: any): void {
 function initializeApplication() {
   // Simplified initialization - comment out complex FSM for debugging
   // startFSM();
-  
+
   // Handle direct store update messages only
   window.addEventListener('message', (event) => {
     processExtensionMessage(event.data);
@@ -370,17 +410,17 @@ function initializeApplication() {
       }
     });
   }
-  
+
   // Notify that webview is ready
   console.log('[reactive-main] Webview ready - using simplified setup');
-  
+
   // Log webview initialization with mock data
   console.log('[reactive-main] Application initialized with simplified setup', {
     isInitializing: false,
     isActivated: true,
     connectionsCount: 0,
   });
-  
+
   // Request initial data
   postMessage({ type: 'ready' });
 }
@@ -395,13 +435,13 @@ function initializeApplication() {
  */
 function mountReactiveApp() {
   console.log('🔵 [reactive-main] mountReactiveApp called');
-  
+
   const target = document.getElementById('svelte-root');
-  
+
   if (!target) {
     throw new Error('Could not find svelte-root element');
   }
-  
+
   console.log('🔵 [reactive-main] Found svelte-root element, mounting ReactiveApp...');
 
   // Debug initial state with mock data
@@ -413,7 +453,7 @@ function mountReactiveApp() {
   });
 
   console.log('[reactive-main] Mounting ReactiveApp based on proven pattern');
-  
+
   // Mount the component for debugging
   const app = mount(ReactiveApp, {
     target,
@@ -426,7 +466,7 @@ function mountReactiveApp() {
 
   // Debug reactive state changes (no manual subscriptions needed with universal reactivity)
   console.log('[reactive-main] ✅ App mounted successfully with universal reactivity');
-  
+
   return app;
 }
 
@@ -443,15 +483,15 @@ function mountReactiveApp() {
  */
 try {
   console.log('🔵 [reactive-main] Starting initialization...');
-  
+
   initializeApplication();
   console.log('🔵 [reactive-main] Application initialized, mounting ReactiveApp...');
-  
+
   const app = mountReactiveApp();
   console.log('🟢 [reactive-main] ReactiveApp component mounted and running (fixed version)');
-  
+
   console.log('[reactive-main] Reactive webview successfully initialized');
-  
+
   // Export for debugging (simplified)
   (window as any).__REACTIVE_APP__ = {
     app,
@@ -460,10 +500,9 @@ try {
     // fsmDebug,
     // storeDebug
   };
-  
 } catch (error) {
   console.error('❌ [reactive-main] Failed to initialize reactive webview:', error);
-  
+
   // Fallback error display
   const root = document.getElementById('svelte-root');
   if (root) {
