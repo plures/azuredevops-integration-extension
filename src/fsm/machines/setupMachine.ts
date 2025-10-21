@@ -6,6 +6,10 @@
 import { createMachine, assign, fromPromise } from 'xstate';
 import * as vscode from 'vscode';
 import { randomUUID } from 'crypto';
+import {
+  testAzureDevOpsConnection,
+  type ParsedAzureDevOpsUrl,
+} from '../../azureDevOpsUrlParser.js';
 
 // Define the connection type locally since it's defined in activation.ts
 type ProjectConnection = {
@@ -22,6 +26,12 @@ type ProjectConnection = {
   apiBaseUrl?: string;
 };
 
+export interface ExistingConnectionTestResult {
+  success: boolean;
+  message: string;
+  error?: string;
+}
+
 // Setup machine context
 export interface SetupMachineContext {
   // Step data
@@ -34,19 +44,21 @@ export interface SetupMachineContext {
   patKey?: string;
   tenantId?: string;
   identityName?: string;
-  
+
   // Process state
   currentStep: 'url' | 'auth' | 'credentials' | 'test' | 'complete';
   existingConnections: ProjectConnection[];
   skipInitialChoice?: boolean;
-  
+
   // Extension context (passed from service)
   extensionContext?: vscode.ExtensionContext;
-  
+
   // Results
   connectionId?: string;
   removedConnectionId?: string;
   error?: string;
+  testingExistingConnection?: ProjectConnection;
+  lastExistingTestResult?: ExistingConnectionTestResult;
 }
 
 // Result type for FSM setup consumers
@@ -67,6 +79,8 @@ export type SetupMachineEvent =
   | { type: 'SAVE_CONNECTION' }
   | { type: 'MANAGE_EXISTING' }
   | { type: 'REMOVE_CONNECTION'; connectionId: string }
+  | { type: 'TEST_EXISTING_CONNECTION'; connection: ProjectConnection }
+  | { type: 'CONTINUE_MANAGING' }
   | { type: 'CANCEL' }
   | { type: 'BACK' }
   | { type: 'RETRY' };
@@ -74,11 +88,11 @@ export type SetupMachineEvent =
 // Actors for async operations
 const parseWorkItemUrl = fromPromise(async ({ input }: { input: { url: string } }) => {
   const { url } = input;
-  
+
   // Parse Azure DevOps work item URL
   // Format: https://dev.azure.com/{org}/{project}/_workitems/edit/{id}
   // Format: https://{server}/{collection}/{project}/_workitems/edit/{id} (on-prem)
-  
+
   const devAzureMatch = url.match(/https:\/\/dev\.azure\.com\/([^/]+)\/([^/]+)\/_workitems/);
   if (devAzureMatch) {
     return {
@@ -88,7 +102,7 @@ const parseWorkItemUrl = fromPromise(async ({ input }: { input: { url: string } 
       apiBaseUrl: `https://dev.azure.com/${devAzureMatch[1]}`,
     };
   }
-  
+
   // On-premises TFS/Azure DevOps Server
   const onPremMatch = url.match(/https?:\/\/([^/]+)\/([^/]+)\/([^/]+)\/_workitems/);
   if (onPremMatch) {
@@ -102,35 +116,35 @@ const parseWorkItemUrl = fromPromise(async ({ input }: { input: { url: string } 
       apiBaseUrl: `https://${server}/${collection}`,
     };
   }
-  
+
   throw new Error('Invalid work item URL format');
 });
 
 const testConnection = fromPromise(async ({ input }: { input: SetupMachineContext }) => {
   const { organization, project, baseUrl, authMethod, patKey } = input;
-  
+
   if (!organization || !project || !baseUrl) {
     throw new Error('Missing connection details');
   }
-  
+
   if (authMethod === 'pat') {
     if (!patKey) {
       throw new Error('PAT token is required');
     }
-    
+
     // Test PAT connection by making a simple API call
     const testUrl = `${baseUrl}/_apis/projects/${project}?api-version=6.0`;
     const response = await fetch(testUrl, {
       headers: {
-        'Authorization': `Basic ${Buffer.from(`:${patKey}`).toString('base64')}`,
-        'Accept': 'application/json',
+        Authorization: `Basic ${Buffer.from(`:${patKey}`).toString('base64')}`,
+        Accept: 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`Connection test failed: ${response.status} ${response.statusText}`);
     }
-    
+
     return { success: true };
   } else if (authMethod === 'entra') {
     // For Entra ID, we'll just validate the configuration format
@@ -140,99 +154,220 @@ const testConnection = fromPromise(async ({ input }: { input: SetupMachineContex
     if (!tenantId) {
       throw new Error('Tenant ID is required for Entra ID authentication');
     }
-    
+
     return { success: true };
   }
-  
+
   throw new Error('Invalid authentication method');
 });
 
-const saveConnection = fromPromise(async ({ input }: { input: { context: SetupMachineContext; extensionContext: vscode.ExtensionContext } }) => {
-  const { context: setupContext, extensionContext } = input;
-  const { organization, project, baseUrl, apiBaseUrl, authMethod, patKey, tenantId, identityName } = setupContext;
-  
-  if (!organization || !project || !baseUrl || !authMethod) {
-    throw new Error('Missing required connection details');
-  }
-  
-  // Create new connection config
-  const connectionId = randomUUID();
-  const connection: ProjectConnection = {
-    id: connectionId,
-    organization,
-    project,
-    baseUrl,
-    apiBaseUrl: apiBaseUrl || baseUrl,
-    authMethod,
-    label: `${organization}/${project}`,
-  };
-  
-  // Add auth-specific fields
-  if (authMethod === 'entra') {
-    // CRITICAL THINKING: Only store tenantId if it's NOT the default "organizations"
-    // This allows tenant discovery during authentication for better tenant matching
-    if (tenantId && tenantId !== 'organizations') {
-      connection.tenantId = tenantId;
-    }
-    // Client ID is now hardcoded in connection machine authentication
-    if (identityName) {
-      connection.identityName = identityName;
-    }
-  }
-  
-  // Get existing connections
-  const existingConnections = extensionContext.globalState.get<ProjectConnection[]>('azureDevOpsInt.connections', []);
-  
-  // Check for duplicates
-  const duplicate = existingConnections.find(c => 
-    c.organization === organization && 
-    c.project === project && 
-    c.baseUrl === baseUrl
-  );
-  
-  if (duplicate) {
-    throw new Error(`Connection to ${organization}/${project} already exists`);
-  }
-  
-  // Save connection
-  const updatedConnections = [...existingConnections, connection];
-  await extensionContext.globalState.update('azureDevOpsInt.connections', updatedConnections);
-  
-  // Save PAT to secure storage if provided
-  if (authMethod === 'pat' && patKey) {
-    await extensionContext.secrets.store(`azureDevOpsInt.pat.${connectionId}`, patKey);
-  }
-  
-  return { connectionId };
-});
+const saveConnection = fromPromise(
+  async ({
+    input,
+  }: {
+    input: { context: SetupMachineContext; extensionContext: vscode.ExtensionContext };
+  }) => {
+    const { context: setupContext, extensionContext } = input;
+    const {
+      organization,
+      project,
+      baseUrl,
+      apiBaseUrl,
+      authMethod,
+      patKey,
+      tenantId,
+      identityName,
+    } = setupContext;
 
-const removeConnection = fromPromise(async ({ input }: { input: { connectionId: string; extensionContext: vscode.ExtensionContext } }) => {
-  const { connectionId, extensionContext } = input;
-  
-  // Get existing connections
-  const existingConnections = extensionContext.globalState.get<ProjectConnection[]>('azureDevOpsInt.connections', []);
-  
-  // Find connection to remove
-  const connectionToRemove = existingConnections.find(c => c.id === connectionId);
-  if (!connectionToRemove) {
-    throw new Error('Connection not found');
-  }
-  
-  // Remove connection
-  const updatedConnections = existingConnections.filter(c => c.id !== connectionId);
-  await extensionContext.globalState.update('azureDevOpsInt.connections', updatedConnections);
-  
-  // Remove PAT from secure storage if it exists
-  if (connectionToRemove.authMethod === 'pat') {
-    try {
-      await extensionContext.secrets.delete(`azureDevOpsInt.pat.${connectionId}`);
-    } catch (error) {
-      console.warn('Failed to delete PAT secret:', error);
+    if (!organization || !project || !baseUrl || !authMethod) {
+      throw new Error('Missing required connection details');
     }
+
+    // Create new connection config
+    const connectionId = randomUUID();
+    const connection: ProjectConnection = {
+      id: connectionId,
+      organization,
+      project,
+      baseUrl,
+      apiBaseUrl: apiBaseUrl || baseUrl,
+      authMethod,
+      label: `${organization}/${project}`,
+    };
+
+    // Add auth-specific fields
+    if (authMethod === 'entra') {
+      // CRITICAL THINKING: Only store tenantId if it's NOT the default "organizations"
+      // This allows tenant discovery during authentication for better tenant matching
+      if (tenantId && tenantId !== 'organizations') {
+        connection.tenantId = tenantId;
+      }
+      // Client ID is now hardcoded in connection machine authentication
+      if (identityName) {
+        connection.identityName = identityName;
+      }
+    }
+
+    // Get existing connections
+    const existingConnections = extensionContext.globalState.get<ProjectConnection[]>(
+      'azureDevOpsInt.connections',
+      []
+    );
+
+    // Check for duplicates
+    const duplicate = existingConnections.find(
+      (c) => c.organization === organization && c.project === project && c.baseUrl === baseUrl
+    );
+
+    if (duplicate) {
+      throw new Error(`Connection to ${organization}/${project} already exists`);
+    }
+
+    // Save connection
+    const updatedConnections = [...existingConnections, connection];
+    await extensionContext.globalState.update('azureDevOpsInt.connections', updatedConnections);
+
+    // Save PAT to secure storage if provided
+    if (authMethod === 'pat' && patKey) {
+      await extensionContext.secrets.store(`azureDevOpsInt.pat.${connectionId}`, patKey);
+    }
+
+    return { connectionId };
   }
-  
-  return { removedConnectionId: connectionId };
-});
+);
+
+const removeConnection = fromPromise(
+  async ({
+    input,
+  }: {
+    input: { connectionId: string; extensionContext: vscode.ExtensionContext };
+  }) => {
+    const { connectionId, extensionContext } = input;
+
+    // Get existing connections
+    const existingConnections = extensionContext.globalState.get<ProjectConnection[]>(
+      'azureDevOpsInt.connections',
+      []
+    );
+
+    // Find connection to remove
+    const connectionToRemove = existingConnections.find((c) => c.id === connectionId);
+    if (!connectionToRemove) {
+      throw new Error('Connection not found');
+    }
+
+    // Remove connection
+    const updatedConnections = existingConnections.filter((c) => c.id !== connectionId);
+    await extensionContext.globalState.update('azureDevOpsInt.connections', updatedConnections);
+
+    // Remove PAT from secure storage if it exists
+    if (connectionToRemove.authMethod === 'pat') {
+      try {
+        await extensionContext.secrets.delete(`azureDevOpsInt.pat.${connectionId}`);
+      } catch (error) {
+        console.warn('Failed to delete PAT secret:', error);
+      }
+    }
+
+    return { removedConnectionId: connectionId };
+  }
+);
+
+const testExistingConnection = fromPromise(
+  async ({
+    input,
+  }: {
+    input: { connection: ProjectConnection; extensionContext: vscode.ExtensionContext };
+  }): Promise<ExistingConnectionTestResult> => {
+    const { connection, extensionContext } = input;
+
+    if (!connection) {
+      return {
+        success: false,
+        message: 'Connection configuration is missing.',
+      };
+    }
+
+    if (connection.authMethod === 'pat') {
+      if (!extensionContext?.secrets) {
+        return {
+          success: false,
+          message: 'VS Code secret storage is unavailable. Cannot read stored PAT.',
+        };
+      }
+
+      try {
+        const patKey = `azureDevOpsInt.pat.${connection.id}`;
+        const pat = await extensionContext.secrets.get(patKey);
+
+        if (!pat) {
+          return {
+            success: false,
+            message: 'Personal Access Token not found for this connection.',
+          };
+        }
+
+        if (!connection.organization || !connection.project) {
+          return {
+            success: false,
+            message: 'Connection is missing organization or project configuration.',
+          };
+        }
+
+        const candidateBaseUrl = (connection.apiBaseUrl ?? connection.baseUrl ?? '').trim();
+        if (!candidateBaseUrl) {
+          return {
+            success: false,
+            message: 'Connection is missing an API base URL.',
+          };
+        }
+
+        const trimmedBase = candidateBaseUrl.replace(/\/$/, '');
+        const apiBaseUrl = trimmedBase.endsWith('_apis') ? trimmedBase : `${trimmedBase}/_apis`;
+
+        const parsed: ParsedAzureDevOpsUrl = {
+          organization: connection.organization,
+          project: connection.project,
+          baseUrl: connection.baseUrl ?? trimmedBase,
+          apiBaseUrl,
+          isValid: true,
+        };
+
+        const result = await testAzureDevOpsConnection(parsed, pat);
+        return {
+          success: result.success,
+          message: result.success
+            ? 'Azure DevOps API responded successfully using the stored PAT.'
+            : (result.error ?? 'Connection test failed.'),
+          error: result.error,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          message: `Failed to use stored PAT: ${error instanceof Error ? error.message : String(error)}`,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
+
+    if (connection.authMethod === 'entra') {
+      const tenantMessage =
+        connection.tenantId && connection.tenantId !== 'organizations'
+          ? `Tenant ${connection.tenantId} is configured.`
+          : 'Tenant discovery runs automatically during sign-in.';
+
+      return {
+        success: true,
+        message: `Microsoft Entra ID connections authenticate during interactive sign-in. ${tenantMessage}`,
+      };
+    }
+
+    return {
+      success: false,
+      message: 'Unsupported authentication method for connection test.',
+    };
+  }
+);
 
 // FSM-based Setup Machine
 export const setupMachine = createMachine({
@@ -243,10 +378,12 @@ export const setupMachine = createMachine({
     context: {} as SetupMachineContext,
     events: {} as SetupMachineEvent,
   },
-  context: {
-    currentStep: 'url',
-    existingConnections: [],
-  },
+  context: ({ input }: { input?: Partial<SetupMachineContext> }) => ({
+    ...input,
+    currentStep: 'url' as const,
+    existingConnections: input?.existingConnections ?? [],
+    extensionContext: input?.extensionContext,
+  }),
   states: {
     idle: {
       on: {
@@ -258,7 +395,7 @@ export const setupMachine = createMachine({
         },
       },
     },
-    
+
     checkingMode: {
       always: [
         {
@@ -270,7 +407,7 @@ export const setupMachine = createMachine({
         },
       ],
     },
-    
+
     collectingUrl: {
       entry: assign({
         currentStep: 'url',
@@ -290,7 +427,7 @@ export const setupMachine = createMachine({
         },
       },
     },
-    
+
     parsingUrl: {
       invoke: {
         src: parseWorkItemUrl,
@@ -307,12 +444,14 @@ export const setupMachine = createMachine({
         onError: {
           target: 'urlError',
           actions: assign({
-            error: ({ event }) => (event.error instanceof Error ? event.error.message : String(event.error)) || 'Failed to parse URL',
+            error: ({ event }) =>
+              (event.error instanceof Error ? event.error.message : String(event.error)) ||
+              'Failed to parse URL',
           }),
         },
       },
     },
-    
+
     urlError: {
       on: {
         RETRY: {
@@ -326,7 +465,7 @@ export const setupMachine = createMachine({
         },
       },
     },
-    
+
     selectingAuth: {
       entry: assign({
         currentStep: 'auth',
@@ -346,7 +485,7 @@ export const setupMachine = createMachine({
         },
       },
     },
-    
+
     collectingCredentials: {
       entry: assign({
         currentStep: 'credentials',
@@ -373,7 +512,7 @@ export const setupMachine = createMachine({
         },
       },
     },
-    
+
     testingConnection: {
       entry: assign({
         currentStep: 'test',
@@ -387,12 +526,14 @@ export const setupMachine = createMachine({
         onError: {
           target: 'connectionError',
           actions: assign({
-            error: ({ event }) => (event.error instanceof Error ? event.error.message : String(event.error)) || 'Connection test failed',
+            error: ({ event }) =>
+              (event.error instanceof Error ? event.error.message : String(event.error)) ||
+              'Connection test failed',
           }),
         },
       },
     },
-    
+
     connectionError: {
       on: {
         RETRY: {
@@ -409,7 +550,7 @@ export const setupMachine = createMachine({
         },
       },
     },
-    
+
     savingConnection: {
       invoke: {
         src: saveConnection,
@@ -424,12 +565,14 @@ export const setupMachine = createMachine({
         onError: {
           target: 'saveError',
           actions: assign({
-            error: ({ event }) => (event.error instanceof Error ? event.error.message : String(event.error)) || 'Failed to save connection',
+            error: ({ event }) =>
+              (event.error instanceof Error ? event.error.message : String(event.error)) ||
+              'Failed to save connection',
           }),
         },
       },
     },
-    
+
     saveError: {
       on: {
         RETRY: {
@@ -443,7 +586,7 @@ export const setupMachine = createMachine({
         },
       },
     },
-    
+
     managingExisting: {
       on: {
         REMOVE_CONNECTION: {
@@ -452,18 +595,93 @@ export const setupMachine = createMachine({
             removedConnectionId: ({ event }) => event.connectionId,
           }),
         },
+        TEST_EXISTING_CONNECTION: [
+          {
+            guard: ({ context }) => Boolean(context.extensionContext),
+            target: 'testingExistingConnection',
+            actions: assign({
+              testingExistingConnection: ({ event }) => event.connection,
+              lastExistingTestResult: () => undefined,
+              error: () => undefined,
+            }),
+          },
+          {
+            target: 'testingExistingResult',
+            actions: assign({
+              testingExistingConnection: ({ event }) => event.connection,
+              lastExistingTestResult: () => ({
+                success: false,
+                message: 'Extension context is not available. Cannot run connection test.',
+              }),
+            }),
+          },
+        ],
         CANCEL: {
           target: 'cancelled',
         },
       },
     },
-    
+
+    testingExistingConnection: {
+      entry: assign({
+        currentStep: 'test',
+        error: () => undefined,
+      }),
+      invoke: {
+        src: testExistingConnection,
+        input: ({ context }) => ({
+          connection: context.testingExistingConnection!,
+          extensionContext: context.extensionContext!,
+        }),
+        onDone: {
+          target: 'testingExistingResult',
+          actions: assign({
+            lastExistingTestResult: ({ event }) => event.output,
+          }),
+        },
+        onError: {
+          target: 'testingExistingResult',
+          actions: assign({
+            lastExistingTestResult: () => ({
+              success: false,
+              message: 'Connection test failed due to an unexpected error.',
+            }),
+            error: ({ event }) =>
+              event.error instanceof Error ? event.error.message : String(event.error),
+          }),
+        },
+      },
+    },
+
+    testingExistingResult: {
+      on: {
+        RETRY: {
+          target: 'testingExistingConnection',
+          actions: assign({
+            lastExistingTestResult: () => undefined,
+            error: () => undefined,
+          }),
+        },
+        CONTINUE_MANAGING: {
+          target: 'managingExisting',
+          actions: assign({
+            testingExistingConnection: () => undefined,
+            lastExistingTestResult: () => undefined,
+            error: () => undefined,
+          }),
+        },
+        CANCEL: {
+          target: 'cancelled',
+        },
+      },
+    },
+
     removingConnection: {
       invoke: {
         src: removeConnection,
-        input: ({ context }) => ({ 
-          connectionId: context.removedConnectionId!, 
-          extensionContext: context.extensionContext! 
+        input: ({ context }) => ({
+          connectionId: context.removedConnectionId!,
+          extensionContext: context.extensionContext!,
         }),
         onDone: {
           target: 'removed',
@@ -471,12 +689,14 @@ export const setupMachine = createMachine({
         onError: {
           target: 'removeError',
           actions: assign({
-            error: ({ event }) => (event.error instanceof Error ? event.error.message : String(event.error)) || 'Failed to remove connection',
+            error: ({ event }) =>
+              (event.error instanceof Error ? event.error.message : String(event.error)) ||
+              'Failed to remove connection',
           }),
         },
       },
     },
-    
+
     removeError: {
       on: {
         RETRY: {
@@ -490,18 +710,17 @@ export const setupMachine = createMachine({
         },
       },
     },
-    
+
     completed: {
       type: 'final',
     },
-    
+
     removed: {
       type: 'final',
     },
-    
+
     cancelled: {
       type: 'final',
     },
   },
 });
-

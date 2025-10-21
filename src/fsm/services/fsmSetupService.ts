@@ -5,7 +5,11 @@
 
 import * as vscode from 'vscode';
 import { createActor } from 'xstate';
-import { setupMachine, type FSMSetupResult, type SetupMachineContext } from '../machines/setupMachine.js';
+import {
+  setupMachine,
+  type FSMSetupResult,
+  type SetupMachineContext,
+} from '../machines/setupMachine.js';
 
 // Define the connection type locally since it's defined in activation.ts
 type ProjectConnection = {
@@ -28,7 +32,6 @@ export class FSMSetupService {
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
-
   }
 
   async startSetup(options?: { skipInitialChoice?: boolean }): Promise<FSMSetupResult> {
@@ -36,15 +39,18 @@ export class FSMSetupService {
     const actor = createActor(setupMachine, {
       input: {
         extensionContext: this.context,
-        existingConnections: this.context.globalState.get<ProjectConnection[]>('azureDevOpsInt.connections', []),
+        existingConnections: this.context.globalState.get<ProjectConnection[]>(
+          'azureDevOpsInt.connections',
+          []
+        ),
       } as any,
     });
-    
+
     actor.start();
-    
+
     // Send start event
     actor.send({ type: 'START', skipInitialChoice: options?.skipInitialChoice });
-    
+
     return new Promise<FSMSetupResult>((resolve) => {
       // Subscribe to state changes and handle UI interactions
       actor.subscribe((state) => {
@@ -59,66 +65,74 @@ export class FSMSetupService {
     resolve: (result: FSMSetupResult) => void
   ): Promise<void> {
     const context = state.context as SetupMachineContext;
-    
+
     switch (state.value) {
       case 'collectingUrl':
         await this.showUrlInput(actor);
         break;
-        
+
       case 'urlError':
         await this.showUrlError(context.error!, actor);
         break;
-        
+
       case 'selectingAuth':
         await this.showAuthMethodSelection(actor);
         break;
-        
+
       case 'collectingCredentials':
         await this.showCredentialsInput(context, actor);
         break;
-        
+
       case 'connectionError':
         await this.showConnectionError(context.error!, actor);
         break;
-        
+
       case 'saveError':
         await this.showSaveError(context.error!, actor);
         break;
-        
+
       case 'managingExisting':
         await this.showExistingConnections(context, actor);
         break;
-        
+
       case 'removeError':
         await this.showRemoveError(context.error!, actor);
         break;
-        
+
       case 'completed':
         resolve({
           status: 'success',
           connectionId: context.connectionId,
         });
         break;
-        
+
       case 'removed':
         resolve({
           status: 'removed',
           removedConnectionId: context.removedConnectionId,
         });
         break;
-        
+
       case 'cancelled':
         resolve({ status: 'cancelled' });
         break;
-        
+
       case 'testingConnection':
         vscode.window.showInformationMessage('Testing connection...');
         break;
-        
+
+      case 'testingExistingConnection':
+        vscode.window.showInformationMessage('Testing connection...');
+        break;
+
+      case 'testingExistingResult':
+        await this.showExistingTestResult(context, actor);
+        break;
+
       case 'savingConnection':
         vscode.window.showInformationMessage('Saving connection...');
         break;
-        
+
       case 'removingConnection':
         vscode.window.showInformationMessage('Removing connection...');
         break;
@@ -144,7 +158,7 @@ export class FSMSetupService {
         ['Cancel', 'Manage Existing Connections'],
         { placeHolder: 'What would you like to do?' }
       );
-      
+
       if (manageExisting === 'Manage Existing Connections') {
         actor.send({ type: 'MANAGE_EXISTING' });
       } else {
@@ -168,24 +182,27 @@ export class FSMSetupService {
   }
 
   private async showAuthMethodSelection(actor: any): Promise<void> {
-    const authMethod = await vscode.window.showQuickPick([
+    const authMethod = await vscode.window.showQuickPick(
+      [
+        {
+          label: 'Personal Access Token (PAT)',
+          description: 'Use a Personal Access Token for authentication',
+          detail: 'Recommended for most users. Generate a PAT from Azure DevOps settings.',
+          value: 'pat',
+        },
+        {
+          label: 'Microsoft Entra ID (OAuth)',
+          description: 'Use your Microsoft account to sign in',
+          detail: 'Enterprise authentication using your organizational account.',
+          value: 'entra',
+        },
+      ],
       {
-        label: 'Personal Access Token (PAT)',
-        description: 'Use a Personal Access Token for authentication',
-        detail: 'Recommended for most users. Generate a PAT from Azure DevOps settings.',
-        value: 'pat',
-      },
-      {
-        label: 'Microsoft Entra ID (OAuth)',
-        description: 'Use your Microsoft account to sign in',
-        detail: 'Enterprise authentication using your organizational account.',
-        value: 'entra',
-      },
-    ], {
-      placeHolder: 'Choose authentication method',
-      matchOnDescription: true,
-      matchOnDetail: true,
-    });
+        placeHolder: 'Choose authentication method',
+        matchOnDescription: true,
+        matchOnDetail: true,
+      }
+    );
 
     if (authMethod) {
       actor.send({ type: 'AUTH_METHOD_SELECTED', method: authMethod.value as 'pat' | 'entra' });
@@ -297,15 +314,18 @@ export class FSMSetupService {
   }
 
   private async showExistingConnections(context: SetupMachineContext, actor: any): Promise<void> {
-    const connections = this.context.globalState.get<ProjectConnection[]>('azureDevOpsInt.connections', []);
-    
+    const connections = this.context.globalState.get<ProjectConnection[]>(
+      'azureDevOpsInt.connections',
+      []
+    );
+
     if (connections.length === 0) {
       vscode.window.showInformationMessage('No existing connections found.');
       actor.send({ type: 'CANCEL' });
       return;
     }
 
-    const items = connections.map(conn => ({
+    const items = connections.map((conn) => ({
       label: conn.label || `${conn.organization}/${conn.project}`,
       description: conn.authMethod === 'pat' ? 'Personal Access Token' : 'Microsoft Entra ID',
       detail: conn.baseUrl,
@@ -340,12 +360,19 @@ export class FSMSetupService {
     }
 
     // Show connection management options
-    const action = await vscode.window.showQuickPick([
-      { label: 'Remove Connection', value: 'remove', description: 'Delete this connection' },
-      { label: 'Test Connection', value: 'test', description: 'Test if this connection is working' },
-    ], {
-      placeHolder: `Manage connection: ${selected.label}`,
-    });
+    const action = await vscode.window.showQuickPick(
+      [
+        { label: 'Remove Connection', value: 'remove', description: 'Delete this connection' },
+        {
+          label: 'Test Connection',
+          value: 'test',
+          description: 'Test if this connection is working',
+        },
+      ],
+      {
+        placeHolder: `Manage connection: ${selected.label}`,
+      }
+    );
 
     if (action?.value === 'remove') {
       const confirm = await vscode.window.showWarningMessage(
@@ -353,7 +380,7 @@ export class FSMSetupService {
         { modal: true },
         'Yes, Remove'
       );
-      
+
       if (confirm === 'Yes, Remove') {
         actor.send({ type: 'REMOVE_CONNECTION', connectionId: selected.connection.id });
       } else {
@@ -365,6 +392,42 @@ export class FSMSetupService {
       actor.send({ type: 'CANCEL' });
     } else {
       actor.send({ type: 'CANCEL' });
+    }
+  }
+
+  private async showExistingTestResult(context: SetupMachineContext, actor: any): Promise<void> {
+    const result = context.lastExistingTestResult;
+    const connection = context.testingExistingConnection;
+
+    if (!result || !connection) {
+      actor.send({ type: 'CONTINUE_MANAGING' });
+      return;
+    }
+
+    const connectionLabel =
+      connection.label ||
+      (connection.organization && connection.project
+        ? `${connection.organization}/${connection.project}`
+        : connection.id || 'connection');
+
+    if (result.success) {
+      await vscode.window.showInformationMessage(
+        `Connection "${connectionLabel}" succeeded. ${result.message}`
+      );
+      actor.send({ type: 'CONTINUE_MANAGING' });
+      return;
+    }
+
+    const choice = await vscode.window.showErrorMessage(
+      `Connection test failed for "${connectionLabel}". ${result.message}`,
+      'Retry',
+      'Back'
+    );
+
+    if (choice === 'Retry') {
+      actor.send({ type: 'RETRY' });
+    } else {
+      actor.send({ type: 'CONTINUE_MANAGING' });
     }
   }
 

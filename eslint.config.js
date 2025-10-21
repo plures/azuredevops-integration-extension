@@ -49,6 +49,13 @@ export default [
       ]
     }
   },
+
+  {
+    files: ['tests/**/*.ts'],
+    rules: {
+      'max-lines-per-function': 'off',
+    },
+  },
   
   // Pure function rules
   {

@@ -5621,14 +5621,11 @@ ${component_stack}
     contextState,
     ($state) => $state?.connections || []
   );
-  var activeConnection = derived2(
-    [contextState],
-    ([$state]) => {
-      if (!$state) return null;
-      const targetId = $state.tab?.connectionId ?? $state.activeConnectionId;
-      return $state.connections.find((c) => c.id === targetId) || null;
-    }
-  );
+  var activeConnection = derived2([contextState], ([$state]) => {
+    if (!$state) return null;
+    const targetId = $state.tab?.connectionId ?? $state.activeConnectionId;
+    return $state.connections.find((c) => c.id === targetId) || null;
+  });
   var workItems = derived2(
     contextState,
     ($state) => $state?.tab?.workItems || $state?.workItems || []
@@ -7735,11 +7732,20 @@ ${component_stack}
         vscode.postMessage(message);
         console.log("[reactive-main] \u2705 Message sent via VS Code API:", message.type);
       } else {
-        console.warn("[reactive-main] VS Code API not available, trying context bridge for:", message.type);
+        console.warn(
+          "[reactive-main] VS Code API not available, trying context bridge for:",
+          message.type
+        );
         if (message.type === "switchConnection" && message.connectionId) {
           if (window.__EXTENSION_CONTEXT_MANAGER__) {
-            window.__EXTENSION_CONTEXT_MANAGER__.applyAction("setActiveConnection", message.connectionId);
-            console.log("[reactive-main] \u2705 Connection switch via context bridge:", message.connectionId);
+            window.__EXTENSION_CONTEXT_MANAGER__.applyAction(
+              "setActiveConnection",
+              message.connectionId
+            );
+            console.log(
+              "[reactive-main] \u2705 Connection switch via context bridge:",
+              message.connectionId
+            );
           } else {
             console.error("[reactive-main] Context bridge not available for connection switching");
           }
