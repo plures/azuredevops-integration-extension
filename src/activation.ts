@@ -55,6 +55,8 @@ import {
 } from './fsm/services/extensionHostBridge.js';
 import { registerTraceCommands } from './fsm/commands/traceCommands.js';
 import { FSMSetupService } from './fsm/services/fsmSetupService.js';
+import { ConnectionAdapter } from './fsm/adapters/ConnectionAdapter.js';
+import { getConnectionFSMManager } from './fsm/ConnectionFSMManager.js';
 import type {
   AuthReminderState as FSMAuthReminderState,
   ConnectionState,
@@ -104,6 +106,7 @@ let viewProviderRegistered = false;
 const initialRefreshedConnections = new Set<string>();
 let connections: ProjectConnection[] = [];
 const connectionStates = new Map<string, ConnectionState>();
+let connectionAdapterInstance: ConnectionAdapter | undefined;
 let activeConnectionId: string | undefined;
 let tokenRefreshInterval: NodeJS.Timeout | undefined;
 let gcInterval: NodeJS.Timeout | undefined;
@@ -581,6 +584,134 @@ function getActiveTimerConnectionLabel(): string | undefined {
   return undefined;
 }
 
+type EnsureActiveConnectionOptions = {
+  refresh?: boolean;
+  notify?: boolean;
+  interactive?: boolean;
+};
+
+function getConnectionAdapterInstance(): ConnectionAdapter {
+  if (!connectionAdapterInstance) {
+    const manager = getConnectionFSMManager();
+    connectionAdapterInstance = new ConnectionAdapter(manager, ensureActiveConnectionLegacy, true);
+    connectionAdapterInstance.setUseFSM(true);
+  }
+
+  return connectionAdapterInstance;
+}
+
+async function resolveActiveConnectionTarget(
+  context: vscode.ExtensionContext,
+  connectionId?: string,
+  options: EnsureActiveConnectionOptions = {}
+): Promise<{ connection: ProjectConnection; connectionId: string } | undefined> {
+  await ensureConnectionsInitialized(context);
+
+  const targetId = connectionId ?? activeConnectionId ?? connections[0]?.id;
+  verbose('[ensureActiveConnection] evaluating target', {
+    requested: connectionId,
+    activeConnectionId,
+    resolved: targetId,
+    connectionCount: connections.length,
+  });
+
+  if (!targetId) {
+    if (options.notify !== false) {
+      notifyConnectionsList();
+    }
+    await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
+    provider = undefined;
+    client = undefined;
+    return undefined;
+  }
+
+  if (targetId !== activeConnectionId) {
+    activeConnectionId = targetId;
+    await context.globalState.update(ACTIVE_CONNECTION_STATE_KEY, targetId);
+    if (options.notify !== false) {
+      notifyConnectionsList();
+    }
+  }
+
+  const connection = connections.find((item) => item.id === targetId);
+  if (!connection) {
+    console.warn('[azureDevOpsInt] Connection not found for id', targetId);
+    return undefined;
+  }
+
+  verbose('[ensureActiveConnection] using connection', {
+    id: connection.id,
+    organization: connection.organization,
+    project: connection.project,
+    baseUrl: connection.baseUrl,
+    apiBaseUrl: connection.apiBaseUrl,
+    authMethod: connection.authMethod || 'pat',
+    hasIdentityName: !!connection.identityName,
+    identityName: connection.identityName,
+  });
+
+  return { connection, connectionId: targetId };
+}
+
+function configureProviderForConnection(connection: ProjectConnection, state: ConnectionState): void {
+  if (!state.provider) {
+    return;
+  }
+
+  const providerLogger = createScopedLogger(`provider:${connection.id}`, shouldLogDebug);
+  const branchSource = { id: connection.id, client: state.client };
+
+  if (typeof state.provider.updateClient === 'function' && state.client) {
+    state.provider.updateClient(state.client);
+  }
+
+  state.provider.setPostMessage?.((msg: unknown) => forwardProviderMessage(connection.id, msg));
+  state.provider.setLogger?.(providerLogger);
+  state.provider.setTransformWorkItems?.(createBranchAwareTransform(branchSource));
+}
+
+async function finalizeConnectionSuccess(
+  connection: ProjectConnection,
+  state: ConnectionState,
+  options: EnsureActiveConnectionOptions,
+  settings: ConfigGetter
+): Promise<ConnectionState> {
+  connectionStates.set(connection.id, state);
+  configureProviderForConnection(connection, state);
+
+  client = state.client;
+  provider = state.provider;
+
+  setTimerConnectionFrom(connection);
+
+  await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', true);
+  await updateAuthStatusBar();
+
+  if (options.refresh !== false && state.provider) {
+    const fallbackQuery = getDefaultQuery(settings);
+    const selectedQuery = getStoredQueryForConnection(connection.id, fallbackQuery);
+
+    if (!initialRefreshedConnections.has(connection.id)) {
+      initialRefreshedConnections.add(connection.id);
+    }
+
+    verbose('[ensureActiveConnection] triggering provider refresh', {
+      id: connection.id,
+      query: selectedQuery,
+    });
+
+    state.provider.refresh(selectedQuery);
+  }
+
+  const hadReminder = getPendingAuthReminderMap().has(connection.id);
+  clearAuthReminder(connection.id);
+  if ((state.authMethod ?? 'pat') === 'entra' || hadReminder) {
+    dispatchApplicationEvent({ type: 'AUTHENTICATION_SUCCESS', connectionId: connection.id });
+  }
+
+  return state;
+}
+
 function getClientForConnectionInfo(
   info?: TimerConnectionInfo
 ): AzureDevOpsIntClient | undefined {
@@ -781,47 +912,57 @@ const createDeviceCodeCallback =
 async function ensureActiveConnection(
   context: vscode.ExtensionContext,
   connectionId?: string,
-  options: { refresh?: boolean; notify?: boolean } = {}
+  options: EnsureActiveConnectionOptions = {}
 ): Promise<ConnectionState | undefined> {
-  await ensureConnectionsInitialized(context);
-
-  const targetId = connectionId ?? activeConnectionId ?? connections[0]?.id;
-  verbose('[ensureActiveConnection] evaluating target', {
-    requested: connectionId,
-    activeConnectionId,
-    resolved: targetId,
-    connectionCount: connections.length,
-  });
-  if (!targetId) {
-    if (options.notify !== false) notifyConnectionsList();
-    await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
-    provider = undefined;
-    client = undefined;
+  const prepared = await resolveActiveConnectionTarget(context, connectionId, options);
+  if (!prepared) {
     return undefined;
   }
 
-  if (targetId !== activeConnectionId) {
-    activeConnectionId = targetId;
-    await context.globalState.update(ACTIVE_CONNECTION_STATE_KEY, targetId);
-    if (options.notify !== false) notifyConnectionsList();
-  }
+  const { connection, connectionId: targetId } = prepared;
+  const adapter = getConnectionAdapterInstance();
 
-  const connection = connections.find((item) => item.id === targetId);
-  if (!connection) {
-    console.warn('[azureDevOpsInt] Connection not found for id', targetId);
+  try {
+    const result = (await adapter.ensureActiveConnection(context, targetId, options)) as
+      | (ConnectionState & { isConnected?: boolean; lastError?: string })
+      | undefined;
+
+    if (result?.client && result?.provider) {
+      result.id = connection.id;
+      result.config = connection;
+      result.authMethod = connection.authMethod || 'pat';
+
+      const settings = getConfig();
+      await finalizeConnectionSuccess(connection, result, options, settings);
+      return result;
+    }
+
+    verbose('[ensureActiveConnection] FSM connection did not produce provider; falling back to legacy', {
+      connectionId: connection.id,
+      hasResult: !!result,
+      hasClient: !!result?.client,
+      hasProvider: !!result?.provider,
+      lastError: result?.lastError,
+    });
+
+    return ensureActiveConnectionLegacy(context, connection.id, options);
+  } catch (error) {
+    console.warn('[ensureActiveConnection] FSM path failed, falling back to legacy implementation', error);
+    return ensureActiveConnectionLegacy(context, connection.id, options);
+  }
+}
+
+async function ensureActiveConnectionLegacy(
+  context: vscode.ExtensionContext,
+  connectionId?: string,
+  options: EnsureActiveConnectionOptions = {}
+): Promise<ConnectionState | undefined> {
+  const prepared = await resolveActiveConnectionTarget(context, connectionId, options);
+  if (!prepared) {
     return undefined;
   }
 
-  verbose('[ensureActiveConnection] using connection', {
-    id: connection.id,
-    organization: connection.organization,
-    project: connection.project,
-    baseUrl: connection.baseUrl,
-    apiBaseUrl: connection.apiBaseUrl, // Add this to see if it's set
-    authMethod: connection.authMethod || 'pat',
-    hasIdentityName: !!connection.identityName,
-    identityName: connection.identityName, // Show for debugging on-prem identity
-  });
+  const { connection, connectionId: targetId } = prepared;
 
   let state = connectionStates.get(targetId);
   if (!state) {
@@ -835,37 +976,35 @@ async function ensureActiveConnection(
   const settings = getConfig();
   const authMethod: AuthMethod = connection.authMethod || 'pat';
 
-  // Get or create authentication service
   let credential: string | undefined;
 
   if (authMethod === 'entra') {
-    verbose('[ensureActiveConnection] Entra ID authentication not available - FSM implementation needed', { id: targetId });
-    
-    // LEGACY AUTH REMOVED - Return gracefully until FSM authentication is implemented
+    verbose('[ensureActiveConnection] Entra ID authentication not available - FSM implementation needed', {
+      id: targetId,
+    });
+
     state.client = undefined;
     state.provider = undefined;
     await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
     return state;
-  } else {
-    // PAT authentication (existing logic)
-    verbose('[ensureActiveConnection] using PAT authentication', { id: targetId });
-
-    const pat = await getSecretPAT(context, targetId);
-    if (!pat) {
-      verbose('[ensureActiveConnection] missing PAT, cannot create client');
-      provider = undefined;
-      client = undefined;
-      state.client = undefined;
-      state.provider = undefined;
-      await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
-      return state;
-    }
-
-    state.pat = pat;
-    credential = pat;
   }
 
-  // Now we have a credential (either PAT or access token), create the client
+  verbose('[ensureActiveConnection] using PAT authentication', { id: targetId });
+
+  const pat = await getSecretPAT(context, targetId);
+  if (!pat) {
+    verbose('[ensureActiveConnection] missing PAT, cannot create client');
+    provider = undefined;
+    client = undefined;
+    state.client = undefined;
+    state.provider = undefined;
+    await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', false);
+    return state;
+  }
+
+  state.pat = pat;
+  credential = pat;
+
   const ratePerSecond = Math.max(1, Math.min(50, settings.get<number>('apiRatePerSecond') ?? 5));
   const burst = Math.max(1, Math.min(100, settings.get<number>('apiBurst') ?? 10));
   const team = connection.team || settings.get<string>('team') || undefined;
@@ -895,37 +1034,32 @@ async function ensureActiveConnection(
       baseUrl: connection.baseUrl,
     });
 
-    state.client = new AzureDevOpsIntClient(
-      connection.organization,
-      connection.project,
-      credential!,
-      {
-        ratePerSecond,
-        burst,
-        team,
-        baseUrl: connection.baseUrl,
-        apiBaseUrl: connection.apiBaseUrl, // Pass manual API URL override if provided
-        authType: (() => {
-          const method = authMethod as AuthMethod;
-          return method === 'entra' ? 'bearer' : 'pat';
-        })(),
-        identityName: connection.identityName, // Pass through for on-prem identity fallback
-        onAuthFailure: (error) => {
-          state.accessToken = undefined;
-          const detail = error?.message ? `Details: ${error.message}` : undefined;
-          // For Entra ID connections, trigger interactive auth immediately on auth failures (like 404s)
-          // For PAT connections, show reminder (PAT issues need manual intervention)
-          const shouldStartInteractive = (state.authMethod ?? 'pat') === 'entra';
-          triggerAuthReminderSignIn(state.id, 'authFailed', {
-            detail,
-            force: true,
-            startInteractive: shouldStartInteractive,
-          });
-        },
-      }
-    );
+    state.client = new AzureDevOpsIntClient(connection.organization, connection.project, credential!, {
+      ratePerSecond,
+      burst,
+      team,
+      baseUrl: connection.baseUrl,
+      apiBaseUrl: connection.apiBaseUrl,
+      authType: (() => {
+        const method = authMethod as AuthMethod;
+        return method === 'entra' ? 'bearer' : 'pat';
+      })(),
+      identityName: connection.identityName,
+      onAuthFailure: (error) => {
+        state.accessToken = undefined;
+        const detail = error?.message ? `Details: ${error.message}` : undefined;
+        const shouldStartInteractive = (state.authMethod ?? 'pat') === 'entra';
+        triggerAuthReminderSignIn(state.id, 'authFailed', {
+          detail,
+          force: true,
+          startInteractive: shouldStartInteractive,
+        });
+      },
+    });
 
-    if (state.provider) state.provider.updateClient(state.client);
+    if (state.provider) {
+      state.provider.updateClient(state.client);
+    }
   }
 
   const activeClient = state.client;
@@ -937,9 +1071,7 @@ async function ensureActiveConnection(
   }
 
   if (!state.provider) {
-    verbose('[ensureActiveConnection] creating provider', {
-      id: state.id,
-    });
+    verbose('[ensureActiveConnection] creating provider', { id: state.id });
     state.provider = createConnectionProvider({
       connectionId: state.id,
       client: activeClient,
@@ -948,45 +1080,12 @@ async function ensureActiveConnection(
     });
   }
 
-  const branchSource = { id: state.id, client: state.client };
-
-  state.provider?.setPostMessage((msg: any) => forwardProviderMessage(state.id, msg));
-  state.provider?.setLogger(providerLogger);
-  state.provider?.setTransformWorkItems(createBranchAwareTransform(branchSource));
-
   verbose('[ensureActiveConnection] provider ready', {
     id: state.id,
     hasClient: !!state.client,
   });
 
-  client = activeClient;
-  provider = state.provider;
-
-  await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', true);
-
-  // Update auth status bar
-  await updateAuthStatusBar();
-
-  if (options.refresh !== false && provider) {
-    const fallbackQuery = getDefaultQuery(settings);
-    const selectedQuery = getStoredQueryForConnection(state.id, fallbackQuery);
-    if (!initialRefreshedConnections.has(state.id)) {
-      initialRefreshedConnections.add(state.id);
-    }
-    verbose('[ensureActiveConnection] triggering provider refresh', {
-      id: state.id,
-      query: selectedQuery,
-    });
-    provider.refresh(selectedQuery);
-  }
-
-  const hadReminder = getPendingAuthReminderMap().has(state.id);
-  clearAuthReminder(state.id);
-  if ((state.authMethod ?? 'pat') === 'entra' || hadReminder) {
-    // Keep FSM auth reminder state in sync once the connection is healthy again
-    dispatchApplicationEvent({ type: 'AUTHENTICATION_SUCCESS', connectionId: state.id });
-  }
-
+  await finalizeConnectionSuccess(connection, state, options, settings);
   return state;
 }
 
