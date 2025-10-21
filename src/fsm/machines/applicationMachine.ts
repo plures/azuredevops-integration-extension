@@ -15,6 +15,7 @@ import {
 } from './connectionTypes.js';
 import { timerMachine } from './timerMachine.js';
 import { authMachine } from './authMachine.js';
+import { dataMachine } from './dataMachine.js';
 import { saveConnection, deleteConnection } from '../functions/connectionManagement.js';
 import { createComponentLogger, FSMComponent } from '../logging/FSMLogger.js';
 import type { NormalizationSummary } from '../functions/activation/connectionNormalization.js';
@@ -37,7 +38,7 @@ export type ApplicationContext = {
   timerActor?: Actor<typeof timerMachine>;
   connectionActors: Map<string, any>;
   authActors: Map<string, Actor<typeof authMachine>>;
-  dataActor?: any;
+  dataActor?: Actor<typeof dataMachine>;
   webviewActor?: any;
   pendingWorkItems?: {
     workItems: any[];
@@ -90,7 +91,10 @@ export type ApplicationEvent =
   | { type: 'CANCEL_CONNECTION_MANAGEMENT' }
   // Events from child auth machines
   | { type: 'xstate.snapshot.auth'; snapshot: any }
-  | { type: 'xstate.error.actor.auth'; error: any };
+  | { type: 'xstate.error.actor.auth'; error: any }
+  // Events from child data machines
+  | { type: 'xstate.snapshot.data'; snapshot: any }
+  | { type: 'xstate.error.actor.data'; error: any };
 
 type SetupUIResult = {
   connections: ProjectConnection[];
@@ -302,6 +306,12 @@ export const applicationMachine = createMachine(
               'xstate.error.actor.auth': {
                 actions: 'handleAuthError',
               },
+              'xstate.snapshot.data': {
+                actions: 'handleDataSnapshot',
+              },
+              'xstate.error.actor.data': {
+                actions: 'handleDataError',
+              },
             },
           },
         },
@@ -417,10 +427,21 @@ export const applicationMachine = createMachine(
           startAuthentication(context, event.connectionId);
         }
       },
-      handleAuthSuccess: ({ event }) => {
+      handleAuthSuccess: ({ context, event }) => {
         if (event.type === 'AUTHENTICATION_SUCCESS') {
-          // TODO: Do something with the token, like store it or use it to create a client
-          console.log(`Authentication successful for ${event.connectionId}`);
+          const connection = context.connections.find((c) => c.id === event.connectionId);
+          if (connection && connection.apiBaseUrl) {
+            const dataActor = createActor(dataMachine, {
+              input: {
+                serverUrl: connection.apiBaseUrl,
+                token: event.token,
+              },
+            }).start();
+            dataActor.send({ type: 'FETCH' });
+            assign({
+              dataActor,
+            });
+          }
         }
       },
       handleAuthFailure: ({ event }) => {
@@ -450,6 +471,20 @@ export const applicationMachine = createMachine(
               break;
             }
           }
+        }
+      },
+      handleDataSnapshot: ({ event, self }) => {
+        if (event.type === 'xstate.snapshot.data' && event.snapshot.value === 'success') {
+          const { workItems } = event.snapshot.context;
+          if (workItems) {
+            self.send({ type: 'WORK_ITEMS_LOADED', workItems });
+          }
+        }
+      },
+      handleDataError: ({ event, self }) => {
+        if (event.type === 'xstate.error.actor.data') {
+          // For now, just log the error. In a real app, you might want to show a notification.
+          console.error('Data fetching failed:', (event.error as Error).message);
         }
       },
       routeWebviewMessage: ({ context, event, self }) => {
