@@ -2,16 +2,25 @@ import type * as vscode from 'vscode';
 
 type RegisterAllCommandsFn = (context: vscode.ExtensionContext) => void | Promise<void>;
 type ForwardProviderMessageFn = (connectionId: string, message: unknown) => void;
-type GetSecretPATFn = (context: vscode.ExtensionContext, connectionId?: string) => Promise<string | undefined>;
+type GetSecretPATFn = (
+  context: vscode.ExtensionContext,
+  connectionId?: string
+) => Promise<string | undefined>;
 type LoadedConnectionsReader = () => unknown[];
 type ActiveConnectionIdReader = () => string | null | undefined;
 type ApplicationActorAccessor = () => unknown;
 type ApplicationEventDispatcher = (event: unknown) => void;
 type WebviewMessageHandler = (message: unknown) => void | Promise<void>;
+export type ActiveConnectionHandlerOptions = {
+  refresh?: boolean;
+  notify?: boolean;
+  interactive?: boolean;
+};
+
 type ActiveConnectionHandler = (
   connectionId: string,
-  options?: { refresh?: boolean }
-) => void | Promise<void>;
+  options?: ActiveConnectionHandlerOptions
+) => unknown | Promise<unknown>;
 
 let extensionContextRef: vscode.ExtensionContext | undefined;
 let registerAllCommandsFn: RegisterAllCommandsFn | undefined;
@@ -108,16 +117,17 @@ export function setActiveConnectionHandler(handler: ActiveConnectionHandler | un
 
 export async function invokeActiveConnectionHandler(
   connectionId: string,
-  options?: { refresh?: boolean }
-): Promise<void> {
+  options?: ActiveConnectionHandlerOptions
+): Promise<unknown> {
   if (!activeConnectionHandler) {
-    return;
+    return undefined;
   }
 
   try {
-    await activeConnectionHandler(connectionId, options);
+    return await activeConnectionHandler(connectionId, options);
   } catch (error) {
     console.error('[extensionHostBridge] Active connection handler failed', error);
+    return undefined;
   }
 }
 
