@@ -210,6 +210,12 @@ export const applicationMachine = createMachine(
               AUTHENTICATION_REQUIRED: {
                 actions: 'delegateAuthenticationStart',
               },
+              AUTHENTICATION_SUCCESS: {
+                actions: 'handleAuthSuccess',
+              },
+              AUTHENTICATION_FAILED: {
+                actions: 'handleAuthFailure',
+              },
             },
           },
           ready: {
@@ -289,6 +295,12 @@ export const applicationMachine = createMachine(
               },
               CONNECTION_SELECTED: {
                 actions: ['setActiveConnectionInContext', 'delegateConnectionActivation'],
+              },
+              'xstate.snapshot.auth': {
+                actions: 'handleAuthSnapshot',
+              },
+              'xstate.error.actor.auth': {
+                actions: 'handleAuthError',
               },
             },
           },
@@ -403,6 +415,41 @@ export const applicationMachine = createMachine(
       delegateAuthenticationStart: ({ context, event }) => {
         if (event.type === 'AUTHENTICATION_REQUIRED') {
           startAuthentication(context, event.connectionId);
+        }
+      },
+      handleAuthSuccess: ({ event }) => {
+        if (event.type === 'AUTHENTICATION_SUCCESS') {
+          // TODO: Do something with the token, like store it or use it to create a client
+          console.log(`Authentication successful for ${event.connectionId}`);
+        }
+      },
+      handleAuthFailure: ({ event }) => {
+        if (event.type === 'AUTHENTICATION_FAILED') {
+          console.error(`Authentication failed for ${event.connectionId}: ${event.error}`);
+        }
+      },
+      handleAuthSnapshot: ({ event, self }) => {
+        if (event.type === 'xstate.snapshot.auth' && event.snapshot.value === 'authenticated') {
+          const { connection, token } = event.snapshot.context;
+          if (connection.id && token) {
+            self.send({ type: 'AUTHENTICATION_SUCCESS', connectionId: connection.id, token });
+          }
+        }
+      },
+      handleAuthError: ({ event, self }) => {
+        if (event.type === 'xstate.error.actor.auth') {
+          const actorId = (event as any).id;
+          const { authActors } = self.getSnapshot().context;
+          for (const [connectionId, actor] of authActors.entries()) {
+            if (actor.id === actorId) {
+              self.send({
+                type: 'AUTHENTICATION_FAILED',
+                connectionId,
+                error: (event.error as Error).message,
+              });
+              break;
+            }
+          }
         }
       },
       routeWebviewMessage: ({ context, event, self }) => {
