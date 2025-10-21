@@ -2843,6 +2843,7 @@ async function handleLegacyMessage(msg: any) {
         wi.fields?.['System.Title'] || `#${id}`
       );
       if (!started) timerConnectionInfo = previousInfo;
+      break;
     }
     case 'pauseTimer':
       timer?.pause();
@@ -4804,7 +4805,7 @@ async function startTimerInteractive() {
   setTimerConnectionFrom(connection);
   const started = timer.start(
     Number(wi.id || wi.fields?.['System.Id']),
-    wi.fields?.['System.Title'] || `#${id}`
+    wi.fields?.['System.Title'] || `#${wi.id || wi.fields?.['System.Id']}`
   );
   if (!started) timerConnectionInfo = previousInfo;
 }
@@ -5243,7 +5244,8 @@ async function showQueryBuilder() {
           'SELECT [fields] FROM WorkItems WHERE [conditions] ORDER BY [field]\n',
           '🔍 Common Fields:',
           '  [System.Id] - Work Item ID',
-        vscode.window.showInformationMessage(helpText, { modal: true });
+        ];
+        vscode.window.showInformationMessage(helpText.join('\n'), { modal: true });
         break;
       }
     }

@@ -13,35 +13,9 @@ import {
   ConnectionContext as ConnectionState,
 } from './connectionTypes.js';
 import { timerMachine } from './timerMachine.js';
-import {
-  invokeActiveConnectionHandler,
-  type ActiveConnectionHandlerOptions,
-} from '../services/extensionHostBridge.js';
-import type { TimerEvent } from '../types.js';
-import {
-  normalizeConnections,
-  resolveActiveConnectionId,
-} from '../functions/activation/connectionNormalization.js';
-import type {
-  LegacyConnectionFallback,
-  NormalizationSummary,
-} from '../functions/activation/connectionNormalization.js';
-import { buildAuthReminder } from '../functions/auth/buildAuthReminder.js';
-import {
-  handleAuthReminderAction,
-  type AuthReminderActionMessage,
-} from '../functions/auth/authReminderActions.js';
-import {
-  planBulkAction,
-  type BulkActionMessage,
-  type BulkActionPlan,
-  type BulkActionKind,
-} from '../functions/workItems/bulkActionPlan.js';
+import { saveConnection, deleteConnection } from '../functions/connectionManagement.js';
 import { createComponentLogger, FSMComponent } from '../logging/FSMLogger.js';
-import {
-  saveConnection,
-  deleteConnection,
-} from '../functions/connectionManagement.js';
+import type { NormalizationSummary } from '../functions/activation/connectionNormalization.js';
 
 // ============================================================================
 // APPLICATION STATE DEFINITIONS
@@ -267,7 +241,9 @@ export const applicationMachine = createMachine(
                     on: {
                       SAVE_CONNECTION: {
                         target: 'idle',
-                        actions: saveConnection,
+                        actions: assign({
+                          connections: ({ context, event }) => saveConnection(context, event),
+                        }),
                       },
                       CANCEL_CONNECTION_MANAGEMENT: 'idle',
                     },
@@ -276,7 +252,9 @@ export const applicationMachine = createMachine(
                     on: {
                       SAVE_CONNECTION: {
                         target: 'idle',
-                        actions: saveConnection,
+                        actions: assign({
+                          connections: ({ context, event }) => saveConnection(context, event),
+                        }),
                       },
                       CANCEL_CONNECTION_MANAGEMENT: 'idle',
                     },
@@ -285,7 +263,9 @@ export const applicationMachine = createMachine(
                     on: {
                       CONFIRM_DELETE_CONNECTION: {
                         target: 'idle',
-                        actions: deleteConnection,
+                        actions: assign({
+                          connections: ({ context, event }) => deleteConnection(context, event),
+                        }),
                       },
                       CANCEL_CONNECTION_MANAGEMENT: 'idle',
                     },
@@ -364,13 +344,19 @@ export const applicationMachine = createMachine(
         ).output;
         return { ...context, connections, activeConnectionId };
       }),
-      initializeConnectionActorsFromSetup: () => { /* Placeholder */ },
-      selectInitialConnection: () => { /* Placeholder */ },
+      initializeConnectionActorsFromSetup: () => {
+        /* Placeholder */
+      },
+      selectInitialConnection: () => {
+        /* Placeholder */
+      },
       updateWebviewPanelInContext: assign({
         webviewPanel: ({ event }) =>
           event.type === 'UPDATE_WEBVIEW_PANEL' ? event.webviewPanel : undefined,
       }),
-      syncPendingDataIfAvailable: () => { /* Placeholder */ },
+      syncPendingDataIfAvailable: () => {
+        /* Placeholder */
+      },
       clearPendingData: assign({ pendingWorkItems: undefined }),
       recordError: assign({
         lastError: ({ event }) => (event.type === 'ERROR' ? event.error : undefined),
@@ -412,11 +398,30 @@ export const applicationMachine = createMachine(
       },
     },
     actors: {
-      performActivation: fromPromise(async () => { /* Placeholder */ }),
-      performDeactivation: fromPromise(async () => { /* Placeholder */ }),
-      setupUI: fromPromise(async () => ({ connections: [], activeConnectionId: undefined, persisted: { connections: false, activeConnectionId: false }, summary: { generatedIds: [], addedPatKeys: [], addedBaseUrls: [], addedApiBaseUrls: [], removedInvalidEntries: 0 } })),
-      loadData: fromPromise(async () => { /* Placeholder */ }),
-      recoverFromError: fromPromise(async () => { /* Placeholder */ }),
+      performActivation: fromPromise(async () => {
+        /* Placeholder */
+      }),
+      performDeactivation: fromPromise(async () => {
+        /* Placeholder */
+      }),
+      setupUI: fromPromise(async () => ({
+        connections: [],
+        activeConnectionId: undefined,
+        persisted: { connections: false, activeConnectionId: false },
+        summary: {
+          generatedIds: [],
+          addedPatKeys: [],
+          addedBaseUrls: [],
+          addedApiBaseUrls: [],
+          removedInvalidEntries: 0,
+        },
+      })),
+      loadData: fromPromise(async () => {
+        /* Placeholder */
+      }),
+      recoverFromError: fromPromise(async () => {
+        /* Placeholder */
+      }),
     },
   }
 );

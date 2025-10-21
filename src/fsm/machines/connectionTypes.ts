@@ -1,5 +1,6 @@
 export type ProjectConnection = {
   id: string;
+  label?: string;
   organization: string;
   project: string;
   team?: string;
