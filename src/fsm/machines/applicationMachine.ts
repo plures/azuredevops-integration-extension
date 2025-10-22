@@ -24,7 +24,12 @@ import type { NormalizationSummary } from '../functions/activation/connectionNor
 // APPLICATION STATE DEFINITIONS
 // ============================================================================
 
-export type { ProjectConnection };
+export type {
+  ProjectConnection,
+  AuthReminderReason,
+  AuthReminderState,
+  ConnectionState,
+};
 
 export type ApplicationContext = {
   isActivated: boolean;
@@ -483,8 +488,8 @@ export const applicationMachine = createMachine(
       },
       handleDataError: ({ event, self }) => {
         if (event.type === 'xstate.error.actor.data') {
-          // For now, just log the error. In a real app, you might want to show a notification.
-          console.error('Data fetching failed:', (event.error as Error).message);
+          const error = event.error as Error;
+          self.send({ type: 'ERROR', error });
         }
       },
       routeWebviewMessage: ({ context, event, self }) => {

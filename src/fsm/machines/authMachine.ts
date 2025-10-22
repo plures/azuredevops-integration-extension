@@ -63,9 +63,19 @@ export const authMachine = createMachine(
         on: {
           LOGOUT: {
             target: 'idle',
-            actions: assign({
-              token: undefined,
-            }),
+            actions: [
+              async ({ context }) => {
+                const { connection, extensionContext } = context;
+                if (connection.authMethod === 'pat' && connection.patKey) {
+                  await extensionContext.secrets.delete(connection.patKey);
+                } else if (connection.authMethod === 'entra' && connection.tenantId) {
+                  await extensionContext.secrets.delete(`entra:${connection.tenantId}`);
+                }
+              },
+              assign({
+                token: undefined,
+              }),
+            ],
           },
         },
       },

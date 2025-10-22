@@ -20,6 +20,7 @@ const msalConfig = {
   },
 };
 
+
 export async function getEntraIdToken(
   context: ExtensionContext,
   tenantId?: string
@@ -27,10 +28,16 @@ export async function getEntraIdToken(
   if (!tenantId) {
     throw new Error('Tenant ID is not defined for this connection.');
   }
+  const secretKey = `entra:${tenantId}`;
+  // Try to get cached token first
+  const cachedToken = await context.secrets.get(secretKey);
+  if (cachedToken) {
+    return cachedToken;
+  }
 
   const pca = new msal.PublicClientApplication(msalConfig);
   const deviceCodeRequest = {
-    deviceCodeCallback: (response: msal.DeviceCodeResponse) => {
+  deviceCodeCallback: (response: any) => {
       vscode.window.showInformationMessage(response.message);
     },
     scopes: ['499b84ac-1321-427f-aa17-267ca6975798/.default'], // Azure DevOps scope
@@ -39,6 +46,8 @@ export async function getEntraIdToken(
   try {
     const tokenResponse = await pca.acquireTokenByDeviceCode(deviceCodeRequest);
     if (tokenResponse && tokenResponse.accessToken) {
+      // Store the token securely
+      await context.secrets.store(secretKey, tokenResponse.accessToken);
       return tokenResponse.accessToken;
     } else {
       throw new Error('Failed to acquire Entra ID token.');
