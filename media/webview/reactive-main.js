@@ -29,8 +29,6 @@
   var array_prototype = Array.prototype;
   var get_prototype_of = Object.getPrototypeOf;
   var is_extensible = Object.isExtensible;
-  var noop = () => {
-  };
   function run_all(arr) {
     for (var i = 0; i < arr.length; i++) {
       arr[i]();
@@ -86,19 +84,6 @@
   var COMMENT_NODE = 8;
   var DOCUMENT_FRAGMENT_NODE = 11;
 
-  // node_modules/svelte/src/internal/shared/errors.js
-  function lifecycle_outside_component(name) {
-    if (dev_fallback_default) {
-      const error = new Error(`lifecycle_outside_component
-\`${name}(...)\` can only be used during component initialisation
-https://svelte.dev/e/lifecycle_outside_component`);
-      error.name = "Svelte error";
-      throw error;
-    } else {
-      throw new Error(`https://svelte.dev/e/lifecycle_outside_component`);
-    }
-  }
-
   // node_modules/svelte/src/internal/client/errors.js
   function async_derived_orphan() {
     if (dev_fallback_default) {
@@ -144,50 +129,6 @@ https://svelte.dev/e/derived_references_self`);
       throw new Error(`https://svelte.dev/e/derived_references_self`);
     }
   }
-  function each_key_duplicate(a, b, value) {
-    if (dev_fallback_default) {
-      const error = new Error(`each_key_duplicate
-${value ? `Keyed each block has duplicate key \`${value}\` at indexes ${a} and ${b}` : `Keyed each block has duplicate key at indexes ${a} and ${b}`}
-https://svelte.dev/e/each_key_duplicate`);
-      error.name = "Svelte error";
-      throw error;
-    } else {
-      throw new Error(`https://svelte.dev/e/each_key_duplicate`);
-    }
-  }
-  function effect_in_teardown(rune) {
-    if (dev_fallback_default) {
-      const error = new Error(`effect_in_teardown
-\`${rune}\` cannot be used inside an effect cleanup function
-https://svelte.dev/e/effect_in_teardown`);
-      error.name = "Svelte error";
-      throw error;
-    } else {
-      throw new Error(`https://svelte.dev/e/effect_in_teardown`);
-    }
-  }
-  function effect_in_unowned_derived() {
-    if (dev_fallback_default) {
-      const error = new Error(`effect_in_unowned_derived
-Effect cannot be created inside a \`$derived\` value that was not itself created inside an effect
-https://svelte.dev/e/effect_in_unowned_derived`);
-      error.name = "Svelte error";
-      throw error;
-    } else {
-      throw new Error(`https://svelte.dev/e/effect_in_unowned_derived`);
-    }
-  }
-  function effect_orphan(rune) {
-    if (dev_fallback_default) {
-      const error = new Error(`effect_orphan
-\`${rune}\` can only be used inside an effect (e.g. during component initialisation)
-https://svelte.dev/e/effect_orphan`);
-      error.name = "Svelte error";
-      throw error;
-    } else {
-      throw new Error(`https://svelte.dev/e/effect_orphan`);
-    }
-  }
   function effect_update_depth_exceeded() {
     if (dev_fallback_default) {
       const error = new Error(`effect_update_depth_exceeded
@@ -219,17 +160,6 @@ https://svelte.dev/e/hydration_failed`);
       throw error;
     } else {
       throw new Error(`https://svelte.dev/e/hydration_failed`);
-    }
-  }
-  function props_invalid_value(key2) {
-    if (dev_fallback_default) {
-      const error = new Error(`props_invalid_value
-Cannot do \`bind:${key2}={undefined}\` when \`${key2}\` has a fallback value
-https://svelte.dev/e/props_invalid_value`);
-      error.name = "Svelte error";
-      throw error;
-    } else {
-      throw new Error(`https://svelte.dev/e/props_invalid_value`);
     }
   }
   function rune_outside_svelte(rune) {
@@ -294,7 +224,6 @@ https://svelte.dev/e/svelte_boundary_reset_onerror`);
   var EACH_IS_CONTROLLED = 1 << 2;
   var EACH_IS_ANIMATED = 1 << 3;
   var EACH_ITEM_IMMUTABLE = 1 << 4;
-  var PROPS_IS_IMMUTABLE = 1;
   var PROPS_IS_RUNES = 1 << 1;
   var PROPS_IS_UPDATED = 1 << 2;
   var PROPS_IS_BINDABLE = 1 << 3;
@@ -337,24 +266,6 @@ https://svelte.dev/e/await_waterfall`, bold, normal);
       console.warn(`https://svelte.dev/e/await_waterfall`);
     }
   }
-  function console_log_state(method) {
-    if (dev_fallback_default) {
-      console.warn(`%c[svelte] console_log_state
-%cYour \`console.${method}\` contained \`$state\` proxies. Consider using \`$inspect(...)\` or \`$state.snapshot(...)\` instead
-https://svelte.dev/e/console_log_state`, bold, normal);
-    } else {
-      console.warn(`https://svelte.dev/e/console_log_state`);
-    }
-  }
-  function event_handler_invalid(handler, suggestion) {
-    if (dev_fallback_default) {
-      console.warn(`%c[svelte] event_handler_invalid
-%c${handler} should be a function. Did you mean to ${suggestion}?
-https://svelte.dev/e/event_handler_invalid`, bold, normal);
-    } else {
-      console.warn(`https://svelte.dev/e/event_handler_invalid`);
-    }
-  }
   function hydration_attribute_changed(attribute, html2, value) {
     if (dev_fallback_default) {
       console.warn(`%c[svelte] hydration_attribute_changed
@@ -384,15 +295,6 @@ https://svelte.dev/e/hydration_mismatch`,
 https://svelte.dev/e/lifecycle_double_unmount`, bold, normal);
     } else {
       console.warn(`https://svelte.dev/e/lifecycle_double_unmount`);
-    }
-  }
-  function select_multiple_invalid_value() {
-    if (dev_fallback_default) {
-      console.warn(`%c[svelte] select_multiple_invalid_value
-%cThe \`value\` property of a \`<select multiple>\` element should be an array, but it received a non-array value. The selection will be kept as is.
-https://svelte.dev/e/select_multiple_invalid_value`, bold, normal);
-    } else {
-      console.warn(`https://svelte.dev/e/select_multiple_invalid_value`);
     }
   }
   function state_proxy_equality_mismatch(operator) {
@@ -511,134 +413,6 @@ https://svelte.dev/e/svelte_boundary_reset_noop`, bold, normal);
   var async_mode_flag = false;
   var legacy_mode_flag = false;
   var tracing_mode_flag = false;
-
-  // node_modules/svelte/src/internal/shared/warnings.js
-  var bold2 = "font-weight: bold";
-  var normal2 = "font-weight: normal";
-  function state_snapshot_uncloneable(properties) {
-    if (dev_fallback_default) {
-      console.warn(
-        `%c[svelte] state_snapshot_uncloneable
-%c${properties ? `The following properties cannot be cloned with \`$state.snapshot\` \u2014 the return value contains the originals:
-
-${properties}` : "Value cannot be cloned with `$state.snapshot` \u2014 the original value was returned"}
-https://svelte.dev/e/state_snapshot_uncloneable`,
-        bold2,
-        normal2
-      );
-    } else {
-      console.warn(`https://svelte.dev/e/state_snapshot_uncloneable`);
-    }
-  }
-
-  // node_modules/svelte/src/internal/shared/clone.js
-  var empty = [];
-  function snapshot(value, skip_warning = false, no_tojson = false) {
-    if (dev_fallback_default && !skip_warning) {
-      const paths = [];
-      const copy = clone(value, /* @__PURE__ */ new Map(), "", paths, null, no_tojson);
-      if (paths.length === 1 && paths[0] === "") {
-        state_snapshot_uncloneable();
-      } else if (paths.length > 0) {
-        const slice = paths.length > 10 ? paths.slice(0, 7) : paths.slice(0, 10);
-        const excess = paths.length - slice.length;
-        let uncloned = slice.map((path) => `- <value>${path}`).join("\n");
-        if (excess > 0) uncloned += `
-- ...and ${excess} more`;
-        state_snapshot_uncloneable(uncloned);
-      }
-      return copy;
-    }
-    return clone(value, /* @__PURE__ */ new Map(), "", empty, null, no_tojson);
-  }
-  function clone(value, cloned, path, paths, original = null, no_tojson = false) {
-    if (typeof value === "object" && value !== null) {
-      var unwrapped = cloned.get(value);
-      if (unwrapped !== void 0) return unwrapped;
-      if (value instanceof Map) return (
-        /** @type {Snapshot<T>} */
-        new Map(value)
-      );
-      if (value instanceof Set) return (
-        /** @type {Snapshot<T>} */
-        new Set(value)
-      );
-      if (is_array(value)) {
-        var copy = (
-          /** @type {Snapshot<any>} */
-          Array(value.length)
-        );
-        cloned.set(value, copy);
-        if (original !== null) {
-          cloned.set(original, copy);
-        }
-        for (var i = 0; i < value.length; i += 1) {
-          var element2 = value[i];
-          if (i in value) {
-            copy[i] = clone(element2, cloned, dev_fallback_default ? `${path}[${i}]` : path, paths, null, no_tojson);
-          }
-        }
-        return copy;
-      }
-      if (get_prototype_of(value) === object_prototype) {
-        copy = {};
-        cloned.set(value, copy);
-        if (original !== null) {
-          cloned.set(original, copy);
-        }
-        for (var key2 in value) {
-          copy[key2] = clone(
-            // @ts-expect-error
-            value[key2],
-            cloned,
-            dev_fallback_default ? `${path}.${key2}` : path,
-            paths,
-            null,
-            no_tojson
-          );
-        }
-        return copy;
-      }
-      if (value instanceof Date) {
-        return (
-          /** @type {Snapshot<T>} */
-          structuredClone(value)
-        );
-      }
-      if (typeof /** @type {T & { toJSON?: any } } */
-      value.toJSON === "function" && !no_tojson) {
-        return clone(
-          /** @type {T & { toJSON(): any } } */
-          value.toJSON(),
-          cloned,
-          dev_fallback_default ? `${path}.toJSON()` : path,
-          paths,
-          // Associate the instance with the toJSON clone
-          value
-        );
-      }
-    }
-    if (value instanceof EventTarget) {
-      return (
-        /** @type {Snapshot<T>} */
-        value
-      );
-    }
-    try {
-      return (
-        /** @type {Snapshot<T>} */
-        structuredClone(value)
-      );
-    } catch (e) {
-      if (dev_fallback_default) {
-        paths.push(path);
-      }
-      return (
-        /** @type {Snapshot<T>} */
-        value
-      );
-    }
-  }
 
   // node_modules/svelte/src/internal/client/dev/tracing.js
   var tracing_expressions = null;
@@ -1118,8 +892,8 @@ ${component_stack}
    */
   defer_effects_fn = function(effects) {
     for (const e of effects) {
-      const target = (e.f & DIRTY) !== 0 ? __privateGet(this, _dirty_effects) : __privateGet(this, _maybe_dirty_effects);
-      target.push(e);
+      const target2 = (e.f & DIRTY) !== 0 ? __privateGet(this, _dirty_effects) : __privateGet(this, _maybe_dirty_effects);
+      target2.push(e);
       set_signal_status(e, CLEAN);
     }
     effects.length = 0;
@@ -1937,10 +1711,10 @@ ${component_stack}
     signal.equals = safe_equals;
     return signal;
   }
-  function destroy_derived_effects(derived3) {
-    var effects = derived3.effects;
+  function destroy_derived_effects(derived2) {
+    var effects = derived2.effects;
     if (effects !== null) {
-      derived3.effects = null;
+      derived2.effects = null;
       for (var i = 0; i < effects.length; i += 1) {
         destroy_effect(
           /** @type {Effect} */
@@ -1950,8 +1724,8 @@ ${component_stack}
     }
   }
   var stack = [];
-  function get_derived_parent_effect(derived3) {
-    var parent = derived3.parent;
+  function get_derived_parent_effect(derived2) {
+    var parent = derived2.parent;
     while (parent !== null) {
       if ((parent.f & DERIVED) === 0) {
         return (
@@ -1963,20 +1737,20 @@ ${component_stack}
     }
     return null;
   }
-  function execute_derived(derived3) {
+  function execute_derived(derived2) {
     var value;
     var prev_active_effect = active_effect;
-    set_active_effect(get_derived_parent_effect(derived3));
+    set_active_effect(get_derived_parent_effect(derived2));
     if (dev_fallback_default) {
       let prev_inspect_effects = inspect_effects;
       set_inspect_effects(/* @__PURE__ */ new Set());
       try {
-        if (stack.includes(derived3)) {
+        if (stack.includes(derived2)) {
           derived_references_self();
         }
-        stack.push(derived3);
-        destroy_derived_effects(derived3);
-        value = update_reaction(derived3);
+        stack.push(derived2);
+        destroy_derived_effects(derived2);
+        value = update_reaction(derived2);
       } finally {
         set_active_effect(prev_active_effect);
         set_inspect_effects(prev_inspect_effects);
@@ -1984,28 +1758,28 @@ ${component_stack}
       }
     } else {
       try {
-        destroy_derived_effects(derived3);
-        value = update_reaction(derived3);
+        destroy_derived_effects(derived2);
+        value = update_reaction(derived2);
       } finally {
         set_active_effect(prev_active_effect);
       }
     }
     return value;
   }
-  function update_derived(derived3) {
-    var value = execute_derived(derived3);
-    if (!derived3.equals(value)) {
-      derived3.v = value;
-      derived3.wv = increment_write_version();
+  function update_derived(derived2) {
+    var value = execute_derived(derived2);
+    if (!derived2.equals(value)) {
+      derived2.v = value;
+      derived2.wv = increment_write_version();
     }
     if (is_destroying_effect) {
       return;
     }
     if (batch_values !== null) {
-      batch_values.set(derived3, derived3.v);
+      batch_values.set(derived2, derived2.v);
     } else {
-      var status = (skip_reaction || (derived3.f & UNOWNED) !== 0) && derived3.deps !== null ? MAYBE_DIRTY : CLEAN;
-      set_signal_status(derived3, status);
+      var status = (skip_reaction || (derived2.f & UNOWNED) !== 0) && derived2.deps !== null ? MAYBE_DIRTY : CLEAN;
+      set_signal_status(derived2, status);
     }
   }
 
@@ -2136,12 +1910,6 @@ ${component_stack}
     }
     inspect_effects.clear();
   }
-  function update(source2, d = 1) {
-    var value = get(source2);
-    var result = d === 1 ? value++ : value--;
-    set(source2, value);
-    return result;
-  }
   function increment(source2) {
     set(source2, source2.v + 1);
   }
@@ -2262,10 +2030,10 @@ ${component_stack}
           }
           return true;
         },
-        deleteProperty(target, prop2) {
+        deleteProperty(target2, prop2) {
           var s = sources.get(prop2);
           if (s === void 0) {
-            if (prop2 in target) {
+            if (prop2 in target2) {
               const s2 = with_parent(() => state(UNINITIALIZED, stack2));
               sources.set(prop2, s2);
               increment(version);
@@ -2279,7 +2047,7 @@ ${component_stack}
           }
           return true;
         },
-        get(target, prop2, receiver) {
+        get(target2, prop2, receiver) {
           if (prop2 === STATE_SYMBOL) {
             return value;
           }
@@ -2287,10 +2055,10 @@ ${component_stack}
             return update_path;
           }
           var s = sources.get(prop2);
-          var exists = prop2 in target;
-          if (s === void 0 && (!exists || get_descriptor(target, prop2)?.writable)) {
+          var exists = prop2 in target2;
+          if (s === void 0 && (!exists || get_descriptor(target2, prop2)?.writable)) {
             s = with_parent(() => {
-              var p = proxy(exists ? target[prop2] : UNINITIALIZED);
+              var p = proxy(exists ? target2[prop2] : UNINITIALIZED);
               var s2 = state(p, stack2);
               if (dev_fallback_default) {
                 tag(s2, get_label(path, prop2));
@@ -2303,10 +2071,10 @@ ${component_stack}
             var v = get(s);
             return v === UNINITIALIZED ? void 0 : v;
           }
-          return Reflect.get(target, prop2, receiver);
+          return Reflect.get(target2, prop2, receiver);
         },
-        getOwnPropertyDescriptor(target, prop2) {
-          var descriptor = Reflect.getOwnPropertyDescriptor(target, prop2);
+        getOwnPropertyDescriptor(target2, prop2) {
+          var descriptor = Reflect.getOwnPropertyDescriptor(target2, prop2);
           if (descriptor && "value" in descriptor) {
             var s = sources.get(prop2);
             if (s) descriptor.value = get(s);
@@ -2324,16 +2092,16 @@ ${component_stack}
           }
           return descriptor;
         },
-        has(target, prop2) {
+        has(target2, prop2) {
           if (prop2 === STATE_SYMBOL) {
             return true;
           }
           var s = sources.get(prop2);
-          var has = s !== void 0 && s.v !== UNINITIALIZED || Reflect.has(target, prop2);
-          if (s !== void 0 || active_effect !== null && (!has || get_descriptor(target, prop2)?.writable)) {
+          var has = s !== void 0 && s.v !== UNINITIALIZED || Reflect.has(target2, prop2);
+          if (s !== void 0 || active_effect !== null && (!has || get_descriptor(target2, prop2)?.writable)) {
             if (s === void 0) {
               s = with_parent(() => {
-                var p = has ? proxy(target[prop2]) : UNINITIALIZED;
+                var p = has ? proxy(target2[prop2]) : UNINITIALIZED;
                 var s2 = state(p, stack2);
                 if (dev_fallback_default) {
                   tag(s2, get_label(path, prop2));
@@ -2349,16 +2117,16 @@ ${component_stack}
           }
           return has;
         },
-        set(target, prop2, value2, receiver) {
+        set(target2, prop2, value2, receiver) {
           var s = sources.get(prop2);
-          var has = prop2 in target;
+          var has = prop2 in target2;
           if (is_proxied_array && prop2 === "length") {
             for (var i = value2; i < /** @type {Source<number>} */
             s.v; i += 1) {
               var other_s = sources.get(i + "");
               if (other_s !== void 0) {
                 set(other_s, UNINITIALIZED);
-              } else if (i in target) {
+              } else if (i in target2) {
                 other_s = with_parent(() => state(UNINITIALIZED, stack2));
                 sources.set(i + "", other_s);
                 if (dev_fallback_default) {
@@ -2368,7 +2136,7 @@ ${component_stack}
             }
           }
           if (s === void 0) {
-            if (!has || get_descriptor(target, prop2)?.writable) {
+            if (!has || get_descriptor(target2, prop2)?.writable) {
               s = with_parent(() => state(void 0, stack2));
               if (dev_fallback_default) {
                 tag(s, get_label(path, prop2));
@@ -2381,7 +2149,7 @@ ${component_stack}
             var p = with_parent(() => proxy(value2));
             set(s, p);
           }
-          var descriptor = Reflect.getOwnPropertyDescriptor(target, prop2);
+          var descriptor = Reflect.getOwnPropertyDescriptor(target2, prop2);
           if (descriptor?.set) {
             descriptor.set.call(receiver, value2);
           }
@@ -2400,14 +2168,14 @@ ${component_stack}
           }
           return true;
         },
-        ownKeys(target) {
+        ownKeys(target2) {
           get(version);
-          var own_keys = Reflect.ownKeys(target).filter((key3) => {
+          var own_keys = Reflect.ownKeys(target2).filter((key3) => {
             var source3 = sources.get(key3);
             return source3 === void 0 || source3.v !== UNINITIALIZED;
           });
           for (var [key2, source2] of sources) {
-            if (source2.v !== UNINITIALIZED && !(key2 in target)) {
+            if (source2.v !== UNINITIALIZED && !(key2 in target2)) {
               own_keys.push(key2);
             }
           }
@@ -2433,9 +2201,6 @@ ${component_stack}
     }
     return value;
   }
-  function is(a, b) {
-    return Object.is(get_proxied_value(a), get_proxied_value(b));
-  }
   var ARRAY_MUTATING_METHODS = /* @__PURE__ */ new Set([
     "copyWithin",
     "fill",
@@ -2449,8 +2214,8 @@ ${component_stack}
   ]);
   function inspectable_array(array) {
     return new Proxy(array, {
-      get(target, prop2, receiver) {
-        var value = Reflect.get(target, prop2, receiver);
+      get(target2, prop2, receiver) {
+        var value = Reflect.get(target2, prop2, receiver);
         if (!ARRAY_MUTATING_METHODS.has(
           /** @type {string} */
           prop2
@@ -2689,32 +2454,8 @@ ${component_stack}
       set_active_effect(previous_effect);
     }
   }
-  function listen_to_event_and_reset_event(element2, event2, handler, on_reset = handler) {
-    element2.addEventListener(event2, () => without_reactive_context(handler));
-    const prev = element2.__on_r;
-    if (prev) {
-      element2.__on_r = () => {
-        prev();
-        on_reset(true);
-      };
-    } else {
-      element2.__on_r = () => on_reset(true);
-    }
-    add_form_reset_listener();
-  }
 
   // node_modules/svelte/src/internal/client/reactivity/effects.js
-  function validate_effect(rune) {
-    if (active_effect === null && active_reaction === null) {
-      effect_orphan(rune);
-    }
-    if (active_reaction !== null && (active_reaction.f & UNOWNED) !== 0 && active_effect === null) {
-      effect_in_unowned_derived();
-    }
-    if (is_destroying_effect) {
-      effect_in_teardown(rune);
-    }
-  }
   function push_effect(effect2, parent_effect) {
     var parent_last = parent_effect.last;
     if (parent_last === null) {
@@ -2779,11 +2520,11 @@ ${component_stack}
           push_effect(e, parent);
         }
         if (active_reaction !== null && (active_reaction.f & DERIVED) !== 0 && (type & ROOT_EFFECT) === 0) {
-          var derived3 = (
+          var derived2 = (
             /** @type {Derived} */
             active_reaction
           );
-          (derived3.effects ?? (derived3.effects = [])).push(e);
+          (derived2.effects ?? (derived2.effects = [])).push(e);
         }
       }
     }
@@ -2797,28 +2538,6 @@ ${component_stack}
     set_signal_status(effect2, CLEAN);
     effect2.teardown = fn;
     return effect2;
-  }
-  function user_effect(fn) {
-    validate_effect("$effect");
-    if (dev_fallback_default) {
-      define_property(fn, "name", {
-        value: "$effect"
-      });
-    }
-    var flags2 = (
-      /** @type {Effect} */
-      active_effect.f
-    );
-    var defer = !active_reaction && (flags2 & BRANCH_EFFECT) !== 0 && (flags2 & EFFECT_RAN) === 0;
-    if (defer) {
-      var context = (
-        /** @type {ComponentContext} */
-        component_context
-      );
-      (context.e ?? (context.e = [])).push(fn);
-    } else {
-      return create_user_effect(fn);
-    }
   }
   function create_user_effect(fn) {
     return create_effect(EFFECT | USER_EFFECT, fn, false);
@@ -2846,9 +2565,6 @@ ${component_stack}
         }
       });
     };
-  }
-  function effect(fn) {
-    return create_effect(EFFECT, fn, false);
   }
   function async_effect(fn) {
     return create_effect(ASYNC | EFFECT_PRESERVED, fn, true);
@@ -3090,22 +2806,22 @@ ${component_stack}
         var is_unowned_connected = is_unowned && active_effect !== null && !skip_reaction;
         var length = dependencies.length;
         if ((is_disconnected || is_unowned_connected) && (active_effect === null || (active_effect.f & DESTROYED) === 0)) {
-          var derived3 = (
+          var derived2 = (
             /** @type {Derived} */
             reaction
           );
-          var parent = derived3.parent;
+          var parent = derived2.parent;
           for (i = 0; i < length; i++) {
             dependency = dependencies[i];
-            if (is_disconnected || !dependency?.reactions?.includes(derived3)) {
-              (dependency.reactions ?? (dependency.reactions = [])).push(derived3);
+            if (is_disconnected || !dependency?.reactions?.includes(derived2)) {
+              (dependency.reactions ?? (dependency.reactions = [])).push(derived2);
             }
           }
           if (is_disconnected) {
-            derived3.f ^= DISCONNECTED;
+            derived2.f ^= DISCONNECTED;
           }
           if (is_unowned_connected && parent !== null && (parent.f & UNOWNED) === 0) {
-            derived3.f ^= UNOWNED;
+            derived2.f ^= UNOWNED;
           }
         }
         for (i = 0; i < length; i++) {
@@ -3374,13 +3090,13 @@ ${component_stack}
     } else if (is_derived && /** @type {Derived} */
     signal.deps === null && /** @type {Derived} */
     signal.effects === null) {
-      var derived3 = (
+      var derived2 = (
         /** @type {Derived} */
         signal
       );
-      var parent = derived3.parent;
+      var parent = derived2.parent;
       if (parent !== null && (parent.f & UNOWNED) === 0) {
-        derived3.f ^= UNOWNED;
+        derived2.f ^= UNOWNED;
       }
     }
     if (dev_fallback_default) {
@@ -3421,23 +3137,23 @@ ${component_stack}
         return old_values.get(signal);
       }
       if (is_derived) {
-        derived3 = /** @type {Derived} */
+        derived2 = /** @type {Derived} */
         signal;
-        var value = derived3.v;
-        if ((derived3.f & CLEAN) === 0 && derived3.reactions !== null || depends_on_old_values(derived3)) {
-          value = execute_derived(derived3);
+        var value = derived2.v;
+        if ((derived2.f & CLEAN) === 0 && derived2.reactions !== null || depends_on_old_values(derived2)) {
+          value = execute_derived(derived2);
         }
-        old_values.set(derived3, value);
+        old_values.set(derived2, value);
         return value;
       }
     } else if (is_derived) {
-      derived3 = /** @type {Derived} */
+      derived2 = /** @type {Derived} */
       signal;
-      if (batch_values?.has(derived3)) {
-        return batch_values.get(derived3);
+      if (batch_values?.has(derived2)) {
+        return batch_values.get(derived2);
       }
-      if (is_dirty(derived3)) {
-        update_derived(derived3);
+      if (is_dirty(derived2)) {
+        update_derived(derived2);
       }
     }
     if (batch_values?.has(signal)) {
@@ -3448,10 +3164,10 @@ ${component_stack}
     }
     return signal.v;
   }
-  function depends_on_old_values(derived3) {
-    if (derived3.v === UNINITIALIZED) return true;
-    if (derived3.deps === null) return false;
-    for (const dep of derived3.deps) {
+  function depends_on_old_values(derived2) {
+    if (derived2.v === UNINITIALIZED) return true;
+    if (derived2.deps === null) return false;
+    for (const dep of derived2.deps) {
       if (old_values.has(dep)) {
         return true;
       }
@@ -3702,28 +3418,6 @@ ${component_stack}
       set_active_effect(previous_effect);
     }
   }
-  function apply(thunk, element2, args, component2, loc, has_side_effects = false, remove_parens = false) {
-    let handler;
-    let error;
-    try {
-      handler = thunk();
-    } catch (e) {
-      error = e;
-    }
-    if (typeof handler !== "function" && (has_side_effects || handler != null || error)) {
-      const filename = component2?.[FILENAME];
-      const location = loc ? ` at ${filename}:${loc[0]}:${loc[1]}` : ` in ${filename}`;
-      const phase = args[0]?.eventPhase < Event.BUBBLING_PHASE ? "capture" : "";
-      const event_name = args[0]?.type + phase;
-      const description = `\`${event_name}\` handler${location}`;
-      const suggestion = remove_parens ? "remove the trailing `()`" : "add a leading `() =>`";
-      event_handler_invalid(description, suggestion);
-      if (error) {
-        throw error;
-      }
-    }
-    handler?.apply(element2, args);
-  }
 
   // node_modules/svelte/src/internal/client/dom/blocks/svelte-head.js
   var head_anchor;
@@ -3765,39 +3459,25 @@ ${component_stack}
         if (!is_fragment) node = /** @type {Node} */
         get_first_child(node);
       }
-      var clone2 = (
+      var clone = (
         /** @type {TemplateNode} */
         use_import_node || is_firefox ? document.importNode(node, true) : node.cloneNode(true)
       );
       if (is_fragment) {
         var start = (
           /** @type {TemplateNode} */
-          get_first_child(clone2)
+          get_first_child(clone)
         );
         var end = (
           /** @type {TemplateNode} */
-          clone2.lastChild
+          clone.lastChild
         );
         assign_nodes(start, end);
       } else {
-        assign_nodes(clone2, clone2);
+        assign_nodes(clone, clone);
       }
-      return clone2;
+      return clone;
     };
-  }
-  function text(value = "") {
-    if (!hydrating) {
-      var t = create_text(value + "");
-      assign_nodes(t, t);
-      return t;
-    }
-    var node = hydrate_node;
-    if (node.nodeType !== TEXT_NODE) {
-      node.before(node = create_text());
-      set_hydrate_node(node);
-    }
-    assign_nodes(node, node);
-    return node;
   }
   function comment() {
     if (hydrating) {
@@ -3841,13 +3521,13 @@ ${component_stack}
   function hydrate(component2, options) {
     init_operations();
     options.intro = options.intro ?? false;
-    const target = options.target;
+    const target2 = options.target;
     const was_hydrating = hydrating;
     const previous_hydrate_node = hydrate_node;
     try {
       var anchor = (
         /** @type {TemplateNode} */
-        get_first_child(target)
+        get_first_child(target2)
       );
       while (anchor && (anchor.nodeType !== COMMENT_NODE || /** @type {Comment} */
       anchor.data !== HYDRATION_START)) {
@@ -3879,7 +3559,7 @@ ${component_stack}
         hydration_failed();
       }
       init_operations();
-      clear_text_content(target);
+      clear_text_content(target2);
       set_hydrating(false);
       return mount(component2, options);
     } finally {
@@ -3889,7 +3569,7 @@ ${component_stack}
     }
   }
   var document_listeners = /* @__PURE__ */ new Map();
-  function _mount(Component, { target, anchor, props = {}, events, context, intro = true }) {
+  function _mount(Component, { target: target2, anchor, props = {}, events, context, intro = true }) {
     init_operations();
     var registered_events = /* @__PURE__ */ new Set();
     var event_handle = (events2) => {
@@ -3898,7 +3578,7 @@ ${component_stack}
         if (registered_events.has(event_name)) continue;
         registered_events.add(event_name);
         var passive2 = is_passive_event(event_name);
-        target.addEventListener(event_name, handle_event_propagation, { passive: passive2 });
+        target2.addEventListener(event_name, handle_event_propagation, { passive: passive2 });
         var n = document_listeners.get(event_name);
         if (n === void 0) {
           document.addEventListener(event_name, handle_event_propagation, { passive: passive2 });
@@ -3912,7 +3592,7 @@ ${component_stack}
     root_event_handles.add(event_handle);
     var component2 = void 0;
     var unmount2 = component_root(() => {
-      var anchor_node = anchor ?? target.appendChild(create_text());
+      var anchor_node = anchor ?? target2.appendChild(create_text());
       boundary(
         /** @type {TemplateNode} */
         anchor_node,
@@ -3957,7 +3637,7 @@ ${component_stack}
       );
       return () => {
         for (var event_name of registered_events) {
-          target.removeEventListener(event_name, handle_event_propagation);
+          target2.removeEventListener(event_name, handle_event_propagation);
           var n = (
             /** @type {number} */
             document_listeners.get(event_name)
@@ -3996,9 +3676,9 @@ ${component_stack}
   }
 
   // node_modules/svelte/src/internal/client/dev/legacy.js
-  function check_target(target) {
-    if (target) {
-      component_api_invalid_new(target[FILENAME] ?? "a component", target.name);
+  function check_target(target2) {
+    if (target2) {
+      component_api_invalid_new(target2[FILENAME] ?? "a component", target2.name);
     }
   }
   function legacy_api() {
@@ -4063,15 +3743,15 @@ ${component_stack}
         }
       }
       var defer = should_defer_append();
-      var target = anchor;
+      var target2 = anchor;
       if (defer) {
         offscreen_fragment = document.createDocumentFragment();
-        offscreen_fragment.append(target = create_text());
+        offscreen_fragment.append(target2 = create_text());
       }
       if (condition) {
-        consequent_effect ?? (consequent_effect = fn2 && branch(() => fn2(target)));
+        consequent_effect ?? (consequent_effect = fn2 && branch(() => fn2(target2)));
       } else {
-        alternate_effect ?? (alternate_effect = fn2 && branch(() => fn2(target)));
+        alternate_effect ?? (alternate_effect = fn2 && branch(() => fn2(target2)));
       }
       if (defer) {
         var batch = (
@@ -4593,99 +4273,6 @@ ${component_stack}
     }
     return classname === "" ? null : classname;
   }
-  function append_styles(styles, important = false) {
-    var separator = important ? " !important;" : ";";
-    var css = "";
-    for (var key2 in styles) {
-      var value = styles[key2];
-      if (value != null && value !== "") {
-        css += " " + key2 + ": " + value + separator;
-      }
-    }
-    return css;
-  }
-  function to_css_name(name) {
-    if (name[0] !== "-" || name[1] !== "-") {
-      return name.toLowerCase();
-    }
-    return name;
-  }
-  function to_style(value, styles) {
-    if (styles) {
-      var new_style = "";
-      var normal_styles;
-      var important_styles;
-      if (Array.isArray(styles)) {
-        normal_styles = styles[0];
-        important_styles = styles[1];
-      } else {
-        normal_styles = styles;
-      }
-      if (value) {
-        value = String(value).replaceAll(/\s*\/\*.*?\*\/\s*/g, "").trim();
-        var in_str = false;
-        var in_apo = 0;
-        var in_comment = false;
-        var reserved_names = [];
-        if (normal_styles) {
-          reserved_names.push(...Object.keys(normal_styles).map(to_css_name));
-        }
-        if (important_styles) {
-          reserved_names.push(...Object.keys(important_styles).map(to_css_name));
-        }
-        var start_index = 0;
-        var name_index = -1;
-        const len = value.length;
-        for (var i = 0; i < len; i++) {
-          var c = value[i];
-          if (in_comment) {
-            if (c === "/" && value[i - 1] === "*") {
-              in_comment = false;
-            }
-          } else if (in_str) {
-            if (in_str === c) {
-              in_str = false;
-            }
-          } else if (c === "/" && value[i + 1] === "*") {
-            in_comment = true;
-          } else if (c === '"' || c === "'") {
-            in_str = c;
-          } else if (c === "(") {
-            in_apo++;
-          } else if (c === ")") {
-            in_apo--;
-          }
-          if (!in_comment && in_str === false && in_apo === 0) {
-            if (c === ":" && name_index === -1) {
-              name_index = i;
-            } else if (c === ";" || i === len - 1) {
-              if (name_index !== -1) {
-                var name = to_css_name(value.substring(start_index, name_index).trim());
-                if (!reserved_names.includes(name)) {
-                  if (c !== ";") {
-                    i++;
-                  }
-                  var property = value.substring(start_index, i).trim();
-                  new_style += " " + property + ";";
-                }
-              }
-              start_index = i + 1;
-              name_index = -1;
-            }
-          }
-        }
-      }
-      if (normal_styles) {
-        new_style += append_styles(normal_styles);
-      }
-      if (important_styles) {
-        new_style += append_styles(important_styles, true);
-      }
-      new_style = new_style.trim();
-      return new_style === "" ? null : new_style;
-    }
-    return value == null ? null : String(value);
-  }
 
   // node_modules/svelte/src/internal/client/dom/elements/class.js
   function set_class(dom, is_html, value, hash2, prev_classes, next_classes) {
@@ -4711,123 +4298,6 @@ ${component_stack}
       }
     }
     return next_classes;
-  }
-
-  // node_modules/svelte/src/internal/client/dom/elements/style.js
-  function update_styles(dom, prev = {}, next2, priority) {
-    for (var key2 in next2) {
-      var value = next2[key2];
-      if (prev[key2] !== value) {
-        if (next2[key2] == null) {
-          dom.style.removeProperty(key2);
-        } else {
-          dom.style.setProperty(key2, value, priority);
-        }
-      }
-    }
-  }
-  function set_style(dom, value, prev_styles, next_styles) {
-    var prev = dom.__style;
-    if (hydrating || prev !== value) {
-      var next_style_attr = to_style(value, next_styles);
-      if (!hydrating || next_style_attr !== dom.getAttribute("style")) {
-        if (next_style_attr == null) {
-          dom.removeAttribute("style");
-        } else {
-          dom.style.cssText = next_style_attr;
-        }
-      }
-      dom.__style = value;
-    } else if (next_styles) {
-      if (Array.isArray(next_styles)) {
-        update_styles(dom, prev_styles?.[0], next_styles[0]);
-        update_styles(dom, prev_styles?.[1], next_styles[1], "important");
-      } else {
-        update_styles(dom, prev_styles, next_styles);
-      }
-    }
-    return next_styles;
-  }
-
-  // node_modules/svelte/src/internal/client/dom/elements/bindings/select.js
-  function select_option(select, value, mounting = false) {
-    if (select.multiple) {
-      if (value == void 0) {
-        return;
-      }
-      if (!is_array(value)) {
-        return select_multiple_invalid_value();
-      }
-      for (var option of select.options) {
-        option.selected = value.includes(get_option_value(option));
-      }
-      return;
-    }
-    for (option of select.options) {
-      var option_value = get_option_value(option);
-      if (is(option_value, value)) {
-        option.selected = true;
-        return;
-      }
-    }
-    if (!mounting || value !== void 0) {
-      select.selectedIndex = -1;
-    }
-  }
-  function init_select(select) {
-    var observer = new MutationObserver(() => {
-      select_option(select, select.__value);
-    });
-    observer.observe(select, {
-      // Listen to option element changes
-      childList: true,
-      subtree: true,
-      // because of <optgroup>
-      // Listen to option element value attribute changes
-      // (doesn't get notified of select value changes,
-      // because that property is not reflected as an attribute)
-      attributes: true,
-      attributeFilter: ["value"]
-    });
-    teardown(() => {
-      observer.disconnect();
-    });
-  }
-  function bind_select_value(select, get3, set2 = get3) {
-    var mounting = true;
-    listen_to_event_and_reset_event(select, "change", (is_reset) => {
-      var query = is_reset ? "[selected]" : ":checked";
-      var value;
-      if (select.multiple) {
-        value = [].map.call(select.querySelectorAll(query), get_option_value);
-      } else {
-        var selected_option = select.querySelector(query) ?? // will fall back to first non-disabled option if no option is selected
-        select.querySelector("option:not([disabled])");
-        value = selected_option && get_option_value(selected_option);
-      }
-      set2(value);
-    });
-    effect(() => {
-      var value = get3();
-      select_option(select, value, mounting);
-      if (mounting && value === void 0) {
-        var selected_option = select.querySelector(":checked");
-        if (selected_option !== null) {
-          value = get_option_value(selected_option);
-          set2(value);
-        }
-      }
-      select.__value = value;
-      mounting = false;
-    });
-    init_select(select);
-  }
-  function get_option_value(option) {
-    if ("__value" in option) {
-      return option.__value;
-    } else {
-      return option.value;
-    }
   }
 
   // node_modules/svelte/src/internal/client/dom/elements/attributes.js
@@ -4947,280 +4417,8 @@ ${component_stack}
     );
   }
 
-  // node_modules/svelte/src/store/utils.js
-  function subscribe_to_store(store, run2, invalidate) {
-    if (store == null) {
-      run2(void 0);
-      if (invalidate) invalidate(void 0);
-      return noop;
-    }
-    const unsub = untrack(
-      () => store.subscribe(
-        run2,
-        // @ts-expect-error
-        invalidate
-      )
-    );
-    return unsub.unsubscribe ? () => unsub.unsubscribe() : unsub;
-  }
-
-  // node_modules/svelte/src/store/shared/index.js
-  var subscriber_queue = [];
-  function readable(value, start) {
-    return {
-      subscribe: writable(value, start).subscribe
-    };
-  }
-  function writable(value, start = noop) {
-    let stop = null;
-    const subscribers = /* @__PURE__ */ new Set();
-    function set2(new_value) {
-      if (safe_not_equal(value, new_value)) {
-        value = new_value;
-        if (stop) {
-          const run_queue = !subscriber_queue.length;
-          for (const subscriber of subscribers) {
-            subscriber[1]();
-            subscriber_queue.push(subscriber, value);
-          }
-          if (run_queue) {
-            for (let i = 0; i < subscriber_queue.length; i += 2) {
-              subscriber_queue[i][0](subscriber_queue[i + 1]);
-            }
-            subscriber_queue.length = 0;
-          }
-        }
-      }
-    }
-    function update2(fn) {
-      set2(fn(
-        /** @type {T} */
-        value
-      ));
-    }
-    function subscribe(run2, invalidate = noop) {
-      const subscriber = [run2, invalidate];
-      subscribers.add(subscriber);
-      if (subscribers.size === 1) {
-        stop = start(set2, update2) || noop;
-      }
-      run2(
-        /** @type {T} */
-        value
-      );
-      return () => {
-        subscribers.delete(subscriber);
-        if (subscribers.size === 0 && stop) {
-          stop();
-          stop = null;
-        }
-      };
-    }
-    return { set: set2, update: update2, subscribe };
-  }
-  function derived2(stores, fn, initial_value) {
-    const single = !Array.isArray(stores);
-    const stores_array = single ? [stores] : stores;
-    if (!stores_array.every(Boolean)) {
-      throw new Error("derived() expects stores as input, got a falsy value");
-    }
-    const auto = fn.length < 2;
-    return readable(initial_value, (set2, update2) => {
-      let started = false;
-      const values = [];
-      let pending2 = 0;
-      let cleanup = noop;
-      const sync = () => {
-        if (pending2) {
-          return;
-        }
-        cleanup();
-        const result = fn(single ? values[0] : values, set2, update2);
-        if (auto) {
-          set2(result);
-        } else {
-          cleanup = typeof result === "function" ? result : noop;
-        }
-      };
-      const unsubscribers = stores_array.map(
-        (store, i) => subscribe_to_store(
-          store,
-          (value) => {
-            values[i] = value;
-            pending2 &= ~(1 << i);
-            if (started) {
-              sync();
-            }
-          },
-          () => {
-            pending2 |= 1 << i;
-          }
-        )
-      );
-      started = true;
-      sync();
-      return function stop() {
-        run_all(unsubscribers);
-        cleanup();
-        started = false;
-      };
-    });
-  }
-
   // node_modules/svelte/src/internal/client/reactivity/store.js
-  var is_store_binding = false;
   var IS_UNMOUNTED = Symbol();
-  function capture_store_binding(fn) {
-    var previous_is_store_binding = is_store_binding;
-    try {
-      is_store_binding = false;
-      return [fn(), is_store_binding];
-    } finally {
-      is_store_binding = previous_is_store_binding;
-    }
-  }
-
-  // node_modules/svelte/src/internal/client/reactivity/props.js
-  function prop(props, key2, flags2, fallback2) {
-    var runes = !legacy_mode_flag || (flags2 & PROPS_IS_RUNES) !== 0;
-    var bindable = (flags2 & PROPS_IS_BINDABLE) !== 0;
-    var lazy = (flags2 & PROPS_IS_LAZY_INITIAL) !== 0;
-    var fallback_value = (
-      /** @type {V} */
-      fallback2
-    );
-    var fallback_dirty = true;
-    var get_fallback = () => {
-      if (fallback_dirty) {
-        fallback_dirty = false;
-        fallback_value = lazy ? untrack(
-          /** @type {() => V} */
-          fallback2
-        ) : (
-          /** @type {V} */
-          fallback2
-        );
-      }
-      return fallback_value;
-    };
-    var setter;
-    if (bindable) {
-      var is_entry_props = STATE_SYMBOL in props || LEGACY_PROPS in props;
-      setter = get_descriptor(props, key2)?.set ?? (is_entry_props && key2 in props ? (v) => props[key2] = v : void 0);
-    }
-    var initial_value;
-    var is_store_sub = false;
-    if (bindable) {
-      [initial_value, is_store_sub] = capture_store_binding(() => (
-        /** @type {V} */
-        props[key2]
-      ));
-    } else {
-      initial_value = /** @type {V} */
-      props[key2];
-    }
-    if (initial_value === void 0 && fallback2 !== void 0) {
-      initial_value = get_fallback();
-      if (setter) {
-        if (runes) props_invalid_value(key2);
-        setter(initial_value);
-      }
-    }
-    var getter;
-    if (runes) {
-      getter = () => {
-        var value = (
-          /** @type {V} */
-          props[key2]
-        );
-        if (value === void 0) return get_fallback();
-        fallback_dirty = true;
-        return value;
-      };
-    } else {
-      getter = () => {
-        var value = (
-          /** @type {V} */
-          props[key2]
-        );
-        if (value !== void 0) {
-          fallback_value = /** @type {V} */
-          void 0;
-        }
-        return value === void 0 ? fallback_value : value;
-      };
-    }
-    if (runes && (flags2 & PROPS_IS_UPDATED) === 0) {
-      return getter;
-    }
-    if (setter) {
-      var legacy_parent = props.$$legacy;
-      return (
-        /** @type {() => V} */
-        (function(value, mutation) {
-          if (arguments.length > 0) {
-            if (!runes || !mutation || legacy_parent || is_store_sub) {
-              setter(mutation ? getter() : value);
-            }
-            return value;
-          }
-          return getter();
-        })
-      );
-    }
-    var overridden = false;
-    var d = ((flags2 & PROPS_IS_IMMUTABLE) !== 0 ? derived : derived_safe_equal)(() => {
-      overridden = false;
-      return getter();
-    });
-    if (dev_fallback_default) {
-      d.label = key2;
-    }
-    if (bindable) get(d);
-    var parent_effect = (
-      /** @type {Effect} */
-      active_effect
-    );
-    return (
-      /** @type {() => V} */
-      (function(value, mutation) {
-        if (arguments.length > 0) {
-          const new_value = mutation ? get(d) : runes && bindable ? proxy(value) : value;
-          set(d, new_value);
-          overridden = true;
-          if (fallback_value !== void 0) {
-            fallback_value = new_value;
-          }
-          return value;
-        }
-        if (is_destroying_effect && overridden || (parent_effect.f & DESTROYED) !== 0) {
-          return d.v;
-        }
-        return get(d);
-      })
-    );
-  }
-
-  // node_modules/svelte/src/internal/client/validate.js
-  function validate_each_keys(collection, key_fn) {
-    render_effect(() => {
-      const keys = /* @__PURE__ */ new Map();
-      const maybe_array = collection();
-      const array = is_array(maybe_array) ? maybe_array : maybe_array == null ? [] : Array.from(maybe_array);
-      const length = array.length;
-      for (let i = 0; i < length; i++) {
-        const key2 = key_fn(array[i], i);
-        if (keys.has(key2)) {
-          const a = String(keys.get(key2));
-          const b = String(i);
-          let k = String(key2);
-          if (k.startsWith("[object ")) k = null;
-          each_key_duplicate(a, b, k);
-        }
-        keys.set(key2, i);
-      }
-    });
-  }
 
   // node_modules/svelte/src/legacy/legacy-client.js
   function createClassComponent(options) {
@@ -5247,17 +4445,17 @@ ${component_stack}
       const props = new Proxy(
         { ...options.props || {}, $$events: {} },
         {
-          get(target, prop2) {
-            return get(sources.get(prop2) ?? add_source(prop2, Reflect.get(target, prop2)));
+          get(target2, prop2) {
+            return get(sources.get(prop2) ?? add_source(prop2, Reflect.get(target2, prop2)));
           },
-          has(target, prop2) {
+          has(target2, prop2) {
             if (prop2 === LEGACY_PROPS) return true;
-            get(sources.get(prop2) ?? add_source(prop2, Reflect.get(target, prop2)));
-            return Reflect.has(target, prop2);
+            get(sources.get(prop2) ?? add_source(prop2, Reflect.get(target2, prop2)));
+            return Reflect.has(target2, prop2);
           },
-          set(target, prop2, value) {
+          set(target2, prop2, value) {
             set(sources.get(prop2) ?? add_source(prop2, value), value);
-            return Reflect.set(target, prop2, value);
+            return Reflect.set(target2, prop2, value);
           }
         }
       );
@@ -5540,30 +4738,6 @@ ${component_stack}
     return result;
   }
 
-  // node_modules/svelte/src/internal/client/dev/console-log.js
-  function log_if_contains_state(method, ...objects) {
-    untrack(() => {
-      try {
-        let has_state = false;
-        const transformed = [];
-        for (const obj of objects) {
-          if (obj && typeof obj === "object" && STATE_SYMBOL in obj) {
-            transformed.push(snapshot(obj, true));
-            has_state = true;
-          } else {
-            transformed.push(obj);
-          }
-        }
-        if (has_state) {
-          console_log_state(method);
-          console.log("%c[snapshot]", "color: grey", ...transformed);
-        }
-      } catch {
-      }
-    });
-    return objects;
-  }
-
   // node_modules/svelte/src/index-client.js
   if (dev_fallback_default) {
     let throw_rune_error = function(rune) {
@@ -5591,720 +4765,54 @@ ${component_stack}
     throw_rune_error("$props");
     throw_rune_error("$bindable");
   }
-  function onMount(fn) {
-    if (component_context === null) {
-      lifecycle_outside_component("onMount");
-    }
-    if (legacy_mode_flag && component_context.l !== null) {
-      init_update_callbacks(component_context).m.push(fn);
-    } else {
-      user_effect(() => {
-        const cleanup = untrack(fn);
-        if (typeof cleanup === "function") return (
-          /** @type {() => void} */
-          cleanup
-        );
-      });
-    }
-  }
-  function init_update_callbacks(context) {
-    var l = (
-      /** @type {ComponentContextLegacy} */
-      context.l
-    );
-    return l.u ?? (l.u = { a: [], b: [], m: [] });
-  }
-
-  // src/webview/contextIntegration.ts
-  var contextState = writable(null);
-  var connections = derived2(
-    contextState,
-    ($state) => $state?.connections || []
-  );
-  var activeConnection = derived2([contextState], ([$state]) => {
-    if (!$state) return null;
-    const targetId = $state.tab?.connectionId ?? $state.activeConnectionId;
-    return $state.connections.find((c) => c.id === targetId) || null;
-  });
-  var workItems = derived2(
-    contextState,
-    ($state) => $state?.tab?.workItems || $state?.workItems || []
-  );
-  var timerState = derived2(
-    contextState,
-    ($state) => $state?.tab?.timer || $state?.timer || { isActive: false, isRunning: false, elapsed: 0 }
-  );
-  var isLoading = derived2(
-    contextState,
-    ($state) => $state?.tab?.status?.isLoading ?? $state?.isLoading ?? false
-  );
-  var contextActions = {
-    switchConnection: (connectionId) => {
-      console.log("[Webview Context] Switching connection to:", connectionId);
-      if (window.vscode) {
-        window.vscode.postMessage({
-          type: "switchConnection",
-          connectionId
-        });
-      }
-    },
-    startTimer: (workItemId) => {
-      console.log("[Webview Context] Starting timer for:", workItemId);
-      if (window.vscode) {
-        window.vscode.postMessage({
-          type: "startTimer",
-          workItemId: parseInt(workItemId)
-        });
-      }
-    },
-    stopTimer: () => {
-      console.log("[Webview Context] Stopping timer");
-      if (window.vscode) {
-        window.vscode.postMessage({
-          type: "stopTimer"
-        });
-      }
-    },
-    refreshWorkItems: () => {
-      console.log("[Webview Context] Refreshing work items");
-      if (window.vscode) {
-        window.vscode.postMessage({
-          type: "refreshWorkItems"
-        });
-      }
-    }
-  };
-  function handleContextMessage(event2) {
-    if (event2.data?.type === "contextUpdate") {
-      console.log("[Webview Context] Received context update:", event2.data.context);
-      contextState.set(event2.data.context);
-    }
-  }
-  if (typeof window !== "undefined") {
-    window.addEventListener("message", handleContextMessage);
-    if (window.vscode) {
-      window.vscode.postMessage({ type: "getContext" });
-    }
-  }
-  var contextDebug = {
-    getState: () => {
-      let currentState2 = null;
-      const unsubscribe = contextState.subscribe((state2) => {
-        currentState2 = state2;
-      });
-      unsubscribe();
-      return currentState2;
-    },
-    logState: () => {
-      console.log("[Context Debug] Current state:", contextDebug.getState());
-    },
-    testSwitchConnection: (connectionId) => {
-      console.log("[Context Debug] Testing connection switch to:", connectionId);
-      contextActions.switchConnection(connectionId);
-    }
-  };
-  if (typeof window !== "undefined") {
-    window.contextDebug = contextDebug;
-    window.contextActions = contextActions;
-  }
-  console.log("\u{1F31F} [Webview Context] Context-driven integration initialized");
-
-  // src/webview/fsm-webview.svelte.ts
-  var vscodeApi = (() => {
-    try {
-      if (typeof window === "undefined") return null;
-      if (window.vscode && typeof window.vscode.postMessage === "function") {
-        return window.vscode;
-      }
-      if (typeof window.acquireVsCodeApi === "function") {
-        const api = window.acquireVsCodeApi();
-        if (api && typeof api.postMessage === "function") {
-          window.vscode = api;
-          return api;
-        }
-      }
-    } catch (error) {
-      console.warn("[webview-fsm] Failed to acquire VS Code API", error);
-    }
-    return null;
-  })();
-  function postMessageToExtension(message) {
-    try {
-      if (vscodeApi && typeof vscodeApi.postMessage === "function") {
-        vscodeApi.postMessage(message);
-        return;
-      }
-      if (typeof window !== "undefined" && window.parent?.postMessage) {
-        window.parent.postMessage(message, "*");
-      } else {
-        console.warn("[webview-fsm] No messaging bridge available for extension message:", message);
-      }
-    } catch (error) {
-      console.error("[webview-fsm] Failed to post message to extension", error, message);
-    }
-  }
-  var currentState = state(proxy({
-    value: "idle",
-    context: {
-      connectionId: void 0,
-      isInitialized: false,
-      connections: [],
-      activeConnectionId: void 0,
-      workItemsByConnection: /* @__PURE__ */ new Map(),
-      timerActor: null,
-      loadingStates: /* @__PURE__ */ new Map(),
-      pendingAuthReminders: /* @__PURE__ */ new Map(),
-      connectionStateSummaries: []
-    },
-    matches: (state2) => false,
-    can: (eventType) => false
-  }));
-  var globalConnectionsCount = writable(0);
-  var globalConnectionsArray = writable([]);
-  var debugStore = writable("initial");
-  var connectionsVersion = state(0);
-  var connectionsCount = state(0);
-  var errorState = null;
-  var workItemsState = state(proxy([]));
-  var connectionState = state(void 0);
-  var isDataLoadingState = state(false);
-  var isInitializingState = state(false);
-  var isActivatedState = state(false);
-  var fsmMock = {
-    // Make it callable to return snapshot
-    __call: () => get(currentState),
-    // Provide snapshot property for direct access
-    get snapshot() {
-      return get(currentState);
-    },
-    // Provide error property
-    get error() {
-      return errorState;
-    },
-    // Additional properties that might be expected
-    matches: (state2) => get(currentState).value === state2 || get(currentState).value.includes(state2),
-    can: (eventType) => true,
-    // Mock always allows events
-    send: (event2) => console.log("[webview-fsm] Event sent:", event2)
-  };
-  var fsm = Object.assign(
-    () => {
-      const version = get(connectionsVersion);
-      console.log("[webview-fsm] fsm() called with reactive version:", version, "connections:", get(currentState).context.connections?.length || 0);
-      return get(currentState);
-    },
-    fsmMock
-  );
-  var connections2 = () => {
-    const version = get(connectionsVersion);
-    const result = get(currentState).context.connections || [];
-    console.log("[webview-fsm] connections() called with version:", version, "count:", result.length);
-    return result;
-  };
-  var activeConnection2 = () => get(connectionState);
-  var isDataLoading = () => get(isDataLoadingState);
-  var isInitializing = () => get(isInitializingState);
-  var isActivated = () => get(isActivatedState);
-  var selectors = {
-    getWorkItemById: (workItemId) => {
-      const allItems = Array.from(get(currentState).context.workItemsByConnection?.values() || []).flat();
-      return allItems.find((item) => item.id.toString() === workItemId.toString());
-    },
-    getConnectionById: (connectionId) => {
-      return get(currentState).context.connections?.find((conn) => conn.id === connectionId);
-    },
-    getActiveConnection: () => {
-      const activeId = get(currentState).context.activeConnectionId;
-      if (!activeId) return null;
-      return get(currentState).context.connections?.find((conn) => conn.id === activeId) || null;
-    }
-  };
-  var actions = {
-    startConnection: (payload) => {
-      console.log("[webview-fsm] Sending startConnection message", payload);
-      postMessageToExtension({ type: "startConnection", payload });
-    },
-    stopConnection: () => {
-      console.log("[webview-fsm] Sending stopConnection message");
-      postMessageToExtension({ type: "stopConnection" });
-    },
-    loadWorkItems: (connId, query) => {
-      console.log("[webview-fsm] Sending loadWorkItems message", { connId, query });
-      postMessageToExtension({ type: "getWorkItems", connectionId: connId, query });
-    },
-    startTimer: (workItemId, title) => {
-      console.log("[webview-fsm] Sending startTimer message", { workItemId, title });
-      postMessageToExtension({ type: "startTimer", workItemId, title });
-    },
-    requireAuthentication: (connectionId) => {
-      console.log("[webview-fsm] Sending requireAuthentication message", { connectionId });
-      postMessageToExtension({ type: "requireAuthentication", connectionId });
-    },
-    setActiveConnection: (connectionId) => {
-      console.log("[webview-fsm] Sending setActiveConnection message", { connectionId });
-      postMessageToExtension({ type: "setActiveConnection", connectionId });
-    }
-  };
-  function handleExtensionMessage(message) {
-    if (message.type === "fsm-state-update") {
-      get(currentState).value = message.state?.value || "idle";
-      get(currentState).context = message.state?.context || { connectionId: void 0, isInitialized: false };
-    }
-    if (message.type === "contextUpdate") {
-      const contextPayload = message.context || {};
-      const incomingConnections = Array.isArray(contextPayload.connections) ? contextPayload.connections : [];
-      const activeConnectionId = typeof contextPayload.activeConnectionId === "string" ? contextPayload.activeConnectionId : null;
-      get(currentState).context.connections = incomingConnections;
-      get(currentState).context.activeConnectionId = activeConnectionId || void 0;
-      update(connectionsVersion);
-      set(connectionsCount, incomingConnections.length, true);
-      globalConnectionsCount.set(get(connectionsCount));
-      globalConnectionsArray.set([...incomingConnections]);
-      if (activeConnectionId) {
-        const activeConn = incomingConnections.find((conn) => conn.id === activeConnectionId);
-        if (activeConn) {
-          set(connectionState, activeConn, true);
-        }
-      }
-      const incomingWorkItems = Array.isArray(contextPayload.workItems) ? contextPayload.workItems : [];
-      if (!(get(currentState).context.workItemsByConnection instanceof Map)) {
-        get(currentState).context.workItemsByConnection = /* @__PURE__ */ new Map();
-      }
-      const workItemsMap = new Map(get(currentState).context.workItemsByConnection);
-      if (activeConnectionId) {
-        workItemsMap.set(activeConnectionId, incomingWorkItems);
-        set(workItemsState, incomingWorkItems, true);
-      } else {
-        set(workItemsState, incomingWorkItems, true);
-      }
-      get(currentState).context.workItemsByConnection = workItemsMap;
-      set(isDataLoadingState, Boolean(contextPayload.isLoading), true);
-      set(isInitializingState, false);
-      set(isActivatedState, true);
-      const authReminderEntries = Array.isArray(contextPayload.authReminders) ? contextPayload.authReminders.filter((reminder) => typeof reminder?.connectionId === "string").map((reminder) => [reminder.connectionId, reminder]) : [];
-      get(currentState).context.pendingAuthReminders = new Map(authReminderEntries);
-      if (Array.isArray(contextPayload.connectionStateSummaries)) {
-        get(currentState).context.connectionStateSummaries = [...contextPayload.connectionStateSummaries];
-      }
-      set(
-        currentState,
-        {
-          ...get(currentState),
-          context: {
-            ...get(currentState).context,
-            connections: [...incomingConnections],
-            workItemsByConnection: new Map(workItemsMap),
-            pendingAuthReminders: new Map(authReminderEntries),
-            activeConnectionId: activeConnectionId || void 0,
-            connectionStateSummaries: Array.isArray(contextPayload.connectionStateSummaries) ? [...contextPayload.connectionStateSummaries] : get(currentState).context.connectionStateSummaries
-          }
-        },
-        true
-      );
-      return;
-    }
-    if (message.type === "work-items-update") {
-      set(workItemsState, message.workItems || [], true);
-      console.log("[webview-fsm] Work items updated:", message.workItems?.length, "from source:", message.source);
-    }
-    if (message.type === "connections-update") {
-      const oldConnections = get(currentState).context.connections?.length || 0;
-      get(currentState).context.connections = message.connections || [];
-      get(currentState).context.activeConnectionId = message.activeConnectionId;
-      if (message.activeConnectionId && get(currentState).context.connections) {
-        const activeConn = get(currentState).context.connections.find((conn) => conn.id === message.activeConnectionId);
-        if (activeConn) {
-          set(connectionState, activeConn, true);
-          console.log("[webview-fsm] Active connection set:", {
-            id: activeConn.id,
-            name: activeConn.name,
-            url: activeConn.url
-          });
-        } else {
-          console.warn("[webview-fsm] Active connection ID not found in connections list:", message.activeConnectionId);
-        }
-      }
-      set(currentState, { ...get(currentState) }, true);
-      update(connectionsVersion);
-      set(connectionsCount, get(currentState).context.connections?.length || 0, true);
-      globalConnectionsCount.set(get(connectionsCount));
-      globalConnectionsArray.set([...get(currentState).context.connections || []]);
-      debugStore.set(`updated-${get(connectionsCount)}-${Date.now()}`);
-      const newConnections = get(currentState).context.connections?.length || 0;
-      console.log("[webview-fsm] Connections updated:", message.connections?.length, "active:", message.activeConnectionId);
-      console.log("[webview-fsm] Context state after update:", {
-        oldCount: oldConnections,
-        newCount: newConnections,
-        contextConnections: get(currentState).context.connections?.length || 0,
-        contextObject: typeof get(currentState).context,
-        connectionsArray: Array.isArray(get(currentState).context.connections),
-        stateReassigned: true,
-        connectionsVersion: get(connectionsVersion),
-        reactiveCount: get(connectionsCount),
-        globalCountStore: "updated via store.set()",
-        globalArrayStore: "updated via store.set()",
-        debugStoreUpdated: true
-      });
-    }
-    if (message.type === "connection-update") {
-      set(connectionState, message.connection, true);
-    }
-    if (message.type === "loading-state-update") {
-      set(isDataLoadingState, message.isDataLoading || false, true);
-      set(isInitializingState, message.isInitializing || false, true);
-      set(isActivatedState, message.isActivated || false, true);
-    }
-    if (message.type === "connectionSwitched") {
-      console.log("\u{1F517} [webview-fsm] Connection switched:", {
-        newConnectionId: message.connectionId,
-        connection: message.connection,
-        oldActiveId: get(currentState).context.activeConnectionId
-      });
-      if (get(currentState).context) {
-        get(currentState).context.activeConnectionId = message.connectionId;
-      }
-      set(currentState, { ...get(currentState) }, true);
-    }
-    if (message.type === "connectionSwitchFailed") {
-      console.error("\u{1F534} [webview-fsm] Connection switch failed:", { connectionId: message.connectionId, error: message.error });
-    }
-    if (message.type === "auth-reminders-update") {
-      const remindersMap = /* @__PURE__ */ new Map();
-      if (message.authReminders && Array.isArray(message.authReminders)) {
-        message.authReminders.forEach((reminder) => {
-          remindersMap.set(reminder.connectionId, reminder);
-        });
-      }
-      get(currentState).context.pendingAuthReminders = remindersMap;
-      console.log("[webview-fsm] Auth reminders updated:", remindersMap.size, "pending");
-    }
-  }
 
   // src/webview/store.svelte.ts
-  var ui = proxy({
-    activeTab: "work-items",
-    previousTab: null,
-    isLoadingWorkItems: false,
-    isLoadingConnections: false,
-    viewMode: "list",
-    sortBy: "Created Date",
-    sortDirection: "desc",
-    selectedStates: [],
-    searchQuery: "",
-    assignedToMe: false,
-    showConnectionDialog: false,
-    showWorkItemDialog: false,
-    showTimerDialog: false,
-    selectedWorkItemId: null,
-    selectedConnectionId: null,
-    lastError: null,
-    errorMessage: ""
-  });
-  var draft = proxy({
-    connection: { url: "", personalAccessToken: "", project: "", name: "" },
-    workItem: {
-      title: "",
-      description: "",
-      type: "Task",
-      state: "New",
-      assignedTo: ""
-    },
-    timer: { workItemId: null, title: "", description: "" }
-  });
-  function connections3() {
-    const snapshot2 = fsm();
-    const result = snapshot2?.context?.connections || [];
-    console.log("[store] connections() called:", {
-      snapshotExists: !!snapshot2,
-      contextExists: !!snapshot2?.context,
-      connectionsExists: !!snapshot2?.context?.connections,
-      connectionsLength: result.length,
-      connectionsData: result,
-      snapshotValue: snapshot2?.value
-    });
-    return result;
+  function createAppState() {
+    let state2 = state(proxy({
+      fsmState: "uninitialized",
+      context: {
+        user: null,
+        error: null,
+        activeTab: "WID",
+        settings: {},
+        organizations: [],
+        projects: [],
+        teams: [],
+        repositories: [],
+        branches: [],
+        pullRequests: [],
+        workItems: [],
+        drafts: {},
+        currentDraft: null,
+        currentOrganization: null,
+        currentProject: null,
+        currentTeam: null,
+        currentRepository: null,
+        currentBranch: null,
+        currentPullRequest: null,
+        currentWorkItem: null,
+        currentWorkItemType: null,
+        currentWorkItemState: null,
+        currentWorkItemAssignedTo: null,
+        currentWorkItemIterationPath: null,
+        currentWorkItemAreaPath: null,
+        currentWorkItemTitle: null,
+        currentWorkItemDescription: null,
+        currentWorkItemReproSteps: null,
+        currentWorkItemSystemInfo: null,
+        currentWorkItemAcceptanceCriteria: null
+      }
+    }));
+    return {
+      get state() {
+        return get(state2);
+      },
+      set(newState) {
+        set(state2, newState, true);
+      }
+    };
   }
-  function activeConnection3() {
-    const snapshot2 = fsm();
-    const activeId = snapshot2?.context?.activeConnectionId;
-    if (!activeId) return null;
-    return connections3().find((conn) => conn.id === activeId) || null;
-  }
-  function allWorkItems() {
-    const snapshot2 = fsm();
-    const activeConnId = snapshot2?.context?.activeConnectionId;
-    if (!activeConnId || !snapshot2?.context?.workItemsByConnection) {
-      return [];
-    }
-    return Array.from(snapshot2.context.workItemsByConnection.get(activeConnId) || []);
-  }
-  var applySearchFilter = (items, query) => {
-    const trimmed = query.trim();
-    if (!trimmed) return items;
-    const q = trimmed.toLowerCase();
-    return items.filter((item) => item["System.Title"]?.toLowerCase().includes(q) || item["System.Description"]?.toLowerCase().includes(q) || item.id.toString().includes(q));
-  };
-  var applyStateFilter = (items, states) => {
-    if (states.length === 0) return items;
-    return items.filter((item) => states.includes(item["System.State"] || ""));
-  };
-  var applyAssignedToMeFilter = (items) => {
-    if (!ui.assignedToMe) return items;
-    const current = activeConnection3()?.currentUser;
-    if (!current) return items;
-    return items.filter((item) => item["System.AssignedTo"]?.uniqueName === current.uniqueName);
-  };
-  var sortWorkItems = (items, sortBy, direction) => {
-    const sorted = [...items];
-    sorted.sort((a, b) => {
-      let aVal = a[sortBy] ?? "";
-      let bVal = b[sortBy] ?? "";
-      if (sortBy.includes("Date")) {
-        aVal = new Date(String(aVal)).getTime();
-        bVal = new Date(String(bVal)).getTime();
-      }
-      if (typeof aVal === "number" && typeof bVal === "number") {
-        return direction === "asc" ? aVal - bVal : bVal - aVal;
-      }
-      const comparison = String(aVal).localeCompare(String(bVal));
-      return direction === "asc" ? comparison : -comparison;
-    });
-    return sorted;
-  };
-  function filteredWorkItems() {
-    const initial = allWorkItems();
-    const afterSearch = applySearchFilter(initial, ui.searchQuery);
-    const afterState = applyStateFilter(afterSearch, ui.selectedStates);
-    const afterAssignment = applyAssignedToMeFilter(afterState);
-    return sortWorkItems(afterAssignment, ui.sortBy, ui.sortDirection);
-  }
-  function timerState2() {
-    const snapshot2 = fsm();
-    return snapshot2?.context?.timerActor?.getSnapshot?.() || null;
-  }
-  function isDataLoading2() {
-    const snapshot2 = fsm();
-    const activeConnId = snapshot2?.context?.activeConnectionId;
-    if (!activeConnId || !snapshot2?.context?.loadingStates) {
-      return false;
-    }
-    return snapshot2.context.loadingStates.get(activeConnId) || false;
-  }
-  var effectsInitialized = false;
-  var syncUiWithFSM = () => {
-    user_effect(() => {
-      const snapshot2 = fsm();
-      if (!snapshot2) return;
-      ui.isLoadingWorkItems = isDataLoading2();
-      ui.isLoadingConnections = snapshot2.matches?.("connections.loading") ?? false;
-      if (!fsm.error) {
-        ui.lastError = null;
-        ui.errorMessage = "";
-        return;
-      }
-      ui.lastError = fsm.error;
-      ui.errorMessage = fsm.error.message;
-    });
-  };
-  var persistDrafts = () => {
-    user_effect(() => {
-      try {
-        localStorage.setItem("azuredevops-drafts", JSON.stringify(draft));
-      } catch (error) {
-        console.warn("[webviewStore] Failed to persist drafts:", error);
-      }
-    });
-  };
-  var restoreDrafts = () => {
-    user_effect(() => {
-      try {
-        const stored = localStorage.getItem("azuredevops-drafts");
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          Object.assign(draft, parsed);
-        }
-      } catch (error) {
-        console.warn("[webviewStore] Failed to restore drafts:", error);
-      }
-    });
-  };
-  function initializeStoreEffects() {
-    if (effectsInitialized) return;
-    effectsInitialized = true;
-    syncUiWithFSM();
-    persistDrafts();
-    restoreDrafts();
-  }
-  var uiActions = {
-    // Tab management
-    setActiveTab: (tab) => {
-      ui.previousTab = ui.activeTab;
-      ui.activeTab = tab;
-    },
-    goToPreviousTab: () => {
-      if (ui.previousTab) {
-        const temp = ui.activeTab;
-        ui.activeTab = ui.previousTab;
-        ui.previousTab = temp;
-      }
-    },
-    // Work items filters and view
-    setSearchQuery: (query) => {
-      ui.searchQuery = query;
-    },
-    setSelectedStates: (states) => {
-      ui.selectedStates = states;
-    },
-    toggleState: (state2) => {
-      const index2 = ui.selectedStates.indexOf(state2);
-      if (index2 >= 0) {
-        ui.selectedStates.splice(index2, 1);
-      } else {
-        ui.selectedStates.push(state2);
-      }
-    },
-    setSortBy: (field) => {
-      if (ui.sortBy === field) {
-        ui.sortDirection = ui.sortDirection === "asc" ? "desc" : "asc";
-      } else {
-        ui.sortBy = field;
-        ui.sortDirection = "asc";
-      }
-    },
-    setViewMode: (mode) => {
-      ui.viewMode = mode;
-    },
-    toggleAssignedToMe: () => {
-      ui.assignedToMe = !ui.assignedToMe;
-    },
-    // Selection
-    selectWorkItem: (id) => {
-      ui.selectedWorkItemId = id;
-    },
-    selectConnection: (id) => {
-      ui.selectedConnectionId = id;
-    },
-    // Dialogs
-    showConnectionDialog: (show = true) => {
-      ui.showConnectionDialog = show;
-    },
-    showWorkItemDialog: (show = true) => {
-      ui.showWorkItemDialog = show;
-    },
-    showTimerDialog: (show = true) => {
-      ui.showTimerDialog = show;
-    },
-    // Error handling
-    clearError: () => {
-      ui.lastError = null;
-      ui.errorMessage = "";
-    },
-    setError: (error) => {
-      ui.lastError = error instanceof Error ? error : new Error(error);
-      ui.errorMessage = ui.lastError.message;
-    },
-    // Draft management
-    updateConnectionDraft: (updates) => {
-      Object.assign(draft.connection, updates);
-    },
-    updateWorkItemDraft: (updates) => {
-      Object.assign(draft.workItem, updates);
-    },
-    updateTimerDraft: (updates) => {
-      Object.assign(draft.timer, updates);
-    },
-    clearConnectionDraft: () => {
-      draft.connection = { url: "", personalAccessToken: "", project: "", name: "" };
-    },
-    clearWorkItemDraft: () => {
-      draft.workItem = {
-        title: "",
-        description: "",
-        type: "Task",
-        state: "New",
-        assignedTo: ""
-      };
-    },
-    clearTimerDraft: () => {
-      draft.timer = { workItemId: null, title: "", description: "" };
-    }
-  };
-  var integrationActions = {
-    // Create new connection
-    createConnection: () => {
-      if (!draft.connection.url || !draft.connection.personalAccessToken) {
-        uiActions.setError("URL and Personal Access Token are required");
-        return;
-      }
-      const connection = { id: `conn-${Date.now()}`, ...draft.connection };
-      actions.addConnection(connection);
-      uiActions.clearConnectionDraft();
-      uiActions.showConnectionDialog(false);
-    },
-    // Load work items with current filters
-    loadWorkItems: () => {
-      const snapshot2 = fsm();
-      const connId = snapshot2?.context?.activeConnectionId;
-      if (!connId) {
-        uiActions.setError("No active connection");
-        return;
-      }
-      let query = "";
-      if (ui.selectedStates.length > 0) {
-        query += `[System.State] IN (${ui.selectedStates.map((s) => `'${s}'`).join(", ")})`;
-      }
-      if (ui.assignedToMe) {
-        const currentUser = activeConnection3()?.currentUser;
-        if (currentUser) {
-          if (query) query += " AND ";
-          query += `[System.AssignedTo] = '${currentUser.uniqueName}'`;
-        }
-      }
-      actions.loadWorkItems(connId, query);
-    },
-    // Start timer for selected work item
-    startTimerForWorkItem: (workItemId) => {
-      const workItem = selectors.getWorkItemById(workItemId);
-      if (!workItem || !workItem["System.Title"]) {
-        uiActions.setError("Work item not found");
-        return;
-      }
-      actions.startTimer(workItemId, workItem["System.Title"]);
-      uiActions.setActiveTab("timer");
-    },
-    // Switch to connection and load its data
-    switchToConnection: (connectionId) => {
-      actions.setActiveConnection(connectionId);
-    }
-  };
-  var debug = {
-    ui: () => ui,
-    draft: () => draft,
-    derived: {
-      connections: () => connections3(),
-      activeConnection: () => activeConnection3(),
-      filteredWorkItems: () => filteredWorkItems(),
-      timerState: () => timerState2(),
-      isDataLoading: () => isDataLoading2()
-    },
-    actions: { ...uiActions, ...integrationActions },
-    clearAll: () => {
-      ui.activeTab = "work-items";
-      ui.previousTab = null;
-      ui.isLoadingWorkItems = false;
-      ui.isLoadingConnections = false;
-      ui.selectedStates = [];
-      ui.searchQuery = "";
-      ui.assignedToMe = false;
-      ui.selectedWorkItemId = null;
-      ui.selectedConnectionId = null;
-      uiActions.clearError();
-      uiActions.clearConnectionDraft();
-      uiActions.clearWorkItemDraft();
-      uiActions.clearTimerDraft();
-      console.log("[webviewStore] All state cleared");
-    }
-  };
+  var appState = createAppState();
 
   // node_modules/svelte/src/version.js
   var PUBLIC_VERSION = "5";
@@ -6315,476 +4823,141 @@ ${component_stack}
     ((_a = window.__svelte ?? (window.__svelte = {})).v ?? (_a.v = /* @__PURE__ */ new Set())).add(PUBLIC_VERSION);
   }
 
-  // src/webview/ReactiveApp.svelte
-  ReactiveApp[FILENAME] = "src/webview/ReactiveApp.svelte";
-  function handleQueryChange(e, selectedQuery) {
-    set(selectedQuery, e.target.value, true);
-    integrationActions.loadWorkItems();
+  // src/webview/components/ReactiveApp.svelte
+  ReactiveApp[FILENAME] = "src/webview/components/ReactiveApp.svelte";
+  function onRefreshData(_, postEvent) {
+    postEvent("REFRESH_DATA");
   }
-  function toggleKanbanView(_, kanbanView) {
+  function onWorkItemCreate(__1, postEvent) {
+    postEvent("CREATE_WORK_ITEM");
+  }
+  function onRetry(__2, postEvent) {
+    postEvent("RETRY");
+  }
+  function toggleKanbanView(__3, kanbanView) {
     set(kanbanView, !get(kanbanView));
-    addToast(`Switched to ${get(kanbanView) ? "Kanban" : "List"} view`, { type: "info" });
   }
-  function clearSelection(__1, selectedItems) {
+  function clearSelection(__4, selectedItems) {
     get(selectedItems).clear();
     set(selectedItems, /* @__PURE__ */ new Set(), true);
   }
   var on_click = (
     // Kanban helpers
-    // Lifecycle
-    // Initialize store effects (critical for proper FSM operation)
-    // Listen for VS Code messages
-    // Request initial data
-    (__2, onConnectionSelect, connection) => onConnectionSelect()(get(connection).id)
+    (__5, postEvent, connection) => postEvent("SELECT_CONNECTION", { connectionId: get(connection).id })
   );
-  var root_2 = add_locations(from_html(`<button role="tab"> </button>`), ReactiveApp[FILENAME], [[667, 8]]);
-  var root_1 = add_locations(from_html(`<div class="connection-tabs svelte-1s1bz3t" role="tablist" aria-label="Project connections"></div>`), ReactiveApp[FILENAME], [[665, 4]]);
-  var on_click_1 = (__3, handleAuthReminderAction, reminder) => handleAuthReminderAction(get(reminder).connectionId, "signIn");
-  var on_click_2 = (__4, handleAuthReminderAction, reminder) => handleAuthReminderAction(get(reminder).connectionId, "dismiss");
-  var root_4 = add_locations(from_html(`<div class="auth-reminder svelte-1s1bz3t" role="alert"><div class="auth-reminder-icon svelte-1s1bz3t" aria-hidden="true">\u26A0\uFE0F</div> <div class="auth-reminder-body svelte-1s1bz3t"><div class="auth-reminder-title svelte-1s1bz3t"> </div> <div class="auth-reminder-detail svelte-1s1bz3t"> </div></div> <div class="auth-reminder-actions svelte-1s1bz3t"><button class="primary svelte-1s1bz3t">Sign In</button> <button class="secondary svelte-1s1bz3t">Dismiss</button></div></div>`), ReactiveApp[FILENAME], [
+  var root_2 = add_locations(from_html(`<button role="tab"> </button>`), ReactiveApp[FILENAME], [[129, 8]]);
+  var root_1 = add_locations(from_html(`<div class="connection-tabs svelte-1f3usjq" role="tablist" aria-label="Project connections"></div>`), ReactiveApp[FILENAME], [[127, 4]]);
+  var root_3 = add_locations(from_html(`<span class="spinner svelte-1f3usjq" role="status" aria-label="Loading" title="Loading"></span>`), ReactiveApp[FILENAME], [[147, 6]]);
+  var root_4 = add_locations(from_html(`<button title="Clear selection (Esc)" aria-label="Clear selection" class="svelte-1f3usjq"><span class="codicon codicon-close svelte-1f3usjq"></span> </button>`), ReactiveApp[FILENAME], [[166, 8, [[171, 10]]]]);
+  var root_5 = add_locations(from_html(`<div class="error-banner svelte-1f3usjq" role="alert"><div class="svelte-1f3usjq"> </div> <button class="svelte-1f3usjq">Retry</button></div>`), ReactiveApp[FILENAME], [[181, 6, [[182, 8], [183, 8]]]]);
+  var root_7 = add_locations(from_html(`<div class="loading svelte-1f3usjq"><span class="spinner svelte-1f3usjq" role="status" aria-label="Loading"></span> Loading work items\u2026</div>`), ReactiveApp[FILENAME], [[186, 6, [[187, 8]]]]);
+  var root_9 = add_locations(from_html(`<div class="empty svelte-1f3usjq"><div class="svelte-1f3usjq">No work items to display.</div> <button class="svelte-1f3usjq">Refresh</button></div>`), ReactiveApp[FILENAME], [[190, 6, [[191, 8], [192, 8]]]]);
+  var on_click_1 = (__6, toggleItemSelection, item) => toggleItemSelection(Number(get(item).id));
+  var on_click_2 = (__7, handleItemAction, item) => handleItemAction("start", get(item));
+  var on_click_3 = (__8, handleItemAction, item) => handleItemAction("view", get(item));
+  var root_12 = add_locations(from_html(`<div><div class="work-item-header svelte-1f3usjq"><input type="checkbox" class="work-item-checkbox svelte-1f3usjq"/> <span class="work-item-type-icon svelte-1f3usjq"> </span> <span class="work-item-id svelte-1f3usjq"> </span></div> <div class="work-item-content svelte-1f3usjq"><div class="work-item-title svelte-1f3usjq"> </div> <div class="work-item-meta svelte-1f3usjq"><span class="work-item-type svelte-1f3usjq"> </span> <span> </span></div></div> <div class="work-item-actions svelte-1f3usjq"><button class="action-btn start compact svelte-1f3usjq" title="Start timer"><span class="codicon codicon-play svelte-1f3usjq" aria-hidden="true"></span></button> <button class="action-btn view compact svelte-1f3usjq" title="View"><span class="codicon codicon-eye svelte-1f3usjq" aria-hidden="true"></span></button></div></div>`), ReactiveApp[FILENAME], [
     [
-      686,
-      8,
+      204,
+      14,
       [
-        [687, 10],
-        [688, 10, [[689, 12], [692, 12]]],
-        [697, 10, [[698, 12], [704, 12]]]
+        [209, 16, [[210, 18], [217, 18], [220, 18]]],
+        [223, 16, [[224, 18], [227, 18, [[228, 20], [231, 20]]]]],
+        [239, 16, [[240, 18, [[246, 20]]], [248, 18, [[254, 20]]]]]
       ]
     ]
   ]);
-  var root_3 = add_locations(from_html(`<div class="auth-reminders svelte-1s1bz3t" role="region" aria-label="Authentication reminders"></div>`), ReactiveApp[FILENAME], [[684, 4]]);
-  var on_click_3 = (__5, triggerManualSignIn) => triggerManualSignIn();
-  var root_6 = add_locations(from_html(`<div class="manual-signin svelte-1s1bz3t" role="region" aria-label="Manual sign-in"><div class="manual-signin-card svelte-1s1bz3t"><div class="manual-signin-icon svelte-1s1bz3t" aria-hidden="true">\u{1F510}</div> <div class="manual-signin-content svelte-1s1bz3t"><div class="manual-signin-title svelte-1s1bz3t">Sign In Required</div> <div class="manual-signin-message svelte-1s1bz3t"><!></div></div> <div class="manual-signin-actions svelte-1s1bz3t"><button class="primary svelte-1s1bz3t" title="Sign in to the active connection">Start Sign In</button></div></div></div>`), ReactiveApp[FILENAME], [
+  var root_11 = add_locations(from_html(`<div class="kanban-board svelte-1f3usjq" aria-label="Kanban board"><div class="kanban-column svelte-1f3usjq"><div class="kanban-column-header svelte-1f3usjq"><h3 class="svelte-1f3usjq">Work Items</h3> <span class="item-count svelte-1f3usjq"> </span></div> <div class="kanban-column-content svelte-1f3usjq"></div></div></div>`), ReactiveApp[FILENAME], [
     [
-      716,
-      4,
+      196,
+      6,
+      [[197, 8, [[198, 10, [[199, 12], [200, 12]]], [202, 10]]]]
+    ]
+  ]);
+  var on_click_4 = (__9, toggleItemSelection, item) => toggleItemSelection(Number(get(item).id));
+  var root_15 = add_locations(from_html(`<span class="codicon codicon-account svelte-1f3usjq" aria-hidden="true"></span> `, 1), ReactiveApp[FILENAME], [[305, 20]]);
+  var root_16 = add_locations(from_html(`<span class="codicon codicon-account svelte-1f3usjq" aria-hidden="true"></span> Unassigned`, 1), ReactiveApp[FILENAME], [[309, 20]]);
+  var on_click_5 = (__10, handleItemAction, item) => handleItemAction("start", get(item));
+  var on_click_6 = (__11, handleItemAction, item) => handleItemAction("view", get(item));
+  var on_click_7 = (__12, handleItemAction, item) => handleItemAction("edit", get(item));
+  var root_14 = add_locations(from_html(`<div tabindex="0" role="button"><div class="work-item-header svelte-1f3usjq"><input type="checkbox" class="work-item-checkbox svelte-1f3usjq"/> <span class="work-item-type-icon svelte-1f3usjq"> </span> <span class="work-item-id svelte-1f3usjq"> </span> <span> </span></div> <div class="work-item-content svelte-1f3usjq"><div class="work-item-title svelte-1f3usjq"> </div> <div class="work-item-meta svelte-1f3usjq"><span class="work-item-type svelte-1f3usjq"> </span> <span> </span> <span class="work-item-assignee svelte-1f3usjq"><!></span></div></div> <div class="work-item-actions svelte-1f3usjq"><button class="action-btn start svelte-1f3usjq" title="Start timer"><span class="codicon codicon-play svelte-1f3usjq" aria-hidden="true"></span> Start</button> <button class="action-btn view svelte-1f3usjq" title="View in browser"><span class="codicon codicon-eye svelte-1f3usjq" aria-hidden="true"></span> View</button> <button class="action-btn edit svelte-1f3usjq" title="Edit work item"><span class="codicon codicon-edit svelte-1f3usjq" aria-hidden="true"></span> Edit</button></div></div>`), ReactiveApp[FILENAME], [
+    [
+      266,
+      10,
       [
+        [273, 12, [[274, 14], [281, 14], [284, 14], [285, 14]]],
         [
-          717,
-          6,
+          294,
+          12,
+          [[295, 14], [298, 14, [[299, 16], [300, 16], [303, 16]]]]
+        ],
+        [
+          315,
+          12,
           [
-            [718, 8],
-            [719, 8, [[720, 10], [721, 10]]],
-            [729, 8, [[730, 10]]]
+            [316, 14, [[322, 16]]],
+            [324, 14, [[330, 16]]],
+            [332, 14, [[338, 16]]]
           ]
         ]
       ]
     ]
   ]);
-  var root_9 = add_locations(from_html(`<div class="init-status svelte-1s1bz3t"><div class="init-progress svelte-1s1bz3t"><div class="init-progress-bar svelte-1s1bz3t"></div></div> <div class="init-message svelte-1s1bz3t"><!></div></div>`), ReactiveApp[FILENAME], [[744, 4, [[745, 6, [[746, 8]]], [748, 6]]]]);
-  var root_16 = add_locations(from_html(`<option class="svelte-1s1bz3t"> </option>`), ReactiveApp[FILENAME], [[775, 10]]);
-  var root_17 = add_locations(from_html(`<div class="query-description svelte-1s1bz3t"> </div>`), ReactiveApp[FILENAME], [[779, 8]]);
-  var root_18 = add_locations(from_html(`<span class="spinner svelte-1s1bz3t" role="status" aria-label="Loading" title="Loading"></span>`), ReactiveApp[FILENAME], [[788, 6]]);
-  var on_click_4 = (__6, handleItemAction, activeWorkItemId) => handleItemAction("view", { id: get(activeWorkItemId) });
-  var root_21 = add_locations(from_html(`<button class="svelte-1s1bz3t"></button>`), ReactiveApp[FILENAME], [[797, 8]]);
-  var root_19 = add_locations(from_html(`<span class="muted svelte-1s1bz3t"> <!></span> <!>`, 1), ReactiveApp[FILENAME], [[792, 6]]);
-  var root_22 = add_locations(from_html(`<button title="Clear selection (Esc)" aria-label="Clear selection" class="svelte-1s1bz3t"><span class="codicon codicon-close svelte-1s1bz3t"></span> </button>`), ReactiveApp[FILENAME], [[818, 8, [[819, 10]]]]);
-  var root_23 = add_locations(from_html(`<div class="error-banner svelte-1s1bz3t" role="alert"><div style="font-weight: 600; margin-bottom: 4px;" class="svelte-1s1bz3t">\u26A0\uFE0F Error Loading Work Items</div> <div class="svelte-1s1bz3t"> </div> <button style="margin-top: 8px;" class="svelte-1s1bz3t">Retry</button></div>`), ReactiveApp[FILENAME], [[829, 6, [[830, 8], [831, 8], [832, 8]]]]);
-  var root_25 = add_locations(from_html(`<div class="loading svelte-1s1bz3t"><span class="spinner svelte-1s1bz3t" role="status" aria-label="Loading"></span> Loading work items\u2026</div>`), ReactiveApp[FILENAME], [[835, 6, [[836, 8]]]]);
-  var root_27 = add_locations(from_html(`<div class="empty svelte-1s1bz3t"><div style="margin-bottom: 16px;" class="svelte-1s1bz3t">No work items to display.</div> <button class="svelte-1s1bz3t">Refresh</button></div>`), ReactiveApp[FILENAME], [[839, 6, [[840, 8], [841, 8]]]]);
-  var on_click_5 = (__7, toggleItemSelection, item) => toggleItemSelection(Number(get(item).id));
-  var root_31 = add_locations(from_html(`<span class="timer-indicator svelte-1s1bz3t"><span class="codicon codicon-clock svelte-1s1bz3t" aria-hidden="true"></span> </span>`), ReactiveApp[FILENAME], [[872, 20, [[873, 22]]]]);
-  var on_click_6 = (__8, handleStopTimer) => handleStopTimer();
-  var root_32 = add_locations(from_html(`<button class="action-btn stop compact svelte-1s1bz3t" title="Stop timer"><span class="codicon codicon-debug-stop svelte-1s1bz3t" aria-hidden="true"></span></button>`), ReactiveApp[FILENAME], [[897, 20, [[903, 22]]]]);
-  var on_click_7 = (__9, handleItemAction, item) => handleItemAction("start", get(item));
-  var root_33 = add_locations(from_html(`<button class="action-btn start compact svelte-1s1bz3t" title="Start timer"><span class="codicon codicon-play svelte-1s1bz3t" aria-hidden="true"></span></button>`), ReactiveApp[FILENAME], [[906, 20, [[913, 22]]]]);
-  var on_click_8 = (__10, handleItemAction, item) => handleItemAction("view", get(item));
-  var root_30 = add_locations(from_html(`<div><div class="work-item-header svelte-1s1bz3t"><input type="checkbox" class="work-item-checkbox svelte-1s1bz3t"/> <span class="work-item-type-icon svelte-1s1bz3t"> </span> <span class="work-item-id svelte-1s1bz3t"> </span> <!></div> <div class="work-item-content svelte-1s1bz3t"><div class="work-item-title svelte-1s1bz3t"> </div> <div class="work-item-meta svelte-1s1bz3t"><span class="work-item-type svelte-1s1bz3t"> </span> <span> </span></div></div> <div class="work-item-actions svelte-1s1bz3t"><!> <button class="action-btn view compact svelte-1s1bz3t" title="View"><span class="codicon codicon-eye svelte-1s1bz3t" aria-hidden="true"></span></button></div></div>`), ReactiveApp[FILENAME], [
+  var root_13 = add_locations(from_html(`<div class="items svelte-1f3usjq" aria-label="Work items"></div>`), ReactiveApp[FILENAME], [[264, 6]]);
+  var root = add_locations(from_html(`<div class="pane svelte-1f3usjq"><!> <div class="pane-header svelte-1f3usjq" role="toolbar" aria-label="Work Items actions"><span style="font-weight:600;" class="svelte-1f3usjq">Work Items</span> <!> <span class="count svelte-1f3usjq"> </span> <span class="actions svelte-1f3usjq" style="margin-left:auto;"><button title="Refresh work items (R)" aria-label="Refresh" class="svelte-1f3usjq"><span class="codicon codicon-refresh svelte-1f3usjq"></span></button> <button title="Toggle view (V)" aria-label="Toggle Kanban view" class="svelte-1f3usjq"><span></span></button> <button title="Create work item" aria-label="Create new work item" class="svelte-1f3usjq"><span class="codicon codicon-add svelte-1f3usjq"></span></button> <!></span></div> <div class="pane-body svelte-1f3usjq"><!></div></div>`), ReactiveApp[FILENAME], [
     [
-      853,
-      14,
-      [
-        [859, 16, [[860, 18], [867, 18], [870, 18]]],
-        [879, 16, [[880, 18], [883, 18, [[884, 20], [887, 20]]]]],
-        [895, 16, [[916, 18, [[922, 20]]]]]
-      ]
-    ]
-  ]);
-  var root_29 = add_locations(from_html(`<div class="kanban-board svelte-1s1bz3t" aria-label="Kanban board"><div class="kanban-column svelte-1s1bz3t"><div class="kanban-column-header svelte-1s1bz3t"><h3 class="svelte-1s1bz3t">Work Items</h3> <span class="item-count svelte-1s1bz3t"> </span></div> <div class="kanban-column-content svelte-1s1bz3t"></div></div></div>`), ReactiveApp[FILENAME], [
-    [
-      845,
-      6,
-      [[846, 8, [[847, 10, [[848, 12], [849, 12]]], [851, 10]]]]
-    ]
-  ]);
-  var on_click_9 = (__11, toggleItemSelection, item) => toggleItemSelection(Number(get(item).id));
-  var root_36 = add_locations(from_html(`<span class="timer-indicator svelte-1s1bz3t"><span class="codicon codicon-clock svelte-1s1bz3t" aria-hidden="true"></span> </span>`), ReactiveApp[FILENAME], [[958, 16, [[959, 18]]]]);
-  var root_37 = add_locations(from_html(`<span class="codicon codicon-account svelte-1s1bz3t" aria-hidden="true"></span> `, 1), ReactiveApp[FILENAME], [[983, 20]]);
-  var root_38 = add_locations(from_html(`<span class="codicon codicon-account svelte-1s1bz3t" aria-hidden="true"></span> Unassigned`, 1), ReactiveApp[FILENAME], [[987, 20]]);
-  var on_click_10 = (__12, handleStopTimer) => handleStopTimer();
-  var root_39 = add_locations(from_html(`<button class="action-btn stop svelte-1s1bz3t" title="Stop timer"><span class="codicon codicon-debug-stop svelte-1s1bz3t" aria-hidden="true"></span> Stop</button>`), ReactiveApp[FILENAME], [[995, 16, [[1001, 18]]]]);
-  var on_click_11 = (__13, handleItemAction, item) => handleItemAction("start", get(item));
-  var root_40 = add_locations(from_html(`<button class="action-btn start svelte-1s1bz3t" title="Start timer"><span class="codicon codicon-play svelte-1s1bz3t" aria-hidden="true"></span> Start</button>`), ReactiveApp[FILENAME], [[1004, 16, [[1011, 18]]]]);
-  var on_click_12 = (__14, handleItemAction, item) => handleItemAction("view", get(item));
-  var on_click_13 = (__15, handleItemAction, item) => handleItemAction("edit", get(item));
-  var root_35 = add_locations(from_html(`<div tabindex="0" role="button"><div class="work-item-header svelte-1s1bz3t"><input type="checkbox" class="work-item-checkbox svelte-1s1bz3t"/> <span class="work-item-type-icon svelte-1s1bz3t"> </span> <span class="work-item-id svelte-1s1bz3t"> </span> <!> <span> </span></div> <div class="work-item-content svelte-1s1bz3t"><div class="work-item-title svelte-1s1bz3t"> </div> <div class="work-item-meta svelte-1s1bz3t"><span class="work-item-type svelte-1s1bz3t"> </span> <span> </span> <span class="work-item-assignee svelte-1s1bz3t"><!></span></div></div> <div class="work-item-actions svelte-1s1bz3t"><!> <button class="action-btn view svelte-1s1bz3t" title="View in browser"><span class="codicon codicon-eye svelte-1s1bz3t" aria-hidden="true"></span> View</button> <button class="action-btn edit svelte-1s1bz3t" title="Edit work item"><span class="codicon codicon-edit svelte-1s1bz3t" aria-hidden="true"></span> Edit</button></div></div>`), ReactiveApp[FILENAME], [
-    [
-      934,
-      10,
-      [
-        [945, 12, [[946, 14], [953, 14], [956, 14], [963, 14]]],
-        [
-          972,
-          12,
-          [[973, 14], [976, 14, [[977, 16], [978, 16], [981, 16]]]]
-        ],
-        [
-          993,
-          12,
-          [[1014, 14, [[1020, 16]]], [1022, 14, [[1028, 16]]]]
-        ]
-      ]
-    ]
-  ]);
-  var root_34 = add_locations(from_html(`<div class="items svelte-1s1bz3t" aria-label="Work items"></div>`), ReactiveApp[FILENAME], [[932, 6]]);
-  var root = add_locations(from_html(`<div class="pane svelte-1s1bz3t"><!> <!> <!> <div class="query-header svelte-1s1bz3t" role="toolbar" aria-label="Query selection"><div class="query-selector-container svelte-1s1bz3t"><label for="querySelect" class="query-selector-label svelte-1s1bz3t">Query</label> <select id="querySelect" class="query-selector svelte-1s1bz3t" title="Select a query to filter work items" aria-label="Select query"></select> <!></div></div> <div class="pane-header svelte-1s1bz3t" role="toolbar" aria-label="Work Items actions"><span style="font-weight:600;" class="svelte-1s1bz3t">Work Items</span> <!> <span class="count svelte-1s1bz3t"> </span> <!> <span class="actions svelte-1s1bz3t" style="margin-left:auto;"><button title="Refresh work items (R)" aria-label="Refresh" class="svelte-1s1bz3t"><span class="codicon codicon-refresh svelte-1s1bz3t"></span></button> <button title="Toggle view (V)" aria-label="Toggle Kanban view" class="svelte-1s1bz3t"><span></span></button> <button title="Create work item" aria-label="Create new work item" class="svelte-1s1bz3t"><span class="codicon codicon-add svelte-1s1bz3t"></span></button> <!></span></div> <div class="pane-body svelte-1s1bz3t"><!></div></div>`), ReactiveApp[FILENAME], [
-    [
-      662,
+      124,
       0,
       [
-        [763, 2, [[764, 4, [[765, 6], [766, 6]]]]],
         [
-          785,
+          144,
           2,
           [
-            [786, 4],
-            [790, 4],
+            [145, 4],
+            [149, 4],
             [
-              807,
+              151,
               4,
               [
-                [808, 6, [[809, 8]]],
-                [811, 6, [[812, 8]]],
-                [814, 6, [[815, 8]]]
+                [152, 6, [[153, 8]]],
+                [155, 6, [[156, 8]]],
+                [158, 6, [[163, 8]]]
               ]
             ]
           ]
         ],
-        [827, 2]
+        [179, 2]
       ]
     ]
   ]);
   function ReactiveApp($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, ReactiveApp);
-    console.log("\u{1F7E2} [ReactiveApp] Component is being instantiated - script block executing");
-    function showToast(message, type = "info") {
-      console.log(`\u{1F35E} [Toast-${type}] ${message}`);
+    const vscode2 = acquireVsCodeApi();
+    function postEvent(type, payload = {}) {
+      vscode2.postMessage({ type, payload });
     }
-    let onConnectionSelect = prop($$props, "onConnectionSelect", 3, () => {
-    }), onTimerStart = prop($$props, "onTimerStart", 3, () => {
-    }), onTimerStop = prop($$props, "onTimerStop", 3, () => {
-    }), onTimerPause = prop($$props, "onTimerPause", 3, () => {
-    }), onWorkItemMove = prop($$props, "onWorkItemMove", 3, () => {
-    }), onWorkItemCreate = prop($$props, "onWorkItemCreate", 3, () => {
-    }), onRefreshData = prop($$props, "onRefreshData", 3, () => {
-    }), onAuthResolve = prop($$props, "onAuthResolve", 3, (connectionId) => {
-      console.log(...log_if_contains_state("log", "\u{1F510} [ReactiveApp] Starting authentication for connection:", connectionId));
-    }), onRetry = prop($$props, "onRetry", 3, () => {
-    }), onDebugState = prop($$props, "onDebugState", 3, () => console.log("Debug state: simplified mode"));
-    let loading = tag(state(false), "loading");
-    let errorMsg = tag(state(""), "errorMsg");
-    let selectedItems = tag(state(proxy(/* @__PURE__ */ new Set())), "selectedItems");
-    let focusedIndex = 0;
-    let kanbanView = tag(state(false), "kanbanView");
-    let filterText = "";
-    let typeFilter = "";
-    let stateFilter = "all";
-    let sortKey = "title-asc";
-    let selectedQuery = tag(state("My Activity"), "selectedQuery");
-    let queryDescription = tag(state(""), "queryDescription");
-    let timerActive = tag(user_derived(() => false), "timerActive");
-    let timerRunning = tag(user_derived(() => false), "timerRunning");
-    let timerElapsedLabel = tag(user_derived(() => "00:00:00"), "timerElapsedLabel");
-    let activeWorkItemId = tag(user_derived(() => 0), "activeWorkItemId");
-    let activeWorkItemTitle = tag(user_derived(() => ""), "activeWorkItemTitle");
-    function formatElapsedTime(seconds) {
-      const hours = Math.floor(seconds / 3600);
-      const minutes = Math.floor(seconds % 3600 / 60);
-      const secs = seconds % 60;
-      return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-    }
-    let authReminders = tag(state(proxy([])), "authReminders");
-    let authenticatedConnections = tag(state(proxy(/* @__PURE__ */ new Set())), "authenticatedConnections");
-    let connectionStateSummaries = tag(state(proxy([])), "connectionStateSummaries");
-    let workItemCount = tag(user_derived(() => filteredWorkItems().length), "workItemCount");
+    let workItems = tag(user_derived(() => appState.context.workItems ?? []), "workItems");
+    let connectionsList = tag(user_derived(() => appState.context.organizations.flatMap((org) => org.projects.flatMap((p) => p.connections)) ?? []), "connectionsList");
+    let currentConnection = tag(user_derived(() => appState.context.currentProject?.connections.find((c) => strict_equals(c.id, appState.context.currentOrganization?.id)) ?? null), "currentConnection");
+    let workItemCount = tag(user_derived(() => get(workItems).length), "workItemCount");
     let hasItems = tag(user_derived(() => get(workItemCount) > 0), "hasItems");
-    let initStatus = tag(
-      user_derived(() => ({
-        phase: isInitializing() ? "initializing" : isActivated() ? "active" : "inactive",
-        progress: isActivated() ? 100 : isInitializing() ? 50 : 0
-      })),
-      "initStatus"
-    );
-    let currentConnection = tag(user_derived(activeConnection2), "currentConnection");
-    let connectionsList = tag(user_derived(connections2), "connectionsList");
-    let dataLoading = tag(user_derived(isDataLoading), "dataLoading");
-    let isAppInitializing = tag(user_derived(isInitializing), "isAppInitializing");
-    let isAppActivated = tag(user_derived(isActivated), "isAppActivated");
-    let activeConnectionId = tag(user_derived(() => get(currentConnection)?.id ?? null), "activeConnectionId");
-    let activeConnectionStatus = tag(
-      user_derived(() => get(activeConnectionId) ? get(connectionStateSummaries).find((summary) => strict_equals(summary.id, get(activeConnectionId))) ?? null : null),
-      "activeConnectionStatus"
-    );
-    let isActiveConnectionAuthenticated = tag(
-      user_derived(() => get(activeConnectionStatus) ? get(activeConnectionStatus).isConnected : get(activeConnectionId) ? get(authenticatedConnections).has(get(activeConnectionId)) : false),
-      "isActiveConnectionAuthenticated"
-    );
-    let shouldShowManualSignIn = tag(user_derived(() => strict_equals(get(authReminders).length, 0) && (get(connectionsList)?.length || 0) > 0 && !get(dataLoading) && !get(hasItems) && !!get(activeConnectionId) && !get(isActiveConnectionAuthenticated) && !(get(activeConnectionStatus)?.reauthInProgress ?? false)), "shouldShowManualSignIn");
-    function markConnectionAuthenticated(connectionId) {
-      if (!connectionId) return;
-      if (get(authenticatedConnections).has(connectionId)) return;
-      const updated = new Set(get(authenticatedConnections));
-      updated.add(connectionId);
-      set(authenticatedConnections, updated, true);
-    }
-    function markConnectionRequiresAuth(connectionId) {
-      if (!connectionId) return;
-      if (!get(authenticatedConnections).has(connectionId)) return;
-      const updated = new Set(get(authenticatedConnections));
-      updated.delete(connectionId);
-      set(authenticatedConnections, updated, true);
-    }
-    function upsertAuthReminder(reminder) {
-      set(
-        authReminders,
-        [
-          ...get(authReminders).filter((r) => strict_equals(r.connectionId, reminder.connectionId, false)),
-          reminder
-        ],
-        true
-      );
-    }
-    function clearAuthReminder(connectionId) {
-      set(authReminders, get(authReminders).filter((r) => strict_equals(r.connectionId, connectionId, false)), true);
-    }
-    function applyAuthReminderPayload(reminders, connectionOverride) {
-      const normalizedReminders = Array.isArray(reminders) ? reminders.map((reminder) => {
-        const connectionId = strict_equals(typeof reminder?.connectionId, "string") ? reminder.connectionId.trim() : "";
-        if (!connectionId) {
-          return null;
-        }
-        const connectionLabel = get(connectionsList)?.find((conn) => strict_equals(conn.id, connectionId))?.label ?? connectionId;
-        const reason = strict_equals(typeof reminder?.reason, "string") && reminder.reason.trim().length > 0 ? reminder.reason.trim() : "authRequired";
-        const detail = strict_equals(typeof reminder?.detail, "string") ? reminder.detail : void 0;
-        return {
-          connectionId,
-          label: connectionLabel,
-          message: strict_equals(reason, "authFailed") ? `Sign in failed for ${connectionLabel}. Try again.` : `Sign in required for ${connectionLabel}.`,
-          detail
-        };
-      }).filter(Boolean) : [];
-      set(authReminders, normalizedReminders, true);
-      const reminderIds = new Set(normalizedReminders.map((entry) => entry.connectionId));
-      let updatedAuthenticated = new Set(get(authenticatedConnections));
-      let changed = false;
-      reminderIds.forEach((connectionId) => {
-        if (updatedAuthenticated.delete(connectionId)) {
-          changed = true;
-        }
-      });
-      const activeConnectionIdCandidate = connectionOverride || get(activeConnectionId);
-      if (strict_equals(reminderIds.size, 0) && activeConnectionIdCandidate) {
-        updatedAuthenticated.add(activeConnectionIdCandidate);
-        changed = true;
-      }
-      if (changed) {
-        set(authenticatedConnections, updatedAuthenticated, true);
-      }
-    }
-    const queryOptions = [
-      {
-        value: "My Activity",
-        label: "My Activity",
-        description: "Work items I've created, assigned to, or recently changed"
-      },
-      {
-        value: "My Work Items",
-        label: "My Work Items",
-        description: "Work items currently assigned to me"
-      },
-      {
-        value: "Assigned to me",
-        label: "Assigned to me",
-        description: "Work items currently assigned to me"
-      },
-      {
-        value: "Current Sprint",
-        label: "Current Sprint",
-        description: "Work items in the current iteration"
-      },
-      {
-        value: "All Active",
-        label: "All Active",
-        description: "All active work items in the project"
-      },
-      {
-        value: "Recently Updated",
-        label: "Recently Updated",
-        description: "Work items updated in the last 14 days"
-      },
-      {
-        value: "Following",
-        label: "Following",
-        description: "Work items I'm following"
-      },
-      {
-        value: "Mentioned",
-        label: "Mentioned",
-        description: "Work items where I've been mentioned"
-      }
-    ];
-    function handleVSCodeMessage(event2) {
-      const message = event2.data;
-      switch (message.type) {
-        case "contextUpdate": {
-          if (strict_equals(typeof handleExtensionMessage, "function")) {
-            handleExtensionMessage(message);
-          }
-          const payload = message.context;
-          if (!payload || strict_equals(typeof payload, "object", false)) {
-            break;
-          }
-          if (Array.isArray(payload.connectionStateSummaries)) {
-            set(
-              connectionStateSummaries,
-              payload.connectionStateSummaries.map((entry) => ({
-                id: entry.id,
-                isConnected: Boolean(entry.isConnected),
-                hasClient: Boolean(entry.hasClient),
-                hasProvider: Boolean(entry.hasProvider),
-                reauthInProgress: Boolean(entry.reauthInProgress)
-              })),
-              true
-            );
-            const connectedIds = get(connectionStateSummaries).filter((entry) => entry.isConnected).map((entry) => entry.id);
-            set(authenticatedConnections, new Set(connectedIds), true);
-          }
-          const nextActiveId = strict_equals(typeof payload.activeConnectionId, "string") ? payload.activeConnectionId : null;
-          const activeSummary = nextActiveId ? get(connectionStateSummaries).find((entry) => strict_equals(entry.id, nextActiveId)) : void 0;
-          if (activeSummary) {
-            if (activeSummary.isConnected) {
-              markConnectionAuthenticated(nextActiveId);
-            } else if (!activeSummary.reauthInProgress) {
-              markConnectionRequiresAuth(nextActiveId);
-            }
-          } else if (nextActiveId) {
-            markConnectionAuthenticated(nextActiveId);
-          }
-          applyAuthReminderPayload(payload.authReminders, nextActiveId);
-          set(loading, Boolean(payload.isLoading), true);
-          if (!get(loading)) {
-            set(errorMsg, "");
-          }
-          break;
-        }
-        case "workItemsLoaded":
-          set(loading, false);
-          set(errorMsg, "");
-          showToast(`Loaded ${get(workItemCount)} work items`, "success");
-          break;
-        case "timerState":
-          break;
-        case "queryChanged":
-          set(queryDescription, message.description || "", true);
-          if (message.query && strict_equals(typeof message.query, "string")) {
-            set(selectedQuery, message.query, true);
-            console.log(...log_if_contains_state("log", "\u{1F504} [Webview] Query updated from backend:", {
-              newQuery: get(selectedQuery),
-              description: get(queryDescription),
-              connectionId: message.connectionId
-            }));
-          }
-          break;
-        case "work-items-update": {
-          if (strict_equals(typeof handleExtensionMessage, "function")) {
-            handleExtensionMessage(message);
-          }
-          set(loading, false);
-          set(errorMsg, "");
-          const connectionId = strict_equals(typeof message.connectionId, "string") ? message.connectionId : strict_equals(typeof message.metadata?.connectionId, "string") ? message.metadata.connectionId : get(currentConnection)?.id;
-          if (connectionId) {
-            markConnectionAuthenticated(connectionId);
-            clearAuthReminder(connectionId);
-          }
-          break;
-        }
-        case "auth-reminders-update": {
-          applyAuthReminderPayload(message.authReminders);
-          break;
-        }
-        case "error":
-          set(errorMsg, message.error || "An error occurred", true);
-          set(loading, false);
-          showToast(get(errorMsg), "error");
-          break;
-        case "loading":
-          set(loading, message.loading ?? false, true);
-          if (get(loading)) {
-            set(errorMsg, "");
-          }
-          break;
-        case "authReminder": {
-          const connectionId = strict_equals(typeof message.connectionId, "string") ? message.connectionId.trim() : "";
-          if (!connectionId) {
-            console.warn(...log_if_contains_state("warn", "\u26A0\uFE0F [ReactiveApp] authReminder missing connectionId", message));
-            break;
-          }
-          upsertAuthReminder({
-            connectionId,
-            label: message.connectionLabel || connectionId,
-            message: message.message || `Microsoft Entra sign-in required for ${message.connectionLabel || connectionId}`,
-            detail: message.detail
-          });
-          markConnectionRequiresAuth(connectionId);
-          showToast(`Sign in required for ${message.connectionLabel || connectionId}`, "warning");
-          break;
-        }
-        case "authReminderClear": {
-          const connectionId = strict_equals(typeof message.connectionId, "string") ? message.connectionId.trim() : "";
-          if (!connectionId) break;
-          clearAuthReminder(connectionId);
-          markConnectionAuthenticated(connectionId);
-          break;
-        }
-        case "connections-update":
-          console.log(...log_if_contains_state("log", "\u{1F504} [ReactiveApp] Received connections-update message", message));
-          if (strict_equals(typeof handleExtensionMessage, "function")) {
-            handleExtensionMessage(message);
-            console.log("\u2705 [ReactiveApp] Delegated connections-update to FSM message handler");
-          } else {
-            console.warn("\u26A0\uFE0F [ReactiveApp] handleExtensionMessage function not available, falling back to manual processing");
-            if (Array.isArray(message.connections)) {
-              const processedConnections = message.connections.map((entry) => {
-                const id = strict_equals(typeof entry?.id, "string") ? entry.id.trim() : "";
-                if (!id) return null;
-                const label = strict_equals(typeof entry?.label, "string") && entry.label.trim().length > 0 ? entry.label.trim() : strict_equals(typeof entry?.project, "string") && entry.project.trim().length > 0 ? entry.project.trim() : id;
-                return {
-                  id,
-                  label,
-                  url: entry?.url || "",
-                  project: entry?.project || "",
-                  isDefault: strict_equals(entry?.isDefault, true),
-                  ...entry
-                };
-              }).filter(Boolean);
-              globalConnectionsArray.set(processedConnections);
-              globalConnectionsCount.set(processedConnections.length);
-              console.log("\u2705 [ReactiveApp] Fallback: Updated global connections stores");
-            }
-          }
-          break;
-      }
-    }
+    let isLoading = tag(user_derived(() => appState.fsmState.includes("loading")), "isLoading");
+    let errorMsg = tag(user_derived(() => appState.context.error?.message ?? ""), "errorMsg");
+    let kanbanView = tag(state(false), "kanbanView");
+    let selectedItems = tag(state(proxy(/* @__PURE__ */ new Set())), "selectedItems");
     function handleConnectionChange(e) {
-      const connectionId = e.target.value;
-      integrationActions.switchToConnection(connectionId);
+      const target2 = e.target;
+      postEvent("SELECT_CONNECTION", { connectionId: target2.value });
+    }
+    function handleQueryChange(e) {
+      const target2 = e.target;
+      postEvent("SELECT_QUERY", { query: target2.value });
     }
     function handleStartTimer(workItemId) {
-      integrationActions.startTimerForWorkItem(workItemId);
+      postEvent("START_TIMER", { workItemId });
     }
     function handleStopTimer() {
-      actions.stopTimer();
+      postEvent("STOP_TIMER");
     }
     function handleItemAction(action2, item) {
       switch (action2) {
@@ -6792,66 +4965,12 @@ ${component_stack}
           handleStartTimer(item.id);
           break;
         case "view":
-          const connection = get(currentConnection);
-          if (connection?.url && connection?.project) {
-            const baseUrl = connection.url.replace(/\/$/, "");
-            window.open(`${baseUrl}/${connection.project}/_workitems/edit/${item.id}`, "_blank");
-          }
+          postEvent("VIEW_ITEM", { itemId: item.id });
           break;
         case "edit":
-          showToast(`Edit work item #${item.id} - feature coming soon`, "info");
-          break;
-        case "comment":
-          showToast(`Add comment to #${item.id} - feature coming soon`, "info");
+          postEvent("EDIT_ITEM", { itemId: item.id });
           break;
       }
-    }
-    function handleAuthReminderAction(connectionId, action2) {
-      console.log(...log_if_contains_state("log", "\u{1F510} [ReactiveApp] handleAuthReminderAction called:", { connectionId, action: action2 }));
-      if (strict_equals(typeof window, "undefined", false) && window.vscode?.postMessage) {
-        console.log("\u{1F510} [ReactiveApp] Sending authReminderAction message via VS Code API");
-        window.vscode.postMessage({ type: "authReminderAction", connectionId, action: action2 });
-      } else if (strict_equals(typeof window, "undefined", false) && window.parent?.postMessage) {
-        console.log("\u{1F510} [ReactiveApp] Fallback: Sending authReminderAction message via parent postMessage");
-        window.parent.postMessage({ type: "authReminderAction", connectionId, action: action2 }, "*");
-      } else {
-        console.error("\u{1F534} [ReactiveApp] Unable to send message - no communication method available");
-      }
-      if (strict_equals(action2, "signIn")) {
-        console.log(...log_if_contains_state("log", "\u{1F510} [ReactiveApp] Authentication sign-in initiated for connection:", connectionId));
-      } else if (strict_equals(action2, "dismiss")) {
-        showToast("Authentication reminder dismissed", "info");
-      }
-    }
-    function triggerManualSignIn() {
-      console.log("\u{1F510} [ReactiveApp] triggerManualSignIn called");
-      const activeConnectionData = get(currentConnection);
-      if (!activeConnectionData?.id) {
-        console.warn("\u{1F510} [ReactiveApp] No active connection available for manual sign-in");
-        showToast("No connection available for sign-in", "error");
-        return;
-      }
-      console.log(...log_if_contains_state("log", "\u{1F510} [ReactiveApp] Triggering manual sign-in for connection:", activeConnectionData.id));
-      if (strict_equals(typeof window, "undefined", false) && window.vscode?.postMessage) {
-        console.log("\u{1F510} [ReactiveApp] Sending requireAuthentication message via VS Code API");
-        window.vscode.postMessage({
-          type: "requireAuthentication",
-          connectionId: activeConnectionData.id
-        });
-      } else if (strict_equals(typeof window, "undefined", false) && window.parent?.postMessage) {
-        console.log("\u{1F510} [ReactiveApp] Fallback: Sending requireAuthentication message via parent postMessage");
-        window.parent.postMessage(
-          {
-            type: "requireAuthentication",
-            connectionId: activeConnectionData.id
-          },
-          "*"
-        );
-      } else {
-        console.error("\u{1F534} [ReactiveApp] Unable to send message - no communication method available");
-      }
-      const connectionName = activeConnectionData?.name || "Unknown";
-      showToast(`Starting authentication for ${connectionName}...`, "info");
     }
     function toggleItemSelection(id) {
       if (get(selectedItems).has(id)) {
@@ -6859,41 +4978,24 @@ ${component_stack}
       } else {
         get(selectedItems).add(id);
       }
-      set(selectedItems, new Set(get(
-        selectedItems
-        // Trigger reactivity
-      )), true);
-    }
-    function selectAll() {
-      filteredWorkItems().forEach((item) => {
-        const id = Number(item.id || item.fields?.["System.Id"]);
-        if (id) get(selectedItems).add(id);
-      });
       set(selectedItems, new Set(get(selectedItems)), true);
     }
     function normalizeState(raw) {
       if (!raw) return "new";
       const s = String(raw).toLowerCase().trim().replace(/\s+/g, "-");
-      if (strict_equals(s, "new") || strict_equals(s, "to-do") || strict_equals(s, "todo") || strict_equals(s, "proposed")) return "new";
-      if (strict_equals(s, "approved")) return "approved";
-      if (strict_equals(s, "committed")) return "committed";
-      if (strict_equals(s, "active")) return "active";
-      if (strict_equals(s, "in-progress") || strict_equals(s, "inprogress") || strict_equals(s, "doing")) return "inprogress";
-      if (strict_equals(s, "review") || strict_equals(s, "code-review") || strict_equals(s, "testing")) return "review";
-      if (strict_equals(s, "resolved")) return "resolved";
-      if (strict_equals(s, "done")) return "done";
-      if (strict_equals(s, "closed") || strict_equals(s, "completed")) return "closed";
-      if (strict_equals(s, "removed")) return "removed";
-      return "new";
+      if (["new", "to-do", "todo", "proposed"].includes(s)) return "new";
+      if (["active", "in-progress", "inprogress", "doing"].includes(s)) return "inprogress";
+      if (["resolved", "done", "closed", "completed"].includes(s)) return "closed";
+      return s;
     }
     function getWorkItemTypeIcon(type) {
       const t = String(type || "").toLowerCase();
-      if (t.includes("bug")) return "\uF41D";
-      if (t.includes("task")) return "\uF0F7";
-      if (t.includes("story") || t.includes("user story")) return "\uF413";
-      if (t.includes("feature")) return "\uF0E7";
-      if (t.includes("epic")) return "\uF0F2";
-      return "\uF0C5";
+      if (t.includes("bug")) return "\u{1F41E}";
+      if (t.includes("task")) return "\u2705";
+      if (t.includes("story")) return "\u{1F4D6}";
+      if (t.includes("feature")) return "\u{1F680}";
+      if (t.includes("epic")) return "\u{1F3D4}\uFE0F";
+      return "\u{1F4C4}";
     }
     function getPriorityClass(priority) {
       const p = Number(priority) || 3;
@@ -6903,29 +5005,6 @@ ${component_stack}
       if (strict_equals(p, 4)) return "priority-4";
       return "priority-3";
     }
-    onMount(() => {
-      console.log("\u{1F7E2} [ReactiveApp] Component mounted - initializing store effects");
-      console.log(...log_if_contains_state("log", "\u{1F50D} [ReactiveApp] Store import check:", {
-        fsm: typeof fsm,
-        connections: typeof connections2,
-        ui: typeof ui,
-        initializeStoreEffects: typeof initializeStoreEffects
-      }));
-      try {
-        console.log("\u{1F504} [ReactiveApp] Calling initializeStoreEffects...");
-        initializeStoreEffects();
-        console.log("\u2705 [ReactiveApp] Store effects initialized successfully");
-      } catch (error) {
-        console.error(...log_if_contains_state("error", "\u274C [ReactiveApp] Failed to initialize store effects:", error));
-        console.error(...log_if_contains_state("error", "\u274C [ReactiveApp] Error details:", { name: error.name, message: error.message, stack: error.stack }));
-      }
-      window.addEventListener("message", handleVSCodeMessage);
-      onRefreshData()();
-      console.log("\u{1F7E2} [ReactiveApp] Component mount complete with store integration");
-      return () => {
-        window.removeEventListener("message", handleVSCodeMessage);
-      };
-    });
     var $$exports = { ...legacy_api() };
     var div = root();
     var node = child(div);
@@ -6936,15 +5015,14 @@ ${component_stack}
           () => each(div_1, 21, () => get(connectionsList), index, ($$anchor3, connection) => {
             var button = root_2();
             let classes;
-            button.__click = [on_click, onConnectionSelect, connection];
+            button.__click = [on_click, postEvent, connection];
             var text2 = child(button, true);
             reset(button);
             template_effect(
               ($0) => {
-                classes = set_class(button, 1, "connection-tab svelte-1s1bz3t", null, classes, $0);
+                classes = set_class(button, 1, "connection-tab svelte-1f3usjq", null, classes, $0);
                 set_attribute2(button, "aria-selected", strict_equals(get(connection).id, get(currentConnection)?.id));
-                set_attribute2(button, "aria-label", `Switch to ${get(connection).label}`);
-                set_attribute2(button, "title", `${get(connection).organization}/${get(connection).project}`);
+                set_attribute2(button, "title", get(connection).label);
                 set_text(text2, get(connection).label);
               },
               [
@@ -6957,7 +5035,7 @@ ${component_stack}
           }),
           "each",
           ReactiveApp,
-          666,
+          128,
           6
         );
         reset(div_1);
@@ -6969,657 +5047,262 @@ ${component_stack}
         }),
         "if",
         ReactiveApp,
-        664,
+        126,
         2
       );
     }
-    var node_1 = sibling(node, 2);
+    var div_2 = sibling(node, 2);
+    var node_1 = sibling(child(div_2), 2);
     {
       var consequent_1 = ($$anchor2) => {
-        var div_2 = root_3();
-        validate_each_keys(() => get(authReminders), (reminder) => reminder.connectionId);
-        add_svelte_meta(
-          () => each(div_2, 21, () => get(authReminders), (reminder) => reminder.connectionId, ($$anchor3, reminder) => {
-            var div_3 = root_4();
-            var div_4 = sibling(child(div_3), 2);
-            var div_5 = child(div_4);
-            var text_1 = child(div_5, true);
-            reset(div_5);
-            var div_6 = sibling(div_5, 2);
-            var text_2 = child(div_6, true);
-            reset(div_6);
-            reset(div_4);
-            var div_7 = sibling(div_4, 2);
-            var button_1 = child(div_7);
-            button_1.__click = [on_click_1, handleAuthReminderAction, reminder];
-            var button_2 = sibling(button_1, 2);
-            button_2.__click = [on_click_2, handleAuthReminderAction, reminder];
-            reset(div_7);
-            reset(div_3);
-            template_effect(() => {
-              set_text(text_1, get(reminder).message || `Microsoft Entra sign-in required for ${get(reminder).label}`);
-              set_text(text_2, get(reminder).detail || `Sign in to refresh ${get(reminder).label} and resume work item syncing.`);
-            });
-            append($$anchor3, div_3);
-          }),
-          "each",
-          ReactiveApp,
-          685,
-          6
-        );
-        reset(div_2);
-        append($$anchor2, div_2);
-      };
-      var alternate_1 = ($$anchor2) => {
-        var fragment = comment();
-        var node_2 = first_child(fragment);
-        {
-          var consequent_3 = ($$anchor3) => {
-            var div_8 = root_6();
-            var div_9 = child(div_8);
-            var div_10 = sibling(child(div_9), 2);
-            var div_11 = sibling(child(div_10), 2);
-            var node_3 = child(div_11);
-            {
-              var consequent_2 = ($$anchor4) => {
-                var text_3 = text();
-                template_effect(() => set_text(text_3, `Sign in to ${get(currentConnection).label ?? ""} to load work items and start using the extension.`));
-                append($$anchor4, text_3);
-              };
-              var alternate = ($$anchor4) => {
-                var text_4 = text("Sign in to your Azure DevOps account to load work items and start using the extension.");
-                append($$anchor4, text_4);
-              };
-              add_svelte_meta(
-                () => if_block(node_3, ($$render) => {
-                  if (get(currentConnection)?.label) $$render(consequent_2);
-                  else $$render(alternate, false);
-                }),
-                "if",
-                ReactiveApp,
-                722,
-                12
-              );
-            }
-            reset(div_11);
-            reset(div_10);
-            var div_12 = sibling(div_10, 2);
-            var button_3 = child(div_12);
-            button_3.__click = [on_click_3, triggerManualSignIn];
-            reset(div_12);
-            reset(div_9);
-            reset(div_8);
-            append($$anchor3, div_8);
-          };
-          add_svelte_meta(
-            () => if_block(
-              node_2,
-              ($$render) => {
-                if (get(shouldShowManualSignIn)) $$render(consequent_3);
-              },
-              true
-            ),
-            "if",
-            ReactiveApp,
-            714,
-            2
-          );
-        }
-        append($$anchor2, fragment);
-      };
-      add_svelte_meta(
-        () => if_block(node_1, ($$render) => {
-          if (get(authReminders).length > 0) $$render(consequent_1);
-          else $$render(alternate_1, false);
-        }),
-        "if",
-        ReactiveApp,
-        683,
-        2
-      );
-    }
-    var node_4 = sibling(node_1, 2);
-    {
-      var consequent_7 = ($$anchor2) => {
-        var div_13 = root_9();
-        var div_14 = child(div_13);
-        var div_15 = child(div_14);
-        reset(div_14);
-        var div_16 = sibling(div_14, 2);
-        var node_5 = child(div_16);
-        {
-          var consequent_4 = ($$anchor3) => {
-            var text_5 = text("Activating extension...");
-            append($$anchor3, text_5);
-          };
-          var alternate_4 = ($$anchor3) => {
-            var fragment_2 = comment();
-            var node_6 = first_child(fragment_2);
-            {
-              var consequent_5 = ($$anchor4) => {
-                var text_6 = text("Setting up interface...");
-                append($$anchor4, text_6);
-              };
-              var alternate_3 = ($$anchor4) => {
-                var fragment_3 = comment();
-                var node_7 = first_child(fragment_3);
-                {
-                  var consequent_6 = ($$anchor5) => {
-                    var text_7 = text("Loading work items...");
-                    append($$anchor5, text_7);
-                  };
-                  var alternate_2 = ($$anchor5) => {
-                    var text_8 = text("Initializing...");
-                    append($$anchor5, text_8);
-                  };
-                  add_svelte_meta(
-                    () => if_block(
-                      node_7,
-                      ($$render) => {
-                        if (strict_equals(get(initStatus).phase, "loading-data")) $$render(consequent_6);
-                        else $$render(alternate_2, false);
-                      },
-                      true
-                    ),
-                    "if",
-                    ReactiveApp,
-                    753,
-                    8
-                  );
-                }
-                append($$anchor4, fragment_3);
-              };
-              add_svelte_meta(
-                () => if_block(
-                  node_6,
-                  ($$render) => {
-                    if (strict_equals(get(initStatus).phase, "ui-setup")) $$render(consequent_5);
-                    else $$render(alternate_3, false);
-                  },
-                  true
-                ),
-                "if",
-                ReactiveApp,
-                751,
-                8
-              );
-            }
-            append($$anchor3, fragment_2);
-          };
-          add_svelte_meta(
-            () => if_block(node_5, ($$render) => {
-              if (strict_equals(get(initStatus).phase, "activating")) $$render(consequent_4);
-              else $$render(alternate_4, false);
-            }),
-            "if",
-            ReactiveApp,
-            749,
-            8
-          );
-        }
-        reset(div_16);
-        reset(div_13);
-        template_effect(() => set_style(div_15, `width: ${get(initStatus).progress ?? ""}%`));
-        append($$anchor2, div_13);
-      };
-      add_svelte_meta(
-        () => if_block(node_4, ($$render) => {
-          if (strict_equals(get(initStatus).phase, "initializing")) $$render(consequent_7);
-        }),
-        "if",
-        ReactiveApp,
-        743,
-        2
-      );
-    }
-    var div_17 = sibling(node_4, 2);
-    var div_18 = child(div_17);
-    var select = sibling(child(div_18), 2);
-    select.__change = [handleQueryChange, selectedQuery];
-    add_svelte_meta(
-      () => each(select, 21, () => queryOptions, index, ($$anchor2, option) => {
-        var option_1 = root_16();
-        var text_9 = child(option_1, true);
-        reset(option_1);
-        var option_1_value = {};
-        template_effect(() => {
-          set_text(text_9, get(option).label);
-          if (option_1_value !== (option_1_value = get(option).value)) {
-            option_1.value = (option_1.__value = get(option).value) ?? "";
-          }
-        });
-        append($$anchor2, option_1);
-      }),
-      "each",
-      ReactiveApp,
-      774,
-      8
-    );
-    reset(select);
-    var node_8 = sibling(select, 2);
-    {
-      var consequent_8 = ($$anchor2) => {
-        var div_19 = root_17();
-        var text_10 = child(div_19, true);
-        reset(div_19);
-        template_effect(() => set_text(text_10, get(queryDescription)));
-        append($$anchor2, div_19);
-      };
-      add_svelte_meta(
-        () => if_block(node_8, ($$render) => {
-          if (get(queryDescription)) $$render(consequent_8);
-        }),
-        "if",
-        ReactiveApp,
-        778,
-        6
-      );
-    }
-    reset(div_18);
-    reset(div_17);
-    var div_20 = sibling(div_17, 2);
-    var node_9 = sibling(child(div_20), 2);
-    {
-      var consequent_9 = ($$anchor2) => {
-        var span = root_18();
+        var span = root_3();
         append($$anchor2, span);
       };
       add_svelte_meta(
-        () => if_block(node_9, ($$render) => {
-          if (get(loading)) $$render(consequent_9);
+        () => if_block(node_1, ($$render) => {
+          if (get(isLoading)) $$render(consequent_1);
         }),
         "if",
         ReactiveApp,
-        787,
+        146,
         4
       );
     }
-    var span_1 = sibling(node_9, 2);
-    var text_11 = child(span_1, true);
+    var span_1 = sibling(node_1, 2);
+    var text_1 = child(span_1, true);
     reset(span_1);
-    var node_10 = sibling(span_1, 2);
+    var span_2 = sibling(span_1, 2);
+    var button_1 = child(span_2);
+    button_1.__click = [onRefreshData, postEvent];
+    var button_2 = sibling(button_1, 2);
+    button_2.__click = [toggleKanbanView, kanbanView];
+    var span_3 = child(button_2);
+    reset(button_2);
+    var button_3 = sibling(button_2, 2);
+    button_3.__click = [onWorkItemCreate, postEvent];
+    var node_2 = sibling(button_3, 2);
     {
-      var consequent_12 = ($$anchor2) => {
-        var fragment_4 = root_19();
-        var span_2 = first_child(fragment_4);
-        var text_12 = child(span_2);
-        text_12.nodeValue = `\u2022 ${get(timerRunning) ? "Running" : "Paused"} `;
-        var node_11 = sibling(text_12);
-        {
-          var consequent_10 = ($$anchor3) => {
-            var text_13 = text();
-            text_13.nodeValue = `(${get(timerElapsedLabel) ?? ""})`;
-            append($$anchor3, text_13);
-          };
-          add_svelte_meta(
-            () => if_block(node_11, ($$render) => {
-              if (get(timerElapsedLabel)) $$render(consequent_10);
-            }),
-            "if",
-            ReactiveApp,
-            794,
-            8
-          );
-        }
-        reset(span_2);
-        var node_12 = sibling(span_2, 2);
-        {
-          var consequent_11 = ($$anchor3) => {
-            var button_4 = root_21();
-            button_4.__click = [on_click_4, handleItemAction, activeWorkItemId];
-            set_attribute2(button_4, "title", get(activeWorkItemTitle) || "Open active work item");
-            set_attribute2(button_4, "aria-label", `Open active work item #${get(activeWorkItemId)}`);
-            button_4.textContent = `#${get(activeWorkItemId) ?? ""}`;
-            append($$anchor3, button_4);
-          };
-          add_svelte_meta(
-            () => if_block(node_12, ($$render) => {
-              if (get(activeWorkItemId)) $$render(consequent_11);
-            }),
-            "if",
-            ReactiveApp,
-            796,
-            6
-          );
-        }
-        append($$anchor2, fragment_4);
+      var consequent_2 = ($$anchor2) => {
+        var button_4 = root_4();
+        button_4.__click = [clearSelection, selectedItems];
+        var text_2 = sibling(child(button_4));
+        reset(button_4);
+        template_effect(() => set_text(text_2, ` ${get(selectedItems).size ?? ""}`));
+        append($$anchor2, button_4);
       };
       add_svelte_meta(
-        () => if_block(node_10, ($$render) => {
-          if (get(timerActive)) $$render(consequent_12);
+        () => if_block(node_2, ($$render) => {
+          if (get(selectedItems).size > 0) $$render(consequent_2);
         }),
         "if",
         ReactiveApp,
-        791,
-        4
-      );
-    }
-    var span_3 = sibling(node_10, 2);
-    var button_5 = child(span_3);
-    button_5.__click = function(...$$args) {
-      apply(onRefreshData, this, $$args, ReactiveApp, [808, 23]);
-    };
-    var button_6 = sibling(button_5, 2);
-    button_6.__click = [toggleKanbanView, kanbanView];
-    var span_4 = child(button_6);
-    reset(button_6);
-    var button_7 = sibling(button_6, 2);
-    button_7.__click = function(...$$args) {
-      apply(onWorkItemCreate, this, $$args, ReactiveApp, [814, 23]);
-    };
-    var node_13 = sibling(button_7, 2);
-    {
-      var consequent_13 = ($$anchor2) => {
-        var button_8 = root_22();
-        button_8.__click = [clearSelection, selectedItems];
-        var text_14 = sibling(child(button_8));
-        reset(button_8);
-        template_effect(() => set_text(text_14, ` ${get(selectedItems).size ?? ""}`));
-        append($$anchor2, button_8);
-      };
-      add_svelte_meta(
-        () => if_block(node_13, ($$render) => {
-          if (get(selectedItems).size > 0) $$render(consequent_13);
-        }),
-        "if",
-        ReactiveApp,
-        817,
+        165,
         6
       );
     }
-    reset(span_3);
-    reset(div_20);
-    var div_21 = sibling(div_20, 2);
-    var node_14 = child(div_21);
+    reset(span_2);
+    reset(div_2);
+    var div_3 = sibling(div_2, 2);
+    var node_3 = child(div_3);
     {
-      var consequent_14 = ($$anchor2) => {
-        var div_22 = root_23();
-        var div_23 = sibling(child(div_22), 2);
-        var text_15 = child(div_23, true);
-        reset(div_23);
-        var button_9 = sibling(div_23, 2);
-        button_9.__click = function(...$$args) {
-          apply(onRetry, this, $$args, ReactiveApp, [832, 25]);
-        };
-        reset(div_22);
-        template_effect(() => set_text(text_15, get(errorMsg)));
-        append($$anchor2, div_22);
+      var consequent_3 = ($$anchor2) => {
+        var div_4 = root_5();
+        var div_5 = child(div_4);
+        var text_3 = child(div_5, true);
+        reset(div_5);
+        var button_5 = sibling(div_5, 2);
+        button_5.__click = [onRetry, postEvent];
+        reset(div_4);
+        template_effect(() => set_text(text_3, get(errorMsg)));
+        append($$anchor2, div_4);
       };
-      var alternate_11 = ($$anchor2) => {
-        var fragment_6 = comment();
-        var node_15 = first_child(fragment_6);
+      var alternate_4 = ($$anchor2) => {
+        var fragment = comment();
+        var node_4 = first_child(fragment);
         {
-          var consequent_15 = ($$anchor3) => {
-            var div_24 = root_25();
-            append($$anchor3, div_24);
+          var consequent_4 = ($$anchor3) => {
+            var div_6 = root_7();
+            append($$anchor3, div_6);
           };
-          var alternate_10 = ($$anchor3) => {
-            var fragment_7 = comment();
-            var node_16 = first_child(fragment_7);
+          var alternate_3 = ($$anchor3) => {
+            var fragment_1 = comment();
+            var node_5 = first_child(fragment_1);
             {
-              var consequent_16 = ($$anchor4) => {
-                var div_25 = root_27();
-                var button_10 = sibling(child(div_25), 2);
-                button_10.__click = function(...$$args) {
-                  apply(onRefreshData, this, $$args, ReactiveApp, [841, 25]);
-                };
-                reset(div_25);
-                append($$anchor4, div_25);
+              var consequent_5 = ($$anchor4) => {
+                var div_7 = root_9();
+                var button_6 = sibling(child(div_7), 2);
+                button_6.__click = [onRefreshData, postEvent];
+                reset(div_7);
+                append($$anchor4, div_7);
               };
-              var alternate_9 = ($$anchor4) => {
-                var fragment_8 = comment();
-                var node_17 = first_child(fragment_8);
+              var alternate_2 = ($$anchor4) => {
+                var fragment_2 = comment();
+                var node_6 = first_child(fragment_2);
                 {
-                  var consequent_19 = ($$anchor5) => {
-                    var div_26 = root_29();
-                    var div_27 = child(div_26);
-                    var div_28 = child(div_27);
-                    var span_5 = sibling(child(div_28), 2);
-                    var text_16 = child(span_5, true);
-                    reset(span_5);
-                    reset(div_28);
-                    var div_29 = sibling(div_28, 2);
+                  var consequent_6 = ($$anchor5) => {
+                    var div_8 = root_11();
+                    var div_9 = child(div_8);
+                    var div_10 = child(div_9);
+                    var span_4 = sibling(child(div_10), 2);
+                    var text_4 = child(span_4, true);
+                    reset(span_4);
+                    reset(div_10);
+                    var div_11 = sibling(div_10, 2);
                     add_svelte_meta(
-                      () => each(div_29, 21, () => filteredWorkItems().slice(0, 20), index, ($$anchor6, item) => {
-                        var div_30 = root_30();
-                        var div_31 = child(div_30);
-                        var input = child(div_31);
+                      () => each(div_11, 21, () => get(workItems), index, ($$anchor6, item) => {
+                        var div_12 = root_12();
+                        var div_13 = child(div_12);
+                        var input = child(div_13);
                         remove_input_defaults(input);
-                        input.__click = [on_click_5, toggleItemSelection, item];
-                        var span_6 = sibling(input, 2);
-                        var text_17 = child(span_6, true);
+                        input.__click = [on_click_1, toggleItemSelection, item];
+                        var span_5 = sibling(input, 2);
+                        var text_5 = child(span_5, true);
+                        reset(span_5);
+                        var span_6 = sibling(span_5, 2);
+                        var text_6 = child(span_6);
                         reset(span_6);
-                        var span_7 = sibling(span_6, 2);
-                        var text_18 = child(span_7);
+                        reset(div_13);
+                        var div_14 = sibling(div_13, 2);
+                        var div_15 = child(div_14);
+                        var text_7 = child(div_15, true);
+                        reset(div_15);
+                        var div_16 = sibling(div_15, 2);
+                        var span_7 = child(div_16);
+                        var text_8 = child(span_7, true);
                         reset(span_7);
-                        var node_18 = sibling(span_7, 2);
-                        {
-                          var consequent_17 = ($$anchor7) => {
-                            var span_8 = root_31();
-                            var text_19 = sibling(child(span_8));
-                            text_19.nodeValue = ` ${get(timerElapsedLabel) ?? ""}`;
-                            reset(span_8);
-                            append($$anchor7, span_8);
-                          };
-                          add_svelte_meta(
-                            () => if_block(node_18, ($$render) => {
-                              if (get(timerActive) && strict_equals(get(activeWorkItemId), Number(get(item).id))) $$render(consequent_17);
-                            }),
-                            "if",
-                            ReactiveApp,
-                            871,
-                            18
-                          );
-                        }
-                        reset(div_31);
-                        var div_32 = sibling(div_31, 2);
-                        var div_33 = child(div_32);
-                        var text_20 = child(div_33, true);
-                        reset(div_33);
-                        var div_34 = sibling(div_33, 2);
-                        var span_9 = child(div_34);
-                        var text_21 = child(span_9, true);
-                        reset(span_9);
-                        var span_10 = sibling(span_9, 2);
-                        var text_22 = child(span_10, true);
-                        reset(span_10);
-                        reset(div_34);
-                        reset(div_32);
-                        var div_35 = sibling(div_32, 2);
-                        var node_19 = child(div_35);
-                        {
-                          var consequent_18 = ($$anchor7) => {
-                            var button_11 = root_32();
-                            button_11.__click = [on_click_6, handleStopTimer];
-                            template_effect(() => set_attribute2(button_11, "aria-label", `Stop timer for #${get(item).id}`));
-                            append($$anchor7, button_11);
-                          };
-                          var alternate_5 = ($$anchor7) => {
-                            var button_12 = root_33();
-                            button_12.__click = [on_click_7, handleItemAction, item];
-                            button_12.disabled = get(timerActive);
-                            template_effect(() => set_attribute2(button_12, "aria-label", `Start timer for #${get(item).id}`));
-                            append($$anchor7, button_12);
-                          };
-                          add_svelte_meta(
-                            () => if_block(node_19, ($$render) => {
-                              if (get(timerActive) && strict_equals(get(activeWorkItemId), Number(get(item).id))) $$render(consequent_18);
-                              else $$render(alternate_5, false);
-                            }),
-                            "if",
-                            ReactiveApp,
-                            896,
-                            18
-                          );
-                        }
-                        var button_13 = sibling(node_19, 2);
-                        button_13.__click = [on_click_8, handleItemAction, item];
-                        reset(div_35);
-                        reset(div_30);
+                        var span_8 = sibling(span_7, 2);
+                        var text_9 = child(span_8, true);
+                        reset(span_8);
+                        reset(div_16);
+                        reset(div_14);
+                        var div_17 = sibling(div_14, 2);
+                        var button_7 = child(div_17);
+                        button_7.__click = [on_click_2, handleItemAction, item];
+                        var button_8 = sibling(button_7, 2);
+                        button_8.__click = [on_click_3, handleItemAction, item];
+                        reset(div_17);
+                        reset(div_12);
                         template_effect(
-                          ($0, $1, $2, $3, $4) => {
-                            set_class(div_30, 1, `work-item-card kanban-card ${$0 ?? ""} ${$1 ?? ""}`, "svelte-1s1bz3t");
-                            set_checked(input, $2);
+                          ($0, $1, $2, $3) => {
+                            set_class(div_12, 1, `work-item-card kanban-card ${$0 ?? ""}`, "svelte-1f3usjq");
+                            set_checked(input, $1);
                             set_attribute2(input, "aria-label", `Select work item #${get(item).id ?? ""}`);
-                            set_text(text_17, $3);
-                            set_text(text_18, `#${get(item).id ?? ""}`);
-                            set_text(text_20, get(item).fields?.["System.Title"] || `Work Item #${get(item).id}`);
-                            set_text(text_21, get(item).fields?.["System.WorkItemType"] || "Task");
-                            set_class(span_10, 1, `work-item-state state-${$4 ?? ""}`, "svelte-1s1bz3t");
-                            set_text(text_22, get(item).fields?.["System.State"] || "New");
-                            set_attribute2(button_13, "aria-label", `View work item #${get(item).id}`);
+                            set_text(text_5, $2);
+                            set_text(text_6, `#${get(item).id ?? ""}`);
+                            set_text(text_7, get(item).fields?.["System.Title"] || `Work Item #${get(item).id}`);
+                            set_text(text_8, get(item).fields?.["System.WorkItemType"] || "Task");
+                            set_class(span_8, 1, `work-item-state state-${$3 ?? ""}`, "svelte-1f3usjq");
+                            set_text(text_9, get(item).fields?.["System.State"] || "New");
+                            set_attribute2(button_7, "aria-label", `Start timer for #${get(item).id}`);
+                            set_attribute2(button_8, "aria-label", `View work item #${get(item).id}`);
                           },
                           [
-                            () => get(timerActive) && strict_equals(get(activeWorkItemId), Number(get(item).id)) ? "has-active-timer" : "",
                             () => get(selectedItems).has(Number(get(item).id)) ? "selected" : "",
                             () => get(selectedItems).has(Number(get(item).id)),
                             () => getWorkItemTypeIcon(get(item).fields?.["System.WorkItemType"]),
                             () => normalizeState(get(item).fields?.["System.State"])
                           ]
                         );
-                        append($$anchor6, div_30);
+                        append($$anchor6, div_12);
                       }),
                       "each",
                       ReactiveApp,
-                      852,
+                      203,
                       12
                     );
-                    reset(div_29);
-                    reset(div_27);
-                    reset(div_26);
-                    template_effect(($0) => set_text(text_16, $0), [() => filteredWorkItems().length]);
-                    append($$anchor5, div_26);
+                    reset(div_11);
+                    reset(div_9);
+                    reset(div_8);
+                    template_effect(() => set_text(text_4, get(workItemCount)));
+                    append($$anchor5, div_8);
                   };
-                  var alternate_8 = ($$anchor5) => {
-                    var div_36 = root_34();
+                  var alternate_1 = ($$anchor5) => {
+                    var div_18 = root_13();
                     add_svelte_meta(
-                      () => each(div_36, 21, () => filteredWorkItems().slice(0, 50), index, ($$anchor6, item, index2) => {
-                        var div_37 = root_35();
-                        set_attribute2(div_37, "data-index", index2);
-                        var div_38 = child(div_37);
-                        var input_1 = child(div_38);
+                      () => each(div_18, 21, () => get(workItems), index, ($$anchor6, item, index2) => {
+                        var div_19 = root_14();
+                        set_attribute2(div_19, "data-index", index2);
+                        var div_20 = child(div_19);
+                        var input_1 = child(div_20);
                         remove_input_defaults(input_1);
-                        input_1.__click = [on_click_9, toggleItemSelection, item];
-                        var span_11 = sibling(input_1, 2);
-                        var text_23 = child(span_11, true);
+                        input_1.__click = [on_click_4, toggleItemSelection, item];
+                        var span_9 = sibling(input_1, 2);
+                        var text_10 = child(span_9, true);
+                        reset(span_9);
+                        var span_10 = sibling(span_9, 2);
+                        var text_11 = child(span_10);
+                        reset(span_10);
+                        var span_11 = sibling(span_10, 2);
+                        var text_12 = child(span_11, true);
                         reset(span_11);
-                        var span_12 = sibling(span_11, 2);
-                        var text_24 = child(span_12);
+                        reset(div_20);
+                        var div_21 = sibling(div_20, 2);
+                        var div_22 = child(div_21);
+                        var text_13 = child(div_22, true);
+                        reset(div_22);
+                        var div_23 = sibling(div_22, 2);
+                        var span_12 = child(div_23);
+                        var text_14 = child(span_12, true);
                         reset(span_12);
-                        var node_20 = sibling(span_12, 2);
+                        var span_13 = sibling(span_12, 2);
+                        var text_15 = child(span_13, true);
+                        reset(span_13);
+                        var span_14 = sibling(span_13, 2);
+                        var node_7 = child(span_14);
                         {
-                          var consequent_20 = ($$anchor7) => {
-                            var span_13 = root_36();
-                            var text_25 = sibling(child(span_13));
-                            text_25.nodeValue = ` ${get(timerElapsedLabel) ?? ""}`;
-                            reset(span_13);
-                            append($$anchor7, span_13);
+                          var consequent_7 = ($$anchor7) => {
+                            var fragment_3 = root_15();
+                            var text_16 = sibling(first_child(fragment_3));
+                            template_effect(() => set_text(text_16, ` ${(get(item).fields["System.AssignedTo"].displayName || get(item).fields["System.AssignedTo"]) ?? ""}`));
+                            append($$anchor7, fragment_3);
                           };
-                          add_svelte_meta(
-                            () => if_block(node_20, ($$render) => {
-                              if (get(timerActive) && strict_equals(get(activeWorkItemId), Number(get(item).id))) $$render(consequent_20);
-                            }),
-                            "if",
-                            ReactiveApp,
-                            957,
-                            14
-                          );
-                        }
-                        var span_14 = sibling(node_20, 2);
-                        var text_26 = child(span_14, true);
-                        reset(span_14);
-                        reset(div_38);
-                        var div_39 = sibling(div_38, 2);
-                        var div_40 = child(div_39);
-                        var text_27 = child(div_40, true);
-                        reset(div_40);
-                        var div_41 = sibling(div_40, 2);
-                        var span_15 = child(div_41);
-                        var text_28 = child(span_15, true);
-                        reset(span_15);
-                        var span_16 = sibling(span_15, 2);
-                        var text_29 = child(span_16, true);
-                        reset(span_16);
-                        var span_17 = sibling(span_16, 2);
-                        var node_21 = child(span_17);
-                        {
-                          var consequent_21 = ($$anchor7) => {
-                            var fragment_9 = root_37();
-                            var text_30 = sibling(first_child(fragment_9));
-                            template_effect(() => set_text(text_30, ` ${(get(item).fields["System.AssignedTo"].displayName || get(item).fields["System.AssignedTo"]) ?? ""}`));
-                            append($$anchor7, fragment_9);
-                          };
-                          var alternate_6 = ($$anchor7) => {
-                            var fragment_10 = root_38();
+                          var alternate = ($$anchor7) => {
+                            var fragment_4 = root_16();
                             next();
-                            append($$anchor7, fragment_10);
+                            append($$anchor7, fragment_4);
                           };
                           add_svelte_meta(
-                            () => if_block(node_21, ($$render) => {
-                              if (get(item).fields?.["System.AssignedTo"]) $$render(consequent_21);
-                              else $$render(alternate_6, false);
+                            () => if_block(node_7, ($$render) => {
+                              if (get(item).fields?.["System.AssignedTo"]) $$render(consequent_7);
+                              else $$render(alternate, false);
                             }),
                             "if",
                             ReactiveApp,
-                            982,
+                            304,
                             18
                           );
                         }
-                        reset(span_17);
-                        reset(div_41);
-                        reset(div_39);
-                        var div_42 = sibling(div_39, 2);
-                        var node_22 = child(div_42);
-                        {
-                          var consequent_22 = ($$anchor7) => {
-                            var button_14 = root_39();
-                            button_14.__click = [on_click_10, handleStopTimer];
-                            template_effect(() => set_attribute2(button_14, "aria-label", `Stop timer for #${get(item).id}`));
-                            append($$anchor7, button_14);
-                          };
-                          var alternate_7 = ($$anchor7) => {
-                            var button_15 = root_40();
-                            button_15.__click = [on_click_11, handleItemAction, item];
-                            button_15.disabled = get(timerActive);
-                            template_effect(() => set_attribute2(button_15, "aria-label", `Start timer for #${get(item).id}`));
-                            append($$anchor7, button_15);
-                          };
-                          add_svelte_meta(
-                            () => if_block(node_22, ($$render) => {
-                              if (get(timerActive) && strict_equals(get(activeWorkItemId), Number(get(item).id))) $$render(consequent_22);
-                              else $$render(alternate_7, false);
-                            }),
-                            "if",
-                            ReactiveApp,
-                            994,
-                            14
-                          );
-                        }
-                        var button_16 = sibling(node_22, 2);
-                        button_16.__click = [on_click_12, handleItemAction, item];
-                        var button_17 = sibling(button_16, 2);
-                        button_17.__click = [on_click_13, handleItemAction, item];
-                        reset(div_42);
-                        reset(div_37);
+                        reset(span_14);
+                        reset(div_23);
+                        reset(div_21);
+                        var div_24 = sibling(div_21, 2);
+                        var button_9 = child(div_24);
+                        button_9.__click = [on_click_5, handleItemAction, item];
+                        var button_10 = sibling(button_9, 2);
+                        button_10.__click = [on_click_6, handleItemAction, item];
+                        var button_11 = sibling(button_10, 2);
+                        button_11.__click = [on_click_7, handleItemAction, item];
+                        reset(div_24);
+                        reset(div_19);
                         template_effect(
-                          ($0, $1, $2, $3, $4, $5) => {
-                            set_class(div_37, 1, `work-item-card ${$0 ?? ""} ${strict_equals(focusedIndex, index2) ? "focused" : ""} ${$1 ?? ""}`, "svelte-1s1bz3t");
-                            set_attribute2(div_37, "aria-label", `Work item #${get(item).id}: ${get(item).fields?.["System.Title"]} - use action buttons to interact`);
-                            set_checked(input_1, $2);
+                          ($0, $1, $2, $3, $4) => {
+                            set_class(div_19, 1, `work-item-card ${$0 ?? ""}`, "svelte-1f3usjq");
+                            set_attribute2(div_19, "aria-label", `Work item #${get(item).id}: ${get(item).fields?.["System.Title"]} - use action buttons to interact`);
+                            set_checked(input_1, $1);
                             set_attribute2(input_1, "aria-label", `Select work item #${get(item).id ?? ""}`);
-                            set_text(text_23, $3);
-                            set_text(text_24, `#${get(item).id ?? ""}`);
-                            set_class(span_14, 1, `work-item-priority ${$4 ?? ""}`, "svelte-1s1bz3t");
-                            set_text(text_26, get(item).fields?.["Microsoft.VSTS.Common.Priority"] || "3");
-                            set_text(text_27, get(item).fields?.["System.Title"] || `Work Item #${get(item).id}`);
-                            set_text(text_28, get(item).fields?.["System.WorkItemType"] || "Task");
-                            set_class(span_16, 1, `work-item-state state-${$5 ?? ""}`, "svelte-1s1bz3t");
-                            set_text(text_29, get(item).fields?.["System.State"] || "New");
-                            set_attribute2(button_16, "aria-label", `View work item #${get(item).id}`);
-                            set_attribute2(button_17, "aria-label", `Edit work item #${get(item).id}`);
+                            set_text(text_10, $2);
+                            set_text(text_11, `#${get(item).id ?? ""}`);
+                            set_class(span_11, 1, `work-item-priority ${$3 ?? ""}`, "svelte-1f3usjq");
+                            set_text(text_12, get(item).fields?.["Microsoft.VSTS.Common.Priority"] || "3");
+                            set_text(text_13, get(item).fields?.["System.Title"] || `Work Item #${get(item).id}`);
+                            set_text(text_14, get(item).fields?.["System.WorkItemType"] || "Task");
+                            set_class(span_13, 1, `work-item-state state-${$4 ?? ""}`, "svelte-1f3usjq");
+                            set_text(text_15, get(item).fields?.["System.State"] || "New");
+                            set_attribute2(button_9, "aria-label", `Start timer for #${get(item).id}`);
+                            set_attribute2(button_10, "aria-label", `View work item #${get(item).id}`);
+                            set_attribute2(button_11, "aria-label", `Edit work item #${get(item).id}`);
                           },
                           [
-                            () => get(timerActive) && strict_equals(get(activeWorkItemId), Number(get(item).id)) ? "has-active-timer" : "",
                             () => get(selectedItems).has(Number(get(item).id)) ? "selected" : "",
                             () => get(selectedItems).has(Number(get(item).id)),
                             () => getWorkItemTypeIcon(get(item).fields?.["System.WorkItemType"]),
@@ -7627,405 +5310,107 @@ ${component_stack}
                             () => normalizeState(get(item).fields?.["System.State"])
                           ]
                         );
-                        append($$anchor6, div_37);
+                        append($$anchor6, div_19);
                       }),
                       "each",
                       ReactiveApp,
-                      933,
+                      265,
                       8
                     );
-                    reset(div_36);
-                    append($$anchor5, div_36);
+                    reset(div_18);
+                    append($$anchor5, div_18);
                   };
                   add_svelte_meta(
                     () => if_block(
-                      node_17,
+                      node_6,
                       ($$render) => {
-                        if (get(kanbanView)) $$render(consequent_19);
-                        else $$render(alternate_8, false);
+                        if (get(kanbanView)) $$render(consequent_6);
+                        else $$render(alternate_1, false);
                       },
                       true
                     ),
                     "if",
                     ReactiveApp,
-                    843,
+                    194,
                     4
                   );
                 }
-                append($$anchor4, fragment_8);
+                append($$anchor4, fragment_2);
               };
               add_svelte_meta(
                 () => if_block(
-                  node_16,
+                  node_5,
                   ($$render) => {
-                    if (strict_equals(filteredWorkItems().length, 0)) $$render(consequent_16);
-                    else $$render(alternate_9, false);
+                    if (!get(hasItems)) $$render(consequent_5);
+                    else $$render(alternate_2, false);
                   },
                   true
                 ),
                 "if",
                 ReactiveApp,
-                838,
+                189,
                 4
               );
             }
-            append($$anchor3, fragment_7);
+            append($$anchor3, fragment_1);
           };
           add_svelte_meta(
             () => if_block(
-              node_15,
+              node_4,
               ($$render) => {
-                if (get(loading)) $$render(consequent_15);
-                else $$render(alternate_10, false);
+                if (get(isLoading)) $$render(consequent_4);
+                else $$render(alternate_3, false);
               },
               true
             ),
             "if",
             ReactiveApp,
-            834,
+            185,
             4
           );
         }
-        append($$anchor2, fragment_6);
+        append($$anchor2, fragment);
       };
       add_svelte_meta(
-        () => if_block(node_14, ($$render) => {
-          if (get(errorMsg)) $$render(consequent_14);
-          else $$render(alternate_11, false);
+        () => if_block(node_3, ($$render) => {
+          if (get(errorMsg)) $$render(consequent_3);
+          else $$render(alternate_4, false);
         }),
         "if",
         ReactiveApp,
-        828,
+        180,
         4
       );
     }
-    reset(div_21);
+    reset(div_3);
     reset(div);
     template_effect(() => {
-      set_text(text_11, get(workItemCount));
-      set_class(span_4, 1, `codicon codicon-${get(kanbanView) ? "list-unordered" : "organization"}`, "svelte-1s1bz3t");
+      set_text(text_1, get(workItemCount));
+      set_class(span_3, 1, `codicon codicon-${get(kanbanView) ? "list-unordered" : "organization"}`, "svelte-1f3usjq");
     });
-    bind_select_value(select, () => get(selectedQuery), ($$value) => set(selectedQuery, $$value));
     append($$anchor, div);
     return pop($$exports);
   }
-  delegate(["click", "change"]);
+  delegate(["click"]);
 
   // src/webview/reactive-main.ts
-  var vscode = (() => {
-    if (window.vscode) {
-      console.log("[reactive-main] Using globally available VS Code API");
-      return window.vscode;
-    } else if (window.acquireVsCodeApi) {
-      console.log("[reactive-main] Acquiring VS Code API...");
-      const api = window.acquireVsCodeApi();
-      window.vscode = api;
-      return api;
-    } else {
-      console.warn("[reactive-main] No VS Code API available");
-      return null;
+  var vscode = acquireVsCodeApi();
+  window.addEventListener("message", (event2) => {
+    const message = event2.data;
+    console.log("[reactive-main] Received message:", message.type);
+    if (message.type === "syncState") {
+      appState.set(message.payload);
     }
-  })();
-  function postMessage(message) {
-    try {
-      if (vscode && typeof vscode.postMessage === "function") {
-        vscode.postMessage(message);
-        console.log("[reactive-main] \u2705 Message sent via VS Code API:", message.type);
-      } else {
-        console.warn(
-          "[reactive-main] VS Code API not available, trying context bridge for:",
-          message.type
-        );
-        if (message.type === "switchConnection" && message.connectionId) {
-          if (window.__EXTENSION_CONTEXT_MANAGER__) {
-            window.__EXTENSION_CONTEXT_MANAGER__.applyAction(
-              "setActiveConnection",
-              message.connectionId
-            );
-            console.log(
-              "[reactive-main] \u2705 Connection switch via context bridge:",
-              message.connectionId
-            );
-          } else {
-            console.error("[reactive-main] Context bridge not available for connection switching");
-          }
-        } else if (message.type === "startTimer") {
-          if (window.__EXTENSION_CONTEXT_MANAGER__) {
-            window.__EXTENSION_CONTEXT_MANAGER__.applyAction("startTimer");
-            console.log("[reactive-main] \u2705 Timer start via context bridge");
-          }
-        } else if (message.type === "stopTimer") {
-          if (window.__EXTENSION_CONTEXT_MANAGER__) {
-            window.__EXTENSION_CONTEXT_MANAGER__.applyAction("stopTimer");
-            console.log("[reactive-main] \u2705 Timer stop via context bridge");
-          }
-        } else {
-          console.warn("[reactive-main] No fallback available for message type:", message.type);
-        }
-      }
-    } catch (error) {
-      console.error("[reactive-main] Failed to post message:", error, message);
-    }
+  });
+  var target = document.getElementById("svelte-root");
+  if (!target) {
+    throw new Error("Could not find svelte-root element");
   }
-  var unsubscribeContext = null;
-  var lastContextDigest = "";
-  function toLegacyConnection(entry) {
-    if (!entry || typeof entry !== "object") {
-      return null;
-    }
-    const record = entry;
-    const id = typeof record.id === "string" ? record.id.trim() : "";
-    if (!id) {
-      return null;
-    }
-    const label = typeof record.label === "string" && record.label.trim().length > 0 ? record.label.trim() : typeof record.project === "string" && record.project.trim().length > 0 ? record.project.trim() : id;
-    const organization = typeof record.organization === "string" && record.organization.trim().length > 0 ? record.organization.trim() : void 0;
-    const project = typeof record.project === "string" && record.project.trim().length > 0 ? record.project.trim() : void 0;
-    const authMethod = record.authMethod === "entra" ? "entra" : record.authMethod === "pat" ? "pat" : void 0;
-    const url = typeof record.baseUrl === "string" ? record.baseUrl : void 0;
-    return {
-      id,
-      label,
-      name: label,
-      organization,
-      project,
-      authMethod,
-      url
-    };
-  }
-  function readNumericId(value) {
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return value;
-    }
-    if (typeof value === "string") {
-      const parsed = Number.parseInt(value, 10);
-      return Number.isFinite(parsed) ? parsed : null;
-    }
-    return null;
-  }
-  function inferWorkItemIdentifier(item) {
-    if (!item || typeof item !== "object") {
-      return null;
-    }
-    const record = item;
-    const direct = readNumericId(record.id);
-    if (direct !== null) {
-      return direct;
-    }
-    if (record.fields && typeof record.fields === "object") {
-      return readNumericId(record.fields["System.Id"]);
-    }
-    return null;
-  }
-  function digestContext(context) {
-    try {
-      const connectionIds = Array.isArray(context.connections) ? context.connections.map((entry) => typeof entry?.id === "string" ? entry.id : "") : [];
-      const activeConnectionId = typeof context.tab?.connectionId === "string" && context.tab.connectionId || (typeof context.activeConnectionId === "string" ? context.activeConnectionId : null);
-      const workItemIds = Array.isArray(context.tab?.rawWorkItems) ? context.tab.rawWorkItems.map((item) => inferWorkItemIdentifier(item)).filter((id) => typeof id === "number") : [];
-      const timerFingerprint = context.tab?.timer ? {
-        isActive: Boolean(context.tab.timer.isActive),
-        workItemId: context.tab.timer.workItemId ?? null,
-        elapsed: context.tab.timer.elapsed ?? 0
-      } : null;
-      const authReminderKeys = Array.isArray(context.authReminders) ? context.authReminders.map(
-        (reminder) => `${reminder.connectionId ?? ""}:${reminder.reason ?? ""}:${reminder.detail ?? ""}`
-      ) : [];
-      const tabReminderKey = context.tab?.authReminder ? `${context.tab.connectionId ?? activeConnectionId ?? ""}:${context.tab.authReminder.reason ?? ""}:${context.tab.authReminder.detail ?? ""}` : null;
-      return JSON.stringify({
-        connectionIds,
-        activeConnectionId,
-        workItemIds,
-        timerFingerprint,
-        authReminderKeys,
-        tabReminderKey
-      });
-    } catch (error) {
-      console.warn("[reactive-main] Failed to compute context digest", error);
-      return String(Date.now());
-    }
-  }
-  function hydrateLegacyStoresFromContext(context) {
-    if (!context) {
-      return;
-    }
-    const digest = digestContext(context);
-    if (digest === lastContextDigest) {
-      return;
-    }
-    lastContextDigest = digest;
-    const connections4 = Array.isArray(context.connections) ? context.connections.map(toLegacyConnection).filter((entry) => entry !== null) : [];
-    const activeConnectionId = (typeof context.tab?.connectionId === "string" && context.tab.connectionId.trim().length > 0 ? context.tab.connectionId.trim() : null) || (typeof context.activeConnectionId === "string" && context.activeConnectionId.trim().length > 0 ? context.activeConnectionId.trim() : connections4.length > 0 ? connections4[0].id : null);
-    handleExtensionMessage({
-      type: "connections-update",
-      connections: connections4,
-      activeConnectionId
-    });
-    const workItems3 = Array.isArray(context.tab?.rawWorkItems) ? context.tab.rawWorkItems : Array.isArray(context.workItems) ? context.workItems : [];
-    handleExtensionMessage({
-      type: "work-items-update",
-      workItems: workItems3,
-      connectionId: activeConnectionId ?? void 0,
-      metadata: {
-        connectionId: activeConnectionId ?? void 0,
-        source: "context-bridge"
-      }
-    });
-    handleExtensionMessage({
-      type: "loading-state-update",
-      isDataLoading: Boolean(context.tab?.status?.isLoading ?? context.isLoading),
-      isInitializing: false,
-      isActivated: true
-    });
-    const reminderMap = /* @__PURE__ */ new Map();
-    const ensureReminder = (connectionId, reminder) => {
-      if (!connectionId) {
-        return;
-      }
-      const normalizedId = connectionId.trim();
-      if (!normalizedId) {
-        return;
-      }
-      const userFacingLabel = typeof reminder?.label === "string" && reminder.label.trim().length > 0 ? reminder.label.trim() : connections4.find((connection) => connection.id === normalizedId)?.label ?? normalizedId;
-      reminderMap.set(normalizedId, {
-        connectionId: normalizedId,
-        reason: reminder?.reason,
-        detail: reminder?.detail,
-        message: reminder?.message,
-        authMethod: reminder?.authMethod,
-        label: userFacingLabel
-      });
-    };
-    if (Array.isArray(context.authReminders)) {
-      for (const reminder of context.authReminders) {
-        ensureReminder(reminder?.connectionId, {
-          reason: reminder?.reason,
-          detail: reminder?.detail,
-          message: reminder?.message,
-          label: reminder?.label,
-          authMethod: reminder?.authMethod
-        });
-      }
-    }
-    if (context.tab?.authReminder) {
-      ensureReminder(context.tab.connectionId ?? activeConnectionId, {
-        reason: context.tab.authReminder.reason,
-        detail: context.tab.authReminder.detail,
-        message: context.tab.authReminder.message,
-        label: context.tab.authReminder.label,
-        authMethod: context.tab.authReminder.authMethod
-      });
-    }
-    const authRemindersPayload = Array.from(reminderMap.values()).map((reminder) => ({
-      connectionId: reminder.connectionId,
-      reason: reminder.reason,
-      detail: reminder.detail,
-      message: reminder.message,
-      authMethod: reminder.authMethod,
-      label: reminder.label
-    }));
-    handleExtensionMessage({
-      type: "auth-reminders-update",
-      authReminders: authRemindersPayload
-    });
-  }
-  function processExtensionMessage(message) {
-    if (!message || typeof message !== "object") {
-      return;
-    }
-    const type = message.type;
-    console.log("[reactive-main] Received message:", type, message);
-    if (type === "contextUpdate") {
-      const context = message.context;
-      if (context) {
-        contextState.set(context);
-        hydrateLegacyStoresFromContext(context);
-      }
-      return;
-    }
-    handleExtensionMessage(message);
-  }
-  function initializeApplication() {
-    window.addEventListener("message", (event2) => {
-      processExtensionMessage(event2.data);
-    });
-    if (typeof contextState?.subscribe === "function") {
-      unsubscribeContext = contextState.subscribe((state2) => {
-        if (state2) {
-          hydrateLegacyStoresFromContext(state2);
-        }
-      });
-    }
-    console.log("[reactive-main] Webview ready - using simplified setup");
-    console.log("[reactive-main] Application initialized with simplified setup", {
-      isInitializing: false,
-      isActivated: true,
-      connectionsCount: 0
-    });
-    postMessage({ type: "ready" });
-  }
-  function mountReactiveApp() {
-    console.log("\u{1F535} [reactive-main] mountReactiveApp called");
-    const target = document.getElementById("svelte-root");
-    if (!target) {
-      throw new Error("Could not find svelte-root element");
-    }
-    console.log("\u{1F535} [reactive-main] Found svelte-root element, mounting ReactiveApp...");
-    console.log("[reactive-main] Reactive state at mount time (simplified):", {
-      workItemsCount: 0,
-      isDataLoading: false,
-      isInitializing: false,
-      connectionsCount: 0
-    });
-    console.log("[reactive-main] Mounting ReactiveApp based on proven pattern");
-    const app = mount(ReactiveApp, {
-      target,
-      props: {
-        onConnectionSelect: integrationActions.switchToConnection,
-        onRefreshData: integrationActions.loadWorkItems,
-        onTimerStart: integrationActions.startTimerForWorkItem
-      }
-    });
-    console.log("[reactive-main] \u2705 App mounted successfully with universal reactivity");
-    return app;
-  }
-  try {
-    console.log("\u{1F535} [reactive-main] Starting initialization...");
-    initializeApplication();
-    console.log("\u{1F535} [reactive-main] Application initialized, mounting ReactiveApp...");
-    const app = mountReactiveApp();
-    console.log("\u{1F7E2} [reactive-main] ReactiveApp component mounted and running (fixed version)");
-    console.log("[reactive-main] Reactive webview successfully initialized");
-    window.__REACTIVE_APP__ = {
-      app
-      // integrationActions,
-      // uiActions,
-      // fsmDebug,
-      // storeDebug
-    };
-  } catch (error) {
-    console.error("\u274C [reactive-main] Failed to initialize reactive webview:", error);
-    const root2 = document.getElementById("svelte-root");
-    if (root2) {
-      root2.innerHTML = `
-      <div style="padding: 20px; color: var(--vscode-errorForeground);">
-        <h2>Initialization Error</h2>
-        <p>Failed to load the reactive interface: ${error instanceof Error ? error.message : String(error)}</p>
-        <button onclick="window.location.reload()">Retry</button>
-      </div>
-    `;
-    }
-  }
-  if (typeof window !== "undefined") {
-    window.addEventListener("beforeunload", () => {
-      if (unsubscribeContext) {
-        try {
-          unsubscribeContext();
-        } catch (error) {
-          console.warn("[reactive-main] Failed to unsubscribe context listener", error);
-        }
-        unsubscribeContext = null;
-      }
-    });
-  }
+  var app = mount(ReactiveApp, {
+    target
+  });
+  vscode.postMessage({ type: "ready" });
+  console.log("\u{1F7E2} [reactive-main] ReactiveApp component mounted and running.");
+  var reactive_main_default = app;
 })();
 //# sourceMappingURL=reactive-main.js.map

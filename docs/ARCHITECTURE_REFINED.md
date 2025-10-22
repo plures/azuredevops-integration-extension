@@ -1,6 +1,89 @@
 # Refined Architecture: Svelte 5 + XState FSM
 
-This document outlines the modern, reactive, and robust architecture for the VS Code extension, leveraging Svelte 5 for the webview UI and an XState Finite State Machine (FSM) for all business logic and state management in the extension host.
+# Refined Architecture: FSM-First with Unidirectional Data Flow
+
+This document outlines the modern architectural pattern for the Azure DevOps Integration extension. It is based on a "FSM-First" principle, where all application state and business logic are managed by a central Finite State Machine (FSM). The UI, built with Svelte 5, acts as a reactive "view" of this state.
+
+## Core Principles
+
+1.  **Single Source of Truth**: The main application FSM, running in the extension host, is the single, authoritative source of truth for the entire application's state.
+2.  **Unidirectional Data Flow**: State changes flow in one direction: from the FSM to the UI. The UI never modifies its state directly.
+3.  **Event-Driven UI**: The UI sends events (messages) to the extension to trigger state changes. It does not contain business logic.
+4.  **Reactive UI**: The webview is built with Svelte 5 and is purely reactive. Components subscribe to a centralized store and automatically update when the state changes.
+
+## Data Flow Diagram
+
+```
++----------------------+       (2) Posts 'syncState'        +---------------------+
+|                      |        message with new state      |                     |
+|   Extension Host     |----------------------------------->|   Webview (Svelte)  |
+| (activation.ts)      |                                    | (reactive-main.ts)  |
+|                      |<-----------------------------------|                     |
+|   +----------------+ |       (4) Posts user action        +---------------------+
+|   | Application  | |        messages (e.g., 'START_TIMER')           |
+|   | FSM (XState) | |                                                   | (3) Updates store
+|   +----------------+ |                                                   |
+|           ^          |                                                   v
+|           |          |                                          +----------------+
+| (1) State |          |                                          |                |
+|   Changes |          |                                          | appState Store |
+|           |          |                                          | (store.svelte) |
+|           v          |                                          +----------------+
+|   +----------------+ |                                                   ^
+|   | FSM Subscriber| |                                                  |
+|   +----------------+ |                                                  | (Updates UI)
+|                      |                                          +----------------+
++----------------------+                                          | Svelte         |
+                                                                  | Components     |
+                                                                  +----------------+
+```
+
+## Detailed Breakdown
+
+### 1. Extension Host (`src/activation.ts`)
+
+-   **Application FSM**: An XState state machine (`applicationMachine.ts`) defines all possible states, transitions, and actions for the application. It manages connections, authentication, data fetching, and timer logic.
+-   **State Synchronization**: In `activation.ts`, we subscribe to the application FSM. Whenever the FSM's state changes, the subscriber receives the new state.
+-   **`syncState` Message**: The subscriber's primary job is to take the new state, serialize it, and post it to the webview inside a `syncState` message. This is the only message the extension sends to the webview to update its UI.
+
+### 2. Webview (`src/webview/`)
+
+-   **Entry Point (`reactive-main.ts`)**: The webview's entry point is minimal. It:
+    1.  Mounts the root Svelte component (`ReactiveApp.svelte`).
+    2.  Sets up a single `message` listener.
+    3.  When it receives a `syncState` message, it updates the central `appState` store with the payload.
+
+-   **Central Store (`store.svelte.ts`)**:
+    -   This file defines and exports a single Svelte 5 store: `appState`.
+    -   `export const appState = $state(initialState);`
+    -   This store holds the entire state object received from the extension.
+
+-   **Svelte Components (`src/webview/components/`)**:
+    -   Components are "dumb" and purely presentational.
+    -   They import `appState` from the central store.
+    -   They use `$derived` to compute values from the state (e.g., `let workItems = $derived(appState.context.workItems ?? []);`).
+    -   When a user interacts with the UI (e.g., clicks a button), the component does **not** change its own state. Instead, it posts a message to the extension host using `vscode.postMessage({ type: 'EVENT_NAME', payload: {...} });`.
+
+### 3. Event Flow (User Action)
+
+1.  A user clicks the "Start Timer" button in the webview.
+2.  The Svelte component's event handler calls `vscode.postMessage({ type: 'START_TIMER', payload: { workItemId: 123 } });`.
+3.  The `onDidReceiveMessage` listener in `activation.ts` receives this message.
+4.  It forwards the event to the application FSM: `dispatchApplicationEvent({ type: 'WEBVIEW_START_TIMER', ... })`.
+5.  The FSM transitions to a new state (e.g., `timing`).
+6.  The FSM subscriber in `activation.ts` is notified of the state change.
+7.  The subscriber sends a new `syncState` message to the webview with the updated state object (which now includes the active timer details).
+8.  The webview's message listener updates the `appState` store.
+9.  All Svelte components that depend on the timer state reactively update to show the running timer.
+
+## Benefits of this Architecture
+
+-   **Predictability**: State is managed in one place (the FSM), making it easy to understand and debug.
+-   **Traceability**: All state changes are the result of explicit events, which can be logged and traced.
+-   **Decoupling**: The UI is completely decoupled from the business logic. The webview could be replaced with a different UI framework with no changes to the extension's core logic.
+-   **Simplicity**: The webview code is extremely simple. It only renders state and forwards events. There is no complex state management, context passing, or business logic in the UI layer.
+-   **Testability**: Pure functions and FSM logic are highly testable. UI components are simple and require minimal testing.
+
 
 ## Core Principles
 

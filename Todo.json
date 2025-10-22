@@ -9,48 +9,48 @@
     "id": 2,
     "title": "Create Svelte 5 Store",
     "description": "Create a new file at `src/webview/store.svelte.ts` to define the centralized Svelte 5 store (`appState`). This store will hold all state synchronized from the extension.",
-    "status": "in-progress"
+    "status": "completed"
   },
   {
     "id": 3,
     "title": "Refactor webview entry point (main.ts)",
     "description": "Update the webview's entry point to initialize the Svelte app and set up the message listener that updates the `appState` store based on `syncState` messages from the extension.",
-    "status": "not-started"
+    "status": "completed"
   },
   {
     "id": 4,
     "title": "Refactor activation.ts for State Sync",
     "description": "Modify `src/activation.ts` to subscribe to the main application FSM. On every state change, it will post a `syncState` message containing the full, serializable state to the webview.",
-    "status": "not-started"
+    "status": "completed"
   },
   {
     "id": 5,
     "title": "Create components directory",
     "description": "Create a new directory for Svelte components at `src/webview/components/` to better organize the UI code.",
-    "status": "not-started"
+    "status": "completed"
   },
   {
     "id": 6,
     "title": "Relocate Svelte Components",
     "description": "Move existing Svelte components from `src/webview/` into the new `src/webview/components/` directory.",
-    "status": "not-started"
+    "status": "completed"
   },
   {
     "id": 7,
     "title": "Refactor Components to Use Store",
     "description": "Go through each Svelte component and refactor it to get its data directly from the `appState` store instead of receiving it via props or local state. They will send events to the extension via `vscode.postMessage`.",
-    "status": "not-started"
+    "status": "completed"
   },
   {
     "id": 8,
     "title": "Remove Legacy Message Passing",
     "description": "Once components are refactored, remove the old, complex message passing logic from both the extension and the webview, simplifying the communication bridge.",
-    "status": "not-started"
+    "status": "in-progress"
   },
   {
     "id": 9,
     "title": "Document the New Architecture",
     "description": "Create a new document at `docs/ARCHITECTURE_REFINED.md` that clearly explains the new unidirectional data flow, the role of the extension vs. the webview, and how to add new features under this pattern.",
-    "status": "not-started"
+    "status": "completed"
   }
 ]

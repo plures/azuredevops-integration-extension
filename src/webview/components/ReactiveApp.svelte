@@ -129,7 +129,7 @@
         <button
           class="connection-tab"
           class:active={connection.id === currentConnection?.id}
-          on:click={() => postEvent('SELECT_CONNECTION', { connectionId: connection.id })}
+          onclick={() => postEvent('SELECT_CONNECTION', { connectionId: connection.id })}
           role="tab"
           aria-selected={connection.id === currentConnection?.id}
           title={connection.label}
@@ -149,14 +149,14 @@
     <span class="count">{workItemCount}</span>
 
     <span class="actions" style="margin-left:auto;">
-      <button on:click={onRefreshData} title="Refresh work items (R)" aria-label="Refresh">
+      <button onclick={onRefreshData} title="Refresh work items (R)" aria-label="Refresh">
         <span class="codicon codicon-refresh"></span>
       </button>
-      <button on:click={toggleKanbanView} title="Toggle view (V)" aria-label="Toggle Kanban view">
+      <button onclick={toggleKanbanView} title="Toggle view (V)" aria-label="Toggle Kanban view">
         <span class="codicon codicon-{kanbanView ? 'list-unordered' : 'organization'}"></span>
       </button>
       <button
-        on:click={onWorkItemCreate}
+        onclick={onWorkItemCreate}
         title="Create work item"
         aria-label="Create new work item"
       >
@@ -164,7 +164,7 @@
       </button>
       {#if selectedItems.size > 0}
         <button
-          on:click={clearSelection}
+          onclick={clearSelection}
           title="Clear selection (Esc)"
           aria-label="Clear selection"
         >
@@ -180,7 +180,7 @@
     {#if errorMsg}
       <div class="error-banner" role="alert">
         <div>{errorMsg}</div>
-        <button on:click={onRetry}>Retry</button>
+        <button onclick={onRetry}>Retry</button>
       </div>
     {:else if isLoading}
       <div class="loading">
@@ -189,7 +189,7 @@
     {:else if !hasItems}
       <div class="empty">
         <div>No work items to display.</div>
-        <button on:click={onRefreshData}>Refresh</button>
+        <button onclick={onRefreshData}>Refresh</button>
       </div>
     {:else if kanbanView}
       <!-- Kanban Board View -->
@@ -211,7 +211,7 @@
                     type="checkbox"
                     class="work-item-checkbox"
                     checked={selectedItems.has(Number(item.id))}
-                    on:click={() => toggleItemSelection(Number(item.id))}
+                    onclick={() => toggleItemSelection(Number(item.id))}
                     aria-label="Select work item #{item.id}"
                   />
                   <span class="work-item-type-icon"
@@ -239,7 +239,7 @@
                 <div class="work-item-actions">
                   <button
                     class="action-btn start compact"
-                    on:click={() => handleItemAction('start', item)}
+                    onclick={() => handleItemAction('start', item)}
                     title="Start timer"
                     aria-label={`Start timer for #${item.id}`}
                   >
@@ -247,7 +247,7 @@
                   </button>
                   <button
                     class="action-btn view compact"
-                    on:click={() => handleItemAction('view', item)}
+                    onclick={() => handleItemAction('view', item)}
                     title="View"
                     aria-label={`View work item #${item.id}`}
                   >
@@ -275,7 +275,7 @@
                 type="checkbox"
                 class="work-item-checkbox"
                 checked={selectedItems.has(Number(item.id))}
-                on:click={() => toggleItemSelection(Number(item.id))}
+                onclick={() => toggleItemSelection(Number(item.id))}
                 aria-label="Select work item #{item.id}"
               />
               <span class="work-item-type-icon"
@@ -315,7 +315,7 @@
             <div class="work-item-actions">
               <button
                 class="action-btn start"
-                on:click={() => handleItemAction('start', item)}
+                onclick={() => handleItemAction('start', item)}
                 title="Start timer"
                 aria-label={`Start timer for #${item.id}`}
               >
@@ -323,7 +323,7 @@
               </button>
               <button
                 class="action-btn view"
-                on:click={() => handleItemAction('view', item)}
+                onclick={() => handleItemAction('view', item)}
                 title="View in browser"
                 aria-label={`View work item #${item.id}`}
               >
@@ -331,7 +331,7 @@
               </button>
               <button
                 class="action-btn edit"
-                on:click={() => handleItemAction('edit', item)}
+                onclick={() => handleItemAction('edit', item)}
                 title="Edit work item"
                 aria-label={`Edit work item #${item.id}`}
               >
