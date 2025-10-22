@@ -51,6 +51,7 @@ import { registerTraceCommands } from './fsm/commands/traceCommands.js';
 import { FSMSetupService } from './fsm/services/fsmSetupService.js';
 import { ConnectionAdapter } from './fsm/adapters/ConnectionAdapter.js';
 import { getConnectionFSMManager } from './fsm/ConnectionFSMManager.js';
+import { initializeBridge } from './fsm/services/extensionHostBridge.js';
 import type {
   AuthReminderReason,
   AuthReminderState,
@@ -859,6 +860,10 @@ async function loadConnectionsFromConfig(
     await context.globalState.update(ACTIVE_CONNECTION_STATE_KEY, resolvedActiveId);
   }
 
+  // Set the readers for the bridge *after* connections are loaded
+  setLoadedConnectionsReader(() => connections);
+  setActiveConnectionIdReader(() => activeConnectionId);
+
   notifyConnectionsList();
   return connections;
 }
@@ -1345,6 +1350,15 @@ async function applyClientIdRemovalPatch(): Promise<void> {
     console.warn('[azureDevOpsInt] Client ID removal patch failed:', error);
     throw error; // Re-throw to be caught by applyStartupPatches
   }
+}
+
+function getNonce() {
+  let text = '';
+  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  for (let i = 0; i < 32; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
 }
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -2023,179 +2037,127 @@ export function deactivate(): Thenable<void> {
 }
 
 class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
-  private _context: vscode.ExtensionContext;
+  public view?: vscode.WebviewView;
+  private readonly extensionUri: vscode.Uri;
+  private readonly fsm: ReturnType<typeof getApplicationActor>;
 
-  constructor(context: vscode.ExtensionContext) {
-    this._context = context;
+  constructor(private readonly context: vscode.ExtensionContext) {
+    this.extensionUri = context.extensionUri;
+    this.fsm = getApplicationActor();
   }
 
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
-    _context: vscode.WebviewViewResolveContext,
+    context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ) {
-    panel = webviewView;
-    panel.webview.options = {
+    this.view = webviewView;
+    const webview = webviewView.webview;
+    webview.options = {
       enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this._context.extensionUri, 'media')],
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
     };
 
-    const nonce = randomUUID();
-    const webviewUri = vscode.Uri.joinPath(
-      this._context.extensionUri,
-      'media',
-      'webview',
-      'reactive-main.js'
+    const nonce = getNonce();
+    const scriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'main.js')
     );
-    const styleUri = vscode.Uri.joinPath(this._context.extensionUri, 'media', 'styles.css');
+    const stylesUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'styles.css')
+    );
 
-    const cspSource = panel.webview.cspSource;
+    // The 'unsafe-eval' is required for Svelte's dev mode.
+    // TODO: Remove 'unsafe-eval' in production builds.
+    const csp = `default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval'; img-src ${webview.cspSource} data:; connect-src 'self';`;
 
-    panel.webview.html = `
+    webview.html = `
       <!DOCTYPE html>
       <html lang="en">
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta http-equiv="Content-Security-Policy" content="
-          default-src 'none';
-          script-src 'nonce-${nonce}';
-          style-src ${cspSource} 'unsafe-inline';
-          font-src ${cspSource};
-          img-src ${cspSource} data:;
-          connect-src ${cspSource};
-        ">
-        <link href="${styleUri}" rel="stylesheet" />
-        <title>Azure DevOps</title>
+        <meta http-equiv="Content-Security-Policy" content="${csp}">
+        <link href="${stylesUri}" rel="stylesheet">
+        <title>Work Items</title>
       </head>
       <body>
         <div id="svelte-root"></div>
-        <script type="module" nonce="${nonce}" src="${panel.webview.asWebviewUri(
-          webviewUri
-        )}"></script>
+        <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
       </body>
       </html>
     `;
 
-    panel.webview.onDidReceiveMessage(
-      safeCommandHandler(async (message) => {
-        verbose('[webview] received message', message);
-        switch (message.type) {
-          case 'ready':
-            await ensureActiveConnection(this._context, activeConnectionId, { refresh: true });
-            break;
-          case 'selfTest':
-            if (selfTestPending && message.nonce === selfTestPending.nonce) {
-              clearTimeout(selfTestPending.timeout);
-              selfTestPending.resolve(message.payload);
-              selfTestPending = undefined;
-            }
-            break;
-          case 'refresh':
-            provider?.refresh(getQueryForProvider(provider));
-            break;
-          case 'switchConnection':
-            await ensureActiveConnection(this._context, message.connectionId, { refresh: true });
-            break;
-          case 'startTimer':
-            ensureTimer(this._context).start(message.workItemId, message.workItemTitle);
-            break;
-          case 'stopTimer':
-            if (timer) {
-              const stopped = timer.stop();
-              if (stopped) {
-                dispatchApplicationEvent({
-                  type: 'TIMER_STOPPED',
-                  payload: {
-                    ...stopped,
-                    connection: timerConnectionInfo,
-                  },
-                });
-              }
-            }
-            break;
-          case 'generateCopilotPrompt':
-            dispatchApplicationEvent({ type: 'GENERATE_COPILOT_PROMPT' });
-            break;
-          case 'stopAndApply':
-            dispatchApplicationEvent({ type: 'STOP_AND_APPLY_DRAFT', payload: message.payload });
-            break;
-          case 'selectQuery':
-            if (activeConnectionId) {
-              const newQuery = setStoredQueryForConnection(activeConnectionId, message.query);
-              provider?.refresh(newQuery);
-            }
-            break;
-          default:
-            // Allow FSM to handle other messages
-            dispatchApplicationEvent({ type: 'WEBVIEW_MESSAGE', message });
-            break;
-        }
-      })
-    );
+    if (this.fsm) {
+      this.fsm.send({ type: 'SET_WEBVIEW_READY', webview });
+    }
 
-    // Ensure the panel is cleaned up when the view is disposed
-    panel.onDidDispose(
-      () => {
-        panel = undefined;
-      },
-      null,
-      this._context.subscriptions
-    );
+    webview.onDidReceiveMessage(async message => {
+      // Handle messages from the webview
+      switch (message.type) {
+        case 'someMessageType':
+          // Handle specific message type
+          break;
+      }
+    });
+  }
+
+  public postMessage(message: unknown) {
+    if (!panel) {
+      return;
+    }
+
+    try {
+      panel.webview.postMessage(message);
+    } catch (error) {
+      console.error('[AzureDevOpsIntViewProvider] postMessage error:', error);
+    }
   }
 }
-
-function getConnectionLabel(connection: ProjectConnection): string {
-  if (connection.label && connection.label.trim().length > 0) {
-    return connection.label;
-  }
-  if (connection.organization && connection.project) {
-    return `${connection.organization}/${connection.project}`;
-  }
-  return connection.id;
-}
-
-type LoggerFn = (message: string, ...args: any[]) => void;
-
-type PostWorkItemsSnapshotParams = {
-  connectionId: string | undefined;
-  items: any[];
-  kanbanView?: boolean;
-  provider?: WorkItemsProvider;
-  types?: string[];
-  query?: string;
-  branchContext?: BranchContext | null;
-};
 
 async function diagnoseWorkItemsIssue(context: vscode.ExtensionContext) {
-  const choice = await vscode.window.showInformationMessage(
-    'This will clear all cached work items and re-fetch them from Azure DevOps. This can help resolve inconsistencies. Continue?',
-    { modal: true },
-    'Proceed'
-  );
+  const log = (message: string) => getOutputChannel()?.appendLine(`[DIAGNOSTIC] ${message}`);
+  log('Starting work items diagnostic...');
 
-  if (choice !== 'Proceed') {
-    vscode.window.showInformationMessage('Diagnostic cancelled.');
+  const config = getConfig();
+  const connections = config.get<ProjectConnection[]>('connections', []);
+  const activeId = context.globalState.get<string>(ACTIVE_CONNECTION_STATE_KEY);
+
+  log(`Found ${connections.length} connections.`);
+  log(`Active connection ID: ${activeId}`);
+
+  if (connections.length === 0) {
+    log('No connections configured. Aborting.');
     return;
   }
 
-  try {
-    vscode.window.showInformationMessage('Running diagnostics...');
-
-    // 1. Clear provider cache
-    verbose('[diagnose] Provider cache cleared');
-
-    // 2. Refresh connections
-    await loadConnectionsFromConfig(context);
-    verbose('[diagnose] Connections reloaded');
-
-    // 3. Re-establish active connection and refresh
-    await ensureActiveConnection(context, activeConnectionId, { refresh: true });
-    verbose('[diagnose] Active connection re-established and refreshed');
-
-    vscode.window.showInformationMessage('Diagnostics complete. Work items have been refreshed.');
-  } catch (error: any) {
-    console.error('[diagnose] Diagnostic failed:', error);
-    vscode.window.showErrorMessage('Diagnostic failed: ' + (error.message || String(error)));
+  const activeConn = connections.find(c => c.id === activeId);
+  if (!activeConn) {
+    log('Active connection not found in configuration. Aborting.');
+    return;
   }
+
+  log(`Active connection: ${activeConn.label} (${activeConn.organization}/${activeConn.project})`);
+
+  const fsm = getApplicationActor();
+  if (!fsm) {
+    log('FSM actor not available. Aborting.');
+    return;
+  }
+
+  const snapshot = fsm.getSnapshot?.();
+  if (!snapshot) {
+    log('FSM snapshot not available. Aborting.');
+    return;
+  }
+  log('FSM state: ' + snapshot.value);
+
+  const webviewReady = snapshot.context.flags.isWebviewReady;
+  log('Webview ready state: ' + webviewReady);
+
+  if (!webviewReady) {
+    log('Webview is not ready. Cannot proceed with full diagnostic.');
+  }
+
+  log('Diagnostic complete.');
+  getOutputChannel()?.show();
 }

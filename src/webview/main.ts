@@ -1,5 +1,5 @@
 import { mount } from 'svelte';
-import ReactiveApp from './components/ReactiveApp.svelte';
+import App from './App.svelte';
 
 // This ensures that we only try to mount the Svelte app after the DOM is fully loaded.
 // This is a critical step to prevent race conditions where the script runs before the
@@ -10,7 +10,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (target) {
     try {
       console.log('Svelte target found, mounting ReactiveApp...');
-      mount(ReactiveApp, { target });
+      mount(App, { target });
       console.log('🟢 [reactive-main] ReactiveApp component mounted successfully.');
 
       // It's also good practice to re-acquire the vscode api and notify when ready

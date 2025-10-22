@@ -1,0 +1,52 @@
+/* Re-using styles from ReactiveApp.svelte for consistency */
+/* This file can be expanded with more shared styles as needed. */
+
+/* Basic reset and root variables */
+:root {
+  --vscode-editor-background: #1e1e1e;
+  --vscode-editor-foreground: #d4d4d4;
+  --vscode-font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', 'Ubuntu',
+    'Droid Sans', sans-serif;
+  --vscode-editorWidget-border: #454545;
+  --vscode-tab-inactiveBackground: #2d2d2d;
+  --vscode-tab-inactiveForeground: #cccccc;
+  --vscode-tab-activeBackground: #1e1e1e;
+  --vscode-tab-activeForeground: #ffffff;
+  --vscode-tab-activeBorder: #0078d4;
+  --vscode-tab-hoverBackground: #3c3c3c;
+  --vscode-tab-hoverForeground: #ffffff;
+  --vscode-editorWidget-background: #252526;
+  --vscode-input-border: #3c3c3c;
+  --vscode-input-background: #3c3c3c;
+  --vscode-input-foreground: #cccccc;
+  --vscode-editorGroupHeader-tabsBackground: #252526;
+  --vscode-descriptionForeground: #999999;
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-background: #0e639c;
+  --vscode-button-hoverBackground: #1177bb;
+  --vscode-badge-background: #4d4d4d;
+  --vscode-badge-foreground: #ffffff;
+  --vscode-list-hoverBackground: #2a2d2e;
+  --vscode-list-activeSelectionBackground: #094771;
+  --vscode-list-selectionBackground: #094771;
+  --vscode-focusBorder: #007fd4;
+  --vscode-button-secondaryBackground: #3a3d41;
+  --vscode-button-secondaryForeground: #ffffff;
+  --vscode-button-secondaryHoverBackground: #45494e;
+}
+
+body,
+html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: var(--vscode-font-family);
+  background-color: var(--vscode-editor-background);
+  color: var(--vscode-editor-foreground);
+}
+
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}

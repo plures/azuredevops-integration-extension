@@ -1,17 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { applicationMachine } from '../../fsm/machines';
+  import { applicationMachine } from '../fsm/machines';
   import { useMachine } from '@xstate/svelte';
-  import WorkItemList from './WorkItemList.svelte';
-  import Settings from './Settings.svelte';
-  import StatusBar from './StatusBar.svelte';
-  import { fsmLogger } from '../../fsm/logging';
+  import WorkItemList from './components/WorkItemList.svelte';
+  import Settings from './components/Settings.svelte';
+  import StatusBar from './components/StatusBar.svelte';
+  import { fsmLogger } from '../fsm/logging';
 
   const { state, send } = useMachine(applicationMachine);
 
   onMount(() => {
     fsmLogger.info('Svelte component mounted', {
-      fsmComponent: 'ReactiveApp',
+      fsmComponent: 'App',
       state: $state.value,
     });
   });

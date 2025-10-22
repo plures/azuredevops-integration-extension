@@ -38,9 +38,9 @@ async function buildWebview() {
   
   try {
     await esbuild.build({
-      entryPoints: ['src/webview/reactive-main.ts'],
+      entryPoints: ['src/webview/main.ts'],
       bundle: true,
-      outfile: 'media/webview/reactive-main.js',
+      outfile: 'media/webview/main.js',
       sourcemap: !isProd,
       minify: isProd,
       target: 'es2020',
