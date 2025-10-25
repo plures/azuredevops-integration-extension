@@ -25,23 +25,51 @@
   
   // State pattern matching helpers (mimics XState matches)
   function isInState(path: string): boolean {
+    if (!fsmState) return false;
+    
+    // Handle string states
     if (typeof fsmState === 'string') {
       return fsmState === path || fsmState.startsWith(path + '.');
     }
+    
+    // Handle nested state objects like { active: { ready: 'idle' } } or { active: 'ready' }
     if (typeof fsmState === 'object' && fsmState !== null) {
-      // Handle nested state objects like { active: { ready: 'idle' } }
       const parts = path.split('.');
       let current: any = fsmState;
-      for (const part of parts) {
+      
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        
+        // If current is a string, check if it matches the remaining path
+        if (typeof current === 'string') {
+          const remainingPath = parts.slice(i).join('.');
+          return current === remainingPath || current.startsWith(remainingPath + '.');
+        }
+        
+        // Navigate into the nested state object
         if (typeof current === 'object' && part in current) {
           current = current[part];
         } else {
           return false;
         }
       }
+      
+      // If we successfully navigated through all parts, it's a match
       return true;
     }
+    
     return false;
+  }
+  
+  // Debug: log state changes
+  $: {
+    console.log('[webview] App state updated:', {
+      fsmState,
+      type: typeof fsmState,
+      isActive: isInState('active'),
+      isReady: isInState('active.ready'),
+      isSetup: isInState('active.setup'),
+    });
   }
   
   onMount(() => {
