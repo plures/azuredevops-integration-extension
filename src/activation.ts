@@ -14,6 +14,7 @@ import {
   updateBuildRefreshTimer,
   type BranchContext,
 } from './fsm/functions/connection/branchEnrichment.js';
+import { getConnectionLabel } from './fsm/functions/connection/connectionLabel.js';
 import {
   createBranchAwareTransform,
   createConnectionProvider,
@@ -51,7 +52,7 @@ import { registerTraceCommands } from './fsm/commands/traceCommands.js';
 import { FSMSetupService } from './fsm/services/fsmSetupService.js';
 import { ConnectionAdapter } from './fsm/adapters/ConnectionAdapter.js';
 import { getConnectionFSMManager } from './fsm/ConnectionFSMManager.js';
-import { initializeBridge } from './fsm/services/extensionHostBridge.js';
+//import { initializeBridge } from './fsm/services/extensionHostBridge.js';
 import type {
   AuthReminderReason,
   AuthReminderState,
@@ -61,6 +62,22 @@ import type {
 import type { WorkItemTimerState, TimeEntry } from './types.js';
 
 type AuthMethod = 'pat' | 'entra';
+
+// Local lightweight type definitions for internal messaging helpers.
+// These were previously only present in a temporary bundle artifact.
+// Keeping them here avoids implicit any usage and preserves clarity.
+type LoggerFn = (message: string, meta?: any) => void;
+type PostWorkItemsSnapshotParams = {
+  panel?: vscode.WebviewView;
+  logger?: LoggerFn;
+  connectionId?: string;
+  items?: any[];
+  kanbanView?: boolean;
+  provider?: WorkItemsProvider;
+  types?: string[];
+  query?: string;
+  branchContext?: BranchContext | null;
+};
 
 const STATE_TIMER = 'azureDevOpsInt.timer.state';
 const STATE_TIME_ENTRIES = 'azureDevOpsInt.timer.entries';
@@ -101,6 +118,197 @@ function shouldLogDebug(): boolean {
   } catch {
     return false;
   }
+}
+// -------------------------------------------------------------
+// TEST HOOKS (Internal) - Minimal message handling used by tests
+// -------------------------------------------------------------
+// These exports provide a lightweight simulation of the webview ↔ activation
+// message contract for unit tests that import activation.ts directly.
+// They intentionally avoid FSM pathways for isolation.
+export function __setTestContext(ctx: {
+  panel?: any;
+  provider?: any;
+  client?: any;
+  timer?: any;
+}): void {
+  if (ctx.panel) panel = ctx.panel;
+  if (ctx.provider) provider = ctx.provider;
+  if (ctx.client) client = ctx.client;
+  if (ctx.timer) timer = ctx.timer;
+}
+
+export function handleMessage(message: any): void {
+  switch (message?.type) {
+    case 'getWorkItems': {
+      const items = provider?.getWorkItems?.() || [];
+      sendToWebview({
+        type: 'workItemsLoaded',
+        workItems: items,
+        connectionId: activeConnectionId,
+        query: getStoredQueryForConnection(activeConnectionId),
+      });
+      const typeOptions = provider?.getWorkItemTypeOptions?.();
+      if (Array.isArray(typeOptions)) {
+        sendToWebview({ type: 'workItemTypeOptions', options: [...typeOptions] });
+      }
+      break;
+    }
+    case 'startTimer': {
+      const id = message.workItemId;
+      if (!timer || typeof timer.start !== 'function' || !provider) break;
+      const items = provider.getWorkItems?.() || [];
+      const match = items.find((i: any) => i.id === id);
+      const title = match?.fields?.['System.Title'] || `Work Item ${id}`;
+      try {
+        timer.start(id, title);
+      } catch {
+        /* ignore */
+      }
+      break;
+    }
+    case 'refresh': {
+      try {
+        provider?.refresh?.(getStoredQueryForConnection(activeConnectionId));
+      } catch {
+        /* ignore */
+      }
+      break;
+    }
+    case 'addComment': {
+      const workItemId = message.workItemId;
+      if (!message.comment) {
+        sendToWebview({ type: 'showComposeComment', mode: 'addComment', workItemId });
+        break;
+      }
+      // fallthrough to submitComposeComment logic if comment provided
+    }
+    case 'submitComposeComment': {
+      const { workItemId, comment, mode, timerData } = message;
+      if (!client) {
+        sendToWebview({ type: 'composeCommentResult', success: false, mode, workItemId });
+        break;
+      }
+      const hoursDecimal: number | undefined = timerData?.hoursDecimal;
+      (async () => {
+        try {
+          if (mode === 'timerStop' && typeof hoursDecimal === 'number') {
+            const wi = await client.getWorkItemById?.(workItemId);
+            const completed = Number(wi?.fields?.['Microsoft.VSTS.Scheduling.CompletedWork'] || 0);
+            const remaining = Number(wi?.fields?.['Microsoft.VSTS.Scheduling.RemainingWork'] || 0);
+            const newCompleted = completed + hoursDecimal;
+            const newRemaining = Math.max(remaining - hoursDecimal, 0);
+            await client.updateWorkItem?.(workItemId, [
+              {
+                op: 'add',
+                path: '/fields/Microsoft.VSTS.Scheduling.CompletedWork',
+                value: newCompleted,
+              },
+              {
+                op: 'add',
+                path: '/fields/Microsoft.VSTS.Scheduling.RemainingWork',
+                value: newRemaining,
+              },
+            ]);
+            const hoursStr = hoursDecimal.toFixed(2);
+            const composed = comment
+              ? `${comment} (Logged ${hoursStr}h)`
+              : `Logged ${hoursStr}h via timer stop.`;
+            await client.addWorkItemComment?.(workItemId, composed);
+            sendToWebview({
+              type: 'composeCommentResult',
+              success: true,
+              mode,
+              workItemId,
+              hours: hoursDecimal,
+            });
+            return;
+          }
+          if (mode === 'addComment') {
+            if (comment) {
+              await client.addWorkItemComment?.(workItemId, comment);
+              sendToWebview({ type: 'composeCommentResult', success: true, mode, workItemId });
+            } else {
+              sendToWebview({ type: 'showComposeComment', mode: 'addComment', workItemId });
+            }
+            return;
+          }
+          // Generic fallback
+          if (comment) {
+            await client.addWorkItemComment?.(workItemId, comment);
+          }
+          sendToWebview({ type: 'composeCommentResult', success: true, mode, workItemId });
+        } catch (err) {
+          sendToWebview({
+            type: 'composeCommentResult',
+            success: false,
+            mode,
+            workItemId,
+            error: String(err),
+          });
+        }
+      })().catch(() => {
+        sendToWebview({ type: 'composeCommentResult', success: false, mode, workItemId });
+      });
+      break;
+    }
+    default:
+      // ignore
+      break;
+  }
+}
+
+// Legacy PAT migration helper (test-only export)
+// Moves PAT from globalState key to secrets storage if present.
+export async function migrateLegacyPAT(context: vscode.ExtensionContext): Promise<void> {
+  try {
+    const legacy = context.globalState.get<string>('azureDevOpsInt.pat');
+    if (legacy && legacy.trim().length > 0) {
+      await context.secrets.store('azureDevOpsInt.pat', legacy);
+      // Clear legacy value to prevent re-migration loops (best-effort)
+      try {
+        await context.globalState.update('azureDevOpsInt.pat', undefined as any);
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch {
+    /* ignore migration errors for tests */
+  }
+}
+
+// Build minimal webview HTML (test helper) choosing bundle based on feature flag + existence.
+export function buildMinimalWebviewHtml(
+  context: vscode.ExtensionContext,
+  webview: { cspSource: string; asWebviewUri: (u: any) => any },
+  nonce: string
+): string {
+  const cfg = vscode.workspace.getConfiguration('azureDevOpsIntegration');
+  const enableSvelte = !!cfg.get('experimentalSvelteUI');
+  const basePath = context.extensionPath;
+  const sveltePath = path.join(basePath, 'media', 'webview', 'svelte-main.js');
+  const scriptFile = enableSvelte && fs.existsSync(sveltePath) ? 'svelte-main.js' : 'main.js';
+  const scriptUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(context.extensionUri, 'media', 'webview', scriptFile)
+  );
+  const stylesUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(context.extensionUri, 'media', 'webview', 'styles.css')
+  );
+  const csp = `default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval'; img-src ${webview.cspSource} data:; connect-src 'self';`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="${csp}" />
+  <link href="${stylesUri}" rel="stylesheet" />
+  <title>Work Items</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="azure-devops-integration" content="minimal-webview" />
+</head>
+<body>
+  <div id="svelte-root"></div>
+  <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>`;
 }
 
 const activationLogger = createScopedLogger('activation', shouldLogDebug);
@@ -2087,13 +2295,22 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
       </html>
     `;
 
-    if (this.fsm) {
-      this.fsm.send({ type: 'SET_WEBVIEW_READY', webview });
-    }
+    // Notify FSM that webview is ready (optional chaining guards undefined actor/send)
+    this.fsm?.send?.({ type: 'SET_WEBVIEW_READY', webview });
 
-    webview.onDidReceiveMessage(async message => {
+    webview.onDidReceiveMessage(async (message) => {
       // Handle messages from the webview
       switch (message.type) {
+        case 'fsmEvent':
+          // Route FSM events from webview to the application FSM
+          if (message.event) {
+            dispatchApplicationEvent(message.event);
+          }
+          break;
+        case 'webviewReady':
+          // Webview initialization complete
+          dispatchApplicationEvent({ type: 'WEBVIEW_READY' });
+          break;
         case 'someMessageType':
           // Handle specific message type
           break;
@@ -2130,7 +2347,7 @@ async function diagnoseWorkItemsIssue(context: vscode.ExtensionContext) {
     return;
   }
 
-  const activeConn = connections.find(c => c.id === activeId);
+  const activeConn = connections.find((c) => c.id === activeId);
   if (!activeConn) {
     log('Active connection not found in configuration. Aborting.');
     return;

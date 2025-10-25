@@ -6,6 +6,7 @@
  */
 
 import { createMachine, assign, fromPromise, createActor, Actor } from 'xstate';
+import { computeKanbanColumns } from '../functions/workItems/kanbanColumns.js';
 import type { ExtensionContext } from 'vscode';
 import {
   ProjectConnection,
@@ -24,12 +25,7 @@ import type { NormalizationSummary } from '../functions/activation/connectionNor
 // APPLICATION STATE DEFINITIONS
 // ============================================================================
 
-export type {
-  ProjectConnection,
-  AuthReminderReason,
-  AuthReminderState,
-  ConnectionState,
-};
+export type { ProjectConnection, AuthReminderReason, AuthReminderState, ConnectionState };
 
 export type ApplicationContext = {
   isActivated: boolean;
@@ -52,6 +48,8 @@ export type ApplicationContext = {
   };
   lastError?: Error;
   errorRecoveryAttempts: number;
+  viewMode: 'list' | 'kanban';
+  kanbanColumns?: { id: string; title: string; itemIds: number[] }[];
 };
 
 export type ApplicationEvent =
@@ -86,6 +84,7 @@ export type ApplicationEvent =
   | { type: 'ERROR'; error: Error }
   | { type: 'RETRY' }
   | { type: 'RESET' }
+  | { type: 'TOGGLE_VIEW'; view?: 'list' | 'kanban' }
   // Connection Management Events
   | { type: 'MANAGE_CONNECTIONS' }
   | { type: 'ADD_CONNECTION' }
@@ -142,6 +141,7 @@ export const applicationMachine = createMachine(
       errorRecoveryAttempts: 0,
       webviewPanel: undefined,
       pendingWorkItems: undefined,
+      viewMode: 'list',
     },
 
     states: {
@@ -316,6 +316,12 @@ export const applicationMachine = createMachine(
               },
               'xstate.error.actor.data': {
                 actions: 'handleDataError',
+              },
+              WORK_ITEMS_LOADED: {
+                actions: 'storeWorkItemsInContext',
+              },
+              TOGGLE_VIEW: {
+                actions: 'toggleViewMode',
               },
             },
           },
@@ -508,6 +514,26 @@ export const applicationMachine = createMachine(
           workItems: event.workItems,
         });
       },
+      storeWorkItemsInContext: assign(({ context, event }) => {
+        if (event.type !== 'WORK_ITEMS_LOADED') return {};
+        return {
+          pendingWorkItems: {
+            workItems: event.workItems,
+            connectionId: context.activeConnectionId,
+          },
+        };
+      }),
+      toggleViewMode: assign(({ context, event }) => {
+        if (event.type !== 'TOGGLE_VIEW') return {};
+        const next = event.view ?? (context.viewMode === 'list' ? 'kanban' : 'list');
+        return {
+          viewMode: next,
+          kanbanColumns:
+            next === 'kanban'
+              ? computeKanbanColumns(context.pendingWorkItems?.workItems || [])
+              : undefined,
+        };
+      }),
     },
     actors: {
       performActivation: fromPromise(async () => {
