@@ -1746,6 +1746,13 @@ export async function activate(context: vscode.ExtensionContext) {
   const fsmSetupService = new FSMSetupService(context);
 
   const appActor = getApplicationStoreActor();
+
+  // Activate the FSM with extension context
+  if (appActor && typeof (appActor as any).send === 'function') {
+    verbose('[activation] Sending ACTIVATE event to FSM');
+    (appActor as any).send({ type: 'ACTIVATE', context });
+  }
+
   if (appActor && typeof (appActor as any).subscribe === 'function') {
     (appActor as any).subscribe((snapshot: any) => {
       if (panel && snapshot) {
@@ -2260,6 +2267,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
     _token: vscode.CancellationToken
   ) {
     this.view = webviewView;
+    panel = webviewView; // Store in global for snapshot subscription
     const webview = webviewView.webview;
     webview.options = {
       enableScripts: true,
@@ -2295,8 +2303,8 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
       </html>
     `;
 
-    // Notify FSM that webview is ready (optional chaining guards undefined actor/send)
-    this.fsm?.send?.({ type: 'SET_WEBVIEW_READY', webview });
+    // Notify FSM that webview panel is ready
+    this.fsm?.send?.({ type: 'UPDATE_WEBVIEW_PANEL', webviewPanel: webviewView });
 
     webview.onDidReceiveMessage(async (message) => {
       // Handle messages from the webview
@@ -2308,8 +2316,9 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
           }
           break;
         case 'webviewReady':
-          // Webview initialization complete
-          dispatchApplicationEvent({ type: 'WEBVIEW_READY' });
+        case 'ready':
+          // Webview initialization complete - update the panel reference
+          this.fsm?.send?.({ type: 'UPDATE_WEBVIEW_PANEL', webviewPanel: webviewView });
           break;
         case 'someMessageType':
           // Handle specific message type
@@ -2319,12 +2328,12 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
   }
 
   public postMessage(message: unknown) {
-    if (!panel) {
+    if (!this.view) {
       return;
     }
 
     try {
-      panel.webview.postMessage(message);
+      this.view.webview.postMessage(message);
     } catch (error) {
       console.error('[AzureDevOpsIntViewProvider] postMessage error:', error);
     }
