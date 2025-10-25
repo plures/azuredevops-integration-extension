@@ -13,14 +13,11 @@
   $: fsmState = snapshot.value;
   $: context = snapshot.context;
   
+  // Get VS Code API instance (already acquired in main.ts)
+  const vscode = (window as any).__vscodeApi;
+  
   // Helper to send events back to extension
-  let vscode: any;
   function sendEvent(event: any) {
-    if (!vscode) {
-      if (typeof acquireVsCodeApi === 'function') {
-        vscode = acquireVsCodeApi();
-      }
-    }
     if (vscode) {
       vscode.postMessage({ type: 'fsmEvent', event });
     }
@@ -49,13 +46,10 @@
   
   onMount(() => {
     console.log('[webview] App.svelte mounted');
-    if (typeof acquireVsCodeApi === 'function') {
-      vscode = acquireVsCodeApi();
+    if (vscode) {
       vscode.postMessage({ type: 'webviewReady' });
     }
   });
-  
-  declare function acquireVsCodeApi(): any;
 </script>
 
 <main>

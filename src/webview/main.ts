@@ -88,10 +88,17 @@ window.addEventListener('DOMContentLoaded', () => {
   console.log('[webview] DOMContentLoaded: ensuring mount target');
   const root = ensureMountTarget();
   try {
+    // Acquire VS Code API once and make it available globally
+    let vscode: any;
+    if (typeof acquireVsCodeApi === 'function') {
+      vscode = acquireVsCodeApi();
+      (window as any).__vscodeApi = vscode;
+    }
+
     mount(App, { target: root });
     console.log('🟢 [webview] Svelte component mounted successfully on #' + root.id);
-    if (typeof acquireVsCodeApi === 'function') {
-      const vscode = acquireVsCodeApi();
+
+    if (vscode) {
       vscode.postMessage({ type: 'ready' });
     }
   } catch (e) {
