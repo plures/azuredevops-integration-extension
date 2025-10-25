@@ -6,11 +6,7 @@ import { measureAsync } from './performance.js';
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const stripProjectSegment = (
-  url: string,
-  encodedProject: string,
-  rawProject?: string
-): string => {
+const stripProjectSegment = (url: string, encodedProject: string, rawProject?: string): string => {
   const candidates = new Set<string>();
   if (encodedProject) {
     candidates.add(encodedProject);
@@ -112,7 +108,7 @@ export class AzureDevOpsIntClient {
     this.identityName = options.identityName?.trim() ? options.identityName.trim() : undefined;
     if (this.identityName) {
       console.log(
-        '[AzureClient] Configured with fallback identityName for on-prem:',
+        '[AzureDevOpsInt] [AzureClient] Configured with fallback identityName for on-prem:',
         this.identityName
       );
     }
@@ -164,7 +160,7 @@ export class AzureDevOpsIntClient {
       this.baseUrl = preferredBase;
       this.apiBaseUrl = manualApi.replace(/\/+$/, '');
 
-      console.log('[AzureClient] Using manual API URL override:', {
+      console.log('[AzureDevOpsInt] [AzureClient] Using manual API URL override:', {
         apiBaseUrl: this.apiBaseUrl,
         baseUrl: this.baseUrl,
       });
@@ -361,26 +357,33 @@ export class AzureDevOpsIntClient {
    * Falls back to null on error.
    */
   async getAuthenticatedUserId(): Promise<string | null> {
-    console.log('[AzureClient] 🔍 Testing authentication...');
+    console.log('[AzureDevOpsInt] [AzureClient] 🔍 Testing authentication...');
     const identity = await this._getAuthenticatedIdentity();
 
     if (identity?.id) {
-      console.log('[AzureClient] ✅ Authentication successful!');
+      console.log('[AzureDevOpsInt] [AzureClient] ✅ Authentication successful!');
       console.log(
-        `[AzureClient] 👤 User: ${identity.displayName || 'Unknown'} (${identity.uniqueName || 'Unknown'})`
+        `[AzureDevOpsInt] [AzureClient] 👤 User: ${identity.displayName || 'Unknown'} (${identity.uniqueName || 'Unknown'})`
       );
-      console.log(`[AzureClient] 🔑 Authentication method: Personal Access Token (PAT)`);
-      console.log(`[AzureClient] 📋 Your PAT has at least basic read permissions`);
       console.log(
-        `[AzureClient] 💡 If work item creation works, your PAT also has work item write permissions`
+        `[AzureDevOpsInt] [AzureClient] 🔑 Authentication method: Personal Access Token (PAT)`
+      );
+      console.log(`[AzureDevOpsInt] [AzureClient] 📋 Your PAT has at least basic read permissions`);
+      console.log(
+        `[AzureDevOpsInt] [AzureClient] 💡 If work item creation works, your PAT also has work item write permissions`
       );
     } else {
-      console.log('[AzureClient] ❌ Authentication failed - no user identity returned');
+      console.log(
+        '[AzureDevOpsInt] [AzureClient] ❌ Authentication failed - no user identity returned'
+      );
     }
 
     // Debug: log the entire identity object for diagnostics (no secrets)
     try {
-      console.log('[AzureClient][DEBUG] resolved identity object:', JSON.stringify(identity));
+      console.log(
+        '[AzureDevOpsInt] [AzureClient][DEBUG] resolved identity object:',
+        JSON.stringify(identity)
+      );
     } catch {
       // ignore stringify errors
     }
@@ -414,7 +417,9 @@ export class AzureDevOpsIntClient {
           const fullUrl = `${sanitized}${separator}api-version=${version}`;
           attempts.push({ desc: `${desc} (v=${version})`, url: fullUrl });
           try {
-            return useAxiosBase ? await this.axios.get(fullUrl) : await this._authorizedGet(fullUrl);
+            return useAxiosBase
+              ? await this.axios.get(fullUrl)
+              : await this._authorizedGet(fullUrl);
           } catch (error) {
             lastError = error;
             if (!this._shouldRetryConnectionDataVersion(error)) {
@@ -439,7 +444,11 @@ export class AzureDevOpsIntClient {
           resp = await attemptConnectionData(apiConn, 'apiBaseUrl without project', false);
         } catch (err2) {
           try {
-            resp = await attemptConnectionData('/connectionData', 'relative to axios baseURL', true);
+            resp = await attemptConnectionData(
+              '/connectionData',
+              'relative to axios baseURL',
+              true
+            );
           } catch (err3) {
             console.error('[azureDevOpsInt] connectionData attempts:', attempts);
             throw err1 || err2 || err3;
@@ -487,7 +496,10 @@ export class AzureDevOpsIntClient {
       };
       this.cachedIdentity = identity;
       try {
-        console.log('[AzureClient][DEBUG] resolved identity object:', JSON.stringify(identity));
+        console.log(
+          '[AzureDevOpsInt] [AzureClient][DEBUG] resolved identity object:',
+          JSON.stringify(identity)
+        );
       } catch {
         /* ignore stringify errors */
       }
@@ -496,7 +508,7 @@ export class AzureDevOpsIntClient {
       // use identityName as the fallback uniqueName
       if (!this.cachedIdentity.uniqueName && this.identityName) {
         console.log(
-          '[AzureClient][DEBUG] using provided identityName as fallback:',
+          '[AzureDevOpsInt] [AzureClient][DEBUG] using provided identityName as fallback:',
           this.identityName
         );
         this.cachedIdentity.uniqueName = this.identityName;
@@ -504,11 +516,11 @@ export class AzureDevOpsIntClient {
 
       return this.cachedIdentity;
     } catch (e) {
-      console.error('Error fetching authenticated user identity', e);
+      console.error('[AzureDevOpsInt] Error fetching authenticated user identity', e);
       // If connectionData fails entirely and we have identityName, use it as a fallback
       if (this.identityName) {
         console.log(
-          '[AzureClient][DEBUG] connectionData failed, using identityName fallback:',
+          '[AzureDevOpsInt] [AzureClient][DEBUG] connectionData failed, using identityName fallback:',
           this.identityName
         );
         this.cachedIdentity = {
@@ -1052,7 +1064,7 @@ export class AzureDevOpsIntClient {
       const resp = await this.axios.get(`/wit/workitems/${id}?$expand=all&api-version=7.0`);
       return { id: resp.data.id, fields: resp.data.fields } as WorkItem;
     } catch (err) {
-      console.error('Error fetching work item by id:', err);
+      console.error('[AzureDevOpsInt] Error fetching work item by id:', err);
       return null;
     }
   }
@@ -1068,7 +1080,7 @@ export class AzureDevOpsIntClient {
       const raw = itemsResp.data.value || [];
       return raw.map((r: any) => ({ id: r.id, fields: r.fields }) as WorkItem);
     } catch (err) {
-      console.error('runWIQL failed:', err);
+      console.error('[AzureDevOpsInt] runWIQL failed:', err);
       return [];
     }
   }
@@ -1114,7 +1126,7 @@ export class AzureDevOpsIntClient {
     assignedTo?: string,
     extraFields?: Record<string, unknown>
   ): Promise<WorkItem> {
-    console.log('[AzureClient] 🔍 Creating work item:', {
+    console.log('[AzureDevOpsInt] [AzureClient] 🔍 Creating work item:', {
       type,
       title: title.substring(0, 50) + '...',
     });
@@ -1135,27 +1147,29 @@ export class AzureDevOpsIntClient {
         headers: { 'Content-Type': 'application/json-patch+json' },
       });
 
-      console.log('[AzureClient] ✅ Work item created successfully!');
-      console.log(`[AzureClient] 📋 Work Item ID: ${resp.data.id}`);
+      console.log('[AzureDevOpsInt] [AzureClient] ✅ Work item created successfully!');
+      console.log(`[AzureDevOpsInt] [AzureClient] 📋 Work Item ID: ${resp.data.id}`);
       console.log(
-        `[AzureClient] 🔑 This confirms your authentication has work item WRITE permissions`
+        `[AzureDevOpsInt] [AzureClient] 🔑 This confirms your authentication has work item WRITE permissions`
       );
       console.log(
-        `[AzureClient] 🎯 Required permission: vso.work_write (for PAT) or equivalent scope (for OAuth)`
+        `[AzureDevOpsInt] [AzureClient] 🎯 Required permission: vso.work_write (for PAT) or equivalent scope (for OAuth)`
       );
 
       return { id: resp.data.id, fields: resp.data.fields } as WorkItem;
     } catch (error: any) {
       console.error(
-        '[AzureClient] ❌ Work item creation failed:',
+        '[AzureDevOpsInt] [AzureClient] ❌ Work item creation failed:',
         error.response?.status,
         error.response?.statusText
       );
       if (error.response?.status === 403) {
         console.error(
-          '[AzureClient] 🚫 Permission denied - your authentication lacks work item write permissions'
+          '[AzureDevOpsInt] [AzureClient] 🚫 Permission denied - your authentication lacks work item write permissions'
         );
-        console.error('[AzureClient] 💡 Check your PAT scopes or Azure AD permissions');
+        console.error(
+          '[AzureDevOpsInt] [AzureClient] 💡 Check your PAT scopes or Azure AD permissions'
+        );
       }
       throw error;
     }
@@ -1189,7 +1203,7 @@ export class AzureDevOpsIntClient {
       const resp = await this.axios.get(`/wit/workitemtypes?api-version=7.0`);
       return resp.data.value || [];
     } catch (e) {
-      console.error('Error fetching work item types:', e);
+      console.error('[AzureDevOpsInt] Error fetching work item types:', e);
       return [];
     }
   }
@@ -1202,7 +1216,10 @@ export class AzureDevOpsIntClient {
       const states = resp.data.states || [];
       return states.map((state: any) => state.name || state);
     } catch (e) {
-      console.error(`Error fetching states for work item type ${workItemType}:`, e);
+      console.error(
+        `[AzureDevOpsInt] Error fetching states for work item type ${workItemType}:`,
+        e
+      );
       return [];
     }
   }
@@ -1213,7 +1230,7 @@ export class AzureDevOpsIntClient {
       const resp = await this.axios.get(url);
       return resp.data.value || [];
     } catch (err) {
-      console.error('Error fetching iterations:', err);
+      console.error('[AzureDevOpsInt] Error fetching iterations:', err);
       return [];
     }
   }
@@ -1242,7 +1259,7 @@ export class AzureDevOpsIntClient {
         workItemCache.setMetadata(cacheKey, result);
         return result;
       } catch (err) {
-        console.error('Error fetching current iteration:', err);
+        console.error('[AzureDevOpsInt] Error fetching current iteration:', err);
         return null;
       }
     });
@@ -1280,7 +1297,7 @@ export class AzureDevOpsIntClient {
         workItemCache.setMetadata(cacheKey, result);
         return result;
       } catch (e) {
-        console.error('Error fetching teams', e);
+        console.error('[AzureDevOpsInt] Error fetching teams', e);
         return [];
       }
     });
@@ -1311,7 +1328,7 @@ export class AzureDevOpsIntClient {
         workItemCache.setMetadata(cacheKey, this._repoCache);
         return this._repoCache;
       } catch (e) {
-        console.error('Error fetching repositories', e);
+        console.error('[AzureDevOpsInt] Error fetching repositories', e);
         return [];
       }
     });
@@ -1343,7 +1360,7 @@ export class AzureDevOpsIntClient {
           ),
       }));
     } catch (e) {
-      console.error('Error fetching pull requests', e);
+      console.error('[AzureDevOpsInt] Error fetching pull requests', e);
       return [];
     }
   }
@@ -1414,7 +1431,7 @@ export class AzureDevOpsIntClient {
       });
       return mapped;
     } catch (e) {
-      console.error('Error fetching my pull requests across repos', e);
+      console.error('[AzureDevOpsInt] Error fetching my pull requests across repos', e);
       return [];
     }
   }
@@ -1435,7 +1452,7 @@ export class AzureDevOpsIntClient {
       );
       return resp.data;
     } catch (e) {
-      console.error('Error creating pull request', e);
+      console.error('[AzureDevOpsInt] Error creating pull request', e);
       throw e;
     }
   }
@@ -1480,7 +1497,7 @@ export class AzureDevOpsIntClient {
         webUrl: b._links?.web?.href,
       })) as WorkItemBuildSummary[];
     } catch (e) {
-      console.error('Error fetching builds', e);
+      console.error('[AzureDevOpsInt] Error fetching builds', e);
       return [];
     }
   }

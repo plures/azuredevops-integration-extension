@@ -14,7 +14,7 @@ The Azure DevOps Integration extension uses a **unified emoji-based logging syst
 
 ### **🔴 ERROR - Critical Issues**
 ```
-🔴 [FSM][APPLICATION] Authentication failed for connection: xyz
+🔴 [AzureDevOpsInt][FSM][APPLICATION] Authentication failed for connection: xyz
 🔴 [WEBVIEW][ERR] Failed to load work items: Network timeout
 ```
 - **When to Look:** Extension not working, crashes, or user-facing errors
@@ -22,7 +22,7 @@ The Azure DevOps Integration extension uses a **unified emoji-based logging syst
 
 ### **🟡 WARN - Important Notices**  
 ```
-🟡 [FSM][TIMER] Timer exceeded limit (3.5h), stopping automatically
+🟡 [AzureDevOpsInt][FSM][TIMER] Timer exceeded limit (3.5h), stopping automatically
 🟡 [WEBVIEW][WARN] Deprecated API call detected
 ```
 - **When to Look:** Unexpected behavior or potential issues
@@ -38,8 +38,8 @@ The Azure DevOps Integration extension uses a **unified emoji-based logging syst
 
 ### **🟢 SUCCESS - Positive Confirmations**
 ```
-🟢 [FSM][APPLICATION] Application FSM started successfully
-🟢 [FSM][CONNECTION] Connection authenticated successfully
+🟢 [AzureDevOpsInt][FSM][APPLICATION] Application FSM started successfully
+🟢 [AzureDevOpsInt][FSM][CONNECTION] Connection authenticated successfully
 ```
 - **When to Look:** Confirming operations completed correctly
 - **Use Case:** Validation that setup/actions worked as expected
@@ -48,7 +48,7 @@ The Azure DevOps Integration extension uses a **unified emoji-based logging syst
 
 ### **1. Extension Host Logs**
 - **Source:** Main extension process (`src/activation.ts`, FSM managers)
-- **Prefix:** `[FSM][APPLICATION]`, `[FSM][TIMER]`, `[FSM][CONNECTION]`
+- **Prefix:** `[AzureDevOpsInt][FSM][APPLICATION]`, `[AzureDevOpsInt][FSM][TIMER]`, `[AzureDevOpsInt][FSM][CONNECTION]`
 - **Contains:** State machine transitions, connection management, timer operations
 
 ### **2. Webview Logs**  
@@ -67,14 +67,14 @@ The Azure DevOps Integration extension uses a **unified emoji-based logging syst
 ```bash
 # Look for this sequence in Debug Console:
 🚀 Activation starting with FSM architecture...
-🟢 [FSM][APPLICATION] Application FSM started successfully
+🟢 [AzureDevOpsInt][FSM][APPLICATION] Application FSM started successfully
 🔍 [WEBVIEW_RESOLVE] resolveWebviewView called!
 ```
 
 ### **Debugging Connection Issues**
 ```bash
 # Check for authentication and connection setup:
-🟢 [FSM][CONNECTION] ConnectionFSMManager created
+🟢 [AzureDevOpsInt][FSM][CONNECTION] ConnectionFSMManager created
 [EntraAuthProvider] No cached account found for connection: xxx
 🔍 [UPDATE_CONNECTIONS_STORE] Connections update message sent successfully!
 ```
@@ -92,14 +92,14 @@ The Azure DevOps Integration extension uses a **unified emoji-based logging syst
 1. Run command: `Azure DevOps: Show FSM Logs`
 2. Look for detailed state transitions:
    ```
-   🟢 [FSM][APPLICATION] State transition: unknown → {"active":{"ready":"data_loading"}}
+   🟢 [AzureDevOpsInt][FSM][APPLICATION] State transition: unknown → {"active":{"ready":"data_loading"}}
    ```
 
 ### **Filter Logs by Component**
 Use VS Code Debug Console search:
-- `[FSM][APPLICATION]` - Application state machine
-- `[FSM][TIMER]` - Timer management  
-- `[FSM][CONNECTION]` - Connection handling
+- `[AzureDevOpsInt][FSM][APPLICATION]` - Application state machine
+- `[AzureDevOpsInt][FSM][TIMER]` - Timer management  
+- `[AzureDevOpsInt][FSM][CONNECTION]` - Connection handling
 - `[WEBVIEW][LOG]` - UI component logs
 - `[webview-fsm]` - Webview state management
 
@@ -124,7 +124,7 @@ Look for:
 #### **"Timer Not Working"**
 Look for:
 ```bash
-🟢 [FSM][TIMER] FSM Manager started successfully
+🟢 [AzureDevOpsInt][FSM][TIMER] FSM Manager started successfully
 [ApplicationFSM] Timer actor initialized
 ```
 
@@ -138,7 +138,7 @@ Look for:
 ### **Examples:**
 ```bash
 # FSM State Machine Log
-🟢 [FSM][APPLICATION] 2025-10-17T01:11:56.333Z INFO [APPLICATION] Application FSM started successfully
+🟢 [AzureDevOpsInt][FSM][APPLICATION] 2025-10-17T01:11:56.333Z INFO [APPLICATION] Application FSM started successfully
 
 # Webview Component Log  
 🔵 [WEBVIEW][LOG] [reactive-main] Application initialized with Universal Reactivity

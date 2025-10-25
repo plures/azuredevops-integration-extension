@@ -1,12 +1,17 @@
 /**
  * Connection FSM Manager
- * 
+ *
  * Manages connection state machines and integrates them with the existing
  * activation.ts connection management system.
  */
 
 import { createActor, ActorRefFrom } from 'xstate';
-import { connectionMachine, ConnectionContext, ConnectionEvent, ProjectConnection } from './machines/connectionMachine.js';
+import {
+  connectionMachine,
+  ConnectionContext,
+  ConnectionEvent,
+  ProjectConnection,
+} from './machines/connectionMachine.js';
 import { createComponentLogger, FSMComponent } from './logging/FSMLogger.js';
 
 export class ConnectionFSMManager {
@@ -47,7 +52,7 @@ export class ConnectionFSMManager {
       actor.subscribe((state) => {
         this.logger.debug(`${connectionId} state: ${String(state.value)}`, {
           state: String(state.value),
-          connectionId: connectionId
+          connectionId: connectionId,
         });
       });
 
@@ -65,10 +70,10 @@ export class ConnectionFSMManager {
   async connectToConnection(
     config: ProjectConnection,
     options: { refresh?: boolean; interactive?: boolean } = {}
-  ): Promise<{ 
-    success: boolean; 
-    client?: any; 
-    provider?: any; 
+  ): Promise<{
+    success: boolean;
+    client?: any;
+    provider?: any;
     error?: string;
     state?: any;
   }> {
@@ -80,19 +85,21 @@ export class ConnectionFSMManager {
 
     const actor = this.getConnectionActor(config.id);
     const forceInteractive = options?.interactive === true;
-    
+
     // Send connect event
     actor.send({ type: 'CONNECT', config, forceInteractive });
-    this.logger.logEvent('CONNECT', 'connecting', 'connectionMachine', { 
+    this.logger.logEvent('CONNECT', 'connecting', 'connectionMachine', {
       connectionId: config.id,
-      forceInteractive
+      forceInteractive,
     });
 
     // Wait for connection to complete or fail
     // Extended timeout for device code authentication flow (15 minutes to match Azure)
-    const isInteractiveAuth = options?.interactive;
+    // Device code flow is ALWAYS interactive - detect by checking if forceInteractive OR if using Entra auth
+    const isEntraAuth = config.authMethod === 'entra';
+    const isInteractiveAuth = options?.interactive || forceInteractive || isEntraAuth;
     const timeoutMs = isInteractiveAuth ? 900000 : 30000; // 15 minutes for interactive auth, 30s for cached auth
-    
+
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
         resolve({
@@ -112,8 +119,8 @@ export class ConnectionFSMManager {
             state: state.context,
           });
         } else if (
-          state.matches('auth_failed') || 
-          state.matches('client_failed') || 
+          state.matches('auth_failed') ||
+          state.matches('client_failed') ||
           state.matches('provider_failed') ||
           state.matches('connection_error')
         ) {
@@ -216,7 +223,7 @@ export class ConnectionFSMManager {
    */
   getAllConnectionStates(): Record<string, any> {
     const states: Record<string, any> = {};
-    
+
     for (const [connectionId, actor] of this.connectionActors.entries()) {
       const snapshot = actor.getSnapshot();
       states[connectionId] = {
@@ -236,13 +243,15 @@ export class ConnectionFSMManager {
    */
   cleanup(): void {
     this.logger.info(`Cleaning up ${this.connectionActors.size} connection actors`);
-    
+
     for (const [connectionId, actor] of this.connectionActors.entries()) {
       try {
         actor.send({ type: 'DISCONNECT' });
         actor.stop();
       } catch (error) {
-        this.logger.error(`Error stopping actor for ${connectionId}: ${error instanceof Error ? error.message : String(error)}`);
+        this.logger.error(
+          `Error stopping actor for ${connectionId}: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
     }
 

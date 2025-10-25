@@ -45,7 +45,6 @@ export class WorkItemsProvider {
   private _currentQuery: string = DEFAULT_QUERY;
   private transformWorkItemsFn: WorkItemTransform | undefined;
 
-
   constructor(
     connectionOrClient: string | AzureDevOpsIntClient,
     clientOrPostMessage: AzureDevOpsIntClient | PostMessageFn,
@@ -193,7 +192,7 @@ export class WorkItemsProvider {
       this._error(errorMessage);
 
       // Also log to console for Developer Tools
-      console.error('[WorkItemsProvider] Refresh failed:', {
+      console.error('[AzureDevOpsInt] [WorkItemsProvider] Refresh failed:', {
         connectionId: this.connectionId,
         query: normalizedQuery,
         error: errorMessage,
@@ -324,7 +323,7 @@ export class WorkItemsProvider {
       kanbanView: this._kanbanView,
       types: [...this._workItemTypes],
     });
-    
+
     // Send supplementary data
     this._postWorkItemTypeOptions();
     if (Object.keys(this._currentFilters).length > 0)

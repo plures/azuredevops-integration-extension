@@ -102,7 +102,11 @@ export function createSharedContextBridge({
     try {
       logger?.(message, meta);
     } catch (error) {
-      console.warn('[SharedContextBridge] Logger failed', { message, meta, error });
+      console.warn('[AzureDevOpsInt] [SharedContextBridge] Logger failed', {
+        message,
+        meta,
+        error,
+      });
     }
   }
 

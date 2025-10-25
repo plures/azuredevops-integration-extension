@@ -389,7 +389,7 @@ function safeCommandHandler<Args extends unknown[], Result>(
 ): (...args: Args) => void {
   return (...args: Args) => {
     if (isDeactivating) {
-      console.log('[Command] Ignoring command execution during deactivation');
+      console.log('[AzureDevOpsInt] [Command] Ignoring command execution during deactivation');
       return;
     }
 
@@ -401,13 +401,13 @@ function safeCommandHandler<Args extends unknown[], Result>(
       if (maybeThenable?.catch) {
         maybeThenable.catch((error) => {
           if (!isDeactivating) {
-            console.error('[Command] Unhandled command error:', error);
+            console.error('[AzureDevOpsInt] [Command] Unhandled command error:', error);
           }
         });
       }
     } catch (error) {
       if (!isDeactivating) {
-        console.error('[Command] Synchronous command error:', error);
+        console.error('[AzureDevOpsInt] [Command] Synchronous command error:', error);
       }
     }
   };
@@ -564,7 +564,7 @@ async function updateAuthStatusBar(): Promise<void> {
     authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
     authStatusBarItem.show();
   } catch (error) {
-    console.error('[updateAuthStatusBar] Error updating auth status:', error);
+    console.error('[AzureDevOpsInt] [updateAuthStatusBar] Error updating auth status:', error);
     authStatusBarItem.hide();
   }
 }
@@ -647,13 +647,19 @@ function triggerAuthReminderSignIn(
         await vscode.commands.executeCommand('azureDevOpsInt.signInWithEntra', connectionId);
       }
     } catch (error) {
-      console.error('[triggerAuthReminderSignIn] Interactive Entra sign-in failed', error);
+      console.error(
+        '[AzureDevOpsInt] [triggerAuthReminderSignIn] Interactive Entra sign-in failed',
+        error
+      );
       ensureAuthReminder(connectionId, reason, detail ? { detail } : {});
     } finally {
       state.reauthInProgress = false;
     }
   })().catch((error) => {
-    console.error('[triggerAuthReminderSignIn] Unexpected Entra sign-in error', error);
+    console.error(
+      '[AzureDevOpsInt] [triggerAuthReminderSignIn] Unexpected Entra sign-in error',
+      error
+    );
     state.reauthInProgress = false;
     ensureAuthReminder(connectionId, reason, detail ? { detail } : {});
   });
@@ -1016,7 +1022,7 @@ async function loadConnectionsFromConfig(
       );
       verbose('[connections] Saved migrated connections', summary);
     } catch (error) {
-      console.warn('[connections] Failed to save migrated connections', error);
+      console.warn('[AzureDevOpsInt] [connections] Failed to save migrated connections', error);
     }
   }
 
@@ -1131,7 +1137,7 @@ const createDeviceCodeCallback =
       try {
         await vscode.env.clipboard.writeText(userCode);
       } catch (error) {
-        console.warn('[EntraAuth] Failed to copy device code to clipboard', error);
+        console.warn('[AzureDevOpsInt] [EntraAuth] Failed to copy device code to clipboard', error);
       }
       await vscode.env.openExternal(vscode.Uri.parse(verificationUrl));
       vscode.window.showInformationMessage(
@@ -1189,7 +1195,10 @@ function ensureTimer(context: vscode.ExtensionContext) {
         .then(
           () => {},
           (error) => {
-            console.error('❌ [TIMER] Failed to show Pomodoro break dialog:', error);
+            console.error(
+              '[AzureDevOpsInt] ❌ [TIMER] Failed to show Pomodoro break dialog:',
+              error
+            );
           }
         );
     },
@@ -1208,8 +1217,8 @@ function ensureTimer(context: vscode.ExtensionContext) {
       updateTimerContext(s);
     },
     onInfo: (m: any) => verbose('[timer]', m),
-    onWarn: (m: any) => console.warn('[timer]', m),
-    onError: (m: any) => console.error('[timer]', m),
+    onWarn: (m: any) => console.warn('[AzureDevOpsInt] [timer]', m),
+    onError: (m: any) => console.error('[AzureDevOpsInt] [timer]', m),
   });
   timer.loadFromPersisted();
   return timer;
@@ -1701,7 +1710,10 @@ export async function activate(context: vscode.ExtensionContext) {
       verbose('[ACTIVATION] Quick debug commands registered');
     })
     .catch((error) => {
-      console.error('❌ [ACTIVATION] Failed to import quick debug commands:', error);
+      console.error(
+        '[AzureDevOpsInt] ❌ [ACTIVATION] Failed to import quick debug commands:',
+        error
+      );
     });
 
   // Register output channel reader for programmatic log access
@@ -1711,7 +1723,10 @@ export async function activate(context: vscode.ExtensionContext) {
       verbose('[ACTIVATION] Output channel reader registered for automated debugging');
     })
     .catch((error) => {
-      console.error('❌ [ACTIVATION] Failed to import output channel reader:', error);
+      console.error(
+        '[AzureDevOpsInt] ❌ [ACTIVATION] Failed to import output channel reader:',
+        error
+      );
     });
 
   // AUTO-START FSM TRACING AND SHOW OUTPUT FOR DEBUGGING
@@ -1738,14 +1753,20 @@ export async function activate(context: vscode.ExtensionContext) {
             });
           })
           .catch((error) => {
-            console.error('❌ [ACTIVATION] Failed to import FSM logger for activation:', error);
+            console.error(
+              '[AzureDevOpsInt] ❌ [ACTIVATION] Failed to import FSM logger for activation:',
+              error
+            );
           });
       } catch (error) {
-        console.error('❌ [ACTIVATION] Failed to start FSM tracing:', error);
+        console.error('[AzureDevOpsInt] ❌ [ACTIVATION] Failed to start FSM tracing:', error);
       }
     })
     .catch((error) => {
-      console.error('❌ [ACTIVATION] Failed to import FSM tracing modules:', error);
+      console.error(
+        '[AzureDevOpsInt] ❌ [ACTIVATION] Failed to import FSM tracing modules:',
+        error
+      );
     });
 
   // FSM and Bridge setup
@@ -1762,10 +1783,50 @@ export async function activate(context: vscode.ExtensionContext) {
   if (appActor && typeof (appActor as any).subscribe === 'function') {
     (appActor as any).subscribe((snapshot: any) => {
       if (panel && snapshot) {
+        // Pre-compute all state matches since snapshot.matches() doesn't survive JSON serialization
+        const matches = {
+          // Top-level states
+          inactive: snapshot.matches('inactive'),
+          activating: snapshot.matches('activating'),
+          activation_failed: snapshot.matches('activation_failed'),
+          active: snapshot.matches('active'),
+          error_recovery: snapshot.matches('error_recovery'),
+          deactivating: snapshot.matches('deactivating'),
+
+          // Active sub-states
+          'active.setup': snapshot.matches({ active: 'setup' }),
+          'active.setup.loading_connections': snapshot.matches({
+            active: { setup: 'loading_connections' },
+          }),
+          'active.setup.waiting_for_panel': snapshot.matches({
+            active: { setup: 'waiting_for_panel' },
+          }),
+          'active.setup.panel_ready': snapshot.matches({ active: { setup: 'panel_ready' } }),
+          'active.setup.setup_error': snapshot.matches({ active: { setup: 'setup_error' } }),
+
+          // Active.ready sub-states
+          'active.ready': snapshot.matches({ active: 'ready' }),
+          'active.ready.idle': snapshot.matches({ active: { ready: 'idle' } }),
+          'active.ready.loadingData': snapshot.matches({ active: { ready: 'loadingData' } }),
+          'active.ready.managingConnections': snapshot.matches({
+            active: { ready: 'managingConnections' },
+          }),
+          'active.ready.error': snapshot.matches({ active: { ready: 'error' } }),
+        };
+
         const serializableState = {
           fsmState: snapshot.value,
           context: getSerializableContext(snapshot.context),
+          matches, // Include pre-computed state matches
         };
+
+        console.log('[AzureDevOpsInt][activation] Sending state to webview:', {
+          value: snapshot.value,
+          matchesActive: matches.active,
+          matchesActiveReady: matches['active.ready'],
+          matchesActivating: matches.activating,
+        });
+
         panel.webview.postMessage({
           type: 'syncState',
           payload: serializableState,
@@ -1911,7 +1972,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
           }
         } catch (err: any) {
-          console.error('Failed to update default elapsed cap', err);
+          console.error('[AzureDevOpsInt] Failed to update default elapsed cap', err);
           vscode.window.showErrorMessage(
             'Failed to update default elapsed cap: ' + (err?.message || String(err))
           );
@@ -2104,14 +2165,21 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.workspace.onDidChangeConfiguration(async (e) => {
       if (e.affectsConfiguration(CONFIG_NS)) {
         await loadConnectionsFromConfig(context);
-        await ensureActiveConnection(context, activeConnectionId, { refresh: true });
+        // Don't block on connection refresh during config changes
+        ensureActiveConnection(context, activeConnectionId, { refresh: true }).catch((error) => {
+          verbose('[onDidChangeConfiguration] Connection refresh failed:', error);
+        });
       }
     })
   );
 
   // Initialize connections on startup
   await loadConnectionsFromConfig(context);
-  await ensureActiveConnection(context, activeConnectionId, { refresh: true });
+  // Don't await initial connection - let it happen in background to avoid blocking activation
+  // The webview will initialize immediately and show auth UI when ready
+  ensureActiveConnection(context, activeConnectionId, { refresh: true }).catch((error) => {
+    verbose('[activation] Initial connection failed:', error);
+  });
 
   // Start periodic cache cleanup
   startCacheCleanup();
@@ -2262,11 +2330,23 @@ function getSerializableContext(context: any): Record<string, any> {
   if (!context) {
     return {};
   }
+
+  // Debug: log what we're serializing
+  console.log('[AzureDevOpsInt][getSerializableContext] Original context:', {
+    hasConnections: !!context.connections,
+    connectionsLength: context.connections?.length,
+    connectionsType: typeof context.connections,
+    connectionsIsArray: Array.isArray(context.connections),
+    connectionsValue: context.connections,
+    activeConnectionId: context.activeConnectionId,
+    isActivated: context.isActivated,
+  });
+
   // Extract only serializable properties, excluding VS Code API objects and actors
-  return {
+  const serialized = {
     isActivated: context.isActivated,
     isDeactivating: context.isDeactivating,
-    connections: context.connections,
+    connections: context.connections || [],
     activeConnectionId: context.activeConnectionId,
     connectionStates: context.connectionStates ? Object.fromEntries(context.connectionStates) : {},
     pendingAuthReminders: context.pendingAuthReminders
@@ -2279,7 +2359,26 @@ function getSerializableContext(context: any): Record<string, any> {
     errorRecoveryAttempts: context.errorRecoveryAttempts,
     viewMode: context.viewMode,
     kanbanColumns: context.kanbanColumns,
+    deviceCodeSession: context.deviceCodeSession
+      ? {
+          connectionId: context.deviceCodeSession.connectionId,
+          userCode: context.deviceCodeSession.userCode,
+          verificationUri: context.deviceCodeSession.verificationUri,
+          startedAt: context.deviceCodeSession.startedAt,
+          expiresAt: context.deviceCodeSession.expiresAt,
+          expiresInSeconds: context.deviceCodeSession.expiresInSeconds,
+          remainingMs: Math.max(context.deviceCodeSession.expiresAt - Date.now(), 0),
+        }
+      : undefined,
   };
+
+  console.log('[AzureDevOpsInt][getSerializableContext] Serialized context:', {
+    connectionsLength: serialized.connections.length,
+    activeConnectionId: serialized.activeConnectionId,
+    hasDeviceCodeSession: !!serialized.deviceCodeSession,
+  });
+
+  return serialized;
 }
 
 class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
@@ -2402,6 +2501,40 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
         case 'someMessageType':
           // Handle specific message type
           break;
+        case 'openDeviceCodeBrowser': {
+          try {
+            const actor = getApplicationStoreActor();
+            const snap =
+              actor && typeof (actor as any).getSnapshot === 'function'
+                ? (actor as any).getSnapshot()
+                : undefined;
+            const session = snap?.context?.deviceCodeSession;
+            const requestedId = message.payload?.connectionId;
+            if (session && session.connectionId === requestedId) {
+              // Copy code then open verification URI via VS Code API (more reliable than webview window.open)
+              try {
+                await vscode.env.clipboard.writeText(session.userCode);
+              } catch (clipboardError) {
+                // Non-fatal: clipboard may be unavailable in restricted environments
+                console.warn('[AzureDevOpsIntViewProvider] Clipboard write failed', clipboardError);
+              }
+              await vscode.env.openExternal(vscode.Uri.parse(session.verificationUri));
+              vscode.window.showInformationMessage(
+                `Auth code ${session.userCode} copied. Complete sign-in in the browser.`
+              );
+            } else {
+              vscode.window.showWarningMessage(
+                'No active device code session for this connection.'
+              );
+            }
+          } catch (error) {
+            console.error(
+              '[AzureDevOpsIntViewProvider] Failed handling openDeviceCodeBrowser',
+              error
+            );
+          }
+          break;
+        }
       }
     });
   }

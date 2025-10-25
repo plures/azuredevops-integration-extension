@@ -58,7 +58,7 @@ export interface EntraAuthProviderOptions {
 const AZURE_DEVOPS_RESOURCE_ID = '499b84ac-1321-427f-aa17-267ca6975798';
 
 /**
- * Default scopes for Azure DevOps access  
+ * Default scopes for Azure DevOps access
  */
 const DEFAULT_BASE_SCOPES = [`${AZURE_DEVOPS_RESOURCE_ID}/.default`];
 const OFFLINE_ACCESS_SCOPE = 'offline_access';
@@ -84,8 +84,8 @@ export class EntraAuthProvider implements IAuthProvider {
     this.secretStorage = options.secretStorage;
     this.connectionId = options.connectionId;
     this.deviceCodeCallback = options.deviceCodeCallback;
-    this.refreshTokenKey = `azureDevOpsInt.entra.refreshToken.${this.connectionId}`;  
-    this.tokenCacheKey = `azureDevOpsInt.entra.tokenCache.${this.connectionId}`;      
+    this.refreshTokenKey = `azureDevOpsInt.entra.refreshToken.${this.connectionId}`;
+    this.tokenCacheKey = `azureDevOpsInt.entra.tokenCache.${this.connectionId}`;
 
     // Initialize MSAL with device code flow configuration (v1.9.3 proven approach)
     const msalConfig: msal.Configuration = {
@@ -100,7 +100,7 @@ export class EntraAuthProvider implements IAuthProvider {
         loggerOptions: {
           loggerCallback: (level, message, containsPii) => {
             if (containsPii) return;
-            console.log(`[MSAL][${level}]`, message);
+            console.log(`[AzureDevOpsInt] [MSAL][${level}]`, message);
           },
           piiLoggingEnabled: false,
           logLevel: msal.LogLevel.Warning,
@@ -118,7 +118,7 @@ export class EntraAuthProvider implements IAuthProvider {
    */
   private getAuthority(): string {
     const tenantId = this.config.tenantId || 'organizations';
-    console.log('[EntraAuthProvider] Using authority tenant:', tenantId);
+    console.log('[AzureDevOpsInt] [EntraAuthProvider] Using authority tenant:', tenantId);
     return `https://login.microsoftonline.com/${tenantId}`;
   }
 
@@ -159,7 +159,7 @@ export class EntraAuthProvider implements IAuthProvider {
             context.tokenCache.deserialize(serialized);
           }
         } catch (error) {
-          console.error('[EntraAuthProvider] Failed to load token cache:', error);
+          console.error('[AzureDevOpsInt] [EntraAuthProvider] Failed to load token cache:', error);
         }
       },
       afterCacheAccess: async (context: msal.TokenCacheContext) => {
@@ -170,7 +170,10 @@ export class EntraAuthProvider implements IAuthProvider {
           const serialized = context.tokenCache.serialize();
           await this.secretStorage.store(this.tokenCacheKey, serialized);
         } catch (error) {
-          console.error('[EntraAuthProvider] Failed to persist token cache:', error);
+          console.error(
+            '[AzureDevOpsInt] [EntraAuthProvider] Failed to persist token cache:',
+            error
+          );
         }
       },
     } satisfies msal.ICachePlugin;
@@ -241,7 +244,7 @@ export class EntraAuthProvider implements IAuthProvider {
         expiresAt: response.expiresOn || undefined,
       };
     } catch (error: any) {
-      console.error('[EntraAuthProvider] Authentication failed:', error);
+      console.error('[AzureDevOpsInt] [EntraAuthProvider] Authentication failed:', error);
       return {
         success: false,
         error: error.message || 'Authentication failed',
@@ -260,7 +263,10 @@ export class EntraAuthProvider implements IAuthProvider {
           const accounts = await this.msalClient.getTokenCache().getAllAccounts();
           account = accounts[0];
         } catch (cacheError) {
-          console.error('[EntraAuthProvider] Failed to read accounts from cache:', cacheError);
+          console.error(
+            '[AzureDevOpsInt] [EntraAuthProvider] Failed to read accounts from cache:',
+            cacheError
+          );
         }
       }
       if (!account) {
@@ -358,19 +364,19 @@ export class EntraAuthProvider implements IAuthProvider {
     try {
       await this.secretStorage.delete(this.tokenCacheKey);
       await this.secretStorage.delete(this.refreshTokenKey);
-      
+
       // Also clear all accounts from MSAL cache
       const accounts = await this.msalClient.getTokenCache().getAllAccounts();
       for (const account of accounts) {
         await this.msalClient.getTokenCache().removeAccount(account);
       }
-      
-      console.log('[EntraAuthProvider] Token cache completely reset', {
+
+      console.log('[AzureDevOpsInt] [EntraAuthProvider] Token cache completely reset', {
         connectionId: this.connectionId,
-        clearedAccounts: accounts.length
+        clearedAccounts: accounts.length,
       });
     } catch (error) {
-      console.error('[EntraAuthProvider] Failed to clear token cache:', error);
+      console.error('[AzureDevOpsInt] [EntraAuthProvider] Failed to clear token cache:', error);
     }
   }
 
@@ -397,8 +403,6 @@ export class EntraAuthProvider implements IAuthProvider {
     return this.cachedToken;
   }
 
-
-
   /**
    * Store account info securely
    */
@@ -406,7 +410,7 @@ export class EntraAuthProvider implements IAuthProvider {
     try {
       await this.secretStorage.store(this.refreshTokenKey, JSON.stringify(account));
     } catch (error) {
-      console.error('[EntraAuthProvider] Failed to store account:', error);
+      console.error('[AzureDevOpsInt] [EntraAuthProvider] Failed to store account:', error);
     }
   }
 
@@ -421,10 +425,8 @@ export class EntraAuthProvider implements IAuthProvider {
       }
       return JSON.parse(accountJson) as msal.AccountInfo;
     } catch (error) {
-      console.error('[EntraAuthProvider] Failed to retrieve account:', error);
+      console.error('[AzureDevOpsInt] [EntraAuthProvider] Failed to retrieve account:', error);
       return undefined;
     }
   }
-
-
 }

@@ -159,7 +159,7 @@ export async function parseAndValidateOnPremUrl(
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
 
-  console.log('[parseAndValidateOnPremUrl] Analyzing URL:', {
+  console.log('[AzureDevOpsInt] [parseAndValidateOnPremUrl] Analyzing URL:', {
     host,
     segments,
   });
@@ -167,7 +167,7 @@ export async function parseAndValidateOnPremUrl(
   // Try to validate the structure
   const attempt = await validateOnPremStructure(protocol, host, segments, pat);
 
-  console.log('[parseAndValidateOnPremUrl] Validation result:', {
+  console.log('[AzureDevOpsInt] [parseAndValidateOnPremUrl] Validation result:', {
     organization: attempt.organization,
     project: attempt.project,
     baseUrl: attempt.baseUrl,

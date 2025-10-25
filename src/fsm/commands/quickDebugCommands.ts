@@ -1,6 +1,6 @@
 /**
  * Quick Debug Commands
- * 
+ *
  * Instant access to debugging information without having to hunt through menus.
  * These commands are designed to be used when features are broken and you need
  * immediate visibility into what's happening.
@@ -39,12 +39,12 @@ async function showInstantDebugPanel(): Promise<void> {
   try {
     // Open FSM logs immediately
     showFSMLogsNow();
-    
+
     // Get current status
     const stats = fsmTracer.getStats();
     const currentSession = fsmTracer.getCurrentSession();
     const analysis = analyzeCurrentTrace();
-    
+
     // Create instant debug panel
     const panel = vscode.window.createWebviewPanel(
       'instantDebug',
@@ -53,7 +53,8 @@ async function showInstantDebugPanel(): Promise<void> {
       { enableScripts: false }
     );
 
-    const recentErrors = fsmLogger.getLogBuffer()
+    const recentErrors = fsmLogger
+      .getLogBuffer()
       .filter((entry: any) => entry.level >= 2) // WARN and ERROR
       .slice(-10)
       .reverse();
@@ -129,28 +130,40 @@ async function showInstantDebugPanel(): Promise<void> {
               ${recentErrors.length}
             </span>
           </div>
-          ${analysis ? `
+          ${
+            analysis
+              ? `
           <div class="metric">
             <strong>FSM Performance:</strong> 
             <span class="${analysis.performance.avgTransitionTime < 100 ? 'status-ok' : 'status-warn'}">
               ${Math.round(analysis.performance.avgTransitionTime)}ms avg
             </span>
           </div>
-          ` : ''}
+          `
+              : ''
+          }
         </div>
 
-        ${recentErrors.length > 0 ? `
+        ${
+          recentErrors.length > 0
+            ? `
         <div class="section">
           <h2>🔴 Recent Errors</h2>
-          ${recentErrors.map((error: any) => `
+          ${recentErrors
+            .map(
+              (error: any) => `
             <div class="error-item">
               <strong>${new Date(error.timestamp).toLocaleTimeString()}</strong> 
               [${error.component}] ${error.message}
               ${error.data ? `<br><small>${JSON.stringify(error.data, null, 2)}</small>` : ''}
             </div>
-          `).join('')}
+          `
+            )
+            .join('')}
         </div>
-        ` : ''}
+        `
+            : ''
+        }
 
         <div class="section">
           <h2>🔧 Quick Actions</h2>
@@ -189,7 +202,6 @@ async function showInstantDebugPanel(): Promise<void> {
       '🚨 Debug panel opened! Check the FSM Output Channel for live logs.',
       'OK'
     );
-
   } catch (error) {
     vscode.window.showErrorMessage(`Failed to show debug panel: ${error}`);
   }
@@ -199,30 +211,36 @@ function showFSMLogsNow(): void {
   try {
     // Show FSM output channel immediately
     fsmLogger.showOutputChannel();
-    
+
     // Also show developer console logs
-    vscode.window.showInformationMessage(
-      '📺 FSM Output Channel opened. Also check Developer Console (Help > Toggle Developer Tools) for console.log output.',
-      'Open Developer Tools'
-    ).then(selection => {
-      if (selection === 'Open Developer Tools') {
-        vscode.commands.executeCommand('workbench.action.toggleDevTools');
-      }
-    });
+    vscode.window
+      .showInformationMessage(
+        '📺 FSM Output Channel opened. Also check Developer Console (Help > Toggle Developer Tools) for console.log output.',
+        'Open Developer Tools'
+      )
+      .then((selection) => {
+        if (selection === 'Open Developer Tools') {
+          vscode.commands.executeCommand('workbench.action.toggleDevTools');
+        }
+      });
 
     // Log a marker to help identify current session
-    fsmLogger.info(FSMComponent.MACHINE, '🔍 MANUAL DEBUG SESSION STARTED', {
-      component: FSMComponent.MACHINE,
-      event: 'DEBUG_SESSION_START'
-    }, {
-      timestamp: new Date().toISOString(),
-      reason: 'User requested debug logs'
-    });
+    fsmLogger.info(
+      FSMComponent.MACHINE,
+      '🔍 MANUAL DEBUG SESSION STARTED',
+      {
+        component: FSMComponent.MACHINE,
+        event: 'DEBUG_SESSION_START',
+      },
+      {
+        timestamp: new Date().toISOString(),
+        reason: 'User requested debug logs',
+      }
+    );
 
     fsmLogger.info(FSMComponent.APPLICATION, 'FSM Output Channel opened - logs are now visible');
-    
   } catch (error) {
-    console.error('❌ Failed to show FSM logs:', error);
+    console.error('[AzureDevOpsInt] ❌ Failed to show FSM logs:', error);
     vscode.window.showErrorMessage(`Failed to show FSM logs: ${error}`);
   }
 }
@@ -231,26 +249,31 @@ async function triageBrokenFeature(): Promise<void> {
   try {
     const featureName = await vscode.window.showInputBox({
       prompt: 'What feature is broken? (e.g., "sign-in button", "query sync", "timer")',
-      placeHolder: 'Enter feature name...'
+      placeHolder: 'Enter feature name...',
     });
 
     if (!featureName) return;
 
     // Start a targeted debug session
     const sessionId = fsmTracer.startNewSession(`Triage: ${featureName}`);
-    
+
     // Show logs immediately
     showFSMLogsNow();
-    
+
     // Log the triage start
-    fsmLogger.info(FSMComponent.MACHINE, `🔍 FEATURE TRIAGE STARTED: ${featureName}`, {
-      component: FSMComponent.MACHINE,
-      event: 'TRIAGE_START'
-    }, {
-      feature: featureName,
-      sessionId: sessionId,
-      timestamp: new Date().toISOString()
-    });
+    fsmLogger.info(
+      FSMComponent.MACHINE,
+      `🔍 FEATURE TRIAGE STARTED: ${featureName}`,
+      {
+        component: FSMComponent.MACHINE,
+        event: 'TRIAGE_START',
+      },
+      {
+        feature: featureName,
+        sessionId: sessionId,
+        timestamp: new Date().toISOString(),
+      }
+    );
 
     // Show instructions
     const panel = vscode.window.createWebviewPanel(
@@ -334,7 +357,6 @@ async function triageBrokenFeature(): Promise<void> {
       `🔍 Triage started for "${featureName}". Try to reproduce the issue now - everything is being logged!`,
       'OK'
     );
-
   } catch (error) {
     vscode.window.showErrorMessage(`Failed to start feature triage: ${error}`);
   }

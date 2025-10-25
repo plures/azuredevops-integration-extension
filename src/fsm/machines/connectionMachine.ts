@@ -48,13 +48,14 @@
  */
 
 import { createMachine, assign, fromPromise } from 'xstate';
-import { createComponentLogger, FSMComponent, fsmLogger } from '../logging/FSMLogger';
-import { isTokenValid } from '../functions/authFunctions';
+import { createComponentLogger, FSMComponent, fsmLogger } from '../logging/FSMLogger.js';
+import { isTokenValid } from '../functions/authFunctions.js';
 import type { ConnectionContext, ConnectionEvent, ProjectConnection } from './connectionTypes.js';
 import {
   getExtensionContextRef,
   getSecretPAT as getSecretPATFromBridge,
   forwardProviderMessage as forwardProviderMessageBridge,
+  sendApplicationStoreEvent,
 } from '../services/extensionHostBridge.js';
 
 // Create logger for connection machine
@@ -1142,6 +1143,22 @@ export const connectionMachine = createMachine(
                 expiresInMinutes: Math.floor(expiresIn / 60),
               });
 
+              // Emit application-level event so UI can render active device code session
+              try {
+                sendApplicationStoreEvent({
+                  type: 'DEVICE_CODE_SESSION_STARTED',
+                  connectionId: input.connectionId,
+                  userCode,
+                  verificationUri,
+                  expiresInSeconds: expiresIn,
+                  startedAt: Date.now(),
+                });
+              } catch (error) {
+                logger.warn('Failed to emit DEVICE_CODE_SESSION_STARTED event', authContext, {
+                  error: error instanceof Error ? error.message : String(error),
+                });
+              }
+
               // Import VS Code to show notification with device code
               const vscode = await import('vscode');
               const expiresInMinutes = Math.floor(expiresIn / 60);
@@ -1277,6 +1294,21 @@ export const connectionMachine = createMachine(
             logger.info('Interactive authentication successful', authContext, {
               hasAccessToken: !!authResult.accessToken,
             });
+            // Emit application-level authentication success for FSM context update
+            try {
+              sendApplicationStoreEvent({
+                type: 'AUTHENTICATION_SUCCESS',
+                connectionId: input.connectionId,
+                token: authResult.accessToken,
+              });
+              logger.info('Emitted AUTHENTICATION_SUCCESS event', authContext, {
+                connectionId: input.connectionId,
+              });
+            } catch (error) {
+              logger.warn('Failed to emit AUTHENTICATION_SUCCESS event', authContext, {
+                error: error instanceof Error ? error.message : String(error),
+              });
+            }
             return {
               token: authResult.accessToken,
               expiresAt: authResult.expiresAt?.toISOString?.() ?? authResult.expiresAt,

@@ -6,7 +6,7 @@ import { applicationSnapshot } from './fsmSnapshotStore.js';
 // This is a critical step to prevent race conditions where the script runs before the
 // target element (`svelte-root`) is available.
 
-console.log('[webview] main.ts initialized');
+console.log('[AzureDevOpsInt][webview] main.ts initialized');
 
 // -------------------------------------------------------------
 // Minimal Node `process` shim for browser (VS Code webview) context.
@@ -36,7 +36,7 @@ if (typeof (globalThis as any).process === 'undefined') {
   // Ensure identifier binding in module scope
 
   var process = (globalThis as any).process;
-  console.log('[webview] process shim installed');
+  console.log('[AzureDevOpsInt][webview] process shim installed');
 }
 
 // -------------------------------------------------------------
@@ -47,17 +47,26 @@ if (typeof (globalThis as any).process === 'undefined') {
 // -------------------------------------------------------------
 window.addEventListener('message', (event) => {
   const msg = event?.data;
-  console.log('[webview] Received message:', { type: msg?.type, hasPayload: !!msg?.payload });
+  console.log('[AzureDevOpsInt][webview] Received message:', {
+    type: msg?.type,
+    hasPayload: !!msg?.payload,
+  });
   if (msg?.type === 'syncState' && msg?.payload) {
-    console.log('[webview] Processing syncState message:', {
+    console.log('[AzureDevOpsInt][webview] Processing syncState message:', {
       fsmState: msg.payload.fsmState,
       hasContext: !!msg.payload.context,
+      hasMatches: !!msg.payload.matches,
+      matches: msg.payload.matches,
     });
     try {
-      applicationSnapshot.set({ value: msg.payload.fsmState, context: msg.payload.context });
-      console.log('[webview] Successfully updated applicationSnapshot store');
+      applicationSnapshot.set({
+        value: msg.payload.fsmState,
+        context: msg.payload.context,
+        matches: msg.payload.matches || {},
+      });
+      console.log('[AzureDevOpsInt][webview] Successfully updated applicationSnapshot store');
     } catch (e) {
-      console.error('[webview] Failed to apply FSM snapshot', e);
+      console.error('[AzureDevOpsInt][webview] Failed to apply FSM snapshot', e);
     }
   }
 });
@@ -86,12 +95,12 @@ function ensureMountTarget(): HTMLElement {
   } else {
     document.body.appendChild(created);
   }
-  console.log('[webview] Created missing mount element #svelte-root');
+  console.log('[AzureDevOpsInt][webview] Created missing mount element #svelte-root');
   return created;
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  console.log('[webview] DOMContentLoaded: ensuring mount target');
+  console.log('[AzureDevOpsInt][webview] DOMContentLoaded: ensuring mount target');
   const root = ensureMountTarget();
   try {
     // Acquire VS Code API once and make it available globally
@@ -102,13 +111,15 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     mount(App, { target: root });
-    console.log('🟢 [webview] Svelte component mounted successfully on #' + root.id);
+    console.log(
+      '🟢 [AzureDevOpsInt][webview] Svelte component mounted successfully on #' + root.id
+    );
 
     if (vscode) {
       vscode.postMessage({ type: 'ready' });
     }
   } catch (e) {
-    console.error('🔴 [webview] Failed to mount Svelte component:', e);
+    console.error('🔴 [AzureDevOpsInt][webview] Failed to mount Svelte component:', e);
   }
 });
 

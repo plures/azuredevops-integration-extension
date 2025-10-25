@@ -108,7 +108,7 @@ export function updateBuildRefreshTimer(
     buildRefreshTimers.delete(connectionId);
     Promise.resolve(provider.refresh())
       .catch((error) => {
-        console.warn('[branchEnrichment] Build polling refresh failed', error);
+        console.warn('[AzureDevOpsInt] [branchEnrichment] Build polling refresh failed', error);
       })
       .then(() => {
         /* noop */
@@ -161,7 +161,10 @@ async function getGitApi(): Promise<any | undefined> {
     cachedGitApi = api;
     return api;
   } catch (error) {
-    console.warn('[branchEnrichment] Failed to acquire git API', formatMeta(error));
+    console.warn(
+      '[AzureDevOpsInt] [branchEnrichment] Failed to acquire git API',
+      formatMeta(error)
+    );
     return undefined;
   }
 }
@@ -237,7 +240,10 @@ function parseAzureRemote(remoteUrl?: string | null): ParsedRemote | undefined {
       }
     }
   } catch (error) {
-    console.warn('[branchEnrichment] Failed to parse Azure remote URL', formatMeta({ remoteUrl, error }));
+    console.warn(
+      '[AzureDevOpsInt] [branchEnrichment] Failed to parse Azure remote URL',
+      formatMeta({ remoteUrl, error })
+    );
   }
 
   return undefined;
@@ -303,7 +309,10 @@ function parseBranchArtifactLink(url?: string | null): ParsedBranchLink | null {
 
     return { projectId, repositoryId, refName, shortName };
   } catch (error) {
-    console.warn('[branchEnrichment] Failed to parse branch artifact link', formatMeta({ url, error }));
+    console.warn(
+      '[AzureDevOpsInt] [branchEnrichment] Failed to parse branch artifact link',
+      formatMeta({ url, error })
+    );
     return null;
   }
 }
@@ -336,7 +345,10 @@ async function getAzureRepositoryByName(
         repositoryCacheByConnection.set(connectionId, { fetchedAt: now, repos: fetched });
       }
     } catch (error) {
-      console.warn('[branchEnrichment] Failed to fetch repositories', formatMeta(error));
+      console.warn(
+        '[AzureDevOpsInt] [branchEnrichment] Failed to fetch repositories',
+        formatMeta(error)
+      );
       return null;
     }
   }
@@ -372,7 +384,8 @@ async function resolveBranchContext(source: ConnectionBranchSource): Promise<Bra
   }
 
   const remotes: any[] = Array.isArray(repo.state?.remotes) ? repo.state.remotes : [];
-  const remote = remotes.find((r: any) => !r?.isReadOnly && (r?.pushUrl || r?.fetchUrl)) || remotes[0];
+  const remote =
+    remotes.find((r: any) => !r?.isReadOnly && (r?.pushUrl || r?.fetchUrl)) || remotes[0];
   const remoteUrl = remote?.pushUrl || remote?.fetchUrl;
   const parsedRemote = parseAzureRemote(remoteUrl);
 
@@ -427,7 +440,10 @@ async function getBuildsForBranch(
       return builds;
     }
   } catch (error) {
-    console.warn('[branchEnrichment] Failed to fetch builds for branch', formatMeta(error));
+    console.warn(
+      '[AzureDevOpsInt] [branchEnrichment] Failed to fetch builds for branch',
+      formatMeta(error)
+    );
   }
 
   buildCacheByKey.set(key, { fetchedAt: now, builds: [] });
@@ -583,8 +599,7 @@ export async function enrichWorkItemsForConnection(
 
   const matchedItems: WorkItem[] = [];
   const unmatchedItems: WorkItem[] = [];
-  const matches: Array<{ item: WorkItem; repositoryId?: string; parsed: ParsedBranchLink }>
-    = [];
+  const matches: Array<{ item: WorkItem; repositoryId?: string; parsed: ParsedBranchLink }> = [];
 
   for (const original of sourceItems) {
     const clone: WorkItem = { ...original };
@@ -650,7 +665,12 @@ export async function enrichWorkItemsForConnection(
 
     for (const repoKey of repoKeys) {
       const resolvedRepoId = repoKey === '__default__' ? branchContext.repositoryId : repoKey;
-      const builds = await getBuildsForBranch(source.id, client, normalizedContext.full, resolvedRepoId);
+      const builds = await getBuildsForBranch(
+        source.id,
+        client,
+        normalizedContext.full,
+        resolvedRepoId
+      );
       const latest = Array.isArray(builds) && builds.length > 0 ? builds[0] : undefined;
       const active = isBuildActive(latest);
 

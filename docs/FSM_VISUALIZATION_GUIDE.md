@@ -210,10 +210,10 @@ Visit **https://stately.ai/inspect** and you'll see:
 ### 2. VS Code Output Channel
 
 ```
-[FSM] Timer: idle → running (START: workItemId=1234)
-[FSM] Timer context: { workItemId: 1234, elapsedSeconds: 0, isPaused: false }
-[FSM] Timer: running → paused (INACTIVITY_TIMEOUT)
-[FSM] Timer: paused → running (ACTIVITY)
+[AzureDevOpsInt][FSM] Timer: idle → running (START: workItemId=1234)
+[AzureDevOpsInt][FSM] Timer context: { workItemId: 1234, elapsedSeconds: 0, isPaused: false }
+[AzureDevOpsInt][FSM] Timer: running → paused (INACTIVITY_TIMEOUT)
+[AzureDevOpsInt][FSM] Timer: paused → running (ACTIVITY)
 ```
 
 ### 3. Command Palette Status

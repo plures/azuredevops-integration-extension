@@ -1,6 +1,6 @@
 /**
  * Debug Console Bridge
- * 
+ *
  * Creates a bridge between the debug console and VS Code commands
  * to make FSM logs easily accessible for debugging assistance.
  */
@@ -19,13 +19,13 @@ const originalConsoleInfo = console.info;
 
 function captureLog(level: string, ...args: any[]) {
   const timestamp = new Date().toISOString();
-  const message = args.map(arg => 
-    typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-  ).join(' ');
-  
+  const message = args
+    .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)))
+    .join(' ');
+
   const logEntry = `${timestamp} [${level}] ${message}`;
   debugLogBuffer.push(logEntry);
-  
+
   // Maintain buffer size
   if (debugLogBuffer.length > MAX_DEBUG_LOGS) {
     debugLogBuffer.splice(0, debugLogBuffer.length - MAX_DEBUG_LOGS);
@@ -64,9 +64,7 @@ export function getRecentDebugLogs(count: number = 50): string[] {
  * Get FSM-specific debug logs
  */
 export function getFSMDebugLogs(count: number = 100): string[] {
-  return debugLogBuffer
-    .filter(log => log.includes('[FSM]'))
-    .slice(-count);
+  return debugLogBuffer.filter((log) => log.includes('[AzureDevOpsInt][FSM]')).slice(-count);
 }
 
 /**
@@ -85,7 +83,7 @@ export function registerDebugConsoleBridge(context: vscode.ExtensionContext): vo
     'azureDevOpsInt.showFSMDebugLogs',
     async () => {
       const fsmLogs = getFSMDebugLogs(100);
-      
+
       if (fsmLogs.length === 0) {
         vscode.window.showInformationMessage('No FSM debug logs found');
         return;
@@ -102,14 +100,12 @@ ${fsmLogs.join('\n')}
       // Create new document with logs
       const doc = await vscode.workspace.openTextDocument({
         content,
-        language: 'log'
+        language: 'log',
       });
-      
+
       await vscode.window.showTextDocument(doc);
-      
-      vscode.window.showInformationMessage(
-        `FSM debug logs exported (${fsmLogs.length} entries)`
-      );
+
+      vscode.window.showInformationMessage(`FSM debug logs exported (${fsmLogs.length} entries)`);
     }
   );
 
@@ -118,7 +114,7 @@ ${fsmLogs.join('\n')}
     'azureDevOpsInt.copyFSMDebugLogs',
     async () => {
       const fsmLogs = getFSMDebugLogs(50);
-      
+
       if (fsmLogs.length === 0) {
         vscode.window.showWarningMessage('No FSM debug logs to copy');
         return;
@@ -126,7 +122,7 @@ ${fsmLogs.join('\n')}
 
       const content = fsmLogs.join('\n');
       await vscode.env.clipboard.writeText(content);
-      
+
       vscode.window.showInformationMessage(
         `Copied ${fsmLogs.length} FSM debug log entries to clipboard`
       );
@@ -138,7 +134,7 @@ ${fsmLogs.join('\n')}
     'azureDevOpsInt.showAllDebugLogs',
     async () => {
       const allLogs = getRecentDebugLogs(200);
-      
+
       if (allLogs.length === 0) {
         vscode.window.showInformationMessage('No debug logs found');
         return;
@@ -154,18 +150,14 @@ ${allLogs.join('\n')}
 
       const doc = await vscode.workspace.openTextDocument({
         content,
-        language: 'log'
+        language: 'log',
       });
-      
+
       await vscode.window.showTextDocument(doc);
     }
   );
 
-  context.subscriptions.push(
-    showFSMDebugLogsCmd,
-    copyFSMDebugLogsCmd,
-    showAllDebugLogsCmd
-  );
+  context.subscriptions.push(showFSMDebugLogsCmd, copyFSMDebugLogsCmd, showAllDebugLogsCmd);
 }
 
 /**
