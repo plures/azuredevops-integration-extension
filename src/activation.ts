@@ -1673,6 +1673,12 @@ export async function activate(context: vscode.ExtensionContext) {
   };
   // LEGACY AUTH REMOVED - Authentication provider registration replaced by FSM authentication
 
+  // Ensure applicationStore is initialized before registering webview provider
+  // This prevents race conditions where the webview panel resolves before the FSM actor is available
+  verbose('[activation] Ensuring application store is initialized before webview registration');
+  await ensureSharedContextBridge(context);
+  verbose('[activation] Application store initialized, FSM actor available');
+
   // Register the work items webview view resolver (guard against duplicate registration)
   if (!viewProviderRegistered) {
     verbose('[azureDevOpsInt] Registering webview view provider: azureDevOpsWorkItems');
@@ -2308,13 +2314,22 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
 
     // Send initial FSM state to webview
     const appActor = getApplicationStoreActor();
+    console.log('[AzureDevOpsIntViewProvider] Attempting to send initial state:', {
+      hasActor: !!appActor,
+      hasGetSnapshot: typeof (appActor as any)?.getSnapshot === 'function',
+    });
     if (appActor && typeof (appActor as any).getSnapshot === 'function') {
       const snapshot = (appActor as any).getSnapshot();
+      console.log('[AzureDevOpsIntViewProvider] Got snapshot:', {
+        hasSnapshot: !!snapshot,
+        value: snapshot?.value,
+      });
       if (snapshot) {
         const serializableState = {
           fsmState: snapshot.value,
           context: snapshot.context,
         };
+        console.log('[AzureDevOpsIntViewProvider] Posting initial syncState message');
         webview.postMessage({
           type: 'syncState',
           payload: serializableState,
@@ -2333,11 +2348,21 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
           break;
         case 'webviewReady':
         case 'ready': {
+          console.log('[AzureDevOpsIntViewProvider] Received ready message from webview');
           // Webview initialization complete - send current FSM state
           const actor = getApplicationStoreActor();
+          console.log('[AzureDevOpsIntViewProvider] Getting snapshot for ready message:', {
+            hasActor: !!actor,
+            hasGetSnapshot: typeof (actor as any)?.getSnapshot === 'function',
+          });
           if (actor && typeof (actor as any).getSnapshot === 'function') {
             const snap = (actor as any).getSnapshot();
+            console.log('[AzureDevOpsIntViewProvider] Ready handler snapshot:', {
+              hasSnap: !!snap,
+              value: snap?.value,
+            });
             if (snap) {
+              console.log('[AzureDevOpsIntViewProvider] Posting syncState in response to ready');
               webview.postMessage({
                 type: 'syncState',
                 payload: {

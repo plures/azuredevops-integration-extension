@@ -47,9 +47,15 @@ if (typeof (globalThis as any).process === 'undefined') {
 // -------------------------------------------------------------
 window.addEventListener('message', (event) => {
   const msg = event?.data;
+  console.log('[webview] Received message:', { type: msg?.type, hasPayload: !!msg?.payload });
   if (msg?.type === 'syncState' && msg?.payload) {
+    console.log('[webview] Processing syncState message:', {
+      fsmState: msg.payload.fsmState,
+      hasContext: !!msg.payload.context,
+    });
     try {
       applicationSnapshot.set({ value: msg.payload.fsmState, context: msg.payload.context });
+      console.log('[webview] Successfully updated applicationSnapshot store');
     } catch (e) {
       console.error('[webview] Failed to apply FSM snapshot', e);
     }
