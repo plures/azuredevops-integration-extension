@@ -2306,6 +2306,22 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
     // Notify FSM that webview panel is ready
     this.fsm?.send?.({ type: 'UPDATE_WEBVIEW_PANEL', webviewPanel: webviewView });
 
+    // Send initial FSM state to webview
+    const appActor = getApplicationStoreActor();
+    if (appActor && typeof (appActor as any).getSnapshot === 'function') {
+      const snapshot = (appActor as any).getSnapshot();
+      if (snapshot) {
+        const serializableState = {
+          fsmState: snapshot.value,
+          context: snapshot.context,
+        };
+        webview.postMessage({
+          type: 'syncState',
+          payload: serializableState,
+        });
+      }
+    }
+
     webview.onDidReceiveMessage(async (message) => {
       // Handle messages from the webview
       switch (message.type) {
@@ -2316,10 +2332,23 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
           }
           break;
         case 'webviewReady':
-        case 'ready':
-          // Webview initialization complete - update the panel reference
-          this.fsm?.send?.({ type: 'UPDATE_WEBVIEW_PANEL', webviewPanel: webviewView });
+        case 'ready': {
+          // Webview initialization complete - send current FSM state
+          const actor = getApplicationStoreActor();
+          if (actor && typeof (actor as any).getSnapshot === 'function') {
+            const snap = (actor as any).getSnapshot();
+            if (snap) {
+              webview.postMessage({
+                type: 'syncState',
+                payload: {
+                  fsmState: snap.value,
+                  context: snap.context,
+                },
+              });
+            }
+          }
           break;
+        }
         case 'someMessageType':
           // Handle specific message type
           break;
