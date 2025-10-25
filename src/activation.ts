@@ -1764,7 +1764,7 @@ export async function activate(context: vscode.ExtensionContext) {
       if (panel && snapshot) {
         const serializableState = {
           fsmState: snapshot.value,
-          context: snapshot.context,
+          context: getSerializableContext(snapshot.context),
         };
         panel.webview.postMessage({
           type: 'syncState',
@@ -2257,6 +2257,31 @@ export function deactivate(): Thenable<void> {
   return Promise.resolve();
 }
 
+// Helper function to extract only serializable properties from FSM context
+function getSerializableContext(context: any): Record<string, any> {
+  if (!context) {
+    return {};
+  }
+  // Extract only serializable properties, excluding VS Code API objects and actors
+  return {
+    isActivated: context.isActivated,
+    isDeactivating: context.isDeactivating,
+    connections: context.connections,
+    activeConnectionId: context.activeConnectionId,
+    connectionStates: context.connectionStates ? Object.fromEntries(context.connectionStates) : {},
+    pendingAuthReminders: context.pendingAuthReminders
+      ? Object.fromEntries(context.pendingAuthReminders)
+      : {},
+    pendingWorkItems: context.pendingWorkItems,
+    lastError: context.lastError
+      ? { message: context.lastError.message, stack: context.lastError.stack }
+      : undefined,
+    errorRecoveryAttempts: context.errorRecoveryAttempts,
+    viewMode: context.viewMode,
+    kanbanColumns: context.kanbanColumns,
+  };
+}
+
 class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
   public view?: vscode.WebviewView;
   private readonly extensionUri: vscode.Uri;
@@ -2327,7 +2352,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
       if (snapshot) {
         const serializableState = {
           fsmState: snapshot.value,
-          context: snapshot.context,
+          context: getSerializableContext(snapshot.context),
         };
         console.log('[AzureDevOpsIntViewProvider] Posting initial syncState message');
         webview.postMessage({
@@ -2367,7 +2392,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
                 type: 'syncState',
                 payload: {
                   fsmState: snap.value,
-                  context: snap.context,
+                  context: getSerializableContext(snap.context),
                 },
               });
             }
