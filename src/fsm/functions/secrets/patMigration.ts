@@ -49,9 +49,14 @@ export async function migrateGlobalPATToConnections(
       await context.secrets.delete(GLOBAL_PAT_SECRET_KEY);
       fsmLogger.info(FSMComponent.AUTH, 'Deleted global PAT after migration', componentContext);
     } catch (error) {
-      fsmLogger.warn(FSMComponent.AUTH, 'Failed to delete global PAT after migration', componentContext, {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      fsmLogger.warn(
+        FSMComponent.AUTH,
+        'Failed to delete global PAT after migration',
+        componentContext,
+        {
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
     }
   } catch (error) {
     fsmLogger.warn(FSMComponent.AUTH, 'Global PAT migration failed', componentContext, {

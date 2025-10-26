@@ -1,10 +1,7 @@
 import { WorkItemsProvider, type ProviderLogger } from '../../../provider.js';
 import type { AzureDevOpsIntClient } from '../../../azureClient.js';
 import type { WorkItem } from '../../../types.js';
-import {
-  enrichWorkItemsForConnection,
-  type ConnectionBranchSource,
-} from './branchEnrichment.js';
+import { enrichWorkItemsForConnection, type ConnectionBranchSource } from './branchEnrichment.js';
 
 type WorkItemsTransformPayload = {
   items: WorkItem[];

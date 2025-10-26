@@ -1,6 +1,6 @@
 /**
  * FSM Tracing and Replay System
- * 
+ *
  * Provides comprehensive event tracing with full replay capability:
  * - Captures all FSM events, state transitions, and context changes
  * - Stores detailed snapshots for replay debugging
@@ -23,19 +23,19 @@ export interface FSMTraceEntry {
   machineId: string;
   actorId: string;
   component: FSMComponent;
-  
+
   // Event information
   event: EventObject;
   eventType: string;
-  
+
   // State information
   fromState: string;
   toState: string;
-  
+
   // Context snapshots
   contextBefore: any;
   contextAfter: any;
-  
+
   // Metadata
   duration?: number;
   error?: string;
@@ -96,7 +96,7 @@ export class FSMTracer {
 
   public startNewSession(description?: string): string {
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     // End current session if exists
     if (this.currentSession) {
       this.currentSession.endTime = Date.now();
@@ -110,7 +110,7 @@ export class FSMTracer {
       metadata: {
         extensionVersion: process.env.npm_package_version,
         nodeVersion: process.version,
-      }
+      },
     };
 
     this.sessions.set(sessionId, this.currentSession);
@@ -128,14 +128,19 @@ export class FSMTracer {
     if (this.currentSession) {
       this.currentSession.endTime = Date.now();
       this.isRecording = false;
-      
-      fsmLogger.info(FSMComponent.MACHINE, `Trace session ended: ${this.currentSession.id}`, {
-        component: FSMComponent.MACHINE,
-        machineId: this.currentSession.id,
-      }, {
-        duration: this.currentSession.endTime - this.currentSession.startTime,
-        entriesCount: this.currentSession.entries.length,
-      });
+
+      fsmLogger.info(
+        FSMComponent.MACHINE,
+        `Trace session ended: ${this.currentSession.id}`,
+        {
+          component: FSMComponent.MACHINE,
+          machineId: this.currentSession.id,
+        },
+        {
+          duration: this.currentSession.endTime - this.currentSession.startTime,
+          entriesCount: this.currentSession.entries.length,
+        }
+      );
     }
   }
 
@@ -182,7 +187,7 @@ export class FSMTracer {
       },
       error: (error: unknown): void => {
         this.recordError(component, machineId || 'unknown', actorId, error);
-      }
+      },
     });
 
     // Store cleanup function
@@ -192,7 +197,7 @@ export class FSMTracer {
     };
 
     this.subscribedActors.set(actorId, cleanup);
-    
+
     fsmLogger.debug(FSMComponent.MACHINE, `Actor instrumented: ${actorId}`, {
       component,
       machineId,
@@ -218,13 +223,13 @@ export class FSMTracer {
       machineId,
       actorId,
       component,
-      
+
       event: (toSnapshot as any)._event || { type: 'unknown' },
       eventType: (toSnapshot as any)._event?.type || 'unknown',
-      
+
       fromState: this.serializeState(fromSnapshot),
       toState: this.serializeState(toSnapshot),
-      
+
       contextBefore: this.cloneObject((fromSnapshot as any)?.context),
       contextAfter: this.cloneObject((toSnapshot as any).context),
     };
@@ -247,16 +252,16 @@ export class FSMTracer {
       machineId,
       actorId,
       component,
-      
+
       event: { type: 'ERROR' },
       eventType: 'ERROR',
-      
+
       fromState: 'unknown',
       toState: 'error',
-      
+
       contextBefore: null,
       contextAfter: null,
-      
+
       error: error instanceof Error ? error.message : String(error),
     };
 
@@ -275,16 +280,22 @@ export class FSMTracer {
 
     // Log significant events
     if (entry.eventType !== 'TICK' && entry.eventType !== 'HEARTBEAT') {
-      fsmLogger.debug(FSMComponent.MACHINE, `FSM Event: ${entry.eventType}`, {
-        component: entry.component,
-        machineId: entry.machineId,
-        state: entry.toState,
-        event: entry.eventType,
-      }, {
-        fromState: entry.fromState,
-        toState: entry.toState,
-        contextChanged: JSON.stringify(entry.contextBefore) !== JSON.stringify(entry.contextAfter),
-      });
+      fsmLogger.debug(
+        FSMComponent.MACHINE,
+        `FSM Event: ${entry.eventType}`,
+        {
+          component: entry.component,
+          machineId: entry.machineId,
+          state: entry.toState,
+          event: entry.eventType,
+        },
+        {
+          fromState: entry.fromState,
+          toState: entry.toState,
+          contextChanged:
+            JSON.stringify(entry.contextBefore) !== JSON.stringify(entry.contextAfter),
+        }
+      );
     }
   }
 
@@ -293,7 +304,7 @@ export class FSMTracer {
   // ============================================================================
 
   public async replaySession(
-    sessionId: string, 
+    sessionId: string,
     targetActor: Actor<any>,
     options: FSMReplayOptions = {}
   ): Promise<void> {
@@ -312,14 +323,19 @@ export class FSMTracer {
       onError,
     } = options;
 
-    fsmLogger.info(FSMComponent.MACHINE, `Starting replay of session: ${sessionId}`, {
-      component: FSMComponent.MACHINE,
-      machineId: sessionId,
-    }, {
-      totalEntries: session.entries.length,
-      startFrom: startFromEntry,
-      endAt: endAtEntry,
-    });
+    fsmLogger.info(
+      FSMComponent.MACHINE,
+      `Starting replay of session: ${sessionId}`,
+      {
+        component: FSMComponent.MACHINE,
+        machineId: sessionId,
+      },
+      {
+        totalEntries: session.entries.length,
+        startFrom: startFromEntry,
+        endAt: endAtEntry,
+      }
+    );
 
     const entriesToReplay = session.entries.slice(startFromEntry, endAtEntry + 1);
 
@@ -337,12 +353,11 @@ export class FSMTracer {
 
         // Wait if not in step mode
         if (!stepMode && delayMs > 0) {
-          await new Promise(resolve => setTimeout(resolve, delayMs));
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
         } else if (stepMode) {
           // In step mode, wait for user input
           await this.waitForStep();
         }
-
       } catch (error) {
         if (skipErrors) {
           fsmLogger.warn(FSMComponent.MACHINE, `Replay error skipped: ${error}`, {
@@ -362,7 +377,7 @@ export class FSMTracer {
   private async waitForStep(): Promise<void> {
     // This could be enhanced with a UI for stepping through
     // For now, just a simple delay
-    return new Promise(resolve => setTimeout(resolve, 1000));
+    return new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
   // ============================================================================
@@ -386,21 +401,26 @@ export class FSMTracer {
   public importSession(sessionData: string): string {
     try {
       const session: FSMTraceSession = JSON.parse(sessionData);
-      
+
       // Validate session structure
       if (!session.id || !session.entries || !Array.isArray(session.entries)) {
         throw new Error('Invalid session data format');
       }
 
       this.sessions.set(session.id, session);
-      
-      fsmLogger.info(FSMComponent.MACHINE, `Session imported: ${session.id}`, {
-        component: FSMComponent.MACHINE,
-        machineId: session.id,
-      }, {
-        entriesCount: session.entries.length,
-        originalStartTime: session.startTime,
-      });
+
+      fsmLogger.info(
+        FSMComponent.MACHINE,
+        `Session imported: ${session.id}`,
+        {
+          component: FSMComponent.MACHINE,
+          machineId: session.id,
+        },
+        {
+          entriesCount: session.entries.length,
+          originalStartTime: session.startTime,
+        }
+      );
 
       return session.id;
     } catch (error) {
@@ -432,21 +452,15 @@ export class FSMTracer {
     }
 
     const entries = session.entries;
-    const {
-      eventFrequency,
-      stateTransitions,
-      uniqueStates,
-      transitions,
-      errors,
-    } = this.summarizeEntries(entries);
+    const { eventFrequency, stateTransitions, uniqueStates, transitions, errors } =
+      this.summarizeEntries(entries);
 
-    const avgTransitionTime = transitions.length > 0
-      ? transitions.reduce((sum, t) => sum + t.duration, 0) / transitions.length
-      : 0;
+    const avgTransitionTime =
+      transitions.length > 0
+        ? transitions.reduce((sum, t) => sum + t.duration, 0) / transitions.length
+        : 0;
 
-    const slowestTransitions = transitions
-      .sort((a, b) => b.duration - a.duration)
-      .slice(0, 10);
+    const slowestTransitions = transitions.sort((a, b) => b.duration - a.duration).slice(0, 10);
 
     return {
       summary: {
@@ -513,7 +527,7 @@ export class FSMTracer {
 
   private serializeState(snapshot: Snapshot<unknown> | undefined): string {
     if (!snapshot) return 'initial';
-    
+
     const value = (snapshot as any).value;
     if (typeof value === 'string') {
       return value;
@@ -526,7 +540,7 @@ export class FSMTracer {
 
   private cloneObject(obj: any): any {
     if (obj === null || obj === undefined) return obj;
-    
+
     try {
       return JSON.parse(JSON.stringify(obj));
     } catch {
@@ -536,12 +550,12 @@ export class FSMTracer {
 
   public cleanup(): void {
     // Cleanup all subscriptions
-    this.subscribedActors.forEach(cleanup => cleanup());
+    this.subscribedActors.forEach((cleanup) => cleanup());
     this.subscribedActors.clear();
-    
+
     // Stop current session
     this.stopCurrentSession();
-    
+
     fsmLogger.info(FSMComponent.MACHINE, 'FSM Tracer cleaned up');
   }
 
@@ -553,7 +567,10 @@ export class FSMTracer {
   } {
     return {
       sessionsCount: this.sessions.size,
-      totalEntries: Array.from(this.sessions.values()).reduce((sum, session) => sum + session.entries.length, 0),
+      totalEntries: Array.from(this.sessions.values()).reduce(
+        (sum, session) => sum + session.entries.length,
+        0
+      ),
       currentSessionEntries: this.currentSession?.entries.length || 0,
       instrumentedActors: this.subscribedActors.size,
     };
@@ -591,13 +608,13 @@ export function stopTraceSession(): void {
 export function exportCurrentTrace(): string | undefined {
   const currentSession = fsmTracer.getCurrentSession();
   if (!currentSession) return undefined;
-  
+
   return fsmTracer.exportSession(currentSession.id);
 }
 
 export function analyzeCurrentTrace(): SessionAnalysis | undefined {
   const currentSession = fsmTracer.getCurrentSession();
   if (!currentSession) return undefined;
-  
+
   return fsmTracer.analyzeSession(currentSession.id);
 }

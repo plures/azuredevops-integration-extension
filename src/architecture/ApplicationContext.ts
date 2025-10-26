@@ -1,6 +1,6 @@
 /**
  * Context-Driven Architecture - Application Context
- * 
+ *
  * Single source of truth that all actors observe and update.
  * No direct actor-to-actor communication needed.
  */
@@ -44,25 +44,25 @@ export interface ApplicationContext {
   // Connection Management
   connections: Connection[];
   activeConnectionId: string | null;
-  
+
   // Data Storage (by connection)
   workItemsByConnection: Map<string, WorkItem[]>;
   loadingStates: Map<string, boolean>;
   errorStates: Map<string, string | null>;
-  
+
   // Query State (by connection)
   queriesByConnection: Map<string, string>;
-  
+
   // UI State
   activeTab: string;
   kanbanView: boolean;
-  
+
   // Timer State
   timer: TimerState;
-  
+
   // Application Settings
   settings: Settings;
-  
+
   // Initialization State
   isInitialized: boolean;
 }
@@ -81,17 +81,17 @@ export const contextActions = {
   }),
 
   removeConnection: (context: ApplicationContext, connectionId: string): ApplicationContext => {
-    const newConnections = context.connections.filter(c => c.id !== connectionId);
+    const newConnections = context.connections.filter((c) => c.id !== connectionId);
     const newWorkItems = new Map(context.workItemsByConnection);
     const newLoadingStates = new Map(context.loadingStates);
     const newErrorStates = new Map(context.errorStates);
     const newQueries = new Map(context.queriesByConnection);
-    
+
     newWorkItems.delete(connectionId);
     newLoadingStates.delete(connectionId);
     newErrorStates.delete(connectionId);
     newQueries.delete(connectionId);
-    
+
     return {
       ...context,
       connections: newConnections,
@@ -99,12 +99,12 @@ export const contextActions = {
       loadingStates: newLoadingStates,
       errorStates: newErrorStates,
       queriesByConnection: newQueries,
-      activeConnectionId: context.activeConnectionId === connectionId 
-        ? newConnections[0]?.id || null
-        : context.activeConnectionId,
-      activeTab: context.activeTab === connectionId 
-        ? newConnections[0]?.id || ''
-        : context.activeTab,
+      activeConnectionId:
+        context.activeConnectionId === connectionId
+          ? newConnections[0]?.id || null
+          : context.activeConnectionId,
+      activeTab:
+        context.activeTab === connectionId ? newConnections[0]?.id || '' : context.activeTab,
     };
   },
 
@@ -115,30 +115,42 @@ export const contextActions = {
   }),
 
   // Data Actions
-  setWorkItems: (context: ApplicationContext, connectionId: string, workItems: WorkItem[]): ApplicationContext => {
+  setWorkItems: (
+    context: ApplicationContext,
+    connectionId: string,
+    workItems: WorkItem[]
+  ): ApplicationContext => {
     const newWorkItems = new Map(context.workItemsByConnection);
     newWorkItems.set(connectionId, workItems);
-    
+
     return {
       ...context,
       workItemsByConnection: newWorkItems,
     };
   },
 
-  setLoading: (context: ApplicationContext, connectionId: string, isLoading: boolean): ApplicationContext => {
+  setLoading: (
+    context: ApplicationContext,
+    connectionId: string,
+    isLoading: boolean
+  ): ApplicationContext => {
     const newLoadingStates = new Map(context.loadingStates);
     newLoadingStates.set(connectionId, isLoading);
-    
+
     return {
       ...context,
       loadingStates: newLoadingStates,
     };
   },
 
-  setError: (context: ApplicationContext, connectionId: string, error: string | null): ApplicationContext => {
+  setError: (
+    context: ApplicationContext,
+    connectionId: string,
+    error: string | null
+  ): ApplicationContext => {
     const newErrorStates = new Map(context.errorStates);
     newErrorStates.set(connectionId, error);
-    
+
     return {
       ...context,
       errorStates: newErrorStates,
@@ -168,7 +180,10 @@ export const contextActions = {
   }),
 
   // Settings Actions
-  updateSettings: (context: ApplicationContext, settings: Partial<Settings>): ApplicationContext => ({
+  updateSettings: (
+    context: ApplicationContext,
+    settings: Partial<Settings>
+  ): ApplicationContext => ({
     ...context,
     settings: { ...context.settings, ...settings },
   }),
@@ -191,7 +206,7 @@ export const contextActions = {
  */
 export const contextSelectors = {
   getActiveConnection: (context: ApplicationContext): Connection | null =>
-    context.connections.find(c => c.id === context.activeConnectionId) || null,
+    context.connections.find((c) => c.id === context.activeConnectionId) || null,
 
   getActiveWorkItems: (context: ApplicationContext): WorkItem[] =>
     context.workItemsByConnection.get(context.activeConnectionId || '') || [],
@@ -206,14 +221,14 @@ export const contextSelectors = {
     context.errorStates.get(connectionId) || null,
 
   getConnectionsNeedingAuth: (context: ApplicationContext): Connection[] =>
-    context.connections.filter(c => c.authState === 'unauthenticated'),
+    context.connections.filter((c) => c.authState === 'unauthenticated'),
 
   getActiveTimerWorkItem: (context: ApplicationContext): WorkItem | null => {
     if (!context.timer.isActive || !context.timer.workItemId) return null;
-    
+
     // Find work item across all connections
     for (const workItems of context.workItemsByConnection.values()) {
-      const item = workItems.find(wi => wi.id === context.timer.workItemId);
+      const item = workItems.find((wi) => wi.id === context.timer.workItemId);
       if (item) return item;
     }
     return null;

@@ -20,7 +20,6 @@ const msalConfig = {
   },
 };
 
-
 export async function getEntraIdToken(
   context: ExtensionContext,
   tenantId?: string
@@ -37,7 +36,7 @@ export async function getEntraIdToken(
 
   const pca = new msal.PublicClientApplication(msalConfig);
   const deviceCodeRequest = {
-  deviceCodeCallback: (response: any) => {
+    deviceCodeCallback: (response: any) => {
       vscode.window.showInformationMessage(response.message);
     },
     scopes: ['499b84ac-1321-427f-aa17-267ca6975798/.default'], // Azure DevOps scope

@@ -1,6 +1,6 @@
 /**
  * Connection Adapter
- * 
+ *
  * Provides backward compatibility between the new Connection FSM
  * and the existing ensureActiveConnection() function.
  */
@@ -75,7 +75,7 @@ export class ConnectionAdapter {
 
       if (result.success) {
         this.logger.info(`FSM connection successful: ${connection.id}`);
-        
+
         // Return legacy-compatible state object
         return {
           id: connection.id,
@@ -87,7 +87,7 @@ export class ConnectionAdapter {
         };
       } else {
         this.logger.error(`FSM connection failed: ${result.error}`);
-        
+
         // Return failure state
         return {
           id: connection.id,
@@ -99,9 +99,10 @@ export class ConnectionAdapter {
           lastError: result.error,
         };
       }
-
     } catch (error) {
-      this.logger.error(`FSM connection error: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `FSM connection error: ${error instanceof Error ? error.message : String(error)}`
+      );
       throw error;
     }
   }
@@ -115,7 +116,7 @@ export class ConnectionAdapter {
       // This ensures we use the same connection data as the legacy system
       const connections = getLoadedConnectionsFromBridge() as ProjectConnection[];
       const activeId = getActiveConnectionIdFromBridge();
-      
+
       if (connections.length === 0) {
         this.logger.warn('No connections loaded');
         return undefined;
@@ -123,17 +124,17 @@ export class ConnectionAdapter {
 
       // Find the requested connection or use the active connection or first one
       let targetConnection: ProjectConnection | undefined;
-      
+
       if (connectionId) {
-        targetConnection = connections.find(conn => conn.id === connectionId);
+        targetConnection = connections.find((conn) => conn.id === connectionId);
         if (!targetConnection) {
           this.logger.warn(`Connection not found: ${connectionId}`);
           return undefined;
         }
       } else if (activeId) {
-        targetConnection = connections.find(conn => conn.id === activeId);
+        targetConnection = connections.find((conn) => conn.id === activeId);
       }
-      
+
       if (!targetConnection) {
         // Use the first connection as fallback
         targetConnection = connections[0];
@@ -141,9 +142,10 @@ export class ConnectionAdapter {
 
       this.logger.debug(`Using connection: ${targetConnection.id}`);
       return targetConnection;
-      
     } catch (error) {
-      this.logger.error(`Failed to get connection config: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Failed to get connection config: ${error instanceof Error ? error.message : String(error)}`
+      );
       return undefined;
     }
   }
@@ -276,13 +278,13 @@ export class ConnectionAdapter {
     try {
       // Test FSM behavior
       const originalUseFSM = this.useFSM;
-      
+
       this.setUseFSM(true);
       const fsmResult = await this.ensureActiveConnection(context, connectionId, options);
-      
+
       this.setUseFSM(false);
       const legacyResult = await this.ensureActiveConnection(context, connectionId, options);
-      
+
       // Restore original setting
       this.setUseFSM(originalUseFSM);
 
@@ -293,11 +295,15 @@ export class ConnectionAdapter {
 
       if (fsmResult && legacyResult) {
         if (fsmResult.id !== legacyResult.id) {
-          differences.push(`Connection ID mismatch: FSM=${fsmResult.id}, Legacy=${legacyResult.id}`);
+          differences.push(
+            `Connection ID mismatch: FSM=${fsmResult.id}, Legacy=${legacyResult.id}`
+          );
         }
 
         if (fsmResult.isConnected !== legacyResult.isConnected) {
-          differences.push(`Connection status mismatch: FSM=${fsmResult.isConnected}, Legacy=${legacyResult.isConnected}`);
+          differences.push(
+            `Connection status mismatch: FSM=${fsmResult.isConnected}, Legacy=${legacyResult.isConnected}`
+          );
         }
       }
 
@@ -305,7 +311,6 @@ export class ConnectionAdapter {
         isConsistent: differences.length === 0,
         differences,
       };
-
     } catch (error) {
       return {
         isConsistent: false,
@@ -324,6 +329,6 @@ export function createConnectionAdapter(
 ): ConnectionAdapter {
   const fsmManager = getConnectionFSMManager();
   const useFSM = config.useFSM ?? process.env.USE_CONNECTION_FSM === 'true';
-  
+
   return new ConnectionAdapter(fsmManager, legacyEnsureConnection, useFSM);
 }

@@ -60,10 +60,15 @@ export class TimerAdapter {
       if (result && addTimeEntryCallback) {
         try {
           Promise.resolve(addTimeEntryCallback(result.workItemId, result.hoursDecimal)).catch(
-            (err) => this.logger.error('Time entry callback failed: ' + (err instanceof Error ? err.message : String(err)))
+            (err) =>
+              this.logger.error(
+                'Time entry callback failed: ' + (err instanceof Error ? err.message : String(err))
+              )
           );
         } catch (error) {
-          this.logger.error('Time entry callback error: ' + (error instanceof Error ? error.message : String(error)));
+          this.logger.error(
+            'Time entry callback error: ' + (error instanceof Error ? error.message : String(error))
+          );
         }
       }
 
@@ -129,7 +134,10 @@ export class TimerAdapter {
           this.legacyTimer.loadFromPersisted();
         }
       } catch (error) {
-        this.logger.error('FSM persistence loading failed, falling back to legacy: ' + (error instanceof Error ? error.message : String(error)));
+        this.logger.error(
+          'FSM persistence loading failed, falling back to legacy: ' +
+            (error instanceof Error ? error.message : String(error))
+        );
         this.legacyTimer.loadFromPersisted();
       }
     } else {
@@ -151,7 +159,10 @@ export class TimerAdapter {
           this.legacyTimer.setDefaultElapsedLimitHours(hours);
         }
       } catch (error) {
-        this.logger.error('FSM elapsed limit update failed, falling back to legacy: ' + (error instanceof Error ? error.message : String(error)));
+        this.logger.error(
+          'FSM elapsed limit update failed, falling back to legacy: ' +
+            (error instanceof Error ? error.message : String(error))
+        );
         this.legacyTimer.setDefaultElapsedLimitHours(hours);
       }
     } else {

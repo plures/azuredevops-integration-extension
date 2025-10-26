@@ -13,10 +13,14 @@ export const setupFSMInspector = (): any => {
         url: 'https://stately.ai/registry/editor/e13bef2b-bb13-4465-96ac-0bc25340688e?machineId=e8c673d6-40e0-459a-af48-ba8a69db9d89',
       });
 
-      logger.info('FSM Inspector enabled. Visit https://stately.ai/inspect to visualize state machines.');
+      logger.info(
+        'FSM Inspector enabled. Visit https://stately.ai/inspect to visualize state machines.'
+      );
       return inspector;
     } catch (error) {
-      logger.warn('Failed to setup FSM inspector: ' + (error instanceof Error ? error.message : String(error)));
+      logger.warn(
+        'Failed to setup FSM inspector: ' + (error instanceof Error ? error.message : String(error))
+      );
       return undefined;
     }
   }
@@ -26,7 +30,7 @@ export const setupFSMInspector = (): any => {
 export const FSM_CONFIG = {
   // Development settings - TRACING ENABLED BY DEFAULT
   enableInspector: true, // Always enable for debugging
-  enableLogging: true,   // Always enable for debugging
+  enableLogging: true, // Always enable for debugging
 
   // Timer settings
   timer: {

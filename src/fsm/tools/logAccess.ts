@@ -1,6 +1,6 @@
 /**
  * Automated FSM Log Access Tool
- * 
+ *
  * This tool provides programmatic access to FSM logs for AI debugging assistance.
  */
 
@@ -20,31 +20,31 @@ export async function getCurrentFSMLogs(): Promise<{
     const result = await vscode.commands.executeCommand('azureDevOpsInt.getFSMLogs', {
       format: 'text',
       filter: {
-        lastMinutes: 10 // Get logs from last 10 minutes
-      }
+        lastMinutes: 10, // Get logs from last 10 minutes
+      },
     });
-    
+
     if (typeof result === 'string') {
       return {
         success: true,
-        logs: result
+        logs: result,
       };
     } else if (typeof result === 'object' && result !== null) {
       return {
         success: true,
         logs: (result as any).logs?.join('\n') || 'No logs found',
-        stats: (result as any).stats
+        stats: (result as any).stats,
       };
     } else {
       return {
         success: false,
-        error: 'Unexpected result format from FSM logs command'
+        error: 'Unexpected result format from FSM logs command',
       };
     }
   } catch (error) {
     return {
       success: false,
-      error: `Failed to retrieve FSM logs: ${error}`
+      error: `Failed to retrieve FSM logs: ${error}`,
     };
   }
 }
@@ -65,17 +65,17 @@ export async function getFilteredFSMLogs(filter: {
   try {
     const result = await vscode.commands.executeCommand('azureDevOpsInt.getFSMLogs', {
       format: 'text',
-      filter
+      filter,
     });
-    
+
     return {
       success: true,
-      logs: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+      logs: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
     };
   } catch (error) {
     return {
       success: false,
-      error: `Failed to retrieve filtered FSM logs: ${error}`
+      error: `Failed to retrieve filtered FSM logs: ${error}`,
     };
   }
 }
@@ -95,9 +95,9 @@ export async function getFSMSystemStatus(): Promise<{
 }> {
   try {
     const result = await vscode.commands.executeCommand('azureDevOpsInt.getFSMLogs', {
-      format: 'json'
+      format: 'json',
     });
-    
+
     if (typeof result === 'object' && result !== null) {
       const data = result as any;
       return {
@@ -106,19 +106,19 @@ export async function getFSMSystemStatus(): Promise<{
           isActive: data.stats?.totalLogs > 0,
           componentsActive: data.stats?.componentsActive || [],
           recentErrors: data.logs?.filter((log: string) => log.includes('ERROR')).slice(-5) || [],
-          lastActivity: data.stats?.lastLogTime
-        }
+          lastActivity: data.stats?.lastLogTime,
+        },
       };
     } else {
       return {
         success: false,
-        error: 'Unable to parse FSM system status'
+        error: 'Unable to parse FSM system status',
       };
     }
   } catch (error) {
     return {
       success: false,
-      error: `Failed to get FSM system status: ${error}`
+      error: `Failed to get FSM system status: ${error}`,
     };
   }
 }

@@ -154,7 +154,7 @@ export interface ApplicationContext {
   user: { name: string; email: string; imageUrl: string } | null;
   error: { message: string; details?: any } | null;
   activeTab: 'WID' | 'BROWSE' | 'SETTINGS';
-  
+
   // Settings
   settings: { [key: string]: any };
 
@@ -179,7 +179,7 @@ export interface ApplicationContext {
   currentBranch: any | null;
   currentPullRequest: any | null;
   currentWorkItem: any | null;
-  
+
   // Detailed fields for the current work item being edited/viewed
   currentWorkItemType: string | null;
   currentWorkItemState: string | null;

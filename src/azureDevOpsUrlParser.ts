@@ -223,7 +223,8 @@ export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
   const host = parsed.hostname.toLowerCase();
   const isCloudRoot = host === 'dev.azure.com' || host === 'vsrm.dev.azure.com';
   const isCloudSubdomain = host.endsWith('.dev.azure.com');
-  const isVisualStudio = host.endsWith('.visualstudio.com') || host.endsWith('.vsrm.visualstudio.com');
+  const isVisualStudio =
+    host.endsWith('.visualstudio.com') || host.endsWith('.vsrm.visualstudio.com');
 
   let organization = '';
   let project = '';

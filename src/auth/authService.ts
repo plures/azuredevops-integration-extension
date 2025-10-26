@@ -27,7 +27,7 @@ export interface IAuthProvider {
   getToken(): Promise<TokenInfo | null>;
   clearTokens(): Promise<void>;
   refreshToken?(): Promise<AuthenticationResult>;
-  
+
   // Additional methods provided by EntraAuthProvider
   getAccessToken?(): Promise<string | undefined>;
   refreshAccessToken?(): Promise<AuthenticationResult>;
@@ -57,19 +57,19 @@ export type DeviceCodeCallback = (
 // Stub PatAuthProvider for backward compatibility
 class PatAuthProvider implements IAuthProvider {
   constructor(private config: PatAuthConfig) {}
-  
+
   async authenticate(): Promise<AuthenticationResult> {
     return { success: true, accessToken: this.config.personalAccessToken };
   }
-  
+
   async getToken(): Promise<TokenInfo | null> {
     return {
       accessToken: this.config.personalAccessToken,
       expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
-      scopes: ['vso.work', 'vso.build', 'vso.code'] // Default PAT scopes
+      scopes: ['vso.work', 'vso.build', 'vso.code'], // Default PAT scopes
     };
   }
-  
+
   async clearTokens(): Promise<void> {
     // No-op for PAT
   }

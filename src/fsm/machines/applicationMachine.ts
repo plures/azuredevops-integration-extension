@@ -7,6 +7,7 @@
 
 import { createMachine, assign, fromPromise, createActor, Actor } from 'xstate';
 import { computeKanbanColumns } from '../functions/workItems/kanbanColumns.js';
+import { toggleDebugView as toggleDebugViewFn } from '../functions/webview/toggleDebugView.js';
 import * as vscode from 'vscode';
 import type { ExtensionContext } from 'vscode';
 import {
@@ -34,6 +35,8 @@ export type ApplicationContext = {
   isDeactivating: boolean;
   connections: ProjectConnection[];
   activeConnectionId?: string;
+  /** Active WIQL or logical query name selected by user */
+  activeQuery?: string;
   connectionStates: Map<string, ConnectionState>;
   pendingAuthReminders: Map<string, AuthReminderState>;
   extensionContext?: ExtensionContext;
@@ -61,6 +64,10 @@ export type ApplicationContext = {
     startedAt: number;
     expiresAt: number;
   };
+  /** Whether verbose debug logging is enabled (copied from configuration at activation) */
+  debugLoggingEnabled?: boolean;
+  /** Whether the webview debug panel is currently visible */
+  debugViewVisible?: boolean;
 };
 
 export type ApplicationEvent =
@@ -104,6 +111,8 @@ export type ApplicationEvent =
   | { type: 'RETRY' }
   | { type: 'RESET' }
   | { type: 'TOGGLE_VIEW'; view?: 'list' | 'kanban' }
+  | { type: 'TOGGLE_DEBUG_VIEW' }
+  | { type: 'SET_QUERY'; query: string }
   // Connection Management Events
   | { type: 'MANAGE_CONNECTIONS' }
   | { type: 'ADD_CONNECTION' }
@@ -127,6 +136,7 @@ type SetupUIResult = {
     activeConnectionId: boolean;
   };
   summary: NormalizationSummary;
+  debugLoggingEnabled: boolean;
 };
 
 const webviewRouterLogger = createComponentLogger(FSMComponent.WEBVIEW, 'webview-router');
@@ -173,6 +183,9 @@ export const applicationMachine = createMachine(
       pendingWorkItems: undefined,
       viewMode: 'list',
       deviceCodeSession: undefined,
+      debugLoggingEnabled: false,
+      debugViewVisible: false,
+      activeQuery: undefined,
     },
 
     states: {
@@ -376,6 +389,12 @@ export const applicationMachine = createMachine(
               TOGGLE_VIEW: {
                 actions: 'toggleViewMode',
               },
+              TOGGLE_DEBUG_VIEW: {
+                actions: 'toggleDebugView',
+              },
+              SET_QUERY: {
+                actions: 'setActiveQuery',
+              },
               DEVICE_CODE_SESSION_STARTED: {
                 actions: 'storeDeviceCodeSession',
               },
@@ -481,7 +500,7 @@ export const applicationMachine = createMachine(
           return context;
         }
 
-        const { connections, activeConnectionId } = (
+        const { connections, activeConnectionId, debugLoggingEnabled } = (
           event as { type: 'done.invoke.setupUI'; output: SetupUIResult }
         ).output;
 
@@ -489,9 +508,10 @@ export const applicationMachine = createMachine(
           connectionsCount: connections.length,
           connectionIds: connections.map((c: ProjectConnection) => c.id),
           activeConnectionId,
+          debugLoggingEnabled,
         });
 
-        return { ...context, connections, activeConnectionId };
+        return { ...context, connections, activeConnectionId, debugLoggingEnabled };
       }),
       initializeConnectionActorsFromSetup: () => {
         /* Placeholder */
@@ -627,6 +647,14 @@ export const applicationMachine = createMachine(
               : undefined,
         };
       }),
+      toggleDebugView: assign(({ context, event }) => {
+        if (event.type !== 'TOGGLE_DEBUG_VIEW') return {};
+        return toggleDebugViewFn(context);
+      }),
+      setActiveQuery: assign(({ event }) => {
+        if (event.type !== 'SET_QUERY') return {};
+        return { activeQuery: event.query };
+      }),
       storeDeviceCodeSession: assign(({ event }) => {
         if (event.type !== 'DEVICE_CODE_SESSION_STARTED') return {};
         const expiresAt = event.startedAt + event.expiresInSeconds * 1000;
@@ -680,6 +708,7 @@ export const applicationMachine = createMachine(
             };
           }
           const rawConnections = (settings as any).get?.('connections') ?? [];
+          const debugLoggingEnabled = !!(settings as any).get?.('debugLogging');
 
           console.log('[AzureDevOpsInt][setupUI] Loading connections from settings:', {
             rawConnectionsCount: rawConnections.length,
@@ -769,6 +798,7 @@ export const applicationMachine = createMachine(
               activeConnectionId: requiresPersistence,
             },
             summary,
+            debugLoggingEnabled,
           };
         }
       ),

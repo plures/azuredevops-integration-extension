@@ -100,7 +100,10 @@ export class TelemetryDatabase {
       this.db = this.sqlJs ? new this.sqlJs.Database(bytes ?? undefined) : undefined;
       this.createTables();
     } catch (error) {
-      console.warn('[TelemetryDatabase] Failed to initialize SQLite, disabling database features:', error);
+      console.warn(
+        '[TelemetryDatabase] Failed to initialize SQLite, disabling database features:',
+        error
+      );
       // Gracefully degrade - we'll rely on sessionTelemetry's workspaceState fallback
       this.db = undefined;
       this.sqlJs = undefined;

@@ -1,6 +1,6 @@
 /**
  * FSM Trace Commands
- * 
+ *
  * VS Code commands for interacting with the FSM tracing system:
  * - Show current trace status and statistics
  * - Export trace data for analysis
@@ -10,7 +10,12 @@
  */
 
 import * as vscode from 'vscode';
-import { fsmTracer, FSMTracer, analyzeCurrentTrace, exportCurrentTrace } from '../logging/FSMTracer.js';
+import {
+  fsmTracer,
+  FSMTracer,
+  analyzeCurrentTrace,
+  exportCurrentTrace,
+} from '../logging/FSMTracer.js';
 import { fsmLogger, FSMComponent } from '../logging/FSMLogger.js';
 
 export function registerTraceCommands(context: vscode.ExtensionContext): void {
@@ -70,23 +75,15 @@ async function showTraceStatus(): Promise<void> {
   try {
     const stats = fsmTracer.getStats();
     const currentSession = fsmTracer.getCurrentSession();
-    
+
     const statusItems = [
       `📊 **FSM Trace Status**`,
       ``,
       `**Current Session:**`,
-      currentSession 
-        ? `- ID: \`${currentSession.id}\``
-        : `- No active session`,
-      currentSession 
-        ? `- Description: ${currentSession.description}`
-        : ``,
-      currentSession 
-        ? `- Started: ${new Date(currentSession.startTime).toLocaleString()}`
-        : ``,
-      currentSession 
-        ? `- Events: ${currentSession.entries.length}`
-        : ``,
+      currentSession ? `- ID: \`${currentSession.id}\`` : `- No active session`,
+      currentSession ? `- Description: ${currentSession.description}` : ``,
+      currentSession ? `- Started: ${new Date(currentSession.startTime).toLocaleString()}` : ``,
+      currentSession ? `- Events: ${currentSession.entries.length}` : ``,
       ``,
       `**Statistics:**`,
       `- Total Sessions: ${stats.sessionsCount}`,
@@ -134,21 +131,22 @@ async function showTraceStatus(): Promise<void> {
         </style>
       </head>
       <body>
-        ${statusItems.map(item => {
-          if (item.startsWith('- ')) {
-            return `<p style="margin-left: 20px;">${item}</p>`;
-          } else if (item.startsWith('**') && item.endsWith('**')) {
-            return `<h3>${item.slice(2, -2)}</h3>`;
-          } else if (item.includes('`')) {
-            return `<p>${item.replace(/`([^`]+)`/g, '<code>$1</code>')}</p>`;
-          } else {
-            return item ? `<p>${item}</p>` : '<br>';
-          }
-        }).join('')}
+        ${statusItems
+          .map((item) => {
+            if (item.startsWith('- ')) {
+              return `<p style="margin-left: 20px;">${item}</p>`;
+            } else if (item.startsWith('**') && item.endsWith('**')) {
+              return `<h3>${item.slice(2, -2)}</h3>`;
+            } else if (item.includes('`')) {
+              return `<p>${item.replace(/`([^`]+)`/g, '<code>$1</code>')}</p>`;
+            } else {
+              return item ? `<p>${item}</p>` : '<br>';
+            }
+          })
+          .join('')}
       </body>
       </html>
     `;
-
   } catch (error) {
     vscode.window.showErrorMessage(`Failed to show trace status: ${error}`);
     fsmLogger.error(FSMComponent.MACHINE, 'Failed to show trace status', undefined, { error });
@@ -167,24 +165,24 @@ async function exportTrace(): Promise<void> {
       defaultUri: vscode.Uri.file(`fsm-trace-${Date.now()}.json`),
       filters: {
         'FSM Trace Files': ['json'],
-        'All Files': ['*']
-      }
+        'All Files': ['*'],
+      },
     });
 
     if (uri) {
       await vscode.workspace.fs.writeFile(uri, Buffer.from(traceData, 'utf8'));
       vscode.window.showInformationMessage(`FSM trace exported to: ${uri.fsPath}`);
-      
+
       // Offer to analyze the exported trace
       const analyze = await vscode.window.showInformationMessage(
         'Trace exported successfully. Would you like to analyze it now?',
-        'Yes', 'No'
+        'Yes',
+        'No'
       );
       if (analyze === 'Yes') {
         await analyzeTrace();
       }
     }
-
   } catch (error) {
     vscode.window.showErrorMessage(`Failed to export trace: ${error}`);
     fsmLogger.error(FSMComponent.MACHINE, 'Failed to export trace', undefined, { error });
@@ -198,21 +196,22 @@ async function importTrace(): Promise<void> {
       canSelectMany: false,
       filters: {
         'FSM Trace Files': ['json'],
-        'All Files': ['*']
-      }
+        'All Files': ['*'],
+      },
     });
 
     if (uris && uris.length > 0) {
       const content = await vscode.workspace.fs.readFile(uris[0]);
       const traceData = Buffer.from(content).toString('utf8');
-      
+
       const sessionId = fsmTracer.importSession(traceData);
       vscode.window.showInformationMessage(`FSM trace imported: ${sessionId}`);
-      
+
       // Offer to analyze the imported trace
       const analyze = await vscode.window.showInformationMessage(
         'Trace imported successfully. Would you like to analyze it?',
-        'Yes', 'No'
+        'Yes',
+        'No'
       );
       if (analyze === 'Yes') {
         // Analyze the imported session
@@ -220,7 +219,6 @@ async function importTrace(): Promise<void> {
         await showAnalysisResults(analysis, sessionId);
       }
     }
-
   } catch (error) {
     vscode.window.showErrorMessage(`Failed to import trace: ${error}`);
     fsmLogger.error(FSMComponent.MACHINE, 'Failed to import trace', undefined, { error });
@@ -237,7 +235,6 @@ async function analyzeTrace(): Promise<void> {
 
     const currentSession = fsmTracer.getCurrentSession();
     await showAnalysisResults(analysis, currentSession?.id || 'current');
-
   } catch (error) {
     vscode.window.showErrorMessage(`Failed to analyze trace: ${error}`);
     fsmLogger.error(FSMComponent.MACHINE, 'Failed to analyze trace', undefined, { error });
@@ -253,9 +250,10 @@ async function showAnalysisResults(analysis: any, sessionId: string): Promise<vo
   );
 
   const durationMs = analysis.summary.duration;
-  const durationFormatted = durationMs > 60000 
-    ? `${Math.round(durationMs / 60000)} minutes`
-    : `${Math.round(durationMs / 1000)} seconds`;
+  const durationFormatted =
+    durationMs > 60000
+      ? `${Math.round(durationMs / 60000)} minutes`
+      : `${Math.round(durationMs / 1000)} seconds`;
 
   panel.webview.html = `
     <!DOCTYPE html>
@@ -331,7 +329,7 @@ async function showAnalysisResults(analysis: any, sessionId: string): Promise<vo
         <h2>📈 Event Frequency</h2>
         <div class="event-freq">
           ${Object.entries(analysis.eventFrequency)
-            .sort(([,a], [,b]) => (b as number) - (a as number))
+            .sort(([, a], [, b]) => (b as number) - (a as number))
             .map(([event, count]) => `<div>${event}: <strong>${count}</strong></div>`)
             .join('')}
         </div>
@@ -341,9 +339,11 @@ async function showAnalysisResults(analysis: any, sessionId: string): Promise<vo
         <h2>🔄 State Transitions</h2>
         <div class="transitions">
           ${Object.entries(analysis.stateTransitions)
-            .map(([from, toStates]) => 
-              `<div><strong>${from}</strong> → ${(toStates as string[]).join(', ')}</div>`
-            ).join('')}
+            .map(
+              ([from, toStates]) =>
+                `<div><strong>${from}</strong> → ${(toStates as string[]).join(', ')}</div>`
+            )
+            .join('')}
         </div>
       </div>
 
@@ -358,9 +358,11 @@ async function showAnalysisResults(analysis: any, sessionId: string): Promise<vo
         <div class="transitions">
           ${analysis.performance.slowestTransitions
             .slice(0, 5)
-            .map((t: any) => 
-              `<div class="slow-transition">${t.from} → ${t.to} (${t.event}): ${t.duration}ms</div>`
-            ).join('')}
+            .map(
+              (t: any) =>
+                `<div class="slow-transition">${t.from} → ${t.to} (${t.event}): ${t.duration}ms</div>`
+            )
+            .join('')}
         </div>
       </div>
 
@@ -383,14 +385,13 @@ async function startTraceSession(): Promise<void> {
   try {
     const description = await vscode.window.showInputBox({
       prompt: 'Enter a description for the new trace session',
-      value: 'Manual trace session'
+      value: 'Manual trace session',
     });
 
     if (description !== undefined) {
       const sessionId = fsmTracer.startNewSession(description);
       vscode.window.showInformationMessage(`Started new FSM trace session: ${sessionId}`);
     }
-
   } catch (error) {
     vscode.window.showErrorMessage(`Failed to start trace session: ${error}`);
     fsmLogger.error(FSMComponent.MACHINE, 'Failed to start trace session', undefined, { error });
@@ -406,10 +407,12 @@ async function stopTraceSession(): Promise<void> {
     }
 
     fsmTracer.stopCurrentSession();
-    
+
     const action = await vscode.window.showInformationMessage(
       `Stopped trace session: ${currentSession.id}`,
-      'Analyze', 'Export', 'Close'
+      'Analyze',
+      'Export',
+      'Close'
     );
 
     if (action === 'Analyze') {
@@ -417,7 +420,6 @@ async function stopTraceSession(): Promise<void> {
     } else if (action === 'Export') {
       await exportTrace();
     }
-
   } catch (error) {
     vscode.window.showErrorMessage(`Failed to stop trace session: ${error}`);
     fsmLogger.error(FSMComponent.MACHINE, 'Failed to stop trace session', undefined, { error });
@@ -441,14 +443,14 @@ async function showTraceTimeline(): Promise<void> {
 
     // Generate timeline HTML with the last 100 events
     const recentEntries = currentSession.entries.slice(-100);
-    const timelineData = recentEntries.map(entry => ({
+    const timelineData = recentEntries.map((entry) => ({
       timestamp: new Date(entry.timestamp).toLocaleTimeString(),
       event: entry.eventType,
       fromState: entry.fromState,
       toState: entry.toState,
       component: entry.component,
       duration: entry.duration || 0,
-      hasError: !!entry.error
+      hasError: !!entry.error,
     }));
 
     panel.webview.html = `
@@ -496,7 +498,9 @@ async function showTraceTimeline(): Promise<void> {
         <p><strong>Showing:</strong> Last ${recentEntries.length} events</p>
         <hr>
         
-        ${timelineData.map(item => `
+        ${timelineData
+          .map(
+            (item) => `
           <div class="timeline-item ${item.hasError ? 'error' : ''}">
             <div class="timestamp">${item.timestamp}</div>
             <div>
@@ -505,11 +509,12 @@ async function showTraceTimeline(): Promise<void> {
             </div>
             <div class="state-transition">${item.fromState} → ${item.toState}</div>
           </div>
-        `).join('')}
+        `
+          )
+          .join('')}
       </body>
       </html>
     `;
-
   } catch (error) {
     vscode.window.showErrorMessage(`Failed to show trace timeline: ${error}`);
     fsmLogger.error(FSMComponent.MACHINE, 'Failed to show trace timeline', undefined, { error });

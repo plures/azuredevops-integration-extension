@@ -1,6 +1,6 @@
 /**
  * FSM Log Reader Tool for VS Code Extension
- * 
+ *
  * This tool provides automated access to FSM logs for debugging assistance.
  * It can be used by AI assistants to automatically read and analyze FSM output
  * without requiring manual copy-paste from the user.
@@ -47,40 +47,40 @@ export async function readFSMLogs(options?: {
     // Execute the VS Code command to get FSM logs
     const commandResult = await vscode.commands.executeCommand('azureDevOpsInt.getFSMLogs', {
       format: options?.format || 'text',
-      filter: options?.filter
+      filter: options?.filter,
     });
 
     if (typeof commandResult === 'string') {
       // Text format response
-      const lines = commandResult.split('\n').filter(line => line.trim());
+      const lines = commandResult.split('\n').filter((line) => line.trim());
       const recentLines = options?.recent ? lines.slice(-options.recent) : lines;
-      
+
       return {
         success: true,
         logs: recentLines.join('\n'),
-        stats: generateStatsFromText(recentLines)
+        stats: generateStatsFromText(recentLines),
       };
     } else if (typeof commandResult === 'object' && commandResult !== null) {
       // JSON format response
       const data = commandResult as any;
-      
+
       return {
         success: true,
         logs: data.logs || [],
-        stats: data.stats || {}
+        stats: data.stats || {},
       };
     } else {
       return {
         success: false,
         logs: '',
-        error: 'No log data received from FSM system'
+        error: 'No log data received from FSM system',
       };
     }
   } catch (error) {
     return {
       success: false,
       logs: '',
-      error: `Failed to read FSM logs: ${error}`
+      error: `Failed to read FSM logs: ${error}`,
     };
   }
 }
@@ -102,19 +102,19 @@ export async function getFSMStatus(): Promise<{
   try {
     const logResult = await readFSMLogs({
       recent: 50,
-      format: 'text'
+      format: 'text',
     });
 
     if (!logResult.success) {
       return {
         success: false,
-        error: logResult.error
+        error: logResult.error,
       };
     }
 
     const logs = logResult.logs as string;
     const lines = logs.split('\n');
-    
+
     // Parse status from recent logs
     const components = new Set<string>();
     const issues: string[] = [];
@@ -122,7 +122,7 @@ export async function getFSMStatus(): Promise<{
     let errorCount = 0;
     let warningCount = 0;
 
-    lines.forEach(line => {
+    lines.forEach((line) => {
       // Extract timestamp
       const timestampMatch = line.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)/);
       if (timestampMatch) {
@@ -155,13 +155,13 @@ export async function getFSMStatus(): Promise<{
         activeComponents: Array.from(components),
         lastActivity,
         healthCheck,
-        recentIssues: issues.slice(-5) // Last 5 issues
-      }
+        recentIssues: issues.slice(-5), // Last 5 issues
+      },
     };
   } catch (error) {
     return {
       success: false,
-      error: `Failed to get FSM status: ${error}`
+      error: `Failed to get FSM status: ${error}`,
     };
   }
 }
@@ -186,8 +186,8 @@ export async function searchFSMLogs(query: {
         component: query.component,
         level: query.level as any,
         lastMinutes: query.lastMinutes,
-        pattern: query.pattern
-      }
+        pattern: query.pattern,
+      },
     });
 
     if (!logResult.success) {
@@ -195,30 +195,29 @@ export async function searchFSMLogs(query: {
         success: false,
         matches: [],
         totalMatches: 0,
-        error: logResult.error
+        error: logResult.error,
       };
     }
 
     const logs = logResult.logs as string;
-    const lines = logs.split('\n').filter(line => line.trim());
-    
-    const regex = typeof query.pattern === 'string' 
-      ? new RegExp(query.pattern, 'i') 
-      : query.pattern;
-    
-    const matches = lines.filter(line => regex.test(line));
+    const lines = logs.split('\n').filter((line) => line.trim());
+
+    const regex =
+      typeof query.pattern === 'string' ? new RegExp(query.pattern, 'i') : query.pattern;
+
+    const matches = lines.filter((line) => regex.test(line));
 
     return {
       success: true,
       matches,
-      totalMatches: matches.length
+      totalMatches: matches.length,
     };
   } catch (error) {
     return {
       success: false,
       matches: [],
       totalMatches: 0,
-      error: `Failed to search FSM logs: ${error}`
+      error: `Failed to search FSM logs: ${error}`,
     };
   }
 }
@@ -238,7 +237,7 @@ function generateStatsFromText(lines: string[]): {
   let warningCount = 0;
   const timestamps: string[] = [];
 
-  lines.forEach(line => {
+  lines.forEach((line) => {
     // Extract components
     const componentMatch = line.match(/\[([^\]]+)\]/);
     if (componentMatch) {
@@ -256,17 +255,20 @@ function generateStatsFromText(lines: string[]): {
     }
   });
 
-  const timeRange = timestamps.length > 0 ? {
-    start: timestamps[0],
-    end: timestamps[timestamps.length - 1]
-  } : undefined;
+  const timeRange =
+    timestamps.length > 0
+      ? {
+          start: timestamps[0],
+          end: timestamps[timestamps.length - 1],
+        }
+      : undefined;
 
   return {
     totalEntries: lines.length,
     components: Array.from(components),
     errorCount,
     warningCount,
-    timeRange
+    timeRange,
   };
 }
 

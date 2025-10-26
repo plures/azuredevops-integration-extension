@@ -1,13 +1,19 @@
 /**
  * Context-Driven Architecture - Reactive Stores
- * 
+ *
  * Svelte stores that expose the shared application context reactively.
  * Components can subscribe to these stores and automatically re-render
  * when the context changes.
  */
 
 import { writable, derived, type Readable } from 'svelte/store';
-import { ApplicationContext, contextSelectors, type Connection, type WorkItem, type TimerState } from './ApplicationContext';
+import {
+  ApplicationContext,
+  contextSelectors,
+  type Connection,
+  type WorkItem,
+  type TimerState,
+} from './ApplicationContext';
 
 /**
  * Main application context store
@@ -21,30 +27,24 @@ export const applicationContext = writable<ApplicationContext | null>(null);
  */
 
 // Connection-related stores
-export const connections = derived(
-  applicationContext,
-  ($context) => $context?.connections || []
-);
+export const connections = derived(applicationContext, ($context) => $context?.connections || []);
 
 export const activeConnectionId = derived(
   applicationContext,
   ($context) => $context?.activeConnectionId || null
 );
 
-export const activeConnection = derived(
-  applicationContext,
-  ($context) => $context ? contextSelectors.getActiveConnection($context) : null
+export const activeConnection = derived(applicationContext, ($context) =>
+  $context ? contextSelectors.getActiveConnection($context) : null
 );
 
-export const connectionsNeedingAuth = derived(
-  applicationContext,
-  ($context) => $context ? contextSelectors.getConnectionsNeedingAuth($context) : []
+export const connectionsNeedingAuth = derived(applicationContext, ($context) =>
+  $context ? contextSelectors.getConnectionsNeedingAuth($context) : []
 );
 
 // Work item stores
-export const activeWorkItems = derived(
-  applicationContext,
-  ($context) => $context ? contextSelectors.getActiveWorkItems($context) : []
+export const activeWorkItems = derived(applicationContext, ($context) =>
+  $context ? contextSelectors.getActiveWorkItems($context) : []
 );
 
 export const workItemsByConnection = derived(
@@ -53,13 +53,10 @@ export const workItemsByConnection = derived(
 );
 
 // Loading state stores
-export const isActiveConnectionLoading = derived(
-  applicationContext,
-  ($context) => {
-    if (!$context?.activeConnectionId) return false;
-    return contextSelectors.isConnectionLoading($context, $context.activeConnectionId);
-  }
-);
+export const isActiveConnectionLoading = derived(applicationContext, ($context) => {
+  if (!$context?.activeConnectionId) return false;
+  return contextSelectors.isConnectionLoading($context, $context.activeConnectionId);
+});
 
 export const loadingStates = derived(
   applicationContext,
@@ -67,47 +64,39 @@ export const loadingStates = derived(
 );
 
 // Error state stores
-export const activeConnectionError = derived(
-  applicationContext,
-  ($context) => {
-    if (!$context?.activeConnectionId) return null;
-    return contextSelectors.getConnectionError($context, $context.activeConnectionId);
-  }
-);
+export const activeConnectionError = derived(applicationContext, ($context) => {
+  if (!$context?.activeConnectionId) return null;
+  return contextSelectors.getConnectionError($context, $context.activeConnectionId);
+});
 
 // Timer stores
 export const timerState = derived(
   applicationContext,
-  ($context) => $context?.timer || {
-    isActive: false,
-    isRunning: false,
-    elapsed: 0,
-  }
+  ($context) =>
+    $context?.timer || {
+      isActive: false,
+      isRunning: false,
+      elapsed: 0,
+    }
 );
 
-export const activeTimerWorkItem = derived(
-  applicationContext,
-  ($context) => $context ? contextSelectors.getActiveTimerWorkItem($context) : null
+export const activeTimerWorkItem = derived(applicationContext, ($context) =>
+  $context ? contextSelectors.getActiveTimerWorkItem($context) : null
 );
 
 // UI state stores
-export const activeTab = derived(
-  applicationContext,
-  ($context) => $context?.activeTab || ''
-);
+export const activeTab = derived(applicationContext, ($context) => $context?.activeTab || '');
 
-export const kanbanView = derived(
-  applicationContext,
-  ($context) => $context?.kanbanView || false
-);
+export const kanbanView = derived(applicationContext, ($context) => $context?.kanbanView || false);
 
 // Settings store
 export const settings = derived(
   applicationContext,
-  ($context) => $context?.settings || {
-    defaultQuery: 'My Activity',
-    refreshInterval: 30000,
-  }
+  ($context) =>
+    $context?.settings || {
+      defaultQuery: 'My Activity',
+      refreshInterval: 30000,
+    }
 );
 
 /**
@@ -115,24 +104,21 @@ export const settings = derived(
  * These allow the UI to display data for any tab/connection independently
  */
 export const createTabStore = (tabId: string) => ({
-  workItems: derived(
-    applicationContext,
-    ($context) => $context ? contextSelectors.getWorkItemsForTab($context, tabId) : []
+  workItems: derived(applicationContext, ($context) =>
+    $context ? contextSelectors.getWorkItemsForTab($context, tabId) : []
   ),
-  
-  isLoading: derived(
-    applicationContext,
-    ($context) => $context ? contextSelectors.isConnectionLoading($context, tabId) : false
+
+  isLoading: derived(applicationContext, ($context) =>
+    $context ? contextSelectors.isConnectionLoading($context, tabId) : false
   ),
-  
-  error: derived(
-    applicationContext,
-    ($context) => $context ? contextSelectors.getConnectionError($context, tabId) : null
+
+  error: derived(applicationContext, ($context) =>
+    $context ? contextSelectors.getConnectionError($context, tabId) : null
   ),
-  
+
   connection: derived(
     applicationContext,
-    ($context) => $context?.connections.find(c => c.id === tabId) || null
+    ($context) => $context?.connections.find((c) => c.id === tabId) || null
   ),
 });
 
@@ -144,20 +130,20 @@ export interface ContextActions {
   // Connection actions
   setActiveConnection: (connectionId: string) => void;
   setActiveTab: (tabId: string) => void;
-  
+
   // Timer actions
   startTimer: (workItemId?: number) => void;
   stopTimer: () => void;
   pauseTimer: () => void;
   resumeTimer: () => void;
-  
+
   // UI actions
   toggleKanbanView: () => void;
-  
+
   // Data actions
   refreshConnection: (connectionId: string) => void;
   refreshAllConnections: () => void;
-  
+
   // Settings actions
   updateSettings: (settings: any) => void;
 }
@@ -180,7 +166,7 @@ export const contextActions: ContextActions = {
       activeTab: connectionId, // Sync tab with connection
     }));
   },
-  
+
   setActiveTab: (tabId: string) => {
     contextUpdater?.updateContext((context: ApplicationContext) => ({
       ...context,
@@ -188,7 +174,7 @@ export const contextActions: ContextActions = {
       // Don't automatically change activeConnectionId - allow independent browsing
     }));
   },
-  
+
   startTimer: (workItemId?: number) => {
     contextUpdater?.updateContext((context: ApplicationContext) => ({
       ...context,
@@ -201,7 +187,7 @@ export const contextActions: ContextActions = {
       },
     }));
   },
-  
+
   stopTimer: () => {
     contextUpdater?.updateContext((context: ApplicationContext) => ({
       ...context,
@@ -213,7 +199,7 @@ export const contextActions: ContextActions = {
       },
     }));
   },
-  
+
   pauseTimer: () => {
     contextUpdater?.updateContext((context: ApplicationContext) => ({
       ...context,
@@ -223,7 +209,7 @@ export const contextActions: ContextActions = {
       },
     }));
   },
-  
+
   resumeTimer: () => {
     contextUpdater?.updateContext((context: ApplicationContext) => ({
       ...context,
@@ -234,24 +220,24 @@ export const contextActions: ContextActions = {
       },
     }));
   },
-  
+
   toggleKanbanView: () => {
     contextUpdater?.updateContext((context: ApplicationContext) => ({
       ...context,
       kanbanView: !context.kanbanView,
     }));
   },
-  
+
   refreshConnection: (connectionId: string) => {
     // Send message to data actor
     console.log('[ContextActions] Refresh connection:', connectionId);
   },
-  
+
   refreshAllConnections: () => {
     // Send message to data actor
     console.log('[ContextActions] Refresh all connections');
   },
-  
+
   updateSettings: (newSettings: any) => {
     contextUpdater?.updateContext((context: ApplicationContext) => ({
       ...context,
@@ -266,21 +252,21 @@ export const contextActions: ContextActions = {
 export const debugStores = {
   logContext: () => {
     let context: ApplicationContext | null = null;
-    const unsubscribe = applicationContext.subscribe(c => context = c);
+    const unsubscribe = applicationContext.subscribe((c) => (context = c));
     console.log('[Debug] Current application context:', context);
     unsubscribe();
   },
-  
+
   logActiveWorkItems: () => {
     let items: WorkItem[] = [];
-    const unsubscribe = activeWorkItems.subscribe(i => items = i);
+    const unsubscribe = activeWorkItems.subscribe((i) => (items = i));
     console.log('[Debug] Active work items:', items);
     unsubscribe();
   },
-  
+
   logConnections: () => {
     let conns: Connection[] = [];
-    const unsubscribe = connections.subscribe(c => conns = c);
+    const unsubscribe = connections.subscribe((c) => (conns = c));
     console.log('[Debug] Connections:', conns);
     unsubscribe();
   },

@@ -2,7 +2,7 @@
  * Pure functions for authentication operations
  * These functions follow FSM-first principles:
  * - Take FSM context as input
- * - Return results for FSM processing  
+ * - Return results for FSM processing
  * - No side effects or direct state mutations
  * - Single responsibility per function
  */
@@ -10,7 +10,7 @@
 import { FSMComponent, fsmLogger } from '../logging/FSMLogger.js';
 
 /**
- * Authentication configuration 
+ * Authentication configuration
  */
 export interface AuthConfig {
   connectionId: string;
@@ -107,7 +107,7 @@ export function validateAuthConfig(config: AuthConfig): {
  * @returns Authentication strategy
  */
 export function determineAuthStrategy(
-  config: AuthConfig, 
+  config: AuthConfig,
   context: AuthContext
 ): {
   strategy: 'check-existing' | 'interactive' | 'refresh';
@@ -117,7 +117,7 @@ export function determineAuthStrategy(
   fsmLogger.debug(FSMComponent.AUTH, 'Determining authentication strategy', context, {
     authMethod: config.authMethod,
     hasTenantId: !!config.tenantId,
-    hasPatKey: !!config.patKey
+    hasPatKey: !!config.patKey,
   });
 
   if (config.authMethod === 'pat') {
@@ -125,14 +125,14 @@ export function determineAuthStrategy(
     return {
       strategy: 'check-existing',
       requiresUserInput: false,
-      canAutomate: true
+      canAutomate: true,
     };
   } else {
     // Entra ID authentication - check existing tokens first, then interactive
     return {
       strategy: 'check-existing',
       requiresUserInput: true, // May need device code flow
-      canAutomate: false // Requires user interaction for device code
+      canAutomate: false, // Requires user interaction for device code
     };
   }
 }
@@ -157,7 +157,7 @@ export function createAuthRequest(
     authMethod: config.authMethod,
     strategy,
     organization: config.organization,
-    project: config.project
+    project: config.project,
   });
 
   if (config.authMethod === 'pat') {
@@ -169,8 +169,8 @@ export function createAuthRequest(
         organization: config.organization,
         project: config.project,
         baseUrl: config.baseUrl,
-        apiBaseUrl: config.apiBaseUrl
-      }
+        apiBaseUrl: config.apiBaseUrl,
+      },
     };
   } else {
     return {
@@ -182,9 +182,9 @@ export function createAuthRequest(
         project: config.project,
         baseUrl: config.baseUrl,
         apiBaseUrl: config.apiBaseUrl,
-        scopes: ['https://app.vssps.visualstudio.com/.default']
+        scopes: ['https://app.vssps.visualstudio.com/.default'],
       },
-      timeout: 300000 // 5 minutes for device code flow
+      timeout: 300000, // 5 minutes for device code flow
     };
   }
 }
@@ -193,7 +193,7 @@ export function createAuthRequest(
  * Pure function to validate authentication result
  * @param result Raw authentication result
  * @param config Authentication configuration
- * @param context FSM context for logging  
+ * @param context FSM context for logging
  * @returns Validated and normalized authentication result
  */
 export function validateAuthResult(
@@ -204,7 +204,7 @@ export function validateAuthResult(
   fsmLogger.debug(FSMComponent.AUTH, 'Validating authentication result', context, {
     hasResult: !!result,
     authMethod: config.authMethod,
-    hasCredential: !!result?.credential || !!result?.token || !!result?.accessToken
+    hasCredential: !!result?.credential || !!result?.token || !!result?.accessToken,
   });
 
   if (!result) {
@@ -212,24 +212,24 @@ export function validateAuthResult(
     return {
       success: false,
       authMethod: config.authMethod,
-      error: 'No authentication result received'
+      error: 'No authentication result received',
     };
   }
 
   // Extract credential from various possible result formats
   const credential = result.credential || result.token || result.accessToken;
-  
+
   if (!credential) {
     fsmLogger.warn(FSMComponent.AUTH, 'No credential found in authentication result', context, {
       resultKeys: Object.keys(result),
-      resultType: typeof result
+      resultType: typeof result,
     });
-    
+
     return {
       success: false,
       authMethod: config.authMethod,
       error: 'No credential in authentication result',
-      requiresInteractive: true
+      requiresInteractive: true,
     };
   }
 
@@ -239,13 +239,13 @@ export function validateAuthResult(
     if (typeof credential !== 'string' || credential.length < 10) {
       fsmLogger.warn(FSMComponent.AUTH, 'Invalid PAT credential format', context, {
         credentialType: typeof credential,
-        credentialLength: credential?.length
+        credentialLength: credential?.length,
       });
-      
+
       return {
         success: false,
         authMethod: config.authMethod,
-        error: 'Invalid PAT credential format'
+        error: 'Invalid PAT credential format',
       };
     }
   } else {
@@ -253,13 +253,13 @@ export function validateAuthResult(
     if (typeof credential !== 'string' || !credential.includes('.')) {
       fsmLogger.warn(FSMComponent.AUTH, 'Invalid Entra credential format', context, {
         credentialType: typeof credential,
-        hasJwtStructure: typeof credential === 'string' && credential.includes('.')
+        hasJwtStructure: typeof credential === 'string' && credential.includes('.'),
       });
-      
+
       return {
         success: false,
         authMethod: config.authMethod,
-        error: 'Invalid Entra credential format'
+        error: 'Invalid Entra credential format',
       };
     }
   }
@@ -267,13 +267,13 @@ export function validateAuthResult(
   fsmLogger.info(FSMComponent.AUTH, 'Authentication result validated successfully', context, {
     authMethod: config.authMethod,
     hasCredential: true,
-    credentialLength: credential.length
+    credentialLength: credential.length,
   });
 
   return {
     success: true,
     credential,
-    authMethod: config.authMethod
+    authMethod: config.authMethod,
   };
 }
 
@@ -298,12 +298,12 @@ export function handleAuthError(
 } {
   const errorMessage = error instanceof Error ? error.message : String(error);
   const errorType = error instanceof Error ? error.constructor.name : 'Unknown';
-  
+
   fsmLogger.error(FSMComponent.AUTH, 'Authentication error occurred', context, {
     error: errorMessage,
     errorType,
     authMethod: config.authMethod,
-    organization: config.organization
+    organization: config.organization,
   });
 
   // Determine recovery actions based on error type and auth method
@@ -342,7 +342,7 @@ export function handleAuthError(
     error: errorMessage,
     errorType,
     recoveryAction,
-    requiresInteractive
+    requiresInteractive,
   };
 }
 

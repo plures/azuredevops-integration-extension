@@ -175,6 +175,12 @@
         "icon": "$(layout-panel)"
       },
       {
+        "command": "azureDevOpsInt.toggleDebugView",
+        "title": "Toggle Debug View",
+        "category": "Azure DevOps Int",
+        "icon": "$(debug)"
+      },
+      {
         "command": "azureDevOpsInt.selectTeam",
         "title": "Select Team",
         "category": "Azure DevOps Int"
@@ -490,6 +496,16 @@
         {
           "command": "azureDevOpsInt.createWorkItem",
           "when": "view == azureDevOpsWorkItems",
+          "group": "navigation"
+        },
+        {
+          "command": "azureDevOpsInt.setup",
+          "when": "view == azureDevOpsWorkItems",
+          "group": "navigation"
+        },
+        {
+          "command": "azureDevOpsInt.toggleDebugView",
+          "when": "view == azureDevOpsWorkItems && config.azureDevOpsIntegration.debugLogging",
           "group": "navigation"
         }
       ],

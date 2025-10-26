@@ -30,7 +30,10 @@ export interface NormalizeConnectionsResult {
 }
 
 const defaultDependencies: Required<NormalizationDependencies> = {
-  generateId: () => (typeof globalThis.crypto?.randomUUID === 'function' ? globalThis.crypto.randomUUID() : randomUUID()),
+  generateId: () =>
+    typeof globalThis.crypto?.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : randomUUID(),
   createPatKey: (connectionId: string) => `azureDevOpsInt.pat.${connectionId}`,
   computeDefaultBaseUrl: (organization: string) => `https://dev.azure.com/${organization}`,
   computeApiBaseUrl: (baseUrl: string, organization: string, project: string) => {
@@ -84,7 +87,12 @@ export function normalizeConnections(
     normalized.push(result.connection);
   }
 
-  if (normalized.length === 0 && legacyFallback && legacyFallback.organization && legacyFallback.project) {
+  if (
+    normalized.length === 0 &&
+    legacyFallback &&
+    legacyFallback.organization &&
+    legacyFallback.project
+  ) {
     const fallbackId = deps.generateId();
     normalized.push({
       id: fallbackId,
@@ -242,7 +250,10 @@ function sanitizeConnection(
   };
 }
 
-function deriveAuthMethod(authMethod: string | undefined, tenantId: string | undefined): 'pat' | 'entra' | undefined {
+function deriveAuthMethod(
+  authMethod: string | undefined,
+  tenantId: string | undefined
+): 'pat' | 'entra' | undefined {
   if (authMethod === 'entra' || authMethod === 'pat') {
     return authMethod;
   }

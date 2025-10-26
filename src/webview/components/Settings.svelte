@@ -1,26 +1,26 @@
 <script lang="ts">
   export let context: any;
   export let sendEvent: (event: any) => void;
-  
+
   $: connections = context?.connections || [];
   $: activeConnectionId = context?.activeConnectionId;
-  
+
   function handleAddConnection() {
     sendEvent({ type: 'ADD_CONNECTION' });
   }
-  
+
   function handleEditConnection(connectionId: string) {
     sendEvent({ type: 'EDIT_CONNECTION', connectionId });
   }
-  
+
   function handleDeleteConnection(connectionId: string) {
     sendEvent({ type: 'CONFIRM_DELETE_CONNECTION', connectionId });
   }
-  
+
   function handleSelectConnection(connectionId: string) {
     sendEvent({ type: 'CONNECTION_SELECTED', connectionId });
   }
-  
+
   function handleBack() {
     sendEvent({ type: 'CANCEL_CONNECTION_MANAGEMENT' });
   }
@@ -31,7 +31,7 @@
     <h2>Manage Connections</h2>
     <button on:click={handleBack}>Back</button>
   </div>
-  
+
   <div class="content">
     {#if connections.length === 0}
       <div class="info">
@@ -58,7 +58,8 @@
                 <button on:click={() => handleSelectConnection(conn.id)}>Activate</button>
               {/if}
               <button on:click={() => handleEditConnection(conn.id)}>Edit</button>
-              <button on:click={() => handleDeleteConnection(conn.id)} class="danger">Delete</button>
+              <button on:click={() => handleDeleteConnection(conn.id)} class="danger">Delete</button
+              >
             </div>
           </div>
         {/each}
@@ -76,7 +77,7 @@
     flex-direction: column;
     gap: 1rem;
   }
-  
+
   .header {
     display: flex;
     justify-content: space-between;
@@ -84,12 +85,12 @@
     padding-bottom: 0.5rem;
     border-bottom: 1px solid var(--vscode-panel-border);
   }
-  
+
   h2 {
     margin: 0;
     font-size: 1.2rem;
   }
-  
+
   button {
     background: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
@@ -98,35 +99,35 @@
     cursor: pointer;
     font-size: 0.9rem;
   }
-  
+
   button:hover {
     background: var(--vscode-button-hoverBackground);
   }
-  
+
   button.danger {
     background: var(--vscode-inputValidation-errorBackground);
   }
-  
+
   button.danger:hover {
     background: var(--vscode-inputValidation-errorBorder);
   }
-  
+
   .content {
     padding: 1rem 0;
   }
-  
+
   .info {
     padding: 2rem;
     text-align: center;
     color: var(--vscode-descriptionForeground);
   }
-  
+
   .connections {
     display: flex;
     flex-direction: column;
     gap: 1rem;
   }
-  
+
   .connection {
     display: flex;
     justify-content: space-between;
@@ -135,38 +136,38 @@
     background: var(--vscode-list-inactiveSelectionBackground);
     border: 1px solid var(--vscode-panel-border);
   }
-  
+
   .connection.active {
     border-color: var(--vscode-focusBorder);
     background: var(--vscode-list-activeSelectionBackground);
   }
-  
+
   .connection-info {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
   }
-  
+
   .connection-label {
     font-weight: bold;
     font-size: 1rem;
   }
-  
+
   .connection-details {
     color: var(--vscode-descriptionForeground);
     font-size: 0.9rem;
   }
-  
+
   .connection-auth {
     color: var(--vscode-descriptionForeground);
     font-size: 0.85rem;
   }
-  
+
   .connection-actions {
     display: flex;
     gap: 0.5rem;
   }
-  
+
   .footer {
     margin-top: 1rem;
     padding-top: 1rem;

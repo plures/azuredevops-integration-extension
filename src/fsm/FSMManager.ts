@@ -35,7 +35,11 @@ export class FSMManager {
 
       // Setup FSM tracing for full replay capability
       // Cast to any to bypass Actor vs ActorRef type mismatch in XState v5
-      this.traceCleanup = fsmTracer.instrumentActor(this.timerActor as any, FSMComponent.TIMER, 'timerMachine');
+      this.traceCleanup = fsmTracer.instrumentActor(
+        this.timerActor as any,
+        FSMComponent.TIMER,
+        'timerMachine'
+      );
       this.logger.info('Timer FSM instrumented for tracing and replay');
 
       // Start the actors
@@ -47,7 +51,9 @@ export class FSMManager {
       this.isStarted = true;
       this.logger.info('FSM Manager started successfully');
     } catch (error) {
-      this.logger.error('Failed to start FSM Manager: ' + (error instanceof Error ? error.message : String(error)));
+      this.logger.error(
+        'Failed to start FSM Manager: ' + (error instanceof Error ? error.message : String(error))
+      );
       throw error;
     }
   }
@@ -72,7 +78,9 @@ export class FSMManager {
       this.isStarted = false;
       this.logger.info('FSM Manager stopped');
     } catch (error) {
-      this.logger.error('Failed to stop FSM Manager: ' + (error instanceof Error ? error.message : String(error)));
+      this.logger.error(
+        'Failed to stop FSM Manager: ' + (error instanceof Error ? error.message : String(error))
+      );
     }
   }
 
@@ -97,7 +105,9 @@ export class FSMManager {
         return false;
       }
     } catch (error) {
-      this.logger.error('Failed to start timer: ' + (error instanceof Error ? error.message : String(error)));
+      this.logger.error(
+        'Failed to start timer: ' + (error instanceof Error ? error.message : String(error))
+      );
       return false;
     }
   }
@@ -118,7 +128,9 @@ export class FSMManager {
         return false;
       }
     } catch (error) {
-      this.logger.error('Failed to pause timer: ' + (error instanceof Error ? error.message : String(error)));
+      this.logger.error(
+        'Failed to pause timer: ' + (error instanceof Error ? error.message : String(error))
+      );
       return false;
     }
   }
@@ -139,7 +151,9 @@ export class FSMManager {
         return false;
       }
     } catch (error) {
-      this.logger.error('Failed to resume timer: ' + (error instanceof Error ? error.message : String(error)));
+      this.logger.error(
+        'Failed to resume timer: ' + (error instanceof Error ? error.message : String(error))
+      );
       return false;
     }
   }
@@ -163,7 +177,7 @@ export class FSMManager {
           endTime: Date.now(),
           duration: context.elapsedSeconds,
           hoursDecimal: Number((context.elapsedSeconds / 3600).toFixed(2)),
-          capApplied: context.elapsedSeconds > (context.defaultElapsedLimitHours * 3600),
+          capApplied: context.elapsedSeconds > context.defaultElapsedLimitHours * 3600,
           capLimitHours: context.defaultElapsedLimitHours,
         };
       } else {
@@ -171,7 +185,9 @@ export class FSMManager {
         return null;
       }
     } catch (error) {
-      this.logger.error('Failed to stop timer: ' + (error instanceof Error ? error.message : String(error)));
+      this.logger.error(
+        'Failed to stop timer: ' + (error instanceof Error ? error.message : String(error))
+      );
       return null;
     }
   }

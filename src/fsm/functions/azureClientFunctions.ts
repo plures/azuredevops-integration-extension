@@ -2,7 +2,7 @@
  * Pure functions for Azure client operations
  * These functions follow FSM-first principles:
  * - Take FSM context as input
- * - Return results for FSM processing  
+ * - Return results for FSM processing
  * - No side effects or direct state mutations
  * - Single responsibility per function
  */
@@ -82,7 +82,7 @@ export async function validateClientConfig(context: ConnectionContext): Promise<
     hasCredential: !!context.credential,
     hasConfig: !!context.config,
     organization: context.config.organization,
-    project: context.config.project
+    project: context.config.project,
   });
 
   const errors: string[] = [];
@@ -101,17 +101,27 @@ export async function validateClientConfig(context: ConnectionContext): Promise<
   const apiBaseUrl = sanitizeUrl(context.config.apiBaseUrl);
 
   if (context.config.baseUrl && baseUrl !== context.config.baseUrl) {
-    fsmLogger.debug(FSMComponent.CONNECTION, 'Normalized baseUrl for client configuration', fsmContext, {
-      original: context.config.baseUrl,
-      normalized: baseUrl,
-    });
+    fsmLogger.debug(
+      FSMComponent.CONNECTION,
+      'Normalized baseUrl for client configuration',
+      fsmContext,
+      {
+        original: context.config.baseUrl,
+        normalized: baseUrl,
+      }
+    );
   }
 
   if (context.config.apiBaseUrl && apiBaseUrl !== context.config.apiBaseUrl) {
-    fsmLogger.debug(FSMComponent.CONNECTION, 'Normalized apiBaseUrl for client configuration', fsmContext, {
-      original: context.config.apiBaseUrl,
-      normalized: apiBaseUrl,
-    });
+    fsmLogger.debug(
+      FSMComponent.CONNECTION,
+      'Normalized apiBaseUrl for client configuration',
+      fsmContext,
+      {
+        original: context.config.apiBaseUrl,
+        normalized: apiBaseUrl,
+      }
+    );
   }
 
   const derivedOrganization = resolveOrganizationName({
@@ -149,7 +159,9 @@ export async function validateClientConfig(context: ConnectionContext): Promise<
   }
 
   if (errors.length > 0) {
-    fsmLogger.warn(FSMComponent.CONNECTION, 'Client configuration validation failed', fsmContext, { errors });
+    fsmLogger.warn(FSMComponent.CONNECTION, 'Client configuration validation failed', fsmContext, {
+      errors,
+    });
     return { isValid: false, errors, context };
   }
 
@@ -169,14 +181,19 @@ export async function validateClientConfig(context: ConnectionContext): Promise<
       authType: context.config.authMethod === 'entra' ? 'bearer' : 'pat',
       identityName: context.config.identityName,
       // onAuthFailure will be set by FSM
-    }
+    },
   };
 
-  fsmLogger.debug(FSMComponent.CONNECTION, 'Client configuration validated successfully', fsmContext, {
-    authType: config.options.authType,
-    hasTeam: !!config.options.team,
-    hasBaseUrl: !!config.options.baseUrl
-  });
+  fsmLogger.debug(
+    FSMComponent.CONNECTION,
+    'Client configuration validated successfully',
+    fsmContext,
+    {
+      authType: config.options.authType,
+      hasTeam: !!config.options.team,
+      hasBaseUrl: !!config.options.baseUrl,
+    }
+  );
 
   return { isValid: true, config, context };
 }
@@ -188,7 +205,7 @@ export async function validateClientConfig(context: ConnectionContext): Promise<
  * @returns Client creation result
  */
 export async function createAzureClient(
-  context: ConnectionContext, 
+  context: ConnectionContext,
   config: AzureClientConfig
 ): Promise<ClientCreationResult> {
   const { FSMComponent, fsmLogger, fsmContext } = await getConnectionLogger(context.connectionId);
@@ -197,13 +214,13 @@ export async function createAzureClient(
     organization: config.organization,
     project: config.project,
     authType: config.options.authType,
-    hasBaseUrl: !!config.options.baseUrl
+    hasBaseUrl: !!config.options.baseUrl,
   });
 
   try {
     // Import client class
     const { AzureDevOpsIntClient } = await import('../../azureClient.js');
-    
+
     // Create client instance
     const client = new AzureDevOpsIntClient(
       config.organization,
@@ -212,18 +229,23 @@ export async function createAzureClient(
       config.options
     );
 
-    fsmLogger.info(FSMComponent.CONNECTION, 'Azure DevOps client created successfully', fsmContext, {
-      organization: config.organization,
-      project: config.project,
-      authType: config.options.authType
-    });
+    fsmLogger.info(
+      FSMComponent.CONNECTION,
+      'Azure DevOps client created successfully',
+      fsmContext,
+      {
+        organization: config.organization,
+        project: config.project,
+        authType: config.options.authType,
+      }
+    );
 
     return { client, config, context };
   } catch (error) {
     fsmLogger.error(FSMComponent.CONNECTION, 'Failed to create Azure DevOps client', fsmContext, {
       error: error instanceof Error ? error.message : String(error),
       organization: config.organization,
-      project: config.project
+      project: config.project,
     });
     throw error;
   }
@@ -250,17 +272,25 @@ export async function testClientConnectivity(
 
   try {
     const userId = await client.getAuthenticatedUserId();
-    
+
     if (userId) {
-      fsmLogger.info(FSMComponent.CONNECTION, 'Client connectivity test successful', fsmContext, { userId });
+      fsmLogger.info(FSMComponent.CONNECTION, 'Client connectivity test successful', fsmContext, {
+        userId,
+      });
       return { success: true, userId, context };
     } else {
-      fsmLogger.warn(FSMComponent.CONNECTION, 'Client connectivity test failed - no user ID', fsmContext);
+      fsmLogger.warn(
+        FSMComponent.CONNECTION,
+        'Client connectivity test failed - no user ID',
+        fsmContext
+      );
       return { success: false, error: 'Unable to authenticate user', context };
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    fsmLogger.error(FSMComponent.CONNECTION, 'Client connectivity test failed', fsmContext, { error: errorMessage });
+    fsmLogger.error(FSMComponent.CONNECTION, 'Client connectivity test failed', fsmContext, {
+      error: errorMessage,
+    });
     return { success: false, error: errorMessage, context };
   }
 }
@@ -276,7 +306,7 @@ export function normalizeConnectionConfig(rawConfig: any): {
   errors?: string[];
 } {
   const errors: string[] = [];
-  
+
   if (!rawConfig) {
     errors.push('Configuration is required');
     return { isValid: false, errors };
@@ -285,11 +315,11 @@ export function normalizeConnectionConfig(rawConfig: any): {
   // Extract and validate required fields
   const organization = rawConfig.organization?.trim();
   const project = rawConfig.project?.trim();
-  
+
   if (!organization) {
     errors.push('Organization is required');
   }
-  
+
   if (!project) {
     errors.push('Project is required');
   }

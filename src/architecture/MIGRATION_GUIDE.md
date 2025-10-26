@@ -7,22 +7,28 @@ This guide shows how to migrate from the current message-based FSM architecture 
 ## Current vs New Architecture
 
 ### Current (Message-Based)
+
 ```
 Component → FSM Actor → Message → Another Actor → State Change → Component Re-render
 ```
+
 **Problems:**
+
 - Tight coupling between actors
 - Complex message routing
 - Difficult to debug
 - Doesn't scale to multiple connections
 
 ### New (Context-Driven)
+
 ```
 User Action → Context Action → Shared Context → Reactive Store → Component Re-render
                                      ↓
                                Independent Actors observe context
 ```
+
 **Benefits:**
+
 - Loose coupling
 - Simple, predictable flow
 - Easy to debug
@@ -47,11 +53,12 @@ webviewManager.setContextStore(contextStore);
 ### Step 2: Replace Message Handlers
 
 **Before:**
+
 ```typescript
 case 'switchConnection':
   // Complex message routing
   applicationFSMManager.send({
-    type: 'SWITCH_CONNECTION', 
+    type: 'SWITCH_CONNECTION',
     connectionId,
     refresh: true
   });
@@ -59,6 +66,7 @@ case 'switchConnection':
 ```
 
 **After:**
+
 ```typescript
 case 'switchConnection':
   // Simple context update
@@ -70,18 +78,19 @@ case 'switchConnection':
 ### Step 3: Convert Components to Use Stores
 
 **Before:**
+
 ```svelte
 <script>
   import { onMount } from 'svelte';
-  
+
   let workItems = [];
   let loading = false;
-  
+
   onMount(() => {
     // Complex message setup
     window.addEventListener('message', handleMessage);
   });
-  
+
   function handleMessage(event) {
     // Complex message parsing
     if (event.data.type === 'workItemsUpdated') {
@@ -93,10 +102,11 @@ case 'switchConnection':
 ```
 
 **After:**
+
 ```svelte
 <script>
   import { activeWorkItems, isActiveConnectionLoading } from '../architecture/ReactiveStores';
-  
+
   // That's it! Reactive updates automatically
 </script>
 
@@ -124,16 +134,19 @@ const actors = createIndependentActors(contextStore);
 ## Key Changes to Existing Files
 
 ### activation.ts
+
 - Initialize shared context and reactive stores
 - Replace complex message routing with simple context actions
 - Start independent actors that observe context
 
 ### webview/main.ts (or reactive-main.ts)
+
 - Remove complex message handling
 - Use reactive stores for all state
 - Actions just call context actions
 
 ### Component files
+
 - Remove `onMount` message setup
 - Use reactive stores with `$` syntax
 - Actions call `contextActions` methods
@@ -141,6 +154,7 @@ const actors = createIndependentActors(contextStore);
 ## Connection Switching Example
 
 ### Current Flow (Broken)
+
 1. User clicks tab
 2. Component sends message to extension
 3. Extension routes to FSM
@@ -148,6 +162,7 @@ const actors = createIndependentActors(contextStore);
 5. Data is loaded but display doesn't update (current bug)
 
 ### New Flow (Works)
+
 1. User clicks tab
 2. Component calls `contextActions.setActiveTab(connectionId)`
 3. Context updates
@@ -158,21 +173,25 @@ const actors = createIndependentActors(contextStore);
 ## Benefits in Practice
 
 ### Scalability
+
 - Adding 5th or 10th connection: Just add to context
 - Each connection has independent state
 - No message routing complexity
 
 ### Debugging
+
 - All state in one place (ApplicationContext)
 - Clear audit trail of context changes
 - No complex message tracing
 
 ### Testing
+
 - Test context actions in isolation
 - Test components with mock stores
 - Test actors independently
 
 ### Maintainability
+
 - Actors have single concerns
 - No interdependencies
 - Easy to add new features
@@ -210,6 +229,7 @@ export const activeWorkItems = derived(
 ## Next Steps
 
 Would you like me to:
+
 1. Implement Phase 2 (initialize context in activation.ts)?
 2. Convert the current buggy component to use stores?
 3. Create a simple working demo first?

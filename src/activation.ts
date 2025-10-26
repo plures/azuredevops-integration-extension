@@ -111,6 +111,9 @@ let sharedContextBridge: ReturnType<typeof createSharedContextBridge> | undefine
 let extensionContextRef: vscode.ExtensionContext | undefined;
 let openAiClient: OpenAI | undefined;
 let cachedExtensionVersion: string | undefined; // cache package.json version for cache-busting
+// Track last applied query to avoid redundant provider refreshes
+let lastQueriedActiveConnectionId: string | undefined;
+let lastQueriedQuery: string | undefined;
 
 function shouldLogDebug(): boolean {
   try {
@@ -1831,6 +1834,50 @@ export async function activate(context: vscode.ExtensionContext) {
           type: 'syncState',
           payload: serializableState,
         });
+        // If activeQuery changed, persist and trigger provider refresh
+        try {
+          const snapCtx = snapshot.context;
+          const newQuery: string | undefined = snapCtx?.activeQuery;
+          const newConn: string | undefined = snapCtx?.activeConnectionId;
+          if (newConn && typeof newQuery === 'string') {
+            const changed =
+              newConn !== lastQueriedActiveConnectionId || newQuery !== lastQueriedQuery;
+            if (changed) {
+              // Persist query in per-connection store
+              setStoredQueryForConnection(newConn, newQuery);
+              // Ensure provider exists before refresh
+              if (!provider && extensionContextRef) {
+                ensureActiveConnection(extensionContextRef, newConn, { refresh: false }).catch(
+                  () => {}
+                );
+              }
+              try {
+                provider?.refresh(newQuery);
+              } catch (e) {
+                verbose('[activation] provider.refresh failed after query change', e);
+              }
+              lastQueriedActiveConnectionId = newConn;
+              lastQueriedQuery = newQuery;
+            }
+          }
+        } catch (e) {
+          verbose('[activation] Failed handling activeQuery change', e);
+        }
+        // Update VS Code context key for debug view visibility so menus can react
+        try {
+          vscode.commands
+            .executeCommand(
+              'setContext',
+              'azureDevOpsInt.debugViewVisible',
+              !!snapshot.context?.debugViewVisible
+            )
+            .then(
+              () => {},
+              () => {}
+            );
+        } catch {
+          /* ignore context key errors */
+        }
       }
     });
   }
@@ -2094,6 +2141,12 @@ export async function activate(context: vscode.ExtensionContext) {
       })
     ),
     vscode.commands.registerCommand(
+      'azureDevOpsInt.toggleDebugView',
+      safeCommandHandler(() => {
+        dispatchApplicationEvent({ type: 'TOGGLE_DEBUG_VIEW' });
+      })
+    ),
+    vscode.commands.registerCommand(
       'azureDevOpsInt.selectTeam',
       safeCommandHandler(() => {
         dispatchApplicationEvent({ type: 'SELECT_TEAM_INTERACTIVE' });
@@ -2348,6 +2401,7 @@ function getSerializableContext(context: any): Record<string, any> {
     isDeactivating: context.isDeactivating,
     connections: context.connections || [],
     activeConnectionId: context.activeConnectionId,
+    activeQuery: context.activeQuery,
     connectionStates: context.connectionStates ? Object.fromEntries(context.connectionStates) : {},
     pendingAuthReminders: context.pendingAuthReminders
       ? Object.fromEntries(context.pendingAuthReminders)

@@ -1,6 +1,6 @@
 /**
  * Application FSM Manager
- * 
+ *
  * This manager coordinates the entire application FSM system, replacing
  * the existing global state management in activation.ts.
  */
@@ -44,10 +44,14 @@ export class ApplicationFSMManager {
         },
       });
 
-      // Setup FSM tracing for full replay capability  
+      // Setup FSM tracing for full replay capability
       // Note: XState v5 createActor returns an ActorRef, but tracer expects Actor
       // We'll cast to any to bypass the type check since the runtime behavior is compatible
-      this.traceCleanup = fsmTracer.instrumentActor(this.appActor as any, FSMComponent.APPLICATION, 'applicationMachine');
+      this.traceCleanup = fsmTracer.instrumentActor(
+        this.appActor as any,
+        FSMComponent.APPLICATION,
+        'applicationMachine'
+      );
       this.logger.info('Application FSM instrumented for tracing and replay');
 
       // Subscribe to state changes with FSM logging
@@ -58,15 +62,19 @@ export class ApplicationFSMManager {
           'STATE_CHANGE',
           'applicationMachine'
         );
-        
-        this.logger.debug('Application FSM state update', {
-          state: typeof state.value === 'string' ? state.value : JSON.stringify(state.value),
-          machineId: 'applicationMachine'
-        }, {
-          isActivated: state.context.isActivated,
-          connectionCount: state.context.connections.length,
-          activeConnectionId: state.context.activeConnectionId,
-        });
+
+        this.logger.debug(
+          'Application FSM state update',
+          {
+            state: typeof state.value === 'string' ? state.value : JSON.stringify(state.value),
+            machineId: 'applicationMachine',
+          },
+          {
+            isActivated: state.context.isActivated,
+            connectionCount: state.context.connections.length,
+            activeConnectionId: state.context.activeConnectionId,
+          }
+        );
       });
 
       // Start the actor
@@ -75,7 +83,9 @@ export class ApplicationFSMManager {
 
       // Activate the extension
       this.appActor.send({ type: 'ACTIVATE', context: this.extensionContext });
-      this.logger.logEvent('ACTIVATE', 'initializing', 'applicationMachine', { context: 'extensionContext' });
+      this.logger.logEvent('ACTIVATE', 'initializing', 'applicationMachine', {
+        context: 'extensionContext',
+      });
 
       // Create FSM Manager for backward compatibility
       this.fsmManager = new FSMManager();
@@ -89,7 +99,7 @@ export class ApplicationFSMManager {
 
       this.isStarted = true;
       this.logger.info('Application FSM started successfully');
-      
+
       // Load connections from VS Code configuration
       await this.loadConnectionsFromConfig();
     } catch (error) {
@@ -106,26 +116,28 @@ export class ApplicationFSMManager {
       const vscode = await import('vscode');
       const config = vscode.workspace.getConfiguration('azureDevOpsIntegration');
       const rawConnections = config.get<any[]>('connections', []);
-      
-      this.logger.info(`[ApplicationFSM] Loading connections from config: ${rawConnections.length} found`);
-      
-      // Basic connection validation and processing
-      const validConnections = rawConnections.filter(conn => 
-        conn && 
-        typeof conn === 'object' &&
-        conn.id && 
-        conn.organization && 
-        conn.project
+
+      this.logger.info(
+        `[ApplicationFSM] Loading connections from config: ${rawConnections.length} found`
       );
-      
-      this.logger.info(`[ApplicationFSM] Valid connections after filtering: ${validConnections.length}`);
-      
+
+      // Basic connection validation and processing
+      const validConnections = rawConnections.filter(
+        (conn) => conn && typeof conn === 'object' && conn.id && conn.organization && conn.project
+      );
+
+      this.logger.info(
+        `[ApplicationFSM] Valid connections after filtering: ${validConnections.length}`
+      );
+
       // Send connections to FSM
       if (validConnections.length > 0) {
         this.onConnectionsLoaded(validConnections);
       }
     } catch (error) {
-      this.logger.error(`Failed to load connections from config: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Failed to load connections from config: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -145,7 +157,7 @@ export class ApplicationFSMManager {
       // Stop child managers
       await this.fsmManager?.stop();
       this.logger.info('FSM Manager stopped');
-      
+
       // Stop the main actor
       this.appActor?.stop();
       this.logger.info('Application actor stopped');
@@ -204,7 +216,9 @@ export class ApplicationFSMManager {
    */
   onAuthenticationRequired(connectionId: string) {
     if (!this.isStarted) {
-      this.logger.info(`Skipping authentication required - FSM not started (connectionId: ${connectionId})`);
+      this.logger.info(
+        `Skipping authentication required - FSM not started (connectionId: ${connectionId})`
+      );
       return;
     }
     this.appActor?.send({ type: 'AUTHENTICATION_REQUIRED', connectionId });
@@ -252,7 +266,9 @@ export class ApplicationFSMManager {
    */
   onWebviewMessage(message: any) {
     if (!this.isStarted) {
-      this.logger.info(`Skipping webview message - FSM not started (message type: ${message?.type})`);
+      this.logger.info(
+        `Skipping webview message - FSM not started (message type: ${message?.type})`
+      );
       return;
     }
     this.appActor?.send({ type: 'WEBVIEW_MESSAGE', message });
@@ -287,7 +303,7 @@ export class ApplicationFSMManager {
       // Send UPDATE_WEBVIEW_PANEL event to properly update FSM context
       this.appActor.send({
         type: 'UPDATE_WEBVIEW_PANEL',
-        webviewPanel: webviewPanel
+        webviewPanel: webviewPanel,
       });
       this.logger.info('Webview panel updated in FSM context for data synchronization');
     } else {
@@ -330,14 +346,18 @@ export class ApplicationFSMManager {
         lastError: state?.context.lastError?.message,
         errorRecoveryAttempts: state?.context.errorRecoveryAttempts,
       },
-      timerAdapter: this.timerAdapter ? {
-        isEnabled: this.timerAdapter.validateSync(),
-        currentSnapshot: this.timerAdapter.snapshot(),
-      } : null,
-      fsmManager: this.fsmManager ? {
-        isStarted: this.fsmManager['isStarted'] || false,
-        hasTimerActor: !!this.fsmManager['timerActor'],
-      } : null,
+      timerAdapter: this.timerAdapter
+        ? {
+            isEnabled: this.timerAdapter.validateSync(),
+            currentSnapshot: this.timerAdapter.snapshot(),
+          }
+        : null,
+      fsmManager: this.fsmManager
+        ? {
+            isStarted: this.fsmManager['isStarted'] || false,
+            hasTimerActor: !!this.fsmManager['timerActor'],
+          }
+        : null,
     };
   }
 }
@@ -352,11 +372,11 @@ export function getApplicationFSMManager(extensionContext?: any): ApplicationFSM
   if (!applicationFSMManager && extensionContext) {
     applicationFSMManager = new ApplicationFSMManager(extensionContext);
   }
-  
+
   if (!applicationFSMManager) {
     throw new Error('ApplicationFSMManager not initialized. Call with extensionContext first.');
   }
-  
+
   return applicationFSMManager;
 }
 
