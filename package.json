@@ -931,7 +931,7 @@
   "dependencies": {
     "@azure/msal-node": "^3.8.0",
     "@statelyai/inspect": "^0.4.0",
-    "@xstate/svelte": "^5.0.0",
+    "@xstate/svelte": "file:./src/fsm/xstate-svelte",
     "axios": "^1.12.2",
     "azure-devops-node-api": "^15.1.1",
     "openai": "^6.4.0",

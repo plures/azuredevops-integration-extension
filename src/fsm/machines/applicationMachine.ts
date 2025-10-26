@@ -30,6 +30,55 @@ import { normalizeConnections } from '../functions/activation/connectionNormaliz
 
 export type { ProjectConnection, AuthReminderReason, AuthReminderState, ConnectionState };
 
+/**
+ * UI state for deterministic rendering.
+ * Components should render based on this state, not derive UI from machine states.
+ * Follows migration instructions for rune-first helpers.
+ */
+export type UIState = {
+  /**
+   * Primary action buttons with labels and loading states
+   */
+  buttons?: {
+    refreshData?: {
+      label: string;
+      loading?: boolean;
+      disabled?: boolean;
+    };
+    toggleView?: {
+      label: string;
+      icon?: string;
+    };
+    manageConnections?: {
+      label: string;
+    };
+  };
+  /**
+   * Status messages to display in UI
+   */
+  statusMessage?: {
+    text: string;
+    type: 'info' | 'warning' | 'error' | 'success';
+  };
+  /**
+   * Loading states for different UI sections
+   */
+  loading?: {
+    connections?: boolean;
+    workItems?: boolean;
+    authentication?: boolean;
+  };
+  /**
+   * Modal/dialog states
+   */
+  modal?: {
+    type: 'deviceCode' | 'error' | 'settings' | null;
+    title?: string;
+    message?: string;
+    actions?: Array<{ label: string; action: string }>;
+  };
+};
+
 export type ApplicationContext = {
   isActivated: boolean;
   isDeactivating: boolean;
@@ -68,6 +117,12 @@ export type ApplicationContext = {
   debugLoggingEnabled?: boolean;
   /** Whether the webview debug panel is currently visible */
   debugViewVisible?: boolean;
+  /**
+   * Deterministic UI state for webview rendering.
+   * Webviews should render based on this, not derive UI from machine states.
+   * Supports rune-first helpers and optimistic updates.
+   */
+  ui?: UIState;
 };
 
 export type ApplicationEvent =
@@ -122,11 +177,11 @@ export type ApplicationEvent =
   | { type: 'CONFIRM_DELETE_CONNECTION'; connectionId: string }
   | { type: 'CANCEL_CONNECTION_MANAGEMENT' }
   // Events from child auth machines
-  | { type: 'xstate.snapshot.auth'; snapshot: any }
-  | { type: 'xstate.error.actor.auth'; error: any }
+  | { type: 'AUTH_SNAPSHOT'; snapshot: any }
+  | { type: 'AUTH_ERROR'; error: any }
   // Events from child data machines
-  | { type: 'xstate.snapshot.data'; snapshot: any }
-  | { type: 'xstate.error.actor.data'; error: any };
+  | { type: 'DATA_SNAPSHOT'; snapshot: any }
+  | { type: 'DATA_ERROR'; error: any };
 
 type SetupUIResult = {
   connections: ProjectConnection[];
@@ -237,24 +292,22 @@ export const applicationMachine = createMachine(
                   },
                   onError: 'setup_error',
                 },
-                // Immediate fallback for test environments where invoked promise completion event is not observed.
-                // This ensures the machine progresses so view mode tests can interact with the ready path.
-                always: {
-                  target: 'waiting_for_panel',
-                  actions: ['fallbackSetupUICompletion'],
-                },
                 /**
-                 * Fallback transition: Some test environments have exhibited a race where the invoked
+                 * Fallback transition: Some test environments exhibit a race where the invoked
                  * setupUI promise resolves but the done event is not observed within the waitFor timeout.
-                 * To ensure deterministic progression for zero‑connection scenarios (and prevent view mode
+                 * To ensure deterministic progression for zero-connection scenarios (and prevent view mode
                  * tests from hanging), we add a timed fallback that advances to waiting_for_panel after
-                 * a short delay if the onDone event hasn't fired yet. This preserves normal behavior in
+                 * a delay if the onDone event hasn't fired yet. This preserves normal behavior in
                  * real runtime (onDone will typically fire first) while guaranteeing forward progress.
+                 *
+                 * BEST PRACTICE: Using 'after' with guard instead of 'always' to prevent infinite loops.
                  */
                 after: {
                   250: {
                     target: 'waiting_for_panel',
                     actions: ['fallbackSetupUICompletion'],
+                    // Guard prevents transition if we've already loaded connections normally
+                    guard: ({ context }) => !context.webviewPanel,
                   },
                 },
               },
@@ -372,16 +425,16 @@ export const applicationMachine = createMachine(
               CONNECTION_SELECTED: {
                 actions: ['setActiveConnectionInContext', 'delegateConnectionActivation'],
               },
-              'xstate.snapshot.auth': {
+              AUTH_SNAPSHOT: {
                 actions: 'handleAuthSnapshot',
               },
-              'xstate.error.actor.auth': {
+              AUTH_ERROR: {
                 actions: 'handleAuthError',
               },
-              'xstate.snapshot.data': {
+              DATA_SNAPSHOT: {
                 actions: 'handleDataSnapshot',
               },
-              'xstate.error.actor.data': {
+              DATA_ERROR: {
                 actions: 'handleDataError',
               },
               WORK_ITEMS_LOADED: {
@@ -575,7 +628,7 @@ export const applicationMachine = createMachine(
         }
       },
       handleAuthSnapshot: ({ event, self }) => {
-        if (event.type === 'xstate.snapshot.auth' && event.snapshot.value === 'authenticated') {
+        if (event.type === 'AUTH_SNAPSHOT' && event.snapshot.value === 'authenticated') {
           const { connection, token } = event.snapshot.context;
           if (connection.id && token) {
             self.send({ type: 'AUTHENTICATION_SUCCESS', connectionId: connection.id, token });
@@ -583,7 +636,7 @@ export const applicationMachine = createMachine(
         }
       },
       handleAuthError: ({ event, self }) => {
-        if (event.type === 'xstate.error.actor.auth') {
+        if (event.type === 'AUTH_ERROR') {
           const actorId = (event as any).id;
           const { authActors } = self.getSnapshot().context;
           for (const [connectionId, actor] of authActors.entries()) {
@@ -599,7 +652,7 @@ export const applicationMachine = createMachine(
         }
       },
       handleDataSnapshot: ({ event, self }) => {
-        if (event.type === 'xstate.snapshot.data' && event.snapshot.value === 'success') {
+        if (event.type === 'DATA_SNAPSHOT' && event.snapshot.value === 'success') {
           const { workItems } = event.snapshot.context;
           if (workItems) {
             self.send({ type: 'WORK_ITEMS_LOADED', workItems });
@@ -607,12 +660,12 @@ export const applicationMachine = createMachine(
         }
       },
       handleDataError: ({ event, self }) => {
-        if (event.type === 'xstate.error.actor.data') {
+        if (event.type === 'DATA_ERROR') {
           const error = event.error as Error;
           self.send({ type: 'ERROR', error });
         }
       },
-      routeWebviewMessage: ({ context, event, self }) => {
+      routeWebviewMessage: ({ event, self }) => {
         if (event.type !== 'WEBVIEW_MESSAGE') return;
         const { message } = event;
         webviewRouterLogger.debug('Webview message received', { event: message.type }, { message });
@@ -805,7 +858,7 @@ export const applicationMachine = createMachine(
               activeConnectionId,
               requiresPersistence,
             });
-          } catch (e) {
+          } catch (_e) {
             // Swallow logging errors in test/runtime shims where console may be unavailable
           }
 
