@@ -2577,11 +2577,38 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
         value: snapshot?.value,
       });
       if (snapshot) {
+        // Pre-compute state matches
+        const matches = {
+          inactive: snapshot.matches('inactive'),
+          activating: snapshot.matches('activating'),
+          activation_failed: snapshot.matches('activation_failed'),
+          active: snapshot.matches('active'),
+          error_recovery: snapshot.matches('error_recovery'),
+          deactivating: snapshot.matches('deactivating'),
+          'active.setup': snapshot.matches({ active: 'setup' }),
+          'active.setup.loading_connections': snapshot.matches({
+            active: { setup: 'loading_connections' },
+          }),
+          'active.setup.waiting_for_panel': snapshot.matches({
+            active: { setup: 'waiting_for_panel' },
+          }),
+          'active.setup.panel_ready': snapshot.matches({ active: { setup: 'panel_ready' } }),
+          'active.setup.setup_error': snapshot.matches({ active: { setup: 'setup_error' } }),
+          'active.ready': snapshot.matches({ active: 'ready' }),
+          'active.ready.idle': snapshot.matches({ active: { ready: 'idle' } }),
+          'active.ready.loadingData': snapshot.matches({ active: { ready: 'loadingData' } }),
+          'active.ready.managingConnections': snapshot.matches({
+            active: { ready: 'managingConnections' },
+          }),
+          'active.ready.error': snapshot.matches({ active: { ready: 'error' } }),
+        };
+
         const serializableState = {
           fsmState: snapshot.value,
           context: getSerializableContext(snapshot.context),
+          matches,
         };
-        console.log('[AzureDevOpsIntViewProvider] Posting initial syncState message');
+        console.log('[AzureDevOpsIntViewProvider] Posting initial syncState message with matches');
         webview.postMessage({
           type: 'syncState',
           payload: serializableState,
@@ -2614,12 +2641,41 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
               value: snap?.value,
             });
             if (snap) {
-              console.log('[AzureDevOpsIntViewProvider] Posting syncState in response to ready');
+              // Pre-compute state matches
+              const matches = {
+                inactive: snap.matches('inactive'),
+                activating: snap.matches('activating'),
+                activation_failed: snap.matches('activation_failed'),
+                active: snap.matches('active'),
+                error_recovery: snap.matches('error_recovery'),
+                deactivating: snap.matches('deactivating'),
+                'active.setup': snap.matches({ active: 'setup' }),
+                'active.setup.loading_connections': snap.matches({
+                  active: { setup: 'loading_connections' },
+                }),
+                'active.setup.waiting_for_panel': snap.matches({
+                  active: { setup: 'waiting_for_panel' },
+                }),
+                'active.setup.panel_ready': snap.matches({ active: { setup: 'panel_ready' } }),
+                'active.setup.setup_error': snap.matches({ active: { setup: 'setup_error' } }),
+                'active.ready': snap.matches({ active: 'ready' }),
+                'active.ready.idle': snap.matches({ active: { ready: 'idle' } }),
+                'active.ready.loadingData': snap.matches({ active: { ready: 'loadingData' } }),
+                'active.ready.managingConnections': snap.matches({
+                  active: { ready: 'managingConnections' },
+                }),
+                'active.ready.error': snap.matches({ active: { ready: 'error' } }),
+              };
+
+              console.log(
+                '[AzureDevOpsIntViewProvider] Posting syncState in response to ready with matches'
+              );
               webview.postMessage({
                 type: 'syncState',
                 payload: {
                   fsmState: snap.value,
                   context: getSerializableContext(snap.context),
+                  matches,
                 },
               });
             }
