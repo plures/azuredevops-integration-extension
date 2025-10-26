@@ -15,16 +15,19 @@
 ### Core Files Created/Updated
 
 **State Management:**
+
 - `src/stores/applicationStore.ts` - Central reactive store wrapping XState machine
 - `src/fsm/machines/applicationMachine.ts` - Pure orchestrator coordinating child machines
 - `src/fsm/machines/connectionMachine.ts` - Connection lifecycle management
 - `src/fsm/machines/timerMachine.ts` - Timer state management
 
 **UI Components:**
+
 - `src/webview/ReactiveApp.svelte` - Svelte 5 component using runes ($props, $state, $derived)
 - `src/webview/reactive-main.ts` - New entry point for reactive architecture
 
 **Integration Layer:**
+
 - `src/fsm/FSMManager.ts` - Main FSM orchestration manager
 - `src/fsm/adapters/TimerAdapter.ts` - Backward compatibility bridge
 - `src/fsm/logging/FSMLogger.ts` - FSM-aware logging system
@@ -32,28 +35,39 @@
 ## Key Architectural Improvements
 
 ### 1. Reactive State Flow
+
 ```
 FSM State Change → Svelte Store Update → Component Re-render
 ```
+
 No more message passing - everything is reactive!
 
 ### 2. Single-Purpose Functions
+
 ```typescript
 // Before: Monolithic 200+ line function
-function ensureActiveConnection() { /* complex logic */ }
+function ensureActiveConnection() {
+  /* complex logic */
+}
 
 // After: Orchestrated single-purpose functions
-function activateConnection(context, connectionId) { /* simple logic */ }
-function startAuthentication(context, connectionId) { /* simple logic */ }
+function activateConnection(context, connectionId) {
+  /* simple logic */
+}
+function startAuthentication(context, connectionId) {
+  /* simple logic */
+}
 ```
 
 ### 3. Centralized State Management
+
 ```typescript
 // All application state flows through one machine
 applicationMachine → connectionMachine → authMachine → dataSync
 ```
 
 ### 4. Svelte 5 Reactivity
+
 ```svelte
 <!-- Automatic reactivity with runes -->
 let workItems = $derived($applicationState.workItems);
@@ -70,11 +84,13 @@ let isLoading = $derived($applicationState.matches('loading'));
 ## Next Steps
 
 ### Immediate (Complete the implementation):
+
 1. **Integrate with activation.ts**: Replace message passing with store-based patterns
 2. **Update webview HTML**: Switch from `svelte-main.js` to `reactive-main.js`
 3. **Test reactive flow**: Verify FSM → Store → Component reactivity
 
 ### Future Enhancements:
+
 1. **Add more child machines**: Error handling, data sync, etc.
 2. **Implement FSM persistence**: Save/restore state across sessions
 3. **Add visual FSM inspector**: Debug state transitions in development
@@ -82,10 +98,11 @@ let isLoading = $derived($applicationState.matches('loading'));
 ## Usage Examples
 
 ### Reactive Component (Svelte 5)
+
 ```svelte
 <script>
   import { isActivated, connections, actions } from '../stores/applicationStore.js';
-  
+
   // Automatic reactivity - no manual subscriptions needed!
   let currentConnections = $derived($connections);
   let activated = $derived($isActivated);
@@ -101,10 +118,12 @@ let isLoading = $derived($applicationState.matches('loading'));
 ```
 
 ### FSM State Queries
+
 ```typescript
 // Check current state
-const isInitializing = derived(applicationState, $state => 
-  $state?.matches('activating') ?? false
+const isInitializing = derived(
+  applicationState,
+  ($state) => $state?.matches('activating') ?? false
 );
 
 // Dispatch actions

@@ -10,32 +10,39 @@ module.exports = {
     'no-restricted-syntax': [
       'error',
       {
-        selector: 'CallExpression[callee.type="MemberExpression"][callee.property.name="then"] ~ CallExpression[callee.type="MemberExpression"][callee.property.name="then"]',
-        message: 'Avoid chaining .then() calls. Use FSM actors with fromPromise instead for traceability.'
+        selector:
+          'CallExpression[callee.type="MemberExpression"][callee.property.name="then"] ~ CallExpression[callee.type="MemberExpression"][callee.property.name="then"]',
+        message:
+          'Avoid chaining .then() calls. Use FSM actors with fromPromise instead for traceability.',
       },
       {
-        selector: 'CallExpression[callee.name="Promise"][property.name="all"] CallExpression[callee.type="MemberExpression"][callee.property.name="then"]',
-        message: 'Avoid Promise.all with .then chains. Use FSM coordination for complex async flows.'
-      }
+        selector:
+          'CallExpression[callee.name="Promise"][property.name="all"] CallExpression[callee.type="MemberExpression"][callee.property.name="then"]',
+        message:
+          'Avoid Promise.all with .then chains. Use FSM coordination for complex async flows.',
+      },
     ],
 
     // Encourage FSM context usage
     'prefer-const': 'error',
-    
+
     // Function length limits to encourage small, focused functions
     'max-lines-per-function': ['warn', { max: 30, skipBlankLines: true, skipComments: true }],
-    
+
     // Encourage pure functions - limit side effects
     'no-console': ['warn', { allow: ['warn', 'error'] }],
-    
+
     // Require explicit return types for better traceability
-    '@typescript-eslint/explicit-function-return-type': ['warn', {
-      allowExpressions: true,
-      allowTypedFunctionExpressions: true,
-      allowHigherOrderFunctions: true
-    }]
+    '@typescript-eslint/explicit-function-return-type': [
+      'warn',
+      {
+        allowExpressions: true,
+        allowTypedFunctionExpressions: true,
+        allowHigherOrderFunctions: true,
+      },
+    ],
   },
-  
+
   overrides: [
     {
       // Special rules for FSM machine files
@@ -46,18 +53,19 @@ module.exports = {
           'error',
           {
             selector: 'NewExpression[callee.name="Promise"]',
-            message: 'FSM machines should use fromPromise actors instead of direct Promise constructors.'
+            message:
+              'FSM machines should use fromPromise actors instead of direct Promise constructors.',
           },
           {
             selector: 'CallExpression[callee.type="MemberExpression"][callee.property.name="then"]',
-            message: 'FSM machines should use state transitions, not .then() chains.'
-          }
-        ]
-      }
+            message: 'FSM machines should use state transitions, not .then() chains.',
+          },
+        ],
+      },
     },
-    
+
     {
-      // Special rules for pure function files  
+      // Special rules for pure function files
       files: ['src/fsm/functions/*.ts'],
       rules: {
         // Pure functions should not have side effects
@@ -65,28 +73,29 @@ module.exports = {
           'error',
           {
             selector: 'CallExpression[callee.object.name="vscode"]',
-            message: 'Pure functions should not call VS Code APIs. Use FSM actors for side effects.'
+            message:
+              'Pure functions should not call VS Code APIs. Use FSM actors for side effects.',
           },
           {
             selector: 'CallExpression[callee.object.name="console"]',
-            message: 'Pure functions should use FSM logging instead of console.log.'
+            message: 'Pure functions should use FSM logging instead of console.log.',
           },
           {
             selector: 'AssignmentExpression[left.type="MemberExpression"]',
-            message: 'Pure functions should not mutate external state. Return new state instead.'
-          }
+            message: 'Pure functions should not mutate external state. Return new state instead.',
+          },
         ],
-        
+
         // Pure functions should have explicit return types
         '@typescript-eslint/explicit-function-return-type': 'error',
-        
+
         // Encourage immutability
         'prefer-const': 'error',
         'no-let': 'warn',
-        'no-var': 'error'
-      }
+        'no-var': 'error',
+      },
     },
-    
+
     {
       // Rules for activation.ts - encourage migration to FSM
       files: ['src/activation.ts'],
@@ -95,16 +104,17 @@ module.exports = {
           'warn',
           {
             selector: 'NewExpression[callee.name="AzureDevOpsIntClient"]',
-            message: 'Consider using FSM-based client creation for better traceability.'
+            message: 'Consider using FSM-based client creation for better traceability.',
           },
           {
-            selector: 'CallExpression[callee.type="MemberExpression"][callee.property.name="then"] ~ CallExpression[callee.type="MemberExpression"][callee.property.name="then"]',
-            message: 'Consider refactoring complex async chains to use FSM state machines.'
-          }
-        ]
-      }
-    }
-  ]
+            selector:
+              'CallExpression[callee.type="MemberExpression"][callee.property.name="then"] ~ CallExpression[callee.type="MemberExpression"][callee.property.name="then"]',
+            message: 'Consider refactoring complex async chains to use FSM state machines.',
+          },
+        ],
+      },
+    },
+  ],
 };
 
 // Custom rule ideas for future implementation:

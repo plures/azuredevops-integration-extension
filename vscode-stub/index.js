@@ -48,9 +48,7 @@ const createUri = (fsPath) => ({
   scheme: 'file',
   toJSON: () => ({ fsPath }),
   toString: () => toFileUri(fsPath),
-  with: (changes = {}) => (
-    createUri(changes.fsPath ?? fsPath)
-  ),
+  with: (changes = {}) => createUri(changes.fsPath ?? fsPath),
 });
 
 const onDidSaveEmitter = createEmitter();
@@ -189,7 +187,14 @@ export const languages = {
 
 export const Uri = {
   file: (fsPath) => createUri(fsPath),
-  joinPath: (...segments) => createUri(path.join(...segments.map((segment) => (typeof segment === 'string' ? segment : segment.fsPath ?? '')))),
+  joinPath: (...segments) =>
+    createUri(
+      path.join(
+        ...segments.map((segment) =>
+          typeof segment === 'string' ? segment : (segment.fsPath ?? '')
+        )
+      )
+    ),
   parse: (value) => {
     if (value.startsWith('file://')) {
       const withoutScheme = value.replace(/^file:\/\//, '');

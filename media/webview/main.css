@@ -272,18 +272,18 @@ button.danger.svelte-1k6z38r:hover {
 /* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/StatusBar.esbuild-svelte-fake-css */
 .status-bar.svelte-1764dnv {
   display: flex;
-  gap: 2rem;
-  padding: 0.5rem 1rem;
+  gap: 1rem;
+  padding: 0.35rem 0.75rem;
   background: var(--vscode-statusBar-background);
   color: var(--vscode-statusBar-foreground);
   border-top: 1px solid var(--vscode-panel-border);
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   position: sticky;
   bottom: 0;
 }
 .status-section.svelte-1764dnv {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.4rem;
   align-items: center;
 }
 .label.svelte-1764dnv {
@@ -356,6 +356,72 @@ h3.svelte-j9p4i1 {
   color: var(--vscode-descriptionForeground);
 }
 
+/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/ConnectionTabs.esbuild-svelte-fake-css */
+.tab-bar.svelte-2w6d2o {
+  display: flex;
+  gap: 0.25rem;
+  align-items: flex-end;
+  padding: 0 0.25rem;
+  background: var(--vscode-editorWidget-background);
+  border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-input-border));
+}
+.tab.svelte-2w6d2o,
+.connection-tab.svelte-2w6d2o {
+  position: relative;
+  background: transparent;
+  color: var(--vscode-tab-inactiveForeground, var(--vscode-foreground));
+  border: none;
+  padding: 0.45rem 0.75rem 0.35rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.tab.svelte-2w6d2o:hover,
+.connection-tab.svelte-2w6d2o:hover {
+  color: var(--vscode-tab-hoverForeground, var(--vscode-foreground));
+  background: var(--vscode-tab-hoverBackground, rgba(255, 255, 255, 0.05));
+}
+.tab.active.svelte-2w6d2o,
+.connection-tab.active.svelte-2w6d2o {
+  background: var(--vscode-tab-activeBackground, var(--vscode-editor-background));
+  color: var(--vscode-tab-activeForeground, var(--vscode-foreground));
+}
+.tab.active.svelte-2w6d2o::after,
+.connection-tab.active.svelte-2w6d2o::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--vscode-focusBorder);
+  border-radius: 1px;
+}
+.tab.svelte-2w6d2o:focus,
+.connection-tab.svelte-2w6d2o:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+.tab.svelte-2w6d2o:not(.active)::before,
+.connection-tab.svelte-2w6d2o:not(.active)::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 1px;
+  background: var(--vscode-editorWidget-border, var(--vscode-input-border));
+}
+.tab.svelte-2w6d2o:last-child::before,
+.connection-tab.svelte-2w6d2o:last-child::before {
+  display: none;
+}
+
 /* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/App.esbuild-svelte-fake-css */
 main.svelte-db2r4i {
   padding: 1rem;
@@ -366,14 +432,10 @@ main.svelte-db2r4i {
   text-align: center;
   padding: 2rem;
 }
-.error-container.svelte-db2r4i,
-.error.svelte-db2r4i {
+.error-container.svelte-db2r4i {
   color: var(--vscode-errorForeground);
   padding: 1rem;
   margin: 1rem 0;
-}
-.info.svelte-db2r4i {
-  padding: 1rem;
 }
 button.svelte-db2r4i {
   background: var(--vscode-button-background);
@@ -392,11 +454,50 @@ button.svelte-db2r4i:hover {
   align-items: center;
   margin-bottom: 0.75rem;
   gap: 1rem;
+  padding: 0.5rem 0.25rem 0.5rem 0.5rem;
+  border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-input-border));
+  background: var(--vscode-editorWidget-background);
+}
+.header-stack.svelte-db2r4i {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.primary-row.svelte-db2r4i {
+  margin-bottom: 0;
 }
 .left-group.svelte-db2r4i,
 .right-group.svelte-db2r4i {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
+}
+.debug-panel.svelte-db2r4i {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.5rem;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-panel-border, var(--vscode-input-border));
+  border-radius: 4px;
+  max-height: 300px;
+  overflow: auto;
+  font-size: 0.65rem;
+}
+.debug-panel.svelte-db2r4i h3:where(.svelte-db2r4i) {
+  margin: 0 0 0.4rem;
+  font-size: 0.75rem;
+}
+.debug-json.svelte-db2r4i {
+  margin: 0;
+  font-family: monospace;
+  white-space: pre-wrap;
+}
+.single-connection-label.svelte-db2r4i {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.55rem;
+  background: var(--vscode-tab-activeBackground);
+  border: 1px solid var(--vscode-tab-activeBorder, var(--vscode-focusBorder));
+  border-radius: 4px;
+  color: var(--vscode-tab-activeForeground);
 }
 .device-code-session.svelte-db2r4i {
   display: flex;
@@ -414,5 +515,16 @@ button.svelte-db2r4i:hover {
 button.secondary.svelte-db2r4i {
   background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
   color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
+}
+.query-select.svelte-db2r4i {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.7rem;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 3px;
+}
+.query-select.svelte-db2r4i:focus {
+  outline: 1px solid var(--vscode-focusBorder);
 }
 /*# sourceMappingURL=main.css.map */

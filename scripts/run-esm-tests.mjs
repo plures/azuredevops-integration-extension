@@ -160,7 +160,9 @@ async function __run() {
           console.error('\nStack:\n', err.stack);
           const m = err.stack
             .split('\n')
-            .find((l) => l.includes('node_modules') || l.includes('/src/') || l.includes('\\src\\'));
+            .find(
+              (l) => l.includes('node_modules') || l.includes('/src/') || l.includes('\\src\\')
+            );
           if (m) console.error('\nLikely offending module (from stack):', m.trim());
         }
         // restore any pre-existing globals before exiting

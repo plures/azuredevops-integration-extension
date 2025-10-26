@@ -6,6 +6,7 @@
 # CRITICAL FSM-FIRST DEVELOPMENT RULES (ALWAYS ENFORCE)
 
 ## Core Architectural Principles
+
 1. **ALL business logic MUST flow through FSM state machines** - No direct function chains that bypass FSM
 2. **Use FSM context for ALL data passing** - If data isn't in FSM context, it's not traced
 3. **Single-purpose, pure functions only** - Each function does ONE thing, accepts FSM context as parameter
@@ -13,7 +14,9 @@
 5. **Eliminate function chains that bypass FSM** - All logic flows through state machines for traceability
 
 ## Critical Thinking Rule (MANDATORY)
+
 **BEFORE implementing any logic, ask these questions:**
+
 1. **"Are we recreating existing logic?"** - Check if this already exists elsewhere
 2. **"Should this be computed once and stored?"** - Don't recalculate the same thing repeatedly
 3. **"Are we duplicating data/URLs/configs?"** - Consolidate related data into single sources
@@ -23,6 +26,7 @@
 **Implementation Rule**: If configuration exists (like `apiBaseUrl`), use it directly. Don't reconstruct URLs that are already built and stored. Setup happens once, runtime uses stored values.
 
 ## Mandatory Implementation Patterns
+
 - **Pure Functions**: All business logic functions must be in `src/fsm/functions/` and accept FSM context
 - **FSM Logging**: Use `fsmLogger` with structured context, never manual console.log
 - **Data Flow**: External data → FSM context → pure functions → FSM actions → state transitions
@@ -30,18 +34,21 @@
 - **Testing**: Pure functions are easily testable, FSM machines have predictable state transitions
 
 ## Code Organization Rules
+
 - `src/fsm/functions/`: Pure functions organized by domain (auth, azure, etc.)
 - `src/fsm/machines/`: XState machines that orchestrate business logic
 - `src/fsm/types.ts`: Shared FSM context and event types
 - `src/fsm/logging.ts`: Structured logging system with FSMComponent enum
 
 ## ESLint Enforcement
+
 - Automated rules prevent Promise chains, enforce pure function patterns
 - Function length limits (20 lines max)
 - Complexity limits to ensure single responsibility
 - Side effect detection and prevention
 
 ## Migration Strategy
+
 1. Convert existing functions to pure functions with FSM context
 2. Route all business logic through appropriate FSM machines
 3. Replace manual logging with structured FSM logging

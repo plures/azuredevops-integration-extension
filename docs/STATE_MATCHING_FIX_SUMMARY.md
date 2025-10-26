@@ -44,6 +44,7 @@ const matches = {
 **File**: `src/webview/App.svelte`
 
 **Before** (custom helper):
+
 ```typescript
 function isInState(path: string): boolean {
   const segments = path.split('.');
@@ -57,6 +58,7 @@ function isInState(path: string): boolean {
 ```
 
 **After** (direct boolean access):
+
 ```typescript
 $: matches = snapshot.matches || {};
 $: isActiveReady = matches['active.ready']; // ← Simple, reliable
@@ -72,6 +74,7 @@ $: isActivating = matches.activating;
 ```
 
 All tests pass with the new implementation, confirming:
+
 - No regressions in FSM behavior
 - Timer state machine still works correctly
 - Azure DevOps client functions properly
@@ -90,10 +93,11 @@ All tests pass with the new implementation, confirming:
    - Clear, self-documenting state names
 
 3. **Debuggability**: Pre-computed matches are visible in logs
+
    ```typescript
    console.log('[activation] Sending state:', {
      matchesActive: matches.active,
-     matchesActiveReady: matches['active.ready']
+     matchesActiveReady: matches['active.ready'],
    });
    ```
 
@@ -104,12 +108,12 @@ All tests pass with the new implementation, confirming:
 
 ## 📝 Changed Files
 
-| File | Lines Changed | Purpose |
-|------|--------------|---------|
-| `src/activation.ts` | +30 | Pre-compute state matches |
-| `src/webview/fsmSnapshotStore.ts` | +3 | Add matches to store interface |
-| `src/webview/main.ts` | +3 | Extract matches from messages |
-| `src/webview/App.svelte` | -50, +8 | Remove custom helper, use pre-computed matches |
+| File                              | Lines Changed | Purpose                                        |
+| --------------------------------- | ------------- | ---------------------------------------------- |
+| `src/activation.ts`               | +30           | Pre-compute state matches                      |
+| `src/webview/fsmSnapshotStore.ts` | +3            | Add matches to store interface                 |
+| `src/webview/main.ts`             | +3            | Extract matches from messages                  |
+| `src/webview/App.svelte`          | -50, +8       | Remove custom helper, use pre-computed matches |
 
 **Total**: ~90 lines changed, ~50 lines removed
 
@@ -130,6 +134,7 @@ All tests pass with the new implementation, confirming:
 ### Design Pattern: Pre-Computed Derived State
 
 This pattern applies anywhere you need to:
+
 - Send complex stateful objects across process boundaries
 - Work with non-serializable data structures
 - Optimize reactive UI updates (fewer computations in render loop)
@@ -137,15 +142,18 @@ This pattern applies anywhere you need to:
 ## 🚀 Next Steps
 
 ### Immediate
+
 - ✅ Build and test complete
 - ⏭️ Ready for real-world testing in VS Code
 
 ### Future Enhancements
+
 1. **Auto-generate state checks** - Use TypeScript to infer all possible states from machine definition
 2. **State visualization** - Add debug panel showing active states
 3. **Performance monitoring** - Track state transition frequency
 
 ### Remaining Work (Unrelated Issues)
+
 1. **Empty connections array** - Needs separate investigation
 2. **Fallback transition** - Evaluate if still needed for test stability
 3. **Device code in activating** - Show auth UI earlier in initialization
@@ -161,6 +169,7 @@ This pattern applies anywhere you need to:
 The webview now correctly recognizes all FSM states, including complex nested states like `{ active: { ready: 'idle' } }`. The debug fallback view is no longer triggered for valid states, and the main UI renders properly when the application reaches the `active.ready` state.
 
 **State matching is now:**
+
 - ✅ Correct (uses XState's native logic)
 - ✅ Simple (direct boolean checks)
 - ✅ Debuggable (pre-computed values logged)

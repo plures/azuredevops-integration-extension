@@ -2,7 +2,7 @@
 
 /**
  * Webview Debug Script
- * 
+ *
  * This script helps debug webview loading issues by checking:
  * 1. File existence and accessibility
  * 2. Script and CSS paths
@@ -16,18 +16,16 @@ console.log('🔍 Webview Debug Analysis');
 console.log('=========================');
 
 const mediaPath = 'media/webview';
-const requiredFiles = [
-  'reactive-main.js',
-  'reactive-main.css', 
-  'svelte.html'
-];
+const requiredFiles = ['reactive-main.js', 'reactive-main.css', 'svelte.html'];
 
 console.log('\n📁 Checking webview files:');
-requiredFiles.forEach(file => {
+requiredFiles.forEach((file) => {
   const filePath = path.join(mediaPath, file);
   const exists = fs.existsSync(filePath);
   const size = exists ? fs.statSync(filePath).size : 0;
-  console.log(`   ${exists ? '✅' : '❌'} ${file} ${exists ? `(${Math.round(size/1024)}KB)` : '(missing)'}`);
+  console.log(
+    `   ${exists ? '✅' : '❌'} ${file} ${exists ? `(${Math.round(size / 1024)}KB)` : '(missing)'}`
+  );
 });
 
 console.log('\n🔍 Checking reactive-main.js content:');
@@ -38,7 +36,7 @@ if (fs.existsSync(reactiveMainPath)) {
   const hasSvelte = content.includes('svelte');
   const hasVscode = content.includes('vscode');
   const hasApp = content.includes('ReactiveApp');
-  
+
   console.log(`   ${hasMount ? '✅' : '❌'} Contains mount() call`);
   console.log(`   ${hasSvelte ? '✅' : '❌'} Contains Svelte imports`);
   console.log(`   ${hasVscode ? '✅' : '❌'} Contains VS Code API`);
@@ -55,7 +53,7 @@ if (fs.existsSync(htmlPath)) {
   const hasScript = html.includes('reactive-main.js');
   const hasStyle = html.includes('<style>');
   const hasViewport = html.includes('viewport');
-  
+
   console.log(`   ${hasRoot ? '✅' : '❌'} Contains svelte-root element`);
   console.log(`   ${hasScript ? '✅' : '❌'} References reactive-main.js`);
   console.log(`   ${hasStyle ? '✅' : '❌'} Contains embedded styles`);
@@ -72,7 +70,7 @@ if (fs.existsSync(activationPath)) {
   const hasRegistration = activation.includes('registerWebviewViewProvider');
   const hasReactiveMain = activation.includes('reactive-main.js');
   const hasReactiveCss = activation.includes('reactive-main.css');
-  
+
   console.log(`   ${hasProvider ? '✅' : '❌'} AzureDevOpsIntViewProvider class exists`);
   console.log(`   ${hasRegistration ? '✅' : '❌'} registerWebviewViewProvider call exists`);
   console.log(`   ${hasReactiveMain ? '✅' : '❌'} References reactive-main.js`);
@@ -83,7 +81,7 @@ if (fs.existsSync(activationPath)) {
 
 console.log('\n🎯 Common Issues & Solutions:');
 console.log('   • If webview is blank: Check browser console for JS errors');
-console.log('   • If styles missing: Verify reactive-main.css loads correctly'); 
+console.log('   • If styles missing: Verify reactive-main.css loads correctly');
 console.log('   • If no content: Check VS Code extension host logs');
 console.log('   • If not showing: Verify view provider registration');
 

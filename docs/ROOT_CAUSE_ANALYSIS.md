@@ -6,7 +6,7 @@
 
 ```typescript
 const serializableState = {
-  fsmState: snapshot.value,  // ← BUG: Only sending state.value
+  fsmState: snapshot.value, // ← BUG: Only sending state.value
   context: getSerializableContext(snapshot.context),
 };
 panel.webview.postMessage({
@@ -18,6 +18,7 @@ panel.webview.postMessage({
 ### What's Wrong
 
 You're only sending `snapshot.value` and `snapshot.context` to the webview, but **XState snapshots contain critical methods** like:
+
 - `snapshot.matches()`
 - `snapshot.can()`
 - `snapshot.hasTag()`
@@ -64,10 +65,10 @@ appActor.subscribe((snapshot: any) => {
   if (panel && snapshot) {
     // Serialize the ENTIRE snapshot, preserving structure
     const serializedSnapshot = JSON.parse(JSON.stringify(snapshot));
-    
+
     panel.webview.postMessage({
       type: 'syncState',
-      snapshot: serializedSnapshot // ← Full snapshot
+      snapshot: serializedSnapshot, // ← Full snapshot
     });
   }
 });
@@ -97,7 +98,7 @@ function reconstructSnapshot(serializedState: any) {
   // Create a temporary actor to get a proper snapshot
   const tempActor = createActor(applicationMachine);
   tempActor.start();
-  
+
   // Transition to the received state
   // This is complex and error-prone – NOT RECOMMENDED
 }
@@ -122,21 +123,21 @@ appActor.subscribe((snapshot: any) => {
         matches: {
           inactive: snapshot.matches('inactive'),
           activating: snapshot.matches('activating'),
-          'activation_failed': snapshot.matches('activation_failed'),
+          activation_failed: snapshot.matches('activation_failed'),
           active: snapshot.matches('active'),
           'active.setup': snapshot.matches({ active: 'setup' }),
           'active.ready': snapshot.matches({ active: 'ready' }),
           'active.ready.idle': snapshot.matches({ active: { ready: 'idle' } }),
-          'active.ready.managingConnections': snapshot.matches({ 
-            active: { ready: 'managingConnections' } 
+          'active.ready.managingConnections': snapshot.matches({
+            active: { ready: 'managingConnections' },
           }),
         },
         // Also include can() checks if needed
         can: {
           ACTIVATE: snapshot.can({ type: 'ACTIVATE' }),
           DEACTIVATE: snapshot.can({ type: 'DEACTIVATE' }),
-        }
-      }
+        },
+      },
     });
   }
 });
@@ -146,10 +147,10 @@ appActor.subscribe((snapshot: any) => {
 <!-- webview/App.svelte -->
 <script>
   import { applicationSnapshot } from './fsmSnapshotStore';
-  
+
   $: state = $applicationSnapshot;
   $: matches = state?.matches || {};
-  
+
   // Direct boolean access – simple and reliable
   $: isReady = matches['active.ready'];
   $: isActivating = matches.activating;
@@ -176,6 +177,7 @@ appActor.subscribe((snapshot: any) => {
 ### Implementation Steps
 
 1. **Update `src/activation.ts` snapshot handler**:
+
    ```typescript
    const computedMatches = {
      inactive: snapshot.matches('inactive'),
@@ -184,37 +186,39 @@ appActor.subscribe((snapshot: any) => {
      'active.ready': snapshot.matches({ active: 'ready' }),
      // Add all states you check in the UI
    };
-   
+
    panel.webview.postMessage({
      type: 'syncState',
      state: {
        value: snapshot.value,
        context: getSerializableContext(snapshot.context),
-       matches: computedMatches
-     }
+       matches: computedMatches,
+     },
    });
    ```
 
 2. **Update `webview/fsmSnapshotStore.ts`**:
+
    ```typescript
    window.addEventListener('message', (event) => {
      if (event.data.type === 'syncState') {
        applicationSnapshot.set({
          value: event.data.state.value,
          context: event.data.state.context,
-         matches: event.data.state.matches
+         matches: event.data.state.matches,
        });
      }
    });
    ```
 
 3. **Simplify `webview/App.svelte`**:
+
    ```svelte
    <script>
      $: state = $applicationSnapshot;
      $: m = state?.matches || {};
    </script>
-   
+
    {#if m.activating}
      <p>Loading...</p>
    {:else if m['active.ready']}
@@ -226,12 +230,12 @@ appActor.subscribe((snapshot: any) => {
 
 ## 📊 Comparison of Solutions
 
-| Approach | Pros | Cons | Verdict |
-|----------|------|------|---------|
-| Send full snapshot | Native XState API | Methods don't serialize | ❌ Won't work |
-| Reconstruct in webview | Proper snapshots | Requires machine duplication | ⚠️ Too complex |
-| Pre-compute booleans | Simple, reliable | Manual state list | ✅ **Best for VS Code** |
-| Run actor in webview | True reactive | Can't access extension APIs | ❌ Not viable |
+| Approach               | Pros              | Cons                         | Verdict                 |
+| ---------------------- | ----------------- | ---------------------------- | ----------------------- |
+| Send full snapshot     | Native XState API | Methods don't serialize      | ❌ Won't work           |
+| Reconstruct in webview | Proper snapshots  | Requires machine duplication | ⚠️ Too complex          |
+| Pre-compute booleans   | Simple, reliable  | Manual state list            | ✅ **Best for VS Code** |
+| Run actor in webview   | True reactive     | Can't access extension APIs  | ❌ Not viable           |
 
 ---
 

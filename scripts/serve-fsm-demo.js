@@ -22,14 +22,14 @@ const mimeTypes = {
   '.ttf': 'application/font-ttf',
   '.eot': 'application/vnd.ms-fontobject',
   '.otf': 'application/font-otf',
-  '.wasm': 'application/wasm'
+  '.wasm': 'application/wasm',
 };
 
 const server = http.createServer((req, res) => {
   console.log(`${req.method} ${req.url}`);
 
   let filePath = path.join(DOCS_DIR, req.url === '/' ? 'fsm-visualization-demo.html' : req.url);
-  
+
   const extname = String(path.extname(filePath)).toLowerCase();
   const mimeType = mimeTypes[extname] || 'application/octet-stream';
 

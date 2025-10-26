@@ -24,34 +24,42 @@ https://login.microsoftonline.com/common/oauth2/authorize
 ## Key Findings
 
 ### 1. Tenant Confirmation
+
 - **Tenant**: `/common` ✅ (This confirms our approach is correct)
 - **Client ID**: `499b84ac-1321-427f-aa17-267ca6975798` ✅ (Matches our hardcoded client ID)
 
 ### 2. Critical Missing Parameters
+
 We're missing several key parameters that Azure DevOps uses:
 
 #### Site ID
+
 - **Parameter**: `site_id=501454`
 - **Purpose**: Identifies the specific Azure DevOps organization/site
 - **Missing in our implementation**: ❌
 
 #### Resource Parameter
+
 - **Parameter**: `resource=499b84ac-1321-427f-aa17-267ca6975798`
 - **Purpose**: Specifies the resource being accessed (same as client ID for Azure DevOps)
 - **Missing in our implementation**: ❌
 
 #### OAuth2 Endpoint
+
 - **URL**: `https://login.microsoftonline.com/common/oauth2/authorize`
 - **Current**: We use `https://login.microsoftonline.com/common` (missing /oauth2/authorize)
 - **Issue**: Wrong OAuth endpoint format ❌
 
 #### Response Type and Mode
+
 - **Parameters**: `response_mode=form_post&response_type=code+id_token`
 - **Purpose**: Defines how the auth response is returned
 - **Missing in our implementation**: ❌
 
 ### 3. State Parameter Structure
+
 The state parameter contains important organization information:
+
 - `realm=arylethersystems.visualstudio.com`
 - `protocol=wsfederation`
 - Organization-specific redirect URLs
@@ -59,12 +67,15 @@ The state parameter contains important organization information:
 ## Implications for Our Implementation
 
 ### Problem 1: Wrong OAuth Endpoint
+
 We're using the MSAL device code flow, but Azure DevOps might expect the traditional OAuth2 authorization code flow with these specific parameters.
 
 ### Problem 2: Missing Resource Parameter
+
 The `resource` parameter is crucial for Azure DevOps authentication and we're not setting it.
 
 ### Problem 3: Missing Site ID
+
 The `site_id` parameter identifies the specific Azure DevOps organization, which we're not providing.
 
 ## Recommended Fix

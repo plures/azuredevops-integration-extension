@@ -35,9 +35,9 @@ Your current implementation has fundamental architectural issues:
 // ❌ ANTI-PATTERN (current approach)
 // extension/activation.ts
 const actor = createActor(machine).start();
-webview.postMessage({ 
-  type: 'syncState', 
-  payload: { fsmState: actor.getSnapshot().value } 
+webview.postMessage({
+  type: 'syncState',
+  payload: { fsmState: actor.getSnapshot().value },
 });
 
 // webview/store.ts
@@ -58,15 +58,12 @@ import { machine } from './machine';
 export const actor = createActor(machine).start();
 
 // Native Svelte store wrapping XState actor
-export const snapshot = readable(
-  actor.getSnapshot(),
-  (set) => {
-    const subscription = actor.subscribe((snapshot) => {
-      set(snapshot); // ← Automatic, type-safe
-    });
-    return subscription.unsubscribe;
-  }
-);
+export const snapshot = readable(actor.getSnapshot(), (set) => {
+  const subscription = actor.subscribe((snapshot) => {
+    set(snapshot); // ← Automatic, type-safe
+  });
+  return subscription.unsubscribe;
+});
 ```
 
 ### Principle 2: **Use XState's Built-in State Matching**
@@ -86,20 +83,20 @@ export const snapshot = readable(
     }
     return true;
   }
-  
+
   $: isReady = isInState('active.ready'); // ← Breaks on object states
 </script>
 
 <!-- ✅ PROVEN PATTERN -->
 <script>
   import { snapshot } from './stores/actor';
-  
+
   // XState's built-in matcher handles all cases:
   // - Simple strings: 'active'
   // - Nested: { active: 'ready' }
   // - Parallel states
   // - Partial matches
-  
+
   $: isReady = $snapshot.matches({ active: 'ready' }); // ← Always works
   $: isActive = $snapshot.matches('active'); // ← Works for parent state
   $: isAnySetup = $snapshot.matches({ active: { setup: '*' } }); // ← Wildcards
@@ -124,7 +121,7 @@ export const snapshot = readable(
 <!-- ✅ PROVEN PATTERN -->
 <script>
   import { snapshot } from './stores/actor';
-  
+
   // Derive only what you need, when you need it
   $: state = $snapshot;
   $: isLoading = state.matches('activating') || state.matches({ active: 'setup' });
@@ -157,20 +154,20 @@ export const applicationMachine = createMachine({
   context: { connections: [], activeId: null },
   states: {
     inactive: { on: { ACTIVATE: 'activating' } },
-    activating: { 
+    activating: {
       invoke: {
         src: 'loadConnections',
-        onDone: { target: 'active', actions: 'storeConnections' }
-      }
+        onDone: { target: 'active', actions: 'storeConnections' },
+      },
     },
     active: {
       initial: 'idle',
       states: {
         idle: {},
-        loading: { invoke: { src: 'fetchWorkItems' } }
-      }
-    }
-  }
+        loading: { invoke: { src: 'fetchWorkItems' } },
+      },
+    },
+  },
 });
 
 // extension/src/activation.ts
@@ -179,27 +176,27 @@ import { applicationMachine } from './machines/applicationMachine';
 
 export function activate(context: vscode.ExtensionContext) {
   const actor = createActor(applicationMachine, {
-    input: { extensionContext: context }
+    input: { extensionContext: context },
   }).start();
 
   // Create webview
   const panel = vscode.window.createWebviewPanel(/*...*/);
-  
+
   // Forward state to webview
   actor.subscribe((snapshot) => {
     panel.webview.postMessage({
       type: 'state:update',
-      snapshot: JSON.parse(JSON.stringify(snapshot)) // Serialize for postMessage
+      snapshot: JSON.parse(JSON.stringify(snapshot)), // Serialize for postMessage
     });
   });
-  
+
   // Forward events from webview to actor
   panel.webview.onDidReceiveMessage((message) => {
     if (message.type === 'event') {
       actor.send(message.event);
     }
   });
-  
+
   return { actor, dispose: () => actor.stop() };
 }
 ```
@@ -212,25 +209,25 @@ import type { Snapshot } from 'xstate';
 // Simulated actor that syncs with extension host
 export function createRemoteActor<TMachine>() {
   const snapshot = writable<Snapshot<TMachine> | null>(null);
-  
+
   // Listen for state updates from extension
   window.addEventListener('message', (event) => {
     if (event.data.type === 'state:update') {
       snapshot.set(event.data.snapshot);
     }
   });
-  
+
   // Send events to extension host
   const vscode = acquireVsCodeApi();
   const send = (event: any) => {
     vscode.postMessage({ type: 'event', event });
   };
-  
+
   return {
     snapshot: readable(null as Snapshot<TMachine> | null, (set) => {
       return snapshot.subscribe(set);
     }),
-    send
+    send,
   };
 }
 
@@ -242,7 +239,7 @@ export const { snapshot, send } = createRemoteActor();
 <!-- webview/src/App.svelte -->
 <script lang="ts">
   import { snapshot, send } from './stores/remoteActor';
-  
+
   // XState's matches() works because snapshot is a proper XState snapshot
   $: isReady = $snapshot?.matches?.({ active: 'ready' }) ?? false;
   $: context = $snapshot?.context ?? {};
@@ -296,14 +293,14 @@ panel.webview.postMessage({
   type: 'syncState',
   payload: {
     fsmState: actor.getSnapshot().value,
-    context: actor.getSnapshot().context
-  }
+    context: actor.getSnapshot().context,
+  },
 });
 
 // ✅ CORRECT: Full snapshot (includes matches, can, etc.)
 panel.webview.postMessage({
   type: 'syncState',
-  snapshot: actor.getSnapshot() // Complete snapshot object
+  snapshot: actor.getSnapshot(), // Complete snapshot object
 });
 ```
 
@@ -330,7 +327,7 @@ window.addEventListener('message', (event) => {
 <!-- App.svelte -->
 <script>
   import { applicationSnapshot } from './fsmSnapshotStore';
-  
+
   // No custom helpers needed
   $: state = $applicationSnapshot;
   $: isLoading = state?.matches?.('activating') || state?.matches?.({ active: 'setup' });
@@ -372,6 +369,7 @@ window.addEventListener('message', (event) => {
 ## Example: Complete Working Implementation
 
 See `examples/vscode-extension-xstate/` for a minimal, working example demonstrating:
+
 - Extension host FSM actor
 - Webview snapshot synchronization
 - Type-safe state matching

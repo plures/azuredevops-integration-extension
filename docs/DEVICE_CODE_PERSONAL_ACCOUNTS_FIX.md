@@ -3,6 +3,7 @@
 ## Issue Summary
 
 Users with personal Microsoft accounts were experiencing authentication failures with two main symptoms:
+
 1. Sign-in site rejected personal accounts, requesting work accounts instead
 2. "Open Browser" button failed to open the browser during device code flow
 
@@ -19,10 +20,12 @@ Based on Microsoft documentation research, the issues were caused by:
 According to Microsoft's official documentation:
 
 ### Device Code Flow with Personal Accounts
+
 - **Source**: [Microsoft identity platform and the OAuth 2.0 device authorization grant flow](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-device-code#authenticating-the-user)
 - **Key Quote**: "If the user authenticates with a personal account, using `/common` or `/consumers`, they're asked to sign in again in order to transfer authentication state to the device."
 
 ### Tenant Support for Personal Accounts
+
 - **Source**: [Using Device Code Flow in MSAL.NET](https://learn.microsoft.com/en-us/entra/msal/dotnet/acquiring-tokens/desktop-mobile/device-code-flow)
 - **Key Points**:
   - Device code flow works with Microsoft Personal Accounts starting with MSAL.NET 4.5
@@ -30,6 +33,7 @@ According to Microsoft's official documentation:
   - Work and school accounts: `/organizations`
 
 ### Authority Format Requirements
+
 - **Source**: [Authentication flows supported in MSAL](https://learn.microsoft.com/en-us/entra/msal/msal-authentication-flows#device-code)
 - **Required Format**: `https://login.microsoftonline.com/{tenant}/`
 - **Tenant Options**:
@@ -41,6 +45,7 @@ According to Microsoft's official documentation:
 ## Solution Implemented
 
 ### 1. Tenant Selection Fix
+
 **Changed**: From `organizations` → `common` when tenant discovery fails
 
 ```typescript
@@ -51,12 +56,14 @@ const fallbackTenant = 'organizations';
 const multiTenantForPersonalAccounts = 'common';
 ```
 
-**Rationale**: 
+**Rationale**:
+
 - `/common` tenant supports both personal and work Microsoft accounts
 - Microsoft documentation specifically mentions `/common` for device code flow with personal accounts
 - Prevents the "personal account not accepted" error
 
 ### 2. Cache Clearing on Tenant Change
+
 **Added**: Automatic cache clearing when switching tenants
 
 ```typescript
@@ -68,11 +75,13 @@ if (input.config?.tenantId && input.config.tenantId !== finalTenantId) {
 ```
 
 **Rationale**:
+
 - Cached tokens from previous tenant can cause MSAL initialization conflicts
 - Prevents undefined parameters in device code callback
 - Ensures clean authentication state for new tenant
 
 ### 3. Enhanced Error Handling
+
 **Improved**: Device code callback parameter validation with actionable recovery
 
 ```typescript
@@ -88,6 +97,7 @@ if (!deviceCode || !userCode || !verificationUri || typeof expiresIn !== 'number
 ```
 
 **Rationale**:
+
 - Provides users with clear recovery path when authentication conflicts occur
 - Identifies the root cause (cache conflicts) in error messages
 - Allows self-service resolution without developer intervention
@@ -95,6 +105,7 @@ if (!deviceCode || !userCode || !verificationUri || typeof expiresIn !== 'number
 ## Expected Behavior After Fix
 
 ### For Personal Microsoft Accounts:
+
 1. ✅ Tenant discovery fails → automatically switches to `/common` tenant
 2. ✅ Device code flow initiates successfully with valid parameters
 3. ✅ Browser opens correctly with authentication URL
@@ -103,6 +114,7 @@ if (!deviceCode || !userCode || !verificationUri || typeof expiresIn !== 'number
 6. ✅ Authentication completes successfully
 
 ### For Work/School Accounts:
+
 1. ✅ Tenant discovery succeeds → uses discovered tenant
 2. ✅ Device code flow works as before
 3. ✅ No impact on existing functionality

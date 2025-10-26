@@ -7,6 +7,7 @@ This document outlines the plan to replace the entire application's global state
 ## Current State Analysis
 
 ### Global Variables to Replace
+
 From `activation.ts`, these global variables need FSM management:
 
 - `connections: ProjectConnection[]` - Connection configurations
@@ -46,31 +47,41 @@ ApplicationMachine (root)
 ### Key State Machines
 
 #### 1. ApplicationMachine (Master Orchestrator)
+
 **States:** `inactive` → `activating` → `active` → `deactivating`
+
 - Coordinates all child state machines
 - Manages extension lifecycle
 - Handles global error recovery
 
 #### 2. ConnectionMachine (Per Connection)
+
 **States:** `disconnected` → `authenticating` → `creating_client` → `creating_provider` → `connected`
+
 - Manages individual connection lifecycle
 - Spawns auth and data sync actors
 - Handles connection errors and retry logic
 
 #### 3. AuthMachine (Per Connection)
+
 **States:** `unauthenticated` → `device_code_flow` → `authenticated` → `refreshing_token`
+
 - Handles PAT and Entra ID authentication
 - Manages token refresh cycles
 - Handles auth failures and retry logic
 
 #### 4. DataSyncMachine (Per Connection)
+
 **States:** `idle` → `loading` → `loaded` → `error`
+
 - Manages work item data loading
 - Handles caching and incremental refresh
 - Manages query execution and results
 
 #### 5. WebviewMachine
+
 **States:** `not_created` → `creating` → `initializing` → `ready` → `error`
+
 - Manages webview panel lifecycle
 - Handles message routing between extension and UI
 - Manages UI state synchronization
@@ -78,47 +89,55 @@ ApplicationMachine (root)
 ## Implementation Phases
 
 ### Phase 1: Application FSM Foundation ✅
+
 - [x] Create `ApplicationMachine` with basic lifecycle states
 - [x] Create `ApplicationFSMManager` for coordination
 - [x] Design state machine hierarchy and event flows
 
 ### Phase 2: Connection State Management
+
 - [ ] Implement `ConnectionMachine` with auth/client creation flow
 - [ ] Replace `ensureActiveConnection()` with FSM orchestration
 - [ ] Migrate `connectionStates` Map to FSM actors
 - [ ] Test connection switching and error recovery
 
 ### Phase 3: Authentication FSM
+
 - [ ] Implement `AuthMachine` for PAT and Entra ID flows
 - [ ] Replace authentication logic in `ensureActiveConnection()`
 - [ ] Migrate `pendingAuthReminders` to FSM state
 - [ ] Handle token refresh and expiration properly
 
 ### Phase 4: Data Synchronization FSM
+
 - [ ] Implement `DataSyncMachine` for work item loading
 - [ ] Replace provider refresh logic with FSM
 - [ ] Add proper caching and incremental sync
 - [ ] Handle query changes and filtering
 
 ### Phase 5: Message System Refactor
+
 - [ ] Replace `handleMessage()` switch statement with FSM event routing
 - [ ] Create message routing system that sends events to appropriate FSMs
 - [ ] Ensure type safety for all message → event transformations
 - [ ] Add message validation and error handling
 
 ### Phase 6: Webview State Management
+
 - [ ] Implement `WebviewMachine` for UI lifecycle
 - [ ] Replace webview creation/disposal logic
 - [ ] Add proper message queuing for UI synchronization
 - [ ] Handle webview reconnection scenarios
 
 ### Phase 7: Global State Elimination
+
 - [ ] Replace all global variables with FSM context
 - [ ] Add proper getters/setters that interact with FSM
 - [ ] Ensure thread safety and proper state synchronization
 - [ ] Remove legacy global state management code
 
 ### Phase 8: Error Recovery System
+
 - [ ] Implement global error recovery FSM
 - [ ] Add automatic retry logic with exponential backoff
 - [ ] Handle network failures, auth errors, and API rate limiting
@@ -152,24 +171,28 @@ ApplicationMachine (root)
 ## Benefits of Full FSM Implementation
 
 ### Reliability Improvements
+
 - **Predictable State Transitions**: No more invalid state combinations
 - **Proper Error Handling**: Structured error recovery flows
 - **Race Condition Elimination**: FSM prevents concurrent state modifications
 - **Robust Retry Logic**: Exponential backoff and proper failure handling
 
 ### Maintainability Gains
+
 - **Clear State Visualization**: XState Inspector shows all state transitions
 - **Centralized State Logic**: No more scattered state management
 - **Type Safety**: XState provides compile-time state validation
 - **Testable Architecture**: Each state machine can be tested independently
 
 ### Performance Benefits
+
 - **Lazy Loading**: State machines only activated when needed
 - **Memory Management**: Proper cleanup of inactive state machines
 - **Efficient State Updates**: Only relevant components update on state changes
 - **Reduced Global State**: Eliminate expensive global variable lookups
 
 ### Developer Experience
+
 - **Visual Debugging**: See state machines in action via XState Inspector
 - **Better Error Messages**: Know exactly which state machine failed
 - **Easier Onboarding**: New developers can understand flow via state diagrams
@@ -178,7 +201,7 @@ ApplicationMachine (root)
 ## Implementation Timeline
 
 - **Week 1-2**: Phase 2 (Connection FSM)
-- **Week 3**: Phase 3 (Authentication FSM) 
+- **Week 3**: Phase 3 (Authentication FSM)
 - **Week 4**: Phase 4 (Data Sync FSM)
 - **Week 5-6**: Phase 5 (Message System Refactor)
 - **Week 7**: Phase 6 (Webview FSM)

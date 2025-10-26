@@ -1,5 +1,10 @@
 import { expect } from 'chai';
-import { TokenLifecycleManager, TokenInfo, RefreshSchedule, LifecycleEvents } from '../src/auth/tokenLifecycleManager.js';
+import {
+  TokenLifecycleManager,
+  TokenInfo,
+  RefreshSchedule,
+  LifecycleEvents,
+} from '../src/auth/tokenLifecycleManager.js';
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -22,7 +27,7 @@ describe('TokenLifecycleManager', function () {
       },
       onStatusUpdate: (connectionId: string, status: RefreshSchedule) => {
         eventCalls.push({ method: 'onStatusUpdate', args: [connectionId, status] });
-      }
+      },
     };
     manager = new TokenLifecycleManager(mockEvents);
   });
@@ -37,12 +42,12 @@ describe('TokenLifecycleManager', function () {
         accessToken: 'access-token',
         expiresAt: new Date(Date.now() + 3600000), // 1 hour from now
         acquiredAt: new Date(),
-        expiresInSeconds: 3600
+        expiresInSeconds: 3600,
       };
 
       manager.registerToken('test-connection', tokenInfo);
-      
-      expect(eventCalls.some(call => call.method === 'onStatusUpdate')).to.be.true;
+
+      expect(eventCalls.some((call) => call.method === 'onStatusUpdate')).to.be.true;
     });
 
     it('should update existing token registration', function () {
@@ -50,14 +55,14 @@ describe('TokenLifecycleManager', function () {
         accessToken: 'access-token-1',
         expiresAt: new Date(Date.now() + 3600000),
         acquiredAt: new Date(),
-        expiresInSeconds: 3600
+        expiresInSeconds: 3600,
       };
 
       const tokenInfo2: TokenInfo = {
         accessToken: 'access-token-2',
         expiresAt: new Date(Date.now() + 7200000), // 2 hours from now
         acquiredAt: new Date(),
-        expiresInSeconds: 7200
+        expiresInSeconds: 7200,
       };
 
       manager.registerToken('test-connection', tokenInfo1);
@@ -74,11 +79,11 @@ describe('TokenLifecycleManager', function () {
         accessToken: 'access-token',
         expiresAt: new Date(Date.now() + 3600000), // 1 hour from now
         acquiredAt: new Date(),
-        expiresInSeconds: 3600
+        expiresInSeconds: 3600,
       };
 
       manager.registerToken('test-connection', tokenInfo);
-      
+
       const status = manager.getStatus('test-connection');
       expect(status).to.exist;
       expect(status!.attemptCount).to.equal(0);
@@ -90,14 +95,14 @@ describe('TokenLifecycleManager', function () {
         accessToken: 'access-token',
         expiresAt: new Date(Date.now() + 120000), // 2 minutes from now
         acquiredAt: new Date(),
-        expiresInSeconds: 120
+        expiresInSeconds: 120,
       };
 
       manager.registerToken('test-connection', tokenInfo);
-      
+
       const status = manager.getStatus('test-connection');
       const timeUntilRefresh = status!.timeUntilNextRefresh;
-      
+
       // Should be at least 1 minute (60000ms) even though token expires in 2 minutes
       expect(timeUntilRefresh).to.be.greaterThanOrEqual(60000);
     });
@@ -106,44 +111,46 @@ describe('TokenLifecycleManager', function () {
   describe('Refresh Triggering', function () {
     it('should trigger refresh when scheduled time arrives', async function () {
       this.timeout(10000); // Allow more time for this test
-      
+
       const tokenInfo: TokenInfo = {
         accessToken: 'access-token',
         expiresAt: new Date(Date.now() + 2000), // 2 seconds from now
         acquiredAt: new Date(),
-        expiresInSeconds: 2
+        expiresInSeconds: 2,
       };
 
       manager.registerToken('test-connection', tokenInfo);
-      
+
       // Wait for refresh to be triggered (should happen at ~1 second)
       await sleep(1500);
-      
-      expect(eventCalls.some(call => 
-        call.method === 'onRefreshNeeded' && 
-        call.args[0] === 'test-connection'
-      )).to.be.true;
+
+      expect(
+        eventCalls.some(
+          (call) => call.method === 'onRefreshNeeded' && call.args[0] === 'test-connection'
+        )
+      ).to.be.true;
     });
 
     it('should trigger device code flow when token expires', async function () {
       this.timeout(10000); // Allow more time for this test
-      
+
       const tokenInfo: TokenInfo = {
         accessToken: 'access-token',
         expiresAt: new Date(Date.now() + 1000), // 1 second from now
         acquiredAt: new Date(),
-        expiresInSeconds: 1
+        expiresInSeconds: 1,
       };
 
       manager.registerToken('test-connection', tokenInfo);
-      
+
       // Wait for expiry and device code flow trigger
       await sleep(1500);
-      
-      expect(eventCalls.some(call => 
-        call.method === 'onDeviceCodeFlowNeeded' && 
-        call.args[0] === 'test-connection'
-      )).to.be.true;
+
+      expect(
+        eventCalls.some(
+          (call) => call.method === 'onDeviceCodeFlowNeeded' && call.args[0] === 'test-connection'
+        )
+      ).to.be.true;
     });
   });
 
@@ -153,11 +160,11 @@ describe('TokenLifecycleManager', function () {
         accessToken: 'access-token',
         expiresAt: new Date(Date.now() + 3600000), // 1 hour from now
         acquiredAt: new Date(),
-        expiresInSeconds: 3600
+        expiresInSeconds: 3600,
       };
 
       manager.registerToken('test-connection', tokenInfo);
-      
+
       const status = manager.getStatus('test-connection');
       expect(status).to.exist;
       expect(status).to.have.property('nextRefreshAt');
@@ -180,12 +187,12 @@ describe('TokenLifecycleManager', function () {
         accessToken: 'access-token',
         expiresAt: new Date(Date.now() + 3600000),
         acquiredAt: new Date(),
-        expiresInSeconds: 3600
+        expiresInSeconds: 3600,
       };
 
       manager.registerToken('test-connection', tokenInfo);
       expect(manager.getStatus('test-connection')).to.exist;
-      
+
       manager.dispose();
       expect(manager.getStatus('test-connection')).to.be.null;
     });
@@ -197,15 +204,16 @@ describe('TokenLifecycleManager', function () {
         accessToken: 'access-token',
         expiresAt: new Date(Date.now() + 3600000),
         acquiredAt: new Date(),
-        expiresInSeconds: 3600
+        expiresInSeconds: 3600,
       };
 
       manager.registerToken('test-connection', tokenInfo);
-      
-      expect(eventCalls.some(call => 
-        call.method === 'onStatusUpdate' && 
-        call.args[0] === 'test-connection'
-      )).to.be.true;
+
+      expect(
+        eventCalls.some(
+          (call) => call.method === 'onStatusUpdate' && call.args[0] === 'test-connection'
+        )
+      ).to.be.true;
     });
   });
 });

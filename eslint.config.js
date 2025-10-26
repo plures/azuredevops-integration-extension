@@ -24,14 +24,14 @@ export default [
       ],
       'no-undef': 'off',
       'no-console': 'off',
-      
+
       // FSM-First Development Rules
       'max-lines-per-function': ['warn', { max: 100, skipBlankLines: true, skipComments: true }],
       'prefer-const': 'error',
       '@typescript-eslint/explicit-function-return-type': 'off',
     },
   },
-  
+
   // FSM-specific rules
   {
     files: ['src/fsm/machines/*.ts'],
@@ -40,14 +40,15 @@ export default [
         'error',
         {
           selector: 'NewExpression[callee.name="Promise"]',
-          message: 'FSM machines should use fromPromise actors instead of direct Promise constructors.'
+          message:
+            'FSM machines should use fromPromise actors instead of direct Promise constructors.',
         },
         {
           selector: 'CallExpression[callee.type="MemberExpression"][callee.property.name="then"]',
-          message: 'FSM machines should use state transitions, not .then() chains.'
-        }
-      ]
-    }
+          message: 'FSM machines should use state transitions, not .then() chains.',
+        },
+      ],
+    },
   },
 
   {
@@ -56,7 +57,7 @@ export default [
       'max-lines-per-function': 'off',
     },
   },
-  
+
   // Pure function rules
   {
     files: ['src/fsm/functions/*.ts'],
@@ -66,16 +67,16 @@ export default [
         'error',
         {
           selector: 'CallExpression[callee.object.name="vscode"]',
-          message: 'Pure functions should not call VS Code APIs. Use FSM actors for side effects.'
+          message: 'Pure functions should not call VS Code APIs. Use FSM actors for side effects.',
         },
         {
           selector: 'CallExpression[callee.object.name="console"]',
-          message: 'Pure functions should use FSM logging instead of console.log.'
-        }
-      ]
-    }
+          message: 'Pure functions should use FSM logging instead of console.log.',
+        },
+      ],
+    },
   },
-  
+
   // Activation.ts migration warnings
   {
     files: ['src/activation.ts'],
@@ -84,16 +85,17 @@ export default [
         'warn',
         {
           selector: 'NewExpression[callee.name="AzureDevOpsIntClient"]',
-          message: 'Consider using FSM-based client creation for better traceability.'
+          message: 'Consider using FSM-based client creation for better traceability.',
         },
         {
-          selector: 'CallExpression[callee.type="MemberExpression"][callee.property.name="then"] ~ CallExpression[callee.type="MemberExpression"][callee.property.name="then"]',
-          message: 'Consider refactoring complex async chains to use FSM state machines.'
-        }
-      ]
-    }
+          selector:
+            'CallExpression[callee.type="MemberExpression"][callee.property.name="then"] ~ CallExpression[callee.type="MemberExpression"][callee.property.name="then"]',
+          message: 'Consider refactoring complex async chains to use FSM state machines.',
+        },
+      ],
+    },
   },
-  
+
   {
     // Ignore legacy JS transpiled/duplicate sources for now
     ignores: [
@@ -127,12 +129,14 @@ export default [
           selector: "AssignmentExpression[left.object.name='module'][left.property.name='exports']",
           message: 'Use ESM `export` instead of `module.exports`.',
         },
-        
+
         // General anti-patterns for FSM-first development
         {
-          selector: 'CallExpression[callee.type="MemberExpression"][callee.property.name="then"] ~ CallExpression[callee.type="MemberExpression"][callee.property.name="then"]',
-          message: 'Avoid chaining .then() calls. Use FSM actors with fromPromise for better traceability.'
-        }
+          selector:
+            'CallExpression[callee.type="MemberExpression"][callee.property.name="then"] ~ CallExpression[callee.type="MemberExpression"][callee.property.name="then"]',
+          message:
+            'Avoid chaining .then() calls. Use FSM actors with fromPromise for better traceability.',
+        },
       ],
     },
   },

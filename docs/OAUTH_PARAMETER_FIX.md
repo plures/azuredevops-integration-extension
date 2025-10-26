@@ -7,6 +7,7 @@ Based on the manual login URL analysis from Azure DevOps, we discovered that the
 ### Manual Login URL Analysis
 
 The manual login URL revealed these required parameters:
+
 ```
 https://login.microsoftonline.com/common/oauth2/authorize?
   client_id=499b84ac-1321-427f-aa17-267ca6975798
@@ -23,6 +24,7 @@ https://login.microsoftonline.com/common/oauth2/authorize?
 ### Missing Parameters Identified
 
 Our current MSAL implementation was missing:
+
 1. **site_id**: `501454` - Azure DevOps site identifier
 2. **resource**: `499b84ac-1321-427f-aa17-267ca6975798` - Azure DevOps resource ID
 3. **response_mode**: `form_post` - OAuth response mode
@@ -42,10 +44,10 @@ const deviceCodeRequest: msal.DeviceCodeRequest = {
   scopes,
   extraQueryParameters: {
     // Add Azure DevOps-specific OAuth parameters found in manual login URL
-    'site_id': '501454',
-    'resource': '499b84ac-1321-427f-aa17-267ca6975798',
-    'response_mode': 'form_post',
-    'response_type': 'code id_token'
+    site_id: '501454',
+    resource: '499b84ac-1321-427f-aa17-267ca6975798',
+    response_mode: 'form_post',
+    response_type: 'code id_token',
   },
 };
 ```
@@ -61,10 +63,10 @@ const silentRequest: msal.SilentFlowRequest = {
   forceRefresh: false,
   tokenQueryParameters: {
     // Add Azure DevOps-specific OAuth parameters found in manual login URL
-    'site_id': '501454',
-    'resource': '499b84ac-1321-427f-aa17-267ca6975798',
-    'response_mode': 'form_post',
-    'response_type': 'code id_token'
+    site_id: '501454',
+    resource: '499b84ac-1321-427f-aa17-267ca6975798',
+    response_mode: 'form_post',
+    response_type: 'code id_token',
   },
 };
 ```
@@ -74,6 +76,7 @@ const silentRequest: msal.SilentFlowRequest = {
 ### extraQueryParameters Support
 
 Based on MSAL.js documentation research:
+
 - **DeviceCodeRequest**: ✅ Supports `extraQueryParameters`
 - **SilentFlowRequest**: ❌ Does not support `extraQueryParameters`, but supports `tokenQueryParameters`
 

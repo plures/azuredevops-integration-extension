@@ -2,7 +2,7 @@
 
 /**
  * Extension Activation Test Script
- * 
+ *
  * This script tests the key fixes:
  * 1. Defensive command registration (no duplicate command errors)
  * 2. Fixed XState spawn function usage (createActor instead of spawn)
@@ -20,8 +20,8 @@ console.log('   - Returns disposable-like object for already registered commands
 
 // Test 2: Check XState spawn fix
 console.log('\n✅ Test 2: XState v5 Spawn Function Fix');
-console.log('   - Replaced spawn(\'timerMachine\') with createActor(timerMachine)');
-console.log('   - Added proper timerMachine import');  
+console.log("   - Replaced spawn('timerMachine') with createActor(timerMachine)");
+console.log('   - Added proper timerMachine import');
 console.log('   - Fixed action parameter destructuring');
 
 // Test 3: Check FSM-only activation

@@ -5,6 +5,7 @@ This guide shows you how to visualize and debug the Azure DevOps Integration ext
 ## 🎯 Quick Start
 
 ### 1. Enable FSM Visualization
+
 ```json
 // settings.json
 {
@@ -15,6 +16,7 @@ This guide shows you how to visualize and debug the Azure DevOps Integration ext
 ```
 
 ### 2. Start the Inspector
+
 - **Command Palette**: `Azure DevOps Int (Debug): Start Application FSM Inspector`
 - **Environment**: Set `ENABLE_FSM_INSPECTOR=true` in your dev environment
 - **URL**: Visit https://stately.ai/inspect to see live state machines
@@ -27,13 +29,13 @@ This guide shows you how to visualize and debug the Azure DevOps Integration ext
 graph TD
     A[Extension Activation] --> B[Application FSM Manager]
     B --> C[Timer FSM]
-    B --> D[Connection FSM] 
+    B --> D[Connection FSM]
     B --> E[Webview FSM]
-    
+
     C --> F[Timer Adapter]
     D --> G[Connection Adapter]
     E --> H[Message Router]
-    
+
     F --> I[Legacy Timer Integration]
     G --> J[Legacy Connection Integration]
     H --> K[Legacy Webview Integration]
@@ -53,13 +55,14 @@ stateDiagram-v2
     paused --> running : RESUME / ACTIVITY
     running --> idle : STOP
     paused --> idle : STOP
-    
+
     running --> running : TICK (update elapsed)
     running --> running : ACTIVITY (update lastActivity)
     paused --> paused : ACTIVITY (no auto-resume if manual pause)
 ```
 
 ### Context Data
+
 ```typescript
 {
   workItemId?: number;
@@ -76,6 +79,7 @@ stateDiagram-v2
 ```
 
 ### Key Events
+
 - **START**: `{ workItemId, workItemTitle }`
 - **PAUSE**: `{ manual?: boolean }`
 - **RESUME**: `{ fromActivity?: boolean }`
@@ -102,6 +106,7 @@ stateDiagram-v2
 ```
 
 ### Context Data
+
 ```typescript
 {
   connectionId?: string;
@@ -134,6 +139,7 @@ stateDiagram-v2
 ```
 
 ### Context Data
+
 ```typescript
 {
   panel?: vscode.WebviewPanel;
@@ -157,7 +163,7 @@ The extension integrates with Stately's XState Inspector for real-time visualiza
 ```typescript
 // Automatic setup when FSM is enabled
 const inspector = createBrowserInspector({
-  url: 'https://stately.ai/registry/editor/...'
+  url: 'https://stately.ai/registry/editor/...',
 });
 
 // Actors automatically connect to inspector
@@ -166,12 +172,12 @@ inspector.actor(timerActor);
 
 ### Debug Commands
 
-| Command | Description |
-|---------|-------------|
-| `azureDevOpsInt.showApplicationFSMStatus` | Show current FSM status |
-| `azureDevOpsInt.startApplicationFSMInspector` | Launch XState Inspector |
-| `azureDevOpsInt.resetApplicationFSM` | Reset all state machines |
-| `azureDevOpsInt.validateTimerSync` | Check FSM vs Legacy sync |
+| Command                                       | Description              |
+| --------------------------------------------- | ------------------------ |
+| `azureDevOpsInt.showApplicationFSMStatus`     | Show current FSM status  |
+| `azureDevOpsInt.startApplicationFSMInspector` | Launch XState Inspector  |
+| `azureDevOpsInt.resetApplicationFSM`          | Reset all state machines |
+| `azureDevOpsInt.validateTimerSync`            | Check FSM vs Legacy sync |
 
 ### Configuration Options
 
@@ -179,15 +185,15 @@ inspector.actor(timerActor);
 {
   // Enable FSM features
   "azureDevOpsIntegration.experimental.useFSM": true,
-  
+
   // Select components to use FSM for
   "azureDevOpsIntegration.experimental.fsmComponents": [
-    "timer",      // Timer operations
-    "connection", // Connection management  
-    "webview",    // UI state management
-    "messaging"   // Message routing
+    "timer", // Timer operations
+    "connection", // Connection management
+    "webview", // UI state management
+    "messaging" // Message routing
   ],
-  
+
   // Enable visual inspector
   "azureDevOpsIntegration.experimental.enableFSMInspector": true
 }
@@ -289,21 +295,25 @@ if (useFSM && components.includes('timer')) {
 ## 🎯 Benefits of FSM Visualization
 
 ### 1. **Debugging Made Easy**
+
 - See exactly what state your timer is in
 - Trace event flows that cause issues
 - Identify race conditions and timing problems
 
 ### 2. **Behavior Validation**
+
 - Ensure inactivity timeout works correctly
 - Verify auto-resume from activity works
 - Test edge cases like rapid start/stop
 
-### 3. **Performance Insights** 
+### 3. **Performance Insights**
+
 - Monitor state transition frequency
 - Identify performance bottlenecks
 - Track context data growth over time
 
 ### 4. **Documentation**
+
 - Visual representation serves as living documentation
 - Easy to onboard new developers
 - Clear understanding of extension behavior
@@ -315,11 +325,13 @@ if (useFSM && components.includes('timer')) {
 ### Inspector Not Loading?
 
 1. **Check Configuration**:
+
    ```json
    "azureDevOpsIntegration.experimental.enableFSMInspector": true
    ```
 
 2. **Verify Environment**:
+
    ```bash
    export ENABLE_FSM_INSPECTOR=true
    ```
@@ -329,6 +341,7 @@ if (useFSM && components.includes('timer')) {
 ### FSM Not Starting?
 
 1. **Enable FSM**:
+
    ```json
    "azureDevOpsIntegration.experimental.useFSM": true
    ```

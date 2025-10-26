@@ -1,7 +1,7 @@
 let loggerModulePromise;
 async function getLoggerModule() {
   if (!loggerModulePromise) {
-    loggerModulePromise = import("../logging/FSMLogger.js");
+    loggerModulePromise = import('../logging/FSMLogger.js');
   }
   return loggerModulePromise;
 }
@@ -10,68 +10,85 @@ async function getConnectionLogger(connectionId) {
   return {
     FSMComponent,
     fsmLogger,
-    fsmContext: { component: FSMComponent.CONNECTION, connectionId }
+    fsmContext: { component: FSMComponent.CONNECTION, connectionId },
   };
 }
 async function validateClientConfig(context) {
   const { FSMComponent, fsmLogger, fsmContext } = await getConnectionLogger(context.connectionId);
-  fsmLogger.debug(FSMComponent.CONNECTION, "Validating client configuration", fsmContext, {
+  fsmLogger.debug(FSMComponent.CONNECTION, 'Validating client configuration', fsmContext, {
     hasCredential: !!context.credential,
     hasConfig: !!context.config,
     organization: context.config.organization,
-    project: context.config.project
+    project: context.config.project,
   });
   const errors = [];
   const project = context.config.project?.trim();
   let organization = context.config.organization?.trim();
   if (!context.credential) {
-    errors.push("No credential available");
+    errors.push('No credential available');
   }
   if (!project) {
-    errors.push("Project not specified");
+    errors.push('Project not specified');
   }
   const baseUrl = sanitizeUrl(context.config.baseUrl);
   const apiBaseUrl = sanitizeUrl(context.config.apiBaseUrl);
   if (context.config.baseUrl && baseUrl !== context.config.baseUrl) {
-    fsmLogger.debug(FSMComponent.CONNECTION, "Normalized baseUrl for client configuration", fsmContext, {
-      original: context.config.baseUrl,
-      normalized: baseUrl
-    });
+    fsmLogger.debug(
+      FSMComponent.CONNECTION,
+      'Normalized baseUrl for client configuration',
+      fsmContext,
+      {
+        original: context.config.baseUrl,
+        normalized: baseUrl,
+      }
+    );
   }
   if (context.config.apiBaseUrl && apiBaseUrl !== context.config.apiBaseUrl) {
-    fsmLogger.debug(FSMComponent.CONNECTION, "Normalized apiBaseUrl for client configuration", fsmContext, {
-      original: context.config.apiBaseUrl,
-      normalized: apiBaseUrl
-    });
+    fsmLogger.debug(
+      FSMComponent.CONNECTION,
+      'Normalized apiBaseUrl for client configuration',
+      fsmContext,
+      {
+        original: context.config.apiBaseUrl,
+        normalized: apiBaseUrl,
+      }
+    );
   }
   const derivedOrganization = resolveOrganizationName({
     organization,
     project,
     baseUrl,
-    apiBaseUrl
+    apiBaseUrl,
   });
   if (!organization || organization.length === 0) {
     if (derivedOrganization) {
       organization = derivedOrganization;
     }
-  } else if (derivedOrganization && project && organization.toLowerCase() === project.toLowerCase() && derivedOrganization.toLowerCase() !== organization.toLowerCase()) {
+  } else if (
+    derivedOrganization &&
+    project &&
+    organization.toLowerCase() === project.toLowerCase() &&
+    derivedOrganization.toLowerCase() !== organization.toLowerCase()
+  ) {
     fsmLogger.info(
       FSMComponent.CONNECTION,
-      "Organization name matched project; using derived organization from URL",
+      'Organization name matched project; using derived organization from URL',
       fsmContext,
       {
         originalOrganization: organization,
         derivedOrganization,
-        project
+        project,
       }
     );
     organization = derivedOrganization;
   }
   if (!organization) {
-    errors.push("Organization not specified");
+    errors.push('Organization not specified');
   }
   if (errors.length > 0) {
-    fsmLogger.warn(FSMComponent.CONNECTION, "Client configuration validation failed", fsmContext, { errors });
+    fsmLogger.warn(FSMComponent.CONNECTION, 'Client configuration validation failed', fsmContext, {
+      errors,
+    });
     return { isValid: false, errors, context };
   }
   const safeOrganization = organization;
@@ -87,80 +104,98 @@ async function validateClientConfig(context) {
       team: context.config.team,
       baseUrl,
       apiBaseUrl,
-      authType: context.config.authMethod === "entra" ? "bearer" : "pat",
-      identityName: context.config.identityName
+      authType: context.config.authMethod === 'entra' ? 'bearer' : 'pat',
+      identityName: context.config.identityName,
       // onAuthFailure will be set by FSM
-    }
+    },
   };
-  fsmLogger.debug(FSMComponent.CONNECTION, "Client configuration validated successfully", fsmContext, {
-    authType: config.options.authType,
-    hasTeam: !!config.options.team,
-    hasBaseUrl: !!config.options.baseUrl
-  });
+  fsmLogger.debug(
+    FSMComponent.CONNECTION,
+    'Client configuration validated successfully',
+    fsmContext,
+    {
+      authType: config.options.authType,
+      hasTeam: !!config.options.team,
+      hasBaseUrl: !!config.options.baseUrl,
+    }
+  );
   return { isValid: true, config, context };
 }
 async function createAzureClient(context, config) {
   const { FSMComponent, fsmLogger, fsmContext } = await getConnectionLogger(context.connectionId);
-  fsmLogger.debug(FSMComponent.CONNECTION, "Creating Azure DevOps client", fsmContext, {
+  fsmLogger.debug(FSMComponent.CONNECTION, 'Creating Azure DevOps client', fsmContext, {
     organization: config.organization,
     project: config.project,
     authType: config.options.authType,
-    hasBaseUrl: !!config.options.baseUrl
+    hasBaseUrl: !!config.options.baseUrl,
   });
   try {
-    const { AzureDevOpsIntClient } = await import("../../azureClient.js");
+    const { AzureDevOpsIntClient } = await import('../../azureClient.js');
     const client = new AzureDevOpsIntClient(
       config.organization,
       config.project,
       config.credential,
       config.options
     );
-    fsmLogger.info(FSMComponent.CONNECTION, "Azure DevOps client created successfully", fsmContext, {
-      organization: config.organization,
-      project: config.project,
-      authType: config.options.authType
-    });
+    fsmLogger.info(
+      FSMComponent.CONNECTION,
+      'Azure DevOps client created successfully',
+      fsmContext,
+      {
+        organization: config.organization,
+        project: config.project,
+        authType: config.options.authType,
+      }
+    );
     return { client, config, context };
   } catch (error) {
-    fsmLogger.error(FSMComponent.CONNECTION, "Failed to create Azure DevOps client", fsmContext, {
+    fsmLogger.error(FSMComponent.CONNECTION, 'Failed to create Azure DevOps client', fsmContext, {
       error: error instanceof Error ? error.message : String(error),
       organization: config.organization,
-      project: config.project
+      project: config.project,
     });
     throw error;
   }
 }
 async function testClientConnectivity(context, client) {
   const { FSMComponent, fsmLogger, fsmContext } = await getConnectionLogger(context.connectionId);
-  fsmLogger.debug(FSMComponent.CONNECTION, "Testing client connectivity", fsmContext);
+  fsmLogger.debug(FSMComponent.CONNECTION, 'Testing client connectivity', fsmContext);
   try {
     const userId = await client.getAuthenticatedUserId();
     if (userId) {
-      fsmLogger.info(FSMComponent.CONNECTION, "Client connectivity test successful", fsmContext, { userId });
+      fsmLogger.info(FSMComponent.CONNECTION, 'Client connectivity test successful', fsmContext, {
+        userId,
+      });
       return { success: true, userId, context };
     } else {
-      fsmLogger.warn(FSMComponent.CONNECTION, "Client connectivity test failed - no user ID", fsmContext);
-      return { success: false, error: "Unable to authenticate user", context };
+      fsmLogger.warn(
+        FSMComponent.CONNECTION,
+        'Client connectivity test failed - no user ID',
+        fsmContext
+      );
+      return { success: false, error: 'Unable to authenticate user', context };
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    fsmLogger.error(FSMComponent.CONNECTION, "Client connectivity test failed", fsmContext, { error: errorMessage });
+    fsmLogger.error(FSMComponent.CONNECTION, 'Client connectivity test failed', fsmContext, {
+      error: errorMessage,
+    });
     return { success: false, error: errorMessage, context };
   }
 }
 function normalizeConnectionConfig(rawConfig) {
   const errors = [];
   if (!rawConfig) {
-    errors.push("Configuration is required");
+    errors.push('Configuration is required');
     return { isValid: false, errors };
   }
   const organization = rawConfig.organization?.trim();
   const project = rawConfig.project?.trim();
   if (!organization) {
-    errors.push("Organization is required");
+    errors.push('Organization is required');
   }
   if (!project) {
-    errors.push("Project is required");
+    errors.push('Project is required');
   }
   if (errors.length > 0) {
     return { isValid: false, errors };
@@ -171,9 +206,9 @@ function normalizeConnectionConfig(rawConfig) {
     team: rawConfig.team?.trim(),
     baseUrl: rawConfig.baseUrl?.trim(),
     apiBaseUrl: rawConfig.apiBaseUrl?.trim(),
-    authMethod: rawConfig.authMethod || "pat",
+    authMethod: rawConfig.authMethod || 'pat',
     tenantId: rawConfig.tenantId?.trim(),
-    identityName: rawConfig.identityName?.trim()
+    identityName: rawConfig.identityName?.trim(),
   };
   return { isValid: true, config };
 }
@@ -181,20 +216,23 @@ function sanitizeUrl(raw) {
   if (!raw) {
     return void 0;
   }
-  const trimmed = raw.trim().replace(/\/+$/, "");
+  const trimmed = raw.trim().replace(/\/+$/, '');
   try {
     const parsed = new URL(trimmed);
-    parsed.pathname = parsed.pathname.split("/").map((segment) => {
-      if (!segment) {
-        return segment;
-      }
-      try {
-        return encodeURIComponent(decodeURIComponent(segment));
-      } catch {
-        return encodeURIComponent(segment);
-      }
-    }).join("/");
-    return parsed.toString().replace(/\/$/, "");
+    parsed.pathname = parsed.pathname
+      .split('/')
+      .map((segment) => {
+        if (!segment) {
+          return segment;
+        }
+        try {
+          return encodeURIComponent(decodeURIComponent(segment));
+        } catch {
+          return encodeURIComponent(segment);
+        }
+      })
+      .join('/');
+    return parsed.toString().replace(/\/$/, '');
   } catch {
     return encodeURI(trimmed);
   }
@@ -204,9 +242,11 @@ function resolveOrganizationName(params) {
   const candidates = [
     organization?.trim(),
     extractOrganizationFromUrl(baseUrl),
-    extractOrganizationFromUrl(apiBaseUrl)
+    extractOrganizationFromUrl(apiBaseUrl),
   ];
-  const normalized = candidates.map((value) => value ? value.trim() : void 0).filter((value) => !!value && value.length > 0);
+  const normalized = candidates
+    .map((value) => (value ? value.trim() : void 0))
+    .filter((value) => !!value && value.length > 0);
   if (normalized.length === 0) {
     return void 0;
   }
@@ -228,22 +268,21 @@ function extractOrganizationFromUrl(raw) {
   try {
     const parsed = new URL(raw);
     const host = parsed.hostname.toLowerCase();
-    if (host.endsWith(".visualstudio.com")) {
-      return host.replace(".visualstudio.com", "");
+    if (host.endsWith('.visualstudio.com')) {
+      return host.replace('.visualstudio.com', '');
     }
-    if (host === "dev.azure.com") {
-      const segments = parsed.pathname.split("/").filter(Boolean);
+    if (host === 'dev.azure.com') {
+      const segments = parsed.pathname.split('/').filter(Boolean);
       if (segments.length > 0) {
         return decodeURIComponent(segments[0]);
       }
     }
-  } catch {
-  }
+  } catch {}
   return void 0;
 }
 export {
   createAzureClient,
   normalizeConnectionConfig,
   testClientConnectivity,
-  validateClientConfig
+  validateClientConfig,
 };

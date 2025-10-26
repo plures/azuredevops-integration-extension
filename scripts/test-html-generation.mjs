@@ -2,7 +2,7 @@
 
 /**
  * HTML Generation Test
- * 
+ *
  * This script simulates the HTML generation process to see what's being created
  */
 
@@ -18,38 +18,37 @@ if (fs.existsSync(htmlPath)) {
   let html = fs.readFileSync(htmlPath, 'utf8');
   console.log('\n📄 Original HTML template:');
   console.log('   Script reference:', html.match(/src="[^"]*"/)?.[0] || 'Not found');
-  
+
   // Simulate the replacement process
   const mockScriptUri = 'vscode-webview://12345/media/webview/reactive-main.js?v=1.0.0';
   const originalScript = './reactive-main.js';
-  
+
   console.log('\n🔄 Replacement process:');
   console.log('   Looking for:', originalScript);
   console.log('   Replacing with:', mockScriptUri);
-  
+
   const hasOriginal = html.includes(originalScript);
   console.log('   Found original script reference:', hasOriginal ? '✅' : '❌');
-  
+
   if (hasOriginal) {
     html = html.replace(originalScript, mockScriptUri);
     console.log('   Replacement successful: ✅');
   } else {
     console.log('   Replacement failed: ❌');
   }
-  
+
   // Check CSS replacement
   console.log('\n🎨 CSS injection check:');
   const cssPattern = '</head>';
   const hasCssTarget = html.includes(cssPattern);
   console.log('   Found </head> for CSS injection:', hasCssTarget ? '✅' : '❌');
-  
+
   // Check script element structure
   console.log('\n📜 Script element analysis:');
   const scriptTags = html.match(/<script[^>]*>/g) || [];
   scriptTags.forEach((tag, i) => {
     console.log(`   Script ${i + 1}: ${tag}`);
   });
-  
 } else {
   console.log('\n❌ HTML template not found');
 }
@@ -61,7 +60,7 @@ if (fs.existsSync(jsPath)) {
   const hasMount = jsContent.includes('mount(');
   const hasDebug = jsContent.includes('Debug');
   const hasError = jsContent.includes('console.error');
-  
+
   console.log('\n🔧 JavaScript file analysis:');
   console.log('   File size:', Math.round(jsContent.length / 1024) + 'KB');
   console.log('   Contains mount():', hasMount ? '✅' : '❌');

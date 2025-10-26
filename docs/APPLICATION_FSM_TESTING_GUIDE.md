@@ -3,6 +3,7 @@
 ## 🧪 How to Test the Complete FSM Integration
 
 ### Prerequisites
+
 - Extension built successfully (✅ Done)
 - VS Code Extension Development Host ready
 - Understanding of FSM concepts
@@ -10,12 +11,14 @@
 ## Step 1: Enable Application FSM
 
 ### Via Settings UI
+
 1. Open VS Code Settings (`Ctrl+,`)
 2. Search for "Azure DevOps Integration"
 3. Find **"Experimental: Use Application FSM"**
 4. ✅ **Check the box to enable**
 
 ### Via Settings JSON
+
 ```json
 {
   "azureDevOpsIntegration.experimental.useApplicationFSM": true,
@@ -25,11 +28,13 @@
 ```
 
 ## Step 2: Reload VS Code Window
+
 - **Important**: Application FSM only initializes on extension activation
 - Press `Ctrl+Shift+P` → "Developer: Reload Window"
 - Watch the Debug Console for FSM startup messages
 
 ### Expected Console Output
+
 ```
 🚀 Application FSM enabled - initializing state machine architecture
 [ApplicationFSM] Starting application state machine...
@@ -40,6 +45,7 @@
 ## Step 3: Test FSM Commands
 
 ### Command Palette Testing
+
 Press `Ctrl+Shift+P` and search for:
 
 1. **"Azure DevOps: Show Application FSM Status"**
@@ -55,6 +61,7 @@ Press `Ctrl+Shift+P` and search for:
    - Confirm with success message
 
 ### Expected Status Output
+
 ```json
 {
   "isStarted": true,
@@ -82,24 +89,28 @@ Press `Ctrl+Shift+P` and search for:
 ## Step 4: Test Timer FSM Integration
 
 ### Timer Operations Test
+
 1. **Start a timer**: Use existing timer commands
 2. **Check FSM status**: Verify timer state in FSM
 3. **Pause/Resume**: Test state transitions
 4. **Stop timer**: Confirm cleanup
 
 ### FSM-Specific Timer Tests
+
 - `"Azure DevOps: Show FSM Status"` - Timer-specific FSM status
 - `"Azure DevOps: Validate Timer Synchronization"` - Check FSM vs legacy sync
 
 ## Step 5: Validate Error Handling
 
 ### Test Error Recovery
+
 1. **Disable FSM**: Set `useApplicationFSM` to `false`
 2. **Reload window**: Should fallback to legacy activation
 3. **Re-enable FSM**: Should activate FSM again
 4. **Check console**: Verify graceful fallback/recovery
 
 ### Expected Fallback Behavior
+
 ```
 ❌ Application FSM initialization failed: [error]
 [Fallback] Using legacy activation
@@ -108,11 +119,13 @@ Press `Ctrl+Shift+P` and search for:
 ## Step 6: Performance Validation
 
 ### Activation Time Test
+
 - **Measure extension activation time**
 - **Compare FSM vs legacy activation**
 - **Should be similar performance** (< 100ms difference)
 
 ### Memory Usage Check
+
 - Open VS Code Developer Tools (`Help` → `Toggle Developer Tools`)
 - Monitor memory usage with FSM enabled vs disabled
 - Should be comparable memory footprint
@@ -120,15 +133,17 @@ Press `Ctrl+Shift+P` and search for:
 ## Step 7: Integration Validation
 
 ### Existing Functionality Test
+
 With Application FSM enabled, test:
 
 1. **Connection management**: Setup/manage connections
 2. **Work item loading**: Refresh work items
-3. **Timer functionality**: Start/stop/pause timers  
+3. **Timer functionality**: Start/stop/pause timers
 4. **Webview operations**: UI interactions work normally
 5. **Authentication**: PAT and Entra ID flows
 
 ### Expected Result
+
 - ✅ **All existing functionality works identically**
 - ✅ **Users see no behavioral differences**
 - ✅ **Extension feels the same to use**
@@ -136,6 +151,7 @@ With Application FSM enabled, test:
 ## Step 8: Debug Console Monitoring
 
 ### Watch for FSM Messages
+
 ```
 [ApplicationFSM] State changed: { value: "active", context: {...} }
 [FSM Manager] Timer actor spawned
@@ -144,7 +160,9 @@ With Application FSM enabled, test:
 ```
 
 ### Error Message Monitoring
+
 Any errors should be clearly indicated:
+
 ```
 ❌ Application FSM failed to start: [specific error]
 ⚠️ Application FSM not initialized
@@ -153,17 +171,20 @@ Any errors should be clearly indicated:
 ## Troubleshooting
 
 ### FSM Not Starting
+
 1. **Check settings**: Ensure `useApplicationFSM` is `true`
 2. **Reload window**: FSM only starts on activation
 3. **Check console**: Look for error messages
 4. **Disable and retry**: Toggle setting off/on
 
 ### Commands Not Working
+
 1. **Check extension activation**: Ensure extension loaded
 2. **Verify commands**: Use `Ctrl+Shift+P` to find commands
 3. **Check FSM initialization**: Use status command
 
 ### Performance Issues
+
 1. **Compare with FSM disabled**: Test both modes
 2. **Check memory usage**: Monitor in dev tools
 3. **Profile activation**: Use VS Code profiler if needed
@@ -185,7 +206,7 @@ The Application FSM integration is successful when:
 Once testing validates the integration:
 
 1. **Phase 3**: Implement Connection FSM
-2. **Phase 4**: Add Authentication FSM  
+2. **Phase 4**: Add Authentication FSM
 3. **Phase 5**: Replace message handling system
 4. **Phase 6**: Complete global state elimination
 

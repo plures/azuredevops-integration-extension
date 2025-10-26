@@ -63,7 +63,11 @@ const tryResolveVariant = async (specifier, parentURL) => {
 export const resolve = async (specifier, context, defaultResolve) => {
   const parentURL = context?.parentURL;
 
-  if (process.env[MOCHA_DIAGNOSTIC_ENV] === '1' && typeof specifier === 'string' && specifier.includes('mocha')) {
+  if (
+    process.env[MOCHA_DIAGNOSTIC_ENV] === '1' &&
+    typeof specifier === 'string' &&
+    specifier.includes('mocha')
+  ) {
     console.log('[ts-esm-loader] resolve diag', specifier, 'parent', parentURL);
     if (specifier === 'mocha') {
       return { url: mochaDiagnosticsStubUrl, shortCircuit: true };

@@ -7,13 +7,15 @@ A comprehensive, production-ready logging system specifically designed for FSM a
 ## Features
 
 ### ✅ **Configurable Log Levels**
+
 - `DEBUG`: Detailed debugging information
-- `INFO`: General informational messages  
+- `INFO`: General informational messages
 - `WARN`: Warning conditions
 - `ERROR`: Error conditions
 - `OFF`: Disable logging
 
 ### ✅ **FSM Component Filtering**
+
 - `APPLICATION`: Application-wide FSM orchestration
 - `CONNECTION`: Connection management and authentication
 - `TIMER`: Timer FSM and time tracking
@@ -24,11 +26,13 @@ A comprehensive, production-ready logging system specifically designed for FSM a
 - `MACHINE`: Individual state machine transitions
 
 ### ✅ **Multiple Output Destinations**
+
 - **Console**: Developer console (DevTools)
 - **Output Channel**: VS Code Output Channel
 - **File**: Log file output (future feature)
 
 ### ✅ **FSM Context Tracking**
+
 - State transitions with from/to states
 - Event tracking with machine context
 - Connection ID and instance tracking
@@ -38,6 +42,7 @@ A comprehensive, production-ready logging system specifically designed for FSM a
 ## Usage Examples
 
 ### Basic Logging
+
 ```typescript
 import { createComponentLogger, FSMComponent } from './fsm/logging/FSMLogger.js';
 
@@ -49,6 +54,7 @@ logger.error('Authentication failed', { connectionId: 'conn-123' }, { reason: 'I
 ```
 
 ### FSM-Specific Logging
+
 ```typescript
 // State transitions
 logger.logStateTransition('disconnected', 'authenticating', 'CONNECT', 'connectionMachine');
@@ -61,6 +67,7 @@ logger.logError(new Error('Connection failed'), 'connecting', 'connectionMachine
 ```
 
 ### Global Logger Access
+
 ```typescript
 import { fsmLogger, FSMComponent } from './fsm/logging/FSMLogger.js';
 
@@ -71,6 +78,7 @@ fsmLogger.debug(FSMComponent.TIMER, 'Timer state updated', { state: 'running' })
 ## Configuration Management
 
 ### VS Code Settings Integration
+
 All logging configuration is stored in VS Code settings and can be changed at runtime:
 
 ```json
@@ -96,6 +104,7 @@ All logging configuration is stored in VS Code settings and can be changed at ru
 ```
 
 ### Runtime Configuration
+
 ```typescript
 import { fsmLogger } from './fsm/logging/FSMLogger.js';
 
@@ -103,23 +112,25 @@ import { fsmLogger } from './fsm/logging/FSMLogger.js';
 fsmLogger.updateConfiguration({ level: LogLevel.DEBUG });
 
 // Enable specific components
-fsmLogger.updateConfiguration({ 
-  components: { APPLICATION: true, MACHINE: true } 
+fsmLogger.updateConfiguration({
+  components: { APPLICATION: true, MACHINE: true },
 });
 
 // Change output destinations
 fsmLogger.updateConfiguration({
-  destinations: { console: false, outputChannel: true }
+  destinations: { console: false, outputChannel: true },
 });
 ```
 
 ## Commands & UI
 
 ### Available Commands
+
 - **`Azure DevOps Int (Debug): Configure FSM Logging`**: Interactive logging configuration
 - **`Azure DevOps Int (Debug): Show FSM Logs`**: Open FSM logs output channel
 
 ### Configuration UI Features
+
 1. **Log Level Selection**: Quick pick for minimum log level
 2. **Component Filtering**: Multi-select for FSM components
 3. **Output Destinations**: Configure where logs are sent
@@ -130,13 +141,14 @@ fsmLogger.updateConfiguration({
 ## Integration Examples
 
 ### ApplicationFSMManager
+
 ```typescript
 export class ApplicationFSMManager {
   private logger = createComponentLogger(FSMComponent.APPLICATION, 'ApplicationFSM');
 
   async start(): Promise<void> {
     this.logger.info('Starting application state machine...');
-    
+
     this.appActor.subscribe((state) => {
       this.logger.logStateTransition(
         'unknown',
@@ -152,6 +164,7 @@ export class ApplicationFSMManager {
 ```
 
 ### ConnectionAdapter
+
 ```typescript
 export class ConnectionAdapter {
   private logger = createComponentLogger(FSMComponent.ADAPTER, 'ConnectionAdapter');
@@ -179,6 +192,7 @@ export class ConnectionAdapter {
 ## Output Format
 
 ### Formatted Log Example
+
 ```
 2025-10-15T10:30:45.123Z INFO  [APPLICATION] {id:ApplicationFSM, state:active, machine:applicationMachine} Application FSM started successfully
 2025-10-15T10:30:45.125Z DEBUG [CONNECTION]  {conn:c5a2c7bf-2248-476c-82f1-bcf94b1a0e55, state:authenticating, event:CONNECT} FSM connection requested
@@ -193,6 +207,7 @@ export class ConnectionAdapter {
 ## Migration Benefits
 
 ### Replaced Manual Console Logs
+
 Instead of scattered `console.log()` statements throughout FSM components, we now have:
 
 - **Structured logging** with consistent format
@@ -204,6 +219,7 @@ Instead of scattered `console.log()` statements throughout FSM components, we no
 - **Performance optimization** with smart filtering
 
 ### No Legacy Code Changes
+
 The logging system is completely isolated to FSM components and doesn't touch any existing legacy code paths, ensuring:
 
 - **Zero regression risk** for existing functionality
@@ -222,6 +238,6 @@ The extension now has a **comprehensive, configurable logging system** that:
 ✅ **Supports runtime configuration without code changes**  
 ✅ **Offers professional debugging and troubleshooting capabilities**  
 ✅ **Maintains zero impact on legacy code paths**  
-✅ **Enables efficient development and production debugging**  
+✅ **Enables efficient development and production debugging**
 
 The logging system is fully integrated with the FSM architecture and ready for production use! 🎯

@@ -2,7 +2,7 @@
 
 /**
  * Webview Debug Test - Final Verification
- * 
+ *
  * This script verifies the debug setup is ready for testing
  */
 
@@ -19,12 +19,12 @@ if (fs.existsSync(reactiveMainPath)) {
   const hasDebugApp = content.includes('DebugApp') || content.includes('Webview Debug Test');
   const hasMount = content.includes('mount(');
   const hasVscode = content.includes('vscode');
-  
+
   console.log('\n✅ Debug webview files ready:');
   console.log(`   ${hasDebugApp ? '✅' : '❌'} Contains debug app code`);
   console.log(`   ${hasMount ? '✅' : '❌'} Contains Svelte mount() call`);
   console.log(`   ${hasVscode ? '✅' : '❌'} Contains VS Code API access`);
-  
+
   if (hasDebugApp && hasMount && hasVscode) {
     console.log('\n🎉 Debug webview should display properly!');
   } else {
@@ -40,7 +40,7 @@ if (fs.existsSync(activationPath)) {
   const activation = fs.readFileSync(activationPath, 'utf8');
   const hasDefensiveReg = activation.includes('registerCommandSafely');
   const hasReactiveMain = activation.includes('reactive-main.js');
-  
+
   console.log('\n✅ Extension activation ready:');
   console.log(`   ${hasDefensiveReg ? '✅' : '❌'} Has defensive command registration`);
   console.log(`   ${hasReactiveMain ? '✅' : '❌'} References correct webview script`);

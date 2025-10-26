@@ -2,10 +2,10 @@
 
 /**
  * FSM Svelte 5 Integration Validation Script
- * 
+ *
  * This script validates that the complete FSM + Svelte 5 integration is working:
  * 1. Extension builds successfully
- * 2. Webview builds successfully  
+ * 2. Webview builds successfully
  * 3. FSM stores are properly exported
  * 4. Reactive components are properly structured
  * 5. Build artifacts are in place
@@ -32,7 +32,7 @@ function validate(description, condition, details = '') {
   } else if (details && !condition) {
     console.log(`    ❌ ${details}`);
   }
-  
+
   if (!condition) {
     allValidationsPassed = false;
   }
@@ -53,7 +53,10 @@ validate('Webview CSS build exists', webviewCssExists, 'media/webview/reactive-m
 // 2. Check HTML entry point is updated
 console.log('\n🌐 HTML Entry Point:');
 try {
-  const htmlContent = fs.readFileSync(path.join(rootDir, 'media', 'webview', 'svelte.html'), 'utf8');
+  const htmlContent = fs.readFileSync(
+    path.join(rootDir, 'media', 'webview', 'svelte.html'),
+    'utf8'
+  );
   const usesReactiveMain = htmlContent.includes('reactive-main.js');
   validate('HTML points to reactive-main.js', usesReactiveMain, 'svelte.html updated');
 } catch (error) {
@@ -64,17 +67,29 @@ try {
 console.log('\n🏪 Store Structure:');
 try {
   const mainStoreExists = fs.existsSync(path.join(rootDir, 'src', 'stores', 'applicationStore.ts'));
-  validate('Main application store exists', mainStoreExists, 'src/stores/applicationStore.ts found');
+  validate(
+    'Main application store exists',
+    mainStoreExists,
+    'src/stores/applicationStore.ts found'
+  );
 
   const webviewStoreExists = fs.existsSync(path.join(rootDir, 'src', 'webview', 'webviewStore.ts'));
   validate('Webview store exists', webviewStoreExists, 'src/webview/webviewStore.ts found');
 
   if (webviewStoreExists) {
-    const webviewStoreContent = fs.readFileSync(path.join(rootDir, 'src', 'webview', 'webviewStore.ts'), 'utf8');
-    const hasExports = webviewStoreContent.includes('export const actions') && 
-                      webviewStoreContent.includes('export const selectors') &&
-                      webviewStoreContent.includes('export const isActivated');
-    validate('Webview store has required exports', hasExports, 'actions, selectors, reactive stores exported');
+    const webviewStoreContent = fs.readFileSync(
+      path.join(rootDir, 'src', 'webview', 'webviewStore.ts'),
+      'utf8'
+    );
+    const hasExports =
+      webviewStoreContent.includes('export const actions') &&
+      webviewStoreContent.includes('export const selectors') &&
+      webviewStoreContent.includes('export const isActivated');
+    validate(
+      'Webview store has required exports',
+      hasExports,
+      'actions, selectors, reactive stores exported'
+    );
   }
 } catch (error) {
   validate('Store files readable', false, `Error reading store files: ${error.message}`);
@@ -83,14 +98,21 @@ try {
 // 4. Check Svelte 5 components
 console.log('\n⚡ Svelte 5 Components:');
 try {
-  const reactiveAppExists = fs.existsSync(path.join(rootDir, 'src', 'webview', 'ReactiveApp.svelte'));
+  const reactiveAppExists = fs.existsSync(
+    path.join(rootDir, 'src', 'webview', 'ReactiveApp.svelte')
+  );
   validate('ReactiveApp.svelte exists', reactiveAppExists, 'Svelte 5 component found');
 
-  const reactiveMainExists = fs.existsSync(path.join(rootDir, 'src', 'webview', 'reactive-main.ts'));
+  const reactiveMainExists = fs.existsSync(
+    path.join(rootDir, 'src', 'webview', 'reactive-main.ts')
+  );
   validate('reactive-main.ts exists', reactiveMainExists, 'Svelte 5 entry point found');
 
   if (reactiveMainExists) {
-    const reactiveMainContent = fs.readFileSync(path.join(rootDir, 'src', 'webview', 'reactive-main.ts'), 'utf8');
+    const reactiveMainContent = fs.readFileSync(
+      path.join(rootDir, 'src', 'webview', 'reactive-main.ts'),
+      'utf8'
+    );
     const usesWebviewStore = reactiveMainContent.includes('./webviewStore.js');
     validate('reactive-main uses webview store', usesWebviewStore, 'imports from webviewStore.js');
   }
@@ -102,8 +124,12 @@ try {
 console.log('\n🚀 Activation Integration:');
 try {
   const activationContent = fs.readFileSync(path.join(rootDir, 'src', 'activation.ts'), 'utf8');
-  const importsApplicationStore = activationContent.includes('from \'./stores/applicationStore.js\'');
-  validate('Activation imports application store', importsApplicationStore, 'activation.ts integrated with FSM store');
+  const importsApplicationStore = activationContent.includes("from './stores/applicationStore.js'");
+  validate(
+    'Activation imports application store',
+    importsApplicationStore,
+    'activation.ts integrated with FSM store'
+  );
 
   const callsActivateAction = activationContent.includes('actions.activate()');
   validate('Activation calls FSM actions', callsActivateAction, 'FSM activation integrated');
@@ -126,15 +152,28 @@ console.log('\n📋 Dependencies:');
 try {
   const packageJson = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
   const hasXState = packageJson.dependencies && packageJson.dependencies.xstate;
-  validate('XState dependency present', !!hasXState, hasXState ? `xstate@${hasXState}` : 'XState not found');
+  validate(
+    'XState dependency present',
+    !!hasXState,
+    hasXState ? `xstate@${hasXState}` : 'XState not found'
+  );
 
   const hasXStateSvelte = packageJson.dependencies && packageJson.dependencies['@xstate/svelte'];
-  validate('@xstate/svelte dependency present', !!hasXStateSvelte, hasXStateSvelte ? `@xstate/svelte@${hasXStateSvelte}` : '@xstate/svelte not found');
+  validate(
+    '@xstate/svelte dependency present',
+    !!hasXStateSvelte,
+    hasXStateSvelte ? `@xstate/svelte@${hasXStateSvelte}` : '@xstate/svelte not found'
+  );
 
-  const svelteVersion = (packageJson.dependencies && packageJson.dependencies.svelte) || 
-                       (packageJson.devDependencies && packageJson.devDependencies.svelte);
+  const svelteVersion =
+    (packageJson.dependencies && packageJson.dependencies.svelte) ||
+    (packageJson.devDependencies && packageJson.devDependencies.svelte);
   const isSvelte5 = svelteVersion && svelteVersion.startsWith('^5');
-  validate('Svelte 5 installed', isSvelte5, svelteVersion ? `svelte@${svelteVersion}` : 'Svelte not found');
+  validate(
+    'Svelte 5 installed',
+    isSvelte5,
+    svelteVersion ? `svelte@${svelteVersion}` : 'Svelte not found'
+  );
 } catch (error) {
   validate('package.json readable', false, `Error reading package.json: ${error.message}`);
 }

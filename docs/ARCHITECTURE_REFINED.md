@@ -42,27 +42,27 @@ This document outlines the modern architectural pattern for the Azure DevOps Int
 
 ### 1. Extension Host (`src/activation.ts`)
 
--   **Application FSM**: An XState state machine (`applicationMachine.ts`) defines all possible states, transitions, and actions for the application. It manages connections, authentication, data fetching, and timer logic.
--   **State Synchronization**: In `activation.ts`, we subscribe to the application FSM. Whenever the FSM's state changes, the subscriber receives the new state.
--   **`syncState` Message**: The subscriber's primary job is to take the new state, serialize it, and post it to the webview inside a `syncState` message. This is the only message the extension sends to the webview to update its UI.
+- **Application FSM**: An XState state machine (`applicationMachine.ts`) defines all possible states, transitions, and actions for the application. It manages connections, authentication, data fetching, and timer logic.
+- **State Synchronization**: In `activation.ts`, we subscribe to the application FSM. Whenever the FSM's state changes, the subscriber receives the new state.
+- **`syncState` Message**: The subscriber's primary job is to take the new state, serialize it, and post it to the webview inside a `syncState` message. This is the only message the extension sends to the webview to update its UI.
 
 ### 2. Webview (`src/webview/`)
 
--   **Entry Point (`reactive-main.ts`)**: The webview's entry point is minimal. It:
-    1.  Mounts the root Svelte component (`ReactiveApp.svelte`).
-    2.  Sets up a single `message` listener.
-    3.  When it receives a `syncState` message, it updates the central `appState` store with the payload.
+- **Entry Point (`reactive-main.ts`)**: The webview's entry point is minimal. It:
+  1.  Mounts the root Svelte component (`ReactiveApp.svelte`).
+  2.  Sets up a single `message` listener.
+  3.  When it receives a `syncState` message, it updates the central `appState` store with the payload.
 
--   **Central Store (`store.svelte.ts`)**:
-    -   This file defines and exports a single Svelte 5 store: `appState`.
-    -   `export const appState = $state(initialState);`
-    -   This store holds the entire state object received from the extension.
+- **Central Store (`store.svelte.ts`)**:
+  - This file defines and exports a single Svelte 5 store: `appState`.
+  - `export const appState = $state(initialState);`
+  - This store holds the entire state object received from the extension.
 
--   **Svelte Components (`src/webview/components/`)**:
-    -   Components are "dumb" and purely presentational.
-    -   They import `appState` from the central store.
-    -   They use `$derived` to compute values from the state (e.g., `let workItems = $derived(appState.context.workItems ?? []);`).
-    -   When a user interacts with the UI (e.g., clicks a button), the component does **not** change its own state. Instead, it posts a message to the extension host using `vscode.postMessage({ type: 'EVENT_NAME', payload: {...} });`.
+- **Svelte Components (`src/webview/components/`)**:
+  - Components are "dumb" and purely presentational.
+  - They import `appState` from the central store.
+  - They use `$derived` to compute values from the state (e.g., `let workItems = $derived(appState.context.workItems ?? []);`).
+  - When a user interacts with the UI (e.g., clicks a button), the component does **not** change its own state. Instead, it posts a message to the extension host using `vscode.postMessage({ type: 'EVENT_NAME', payload: {...} });`.
 
 ### 3. Event Flow (User Action)
 
@@ -78,12 +78,11 @@ This document outlines the modern architectural pattern for the Azure DevOps Int
 
 ## Benefits of this Architecture
 
--   **Predictability**: State is managed in one place (the FSM), making it easy to understand and debug.
--   **Traceability**: All state changes are the result of explicit events, which can be logged and traced.
--   **Decoupling**: The UI is completely decoupled from the business logic. The webview could be replaced with a different UI framework with no changes to the extension's core logic.
--   **Simplicity**: The webview code is extremely simple. It only renders state and forwards events. There is no complex state management, context passing, or business logic in the UI layer.
--   **Testability**: Pure functions and FSM logic are highly testable. UI components are simple and require minimal testing.
-
+- **Predictability**: State is managed in one place (the FSM), making it easy to understand and debug.
+- **Traceability**: All state changes are the result of explicit events, which can be logged and traced.
+- **Decoupling**: The UI is completely decoupled from the business logic. The webview could be replaced with a different UI framework with no changes to the extension's core logic.
+- **Simplicity**: The webview code is extremely simple. It only renders state and forwards events. There is no complex state management, context passing, or business logic in the UI layer.
+- **Testability**: Pure functions and FSM logic are highly testable. UI components are simple and require minimal testing.
 
 ## Core Principles
 
@@ -121,32 +120,32 @@ This document outlines the modern architectural pattern for the Azure DevOps Int
 
 ### 1. Extension Host (State Management)
 
--   **`src/fsm/machines/applicationMachine.ts`**: The main XState machine that defines all possible states, transitions, and actions for the entire application.
--   **`src/fsm/types.ts`**: Defines the `ApplicationContext` and `ApplicationState` TypeScript interfaces, ensuring type safety between the FSM and the UI.
--   **`src/activation.ts`**:
-    -   Initializes and starts the `applicationMachine`.
-    -   **Crucially, it subscribes to every state change in the FSM.**
-    -   On every change, it sends the complete, serialized `ApplicationState` to the webview via `webview.postMessage()`.
+- **`src/fsm/machines/applicationMachine.ts`**: The main XState machine that defines all possible states, transitions, and actions for the entire application.
+- **`src/fsm/types.ts`**: Defines the `ApplicationContext` and `ApplicationState` TypeScript interfaces, ensuring type safety between the FSM and the UI.
+- **`src/activation.ts`**:
+  - Initializes and starts the `applicationMachine`.
+  - **Crucially, it subscribes to every state change in the FSM.**
+  - On every change, it sends the complete, serialized `ApplicationState` to the webview via `webview.postMessage()`.
 
 ### 2. Webview (UI Layer)
 
--   **`src/webview/store.svelte.ts`**:
-    -   Defines a single, reactive `$state` object named `appState`.
-    -   This object is initialized with a default/empty `ApplicationState`.
-    -   It is **not** exported as `const`, but as a `let`-mutable binding to allow it to be completely replaced.
+- **`src/webview/store.svelte.ts`**:
+  - Defines a single, reactive `$state` object named `appState`.
+  - This object is initialized with a default/empty `ApplicationState`.
+  - It is **not** exported as `const`, but as a `let`-mutable binding to allow it to be completely replaced.
 
--   **`src/webview/main.ts`**:
-    -   The entry point for the webview.
-    -   It sets up a message listener (`window.addEventListener('message', ...)`) to receive state updates from the extension host.
-    -   When a `syncState` message is received, it **replaces the entire `appState` object** with the new state from the message payload. This atomic update triggers Svelte 5's reactivity.
-    -   It mounts the root `App.svelte` component.
+- **`src/webview/main.ts`**:
+  - The entry point for the webview.
+  - It sets up a message listener (`window.addEventListener('message', ...)`) to receive state updates from the extension host.
+  - When a `syncState` message is received, it **replaces the entire `appState` object** with the new state from the message payload. This atomic update triggers Svelte 5's reactivity.
+  - It mounts the root `App.svelte` component.
 
--   **`src/webview/components/*.svelte`**:
-    -   All UI components live here.
-    -   They **must not** have complex internal state.
-    -   They import the `appState` from `../store.svelte.js`.
-    -   They use `$derived` for computed values based on `appState`.
-    -   Event handlers (e.g., `on:click`) **do not modify state directly**. Instead, they call a function that uses `vscode.postMessage()` to send an event (e.g., `{ type: 'START_TIMER', payload: { ... } }`) back to the extension host's FSM.
+- **`src/webview/components/*.svelte`**:
+  - All UI components live here.
+  - They **must not** have complex internal state.
+  - They import the `appState` from `../store.svelte.js`.
+  - They use `$derived` for computed values based on `appState`.
+  - Event handlers (e.g., `on:click`) **do not modify state directly**. Instead, they call a function that uses `vscode.postMessage()` to send an event (e.g., `{ type: 'START_TIMER', payload: { ... } }`) back to the extension host's FSM.
 
 ## Example Component Refactoring
 
