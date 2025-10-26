@@ -163,6 +163,7 @@ function isSetupUICompletionEvent(
 // ============================================================================
 export const applicationMachine = createMachine(
   {
+    /** @xstate-layout N4IgpgJg5mDOIC5QEMAOqA2BLAxsgLlgPYB2AdFicjoQG5gDEAggMIAqAkgGpNsCiAbQAMAXUShURWFkKlxIAB6IAbACYALGVUBmAOzrlATkMAOXQFYhh5QBoQAT0QmAjFuPvDOoc6HLlAX387NExcAmJyajpwkigGCFIwChJaIgBrJJDsPFlImixaGKgESlSciOERSvlJaVz5JQRtXy09S3VDdXNlbW1VO0cEZ21zQzJDX2cJ1RNZ3SFVQOD0bPDSMiiCooYwACddol2yTAIAM0OAWw2VsNyN-MLCWJKUonLSSuqkEFqZCIbEM1lK0LEIOl0en0BohzCZNHoOoZdKo1OY+gEgiAsrcIvc6IwACJ8VicHj8L4SKR-OTfRqqQzmMgIpGo5wmBm2ByIFGqcb6dzqIS9Pq6JZYm7vPL4hh8ABKsoA8rKKT8qfVaYDtCZGeZLEKhbpkbDtNCEDoemQpuoZrplOopsYxdjJXiCowWAqAHKevjsDhegDKAH0ADIKphEgkq37q0CNNm6bRkXQuVQzFxaoTs01GXRkExZ3rOcwaebqExOiVrKVuhhErgcFh8IMeolBgN8AMB-2e9tsJiy-hR0Q1NX-DVDOEmLTKMx6IvGXU57xM43NfQmZQLUWY53V130MiwMD4ACuqHiiSP+AImSrd02h+PZ9Q0bHNLjiGcRkZab1PVhdQOnMU1VAsTQkVGWFunZcFK1CF1HySZ9zwYD1vV9TgvXbPgQ0wvhhzEb4Y3HT8hiEBYyEFVEtQmUZjFAkYxiESwGWcLoWMFHdlgQ-ckKPE9UKYABVNgAAk+E9TgWF4Hsg1lPgAEVhI4BTCNHOpSMURBjF5bRZwsFwrDZIRdFAnkyC3KxLGUfR1C1cx4NWB8HmQwSLxE8TJOk2TsIDYSWCbLs300j9tIQYw8wMMw0Wse07NA4Zp1UCjOhMGYhQTJycXWfiUI80SJKkxtfN7AAxJgODw9TiPfEgAQiwwk2o1RzEFUsfHUUDvCTAsrC6WZlCmdlssQ1yBJfMgMCIZAIEoKAgxwUgSDAfJSFgS8VuSVIMgm88VJC6l6ondLNBTUFkSmZoplAuZ81Y2FVB8eZnFGvjxvyqaZrm2JFuW1bcg2vYDiOE58HOXYrnyg6R1q0LjrI07kxi0ynqa7xDFA5Q2q0B6LE6FMMR45zcTy9yvtm+a-pIFa1pIDbDtjcKkfOyxLvRm6uTNXROio1LzETdlYIrXd71Jj7yemynfqWmmAYiDaFFgG98EyU5Vd2AAKVqhAASgYPcXPxPbUApn6Ftl2nAcZrTGhZlH2euzGubAijxge7GjCzaw3qNt0TbIAB3ZA-l+iGg1QZAVowBhhIABQJXhmwAdT4AAhBs+GToM46YH0QxtsL4w0JMs1BYx7MTLMsfSpl8ba9KPEc0XeL9p9yfyoNgcOBgFLYWUAE1C4R8KGSTaxWuGeyNGx5wsbBMhdWszdZ83X3xeN3YwFm+wGFTjOOCzoMAFlOwDJgAHFBFhyl4Ya0s8xLw1nBfyDbNNNkhrIBYTG0e0txmALdeuVxpbx3mhL0Po-R+VwvhGqt8jr3wGt-NowwUQ820OxD+iZgRqF-toTwZd9KGGATWQ8YCIC7yVirZCVBUCwAABZEHwBsU8+AGHDyQTzVcagvZokNCaLm35BSWhTL0OE6I-7N2JjlMhSQKFUOVreMg3cjhREOKw9hnCJylh1AmbGYIrQCw-m1JMyJ8G2m6GiDQpCDzyO3pQhg1DlGwDoYw5hZAIAEGQNosipYxh+DMF7DoL81AfyAo-MR+lZhgmaNoWx-EFFOKUarFR+wNHqKOF4m8vjwq6PzDrKYPgeieE5IMYYlgCn4KGrEmYiwW4kxAZvBxu9k5KgANJBg4PwY+wYwwRgIrkuk6h5iWVZOuUwsSP6tXhFE6x6UUTxIabIuxZAklsAVBfC+eEgyZ2TkM7kHQkx+EnimHQf9TIf2LHmTw+CuglmcBoepMixrNPARsrZOyiRp2EhfXZh99k31VHfHRIykzfiCYYdiox9Af0mFRKJehbQLGeeKVuG9-ZJI7GwIMyk5RDyBSRIuhzTDjCapY+YTUmomFNNYRkP9ej0ncA6BJoCWl1j4A2JsLYFRtg7F2OSAZ+yDkGYSuqSCRhUVRE9fQOgDCmk3NOAW+C0w6BcLaVlbzKEUAgBgRgCkyoKQDGJIMid+wHKGJ0YEwxy5QvMM4eYgjBhgVmJZDotoJhDQhUTNFjS5FrJaTqvVDBj550vs2dCUCsKegDBaqYfhLRtCsHah1QpQL3KopFIwmDTI9HUJqzFgapbmwJN4zaSRSjpDvOipphad5m3mqWm8LwyjVk+GKkFZEpjdETba4sqanXch-JaLNp0hQ9ALeQot31G1ltUccDAZxLjXBrf6hRDbYhNuQC2t4bbRBxrhDqJNlgzBWn6FzTBPhv7ur8IQ6J3FfUrMSYGi4UdkBQHmiwf6dNYBBsYBGAkPKMLQM9BajQZh8yomXg3HQ6aCyWVLLOGJHQbHLNeXW7Vr6qAftiF+uWP6-0ygJN0oDUaexgfLMlGKDrdAOodYlLUCGRnzFipRyd9j61YffZ+79gNCNEjwvwUjmFyMdsQTo3+mh+Eli4o8xMg6zSli0DMP+V1fDpQfYbDFU7ONvpw1APDVsFaEZkp6JsIZhMgZPmGq+p8pJxusNapNxh+2OtAgLRkcIWRmAsN0EY7GA26ewzx-DfHZrmwYOfLgEbIEia9GBkYvIGQUWLH4cs9zGJ-wRSMowDqRkTCWS896Wr7BkC4-pwz8t1obAgBF0z5nLPRus56cNdm2AJZLO7FL3Q7SHpAi7eyQhxiIcXN7VDRW24ccw3pkLRnquQFDnEKLMXgPRo60lvUqXesZZdmyacfQctWomLMAL67yuzaq-TFRc0nhxHq7hRrclQ0tds95dbXXvA9fS0uF2Mwzr6ENAsLoUxTsvpm7h3jxmIBgD1bdiBnoyqqWPqa2BQnI1xdA2JpmdIzDTgohRMCKG7QaESpUw0kmX5tVhL4UHQXuMQ9C1DmHJ55poTzg19HVnnutbe1j223JJOLzaBoUycneiJRXKZSTqqOgFh9Vp2tOntWqN7nwfuBKiIIOx1+bUR7QQnto50c9gwgRDb-iyHmExbRmEndWIMpwQ56ogKr9XFqgQgnaJ0PzUIuZok0LZREKqmqtVsaooMW8lr0F2LvBIW1K27QV+QMPEeiBR-sDuyU7bNfAvE2RcROo9RxMNK1X+Ji4TJi1EZWyGmjCh-SbscPq1U97F3vOsGEMriJ7SSDRvkeW8Z73VUPnxKEAQY0MYIWOgNzpVNH-Rj-JLGwVsmmWx0PHzbFjxW14CexbrDXw8IoA-chZ40rnvJDI643snuybo4TGRqERKYal9IdCr+3gfuHbfF3g2XV3-f0Rbsj8Kh91h8R46QL9mRbRr8ORaVpxPA9RjIGQS9XoxQSAiBod4BvhE9T9tcEAABaMpRAAg2xSgJCHA-nBAe1PMMwd1Xob2b8BTTqZMUECiGFCYY7W3W7cgkfd+X3eDICdwavVqdg9jbgsAxAcsY5fHHwEYYYAhRMU0FMVwF1RlZoLMXwEhNDYrf2fKMQhqNEVwKybwIUe1XoJEdNUZDiMeOEAwLcaRR9dDduSaYtKmS2S7TArXCggWAJaQkwuQ8wl2XMb+YQ7oeg5jALT6YORbe3Q4COKOGHPQicYpMYQUFLNMfPBTMCXofMfmWjNMKFeXXff1T6SOaORvHeRIrtI5Zg-8anI0UCRMXkJeBkWje0NqV-LQybAOTuVRSo8KZIvmNI85bUTIoaXkRMa0Aoqne1WnShPo+Mc6IXfXMuM9D+UpBFaXPQG-TQibbTKbUrLAXVMAeYnXSVaTFiFYo3dNIwS0G9WYArBYQrBw7QpXUrFwzdbxE4s0diG5R5e1diYwIUAI51SlSyWEHwYYOifSWY0rc7BnObemL4p6cvEYFLQsWcIwLqF2HqZgzYjGIwEWXYxXfYsrcHAzSHarQ4vVJEx1cYVBTwaeYE7kEYTQR5CnTBTwLUGE0k4LeE9wmrc2JEnQPSTbdEzcToCwvSO4w0XUACbkuE8kxnebG7eaIUvoVcNE3+DEiU37RMMlJEF6dqIaJ4rvZ9OnCrCkq7aHWHVUuGM-RoTBbGReHWMCO0JEGZRKW0ZMNEVTRufLbk3ou03AlKFcI0CiTBPoP+GlC9dTIXHNKwAsKeTgiIe3R3SAL4+1eEHWXwGYYnZEU0do+6fBNBfIiwOvHvFPNPL4kZWffhEdFkWyYsEZQk54u4f-LYLgoMig60K5M3bMx5QnX+diQIQIIAA */
     id: 'application',
     types: {} as {
       context: ApplicationContext;
@@ -658,6 +659,14 @@ export const applicationMachine = createMachine(
       storeDeviceCodeSession: assign(({ event }) => {
         if (event.type !== 'DEVICE_CODE_SESSION_STARTED') return {};
         const expiresAt = event.startedAt + event.expiresInSeconds * 1000;
+
+        console.log('[AzureDevOpsInt][FSM][APPLICATION] Storing device code session', {
+          connectionId: event.connectionId,
+          userCode: event.userCode,
+          expiresInSeconds: event.expiresInSeconds,
+          expiresAt,
+        });
+
         return {
           deviceCodeSession: {
             connectionId: event.connectionId,
@@ -669,8 +678,18 @@ export const applicationMachine = createMachine(
           },
         };
       }),
-      clearDeviceCodeSession: assign(({ event }) => {
+      clearDeviceCodeSession: assign(({ event, context }) => {
         if (event.type !== 'AUTHENTICATION_SUCCESS') return {};
+
+        console.log(
+          '[AzureDevOpsInt][FSM][APPLICATION] Clearing device code session after authentication success',
+          {
+            connectionId: event.connectionId,
+            hadDeviceCodeSession: !!context.deviceCodeSession,
+            deviceCodeSessionConnectionId: context.deviceCodeSession?.connectionId,
+          }
+        );
+
         return { deviceCodeSession: undefined };
       }),
       clearDeviceCodeSessionOnFailure: assign(({ event }) => {

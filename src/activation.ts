@@ -562,10 +562,74 @@ async function updateAuthStatusBar(): Promise<void> {
 
   try {
     const connectionLabel = describeConnection(state.config);
-    authStatusBarItem.text = '$(warning) Entra Auth Not Available';
-    authStatusBarItem.tooltip = `FSM authentication implementation needed for ${connectionLabel}`;
-    authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-    authStatusBarItem.show();
+
+    // Get FSM connection state to determine actual auth status
+    const actor = getApplicationActor();
+    const snapshot = actor?.getSnapshot?.();
+    const fsmConnectionStates = snapshot?.context?.connectionStates;
+    const fsmConnectionState = fsmConnectionStates?.get(activeConnectionId);
+
+    // Check multiple indicators of connection status
+    const isConnected = Boolean(
+      fsmConnectionState?.client ||
+        fsmConnectionState?.provider ||
+        (typeof fsmConnectionState?.isConnected === 'boolean' && fsmConnectionState.isConnected) ||
+        // Also check legacy connectionStates map for connected clients/providers
+        (state.client && state.provider)
+    );
+
+    const hasAuthFailure = Boolean(
+      fsmConnectionState?.reauthInProgress ||
+        fsmConnectionState?.lastError ||
+        state.reauthInProgress
+    );
+
+    // Check if there's an active device code session for this connection
+    const hasActiveDeviceCode = Boolean(
+      snapshot?.context?.deviceCodeSession?.connectionId === activeConnectionId &&
+        snapshot?.context?.deviceCodeSession?.expiresAt > Date.now()
+    );
+
+    // Only log status check if debug logging is enabled to prevent excessive logging
+    if (shouldLogDebug()) {
+      console.log('[AzureDevOpsInt][updateAuthStatusBar] Status check', {
+        activeConnectionId,
+        isConnected,
+        hasAuthFailure,
+        hasActiveDeviceCode,
+        hasClient: !!state.client,
+        hasProvider: !!state.provider,
+        fsmIsConnected: fsmConnectionState?.isConnected,
+        fsmClient: !!fsmConnectionState?.client,
+        fsmProvider: !!fsmConnectionState?.provider,
+      });
+    }
+
+    if (isConnected && !hasAuthFailure && !hasActiveDeviceCode) {
+      // Show successful Entra auth status
+      authStatusBarItem.text = '$(pass) Entra: Connected';
+      authStatusBarItem.tooltip = `Microsoft Entra ID authentication active for ${connectionLabel}`;
+      authStatusBarItem.backgroundColor = undefined; // Clear warning background
+      authStatusBarItem.show();
+    } else if (hasAuthFailure) {
+      // Show auth failure status
+      authStatusBarItem.text = '$(error) Entra: Auth Failed';
+      authStatusBarItem.tooltip = `Authentication failed for ${connectionLabel}. Click to retry.`;
+      authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+      authStatusBarItem.show();
+    } else if (hasActiveDeviceCode) {
+      // Show device code flow in progress
+      authStatusBarItem.text = '$(sync~spin) Entra: Device Code Active';
+      authStatusBarItem.tooltip = `Device code authentication in progress for ${connectionLabel}`;
+      authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+      authStatusBarItem.show();
+    } else {
+      // Show sign-in required status
+      authStatusBarItem.text = '$(warning) Entra: Sign In Required';
+      authStatusBarItem.tooltip = `Sign in required for ${connectionLabel}`;
+      authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+      authStatusBarItem.show();
+    }
   } catch (error) {
     console.error('[AzureDevOpsInt] [updateAuthStatusBar] Error updating auth status:', error);
     authStatusBarItem.hide();
@@ -1823,17 +1887,21 @@ export async function activate(context: vscode.ExtensionContext) {
           matches, // Include pre-computed state matches
         };
 
-        console.log('[AzureDevOpsInt][activation] Sending state to webview:', {
-          value: snapshot.value,
-          matchesActive: matches.active,
-          matchesActiveReady: matches['active.ready'],
-          matchesActivating: matches.activating,
-        });
+        // Reduce excessive logging - only log state changes if debug logging is enabled
+        if (shouldLogDebug()) {
+          console.log('[AzureDevOpsInt][activation] Sending state to webview:', {
+            value: snapshot.value,
+            matchesActive: matches.active,
+            matchesActiveReady: matches['active.ready'],
+            matchesActivating: matches.activating,
+          });
+        }
 
         panel.webview.postMessage({
           type: 'syncState',
           payload: serializableState,
         });
+
         // If activeQuery changed, persist and trigger provider refresh
         try {
           const snapCtx = snapshot.context;
@@ -2385,15 +2453,18 @@ function getSerializableContext(context: any): Record<string, any> {
   }
 
   // Debug: log what we're serializing
-  console.log('[AzureDevOpsInt][getSerializableContext] Original context:', {
-    hasConnections: !!context.connections,
-    connectionsLength: context.connections?.length,
-    connectionsType: typeof context.connections,
-    connectionsIsArray: Array.isArray(context.connections),
-    connectionsValue: context.connections,
-    activeConnectionId: context.activeConnectionId,
-    isActivated: context.isActivated,
-  });
+  // Only log context serialization if debug logging is enabled
+  if (shouldLogDebug()) {
+    console.log('[AzureDevOpsInt][getSerializableContext] Original context:', {
+      hasConnections: !!context.connections,
+      connectionsLength: context.connections?.length,
+      connectionsType: typeof context.connections,
+      connectionsIsArray: Array.isArray(context.connections),
+      connectionsValue: context.connections,
+      activeConnectionId: context.activeConnectionId,
+      isActivated: context.isActivated,
+    });
+  }
 
   // Extract only serializable properties, excluding VS Code API objects and actors
   const serialized = {
@@ -2426,11 +2497,14 @@ function getSerializableContext(context: any): Record<string, any> {
       : undefined,
   };
 
-  console.log('[AzureDevOpsInt][getSerializableContext] Serialized context:', {
-    connectionsLength: serialized.connections.length,
-    activeConnectionId: serialized.activeConnectionId,
-    hasDeviceCodeSession: !!serialized.deviceCodeSession,
-  });
+  // Only log serialization if debug logging is enabled to prevent log spam
+  if (shouldLogDebug()) {
+    console.log('[AzureDevOpsInt][getSerializableContext] Serialized context:', {
+      connectionsLength: serialized.connections.length,
+      activeConnectionId: serialized.activeConnectionId,
+      hasDeviceCodeSession: !!serialized.deviceCodeSession,
+    });
+  }
 
   return serialized;
 }
