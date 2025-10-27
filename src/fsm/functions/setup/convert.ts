@@ -38,15 +38,29 @@ export async function convertConnectionToEntra(
 
   const newConnections = connections.map((c) => {
     if (c.id === choice.connection.id) {
-      return { ...c, authMethod: 'entra' as const };
+      // Remove PAT-specific fields and set to Entra
+      const { patKey, ...rest } = c;
+      return { ...rest, authMethod: 'entra' as const };
     }
     return c;
   });
 
   await saveFn(newConnections);
-  await ensureActiveFn(context, choice.connection.id, { refresh: true });
 
+  // Inform user and trigger device code flow
   vscode.window.showInformationMessage(
-    `Connection "${choice.label}" converted to use Microsoft Entra ID.`
+    `Connection "${choice.label}" converted to Microsoft Entra ID. Starting sign-in flow...`
   );
+
+  // Trigger connection refresh which will start device code flow for Entra
+  await ensureActiveFn(context, choice.connection.id, { refresh: true, interactive: true });
+
+  // Also dispatch sign-in event to trigger device code UI
+  const { sendApplicationStoreEvent } = await import('../../services/extensionHostBridge.js');
+  sendApplicationStoreEvent({
+    type: 'SIGN_IN_ENTRA',
+    connectionId: choice.connection.id,
+  });
+
+  console.log('[convertConnectionToEntra] Triggered Entra sign-in for:', choice.connection.id);
 }
