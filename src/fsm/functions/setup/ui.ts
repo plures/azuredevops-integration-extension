@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { ProjectConnection } from '../../machines/applicationMachine.js';
 
 export type SetupAction =
   | 'add'
@@ -8,27 +9,52 @@ export type SetupAction =
   | 'entraSignOut'
   | 'convertToEntra';
 
-export async function showSetupMenu(): Promise<SetupAction | undefined> {
-  const action = await vscode.window.showQuickPick(
-    [
-      { label: 'Add new connection', action: 'add' as SetupAction },
-      { label: 'Manage existing connections', action: 'manage' as SetupAction },
-      { label: 'Switch active connection', action: 'switch' as SetupAction },
-      {
-        label: '$(sign-in) Sign in with Microsoft Entra ID',
-        action: 'entraSignIn' as SetupAction,
-      },
-      {
-        label: '$(sign-out) Sign out from Microsoft Entra ID',
-        action: 'entraSignOut' as SetupAction,
-      },
-      {
-        label: 'Convert PAT connection to Entra ID',
-        action: 'convertToEntra' as SetupAction,
-      },
-    ],
-    { placeHolder: 'What would you like to do?' }
-  );
+export interface ShowSetupMenuOptions {
+  connections?: ProjectConnection[];
+  activeConnectionId?: string;
+}
+
+export async function showSetupMenu(
+  options: ShowSetupMenuOptions = {}
+): Promise<SetupAction | undefined> {
+  const { connections = [], activeConnectionId } = options;
+
+  // Determine active connection's auth method
+  const activeConnection = connections.find((c) => c.id === activeConnectionId);
+  const activeAuthMethod = activeConnection?.authMethod || 'pat';
+  const hasPatConnections = connections.some((c) => c.authMethod !== 'entra');
+  const hasEntraConnections = connections.some((c) => c.authMethod === 'entra');
+
+  // Build menu items based on context
+  const menuItems: Array<{ label: string; action: SetupAction }> = [
+    { label: 'Add new connection', action: 'add' as SetupAction },
+    { label: 'Manage existing connections', action: 'manage' as SetupAction },
+    { label: 'Switch active connection', action: 'switch' as SetupAction },
+  ];
+
+  // Add Entra-specific options only if active connection is Entra
+  if (activeAuthMethod === 'entra') {
+    menuItems.push({
+      label: '$(sign-in) Sign in with Microsoft Entra ID',
+      action: 'entraSignIn' as SetupAction,
+    });
+    menuItems.push({
+      label: '$(sign-out) Sign out from Microsoft Entra ID',
+      action: 'entraSignOut' as SetupAction,
+    });
+  }
+
+  // Add convert option only if there are PAT connections
+  if (hasPatConnections) {
+    menuItems.push({
+      label: 'Convert PAT connection to Entra ID',
+      action: 'convertToEntra' as SetupAction,
+    });
+  }
+
+  const action = await vscode.window.showQuickPick(menuItems, {
+    placeHolder: 'What would you like to do?',
+  });
 
   return action?.action;
 }

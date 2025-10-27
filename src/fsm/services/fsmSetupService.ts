@@ -43,6 +43,9 @@ export class FSMSetupService {
           'azureDevOpsInt.connections',
           []
         ),
+        activeConnectionId: this.context.globalState.get<string>(
+          'azureDevOpsInt.activeConnectionId'
+        ),
       } as any,
     });
 

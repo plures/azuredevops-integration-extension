@@ -47,6 +47,7 @@ export const setupMachine = createMachine(
     context: ({ input }): SetupMachineContext => ({
       extensionContext: (input as any)?.extensionContext,
       connections: (input as any)?.existingConnections || [],
+      activeConnectionId: (input as any)?.activeConnectionId,
       saveConnections: async () => {},
       ensureActiveConnection: async () => {},
     }),
@@ -65,6 +66,10 @@ export const setupMachine = createMachine(
         invoke: {
           id: 'showSetupMenu',
           src: 'showSetupMenu',
+          input: ({ context }) => ({
+            connections: context.connections,
+            activeConnectionId: context.activeConnectionId,
+          }),
           onDone: {
             target: 'handlingAction',
             actions: assign({
@@ -213,7 +218,12 @@ export const setupMachine = createMachine(
       },
     },
     actors: {
-      showSetupMenu: fromPromise(showSetupMenu),
+      showSetupMenu: fromPromise(async ({ input }: { input: any }) => {
+        return showSetupMenu({
+          connections: input?.connections || [],
+          activeConnectionId: input?.activeConnectionId,
+        });
+      }),
     },
     guards: {
       isAdd: ({ context }) => context.selectedAction === 'add',
