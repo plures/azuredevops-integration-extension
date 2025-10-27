@@ -77,44 +77,9 @@ export async function convertConnectionToEntra(
   }
 
   try {
-    console.log('[convertConnectionToEntra] Starting Entra device code flow...');
+    console.log('[convertConnectionToEntra] Converting and saving connection...');
 
-    // Start device code flow FIRST, before saving
-    vscode.window.showInformationMessage(
-      `Starting Microsoft Entra sign-in for "${connectionLabel}"...`
-    );
-
-    // Dispatch sign-in event to trigger device code flow
-    const { sendApplicationStoreEvent } = await import('../../services/extensionHostBridge.js');
-    sendApplicationStoreEvent({
-      type: 'SIGN_IN_ENTRA',
-      connectionId: selectedConnection.id,
-    });
-
-    // Wait for device code session to start
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // Check if device code session started
-    const { getApplicationStoreActor } = await import('../../services/extensionHostBridge.js');
-    const actor = getApplicationStoreActor();
-    const snapshot = (actor as any)?.getSnapshot?.();
-    const deviceCodeSession = snapshot?.context?.deviceCodeSession;
-
-    if (!deviceCodeSession || deviceCodeSession.connectionId !== selectedConnection.id) {
-      // Device code didn't start - abort conversion
-      console.warn(
-        '[convertConnectionToEntra] ⚠️  Device code flow did not start, aborting conversion'
-      );
-      vscode.window.showWarningMessage(
-        `Could not start Entra sign-in flow. Connection remains as PAT.\n\n` +
-          `Please ensure you have network connectivity and try again.`
-      );
-      return;
-    }
-
-    console.log('[convertConnectionToEntra] ✅ Device code session started successfully');
-
-    // NOW save the conversion since device code is active
+    // Save the conversion FIRST so connection FSM sees it as Entra
     const newConnections = connections.map((c) => {
       if (c.id === selectedConnection.id) {
         // Remove PAT-specific fields and set to Entra
@@ -130,24 +95,42 @@ export async function convertConnectionToEntra(
       return c;
     });
 
-    console.log('[convertConnectionToEntra] Device code active, saving conversion...');
+    console.log('[convertConnectionToEntra] Saving converted connection...');
     await saveFn(newConnections);
-    console.log('[convertConnectionToEntra] ✅ Conversion saved');
+    console.log('[convertConnectionToEntra] ✅ Connection converted to Entra and saved');
+
+    // Now trigger connection with interactive auth - FSM will see it's Entra and start device code
+    console.log(
+      '[convertConnectionToEntra] Triggering connection refresh with interactive=true...'
+    );
+    await ensureActiveFn(context, selectedConnection.id, { refresh: true, interactive: true });
+
+    console.log('[convertConnectionToEntra] ✅ Connection refresh triggered');
 
     vscode.window.showInformationMessage(
-      `Device code ready! Complete sign-in in your browser to finish conversion.\n\n` +
-        `If sign-in fails, you can revert by editing the connection and choosing PAT.`,
-      'OK'
+      `Connection converted to Microsoft Entra ID! Complete device code sign-in in your browser.\n\n` +
+        `If sign-in fails, you can edit the connection and switch back to PAT.`
     );
 
-    console.log(
-      '[convertConnectionToEntra] ✅ Conversion complete, waiting for user to authenticate'
-    );
+    console.log('[convertConnectionToEntra] ✅ Conversion complete');
   } catch (error) {
     console.error('[convertConnectionToEntra] ❌ Error during conversion:', error);
-    vscode.window.showErrorMessage(
-      `Failed to convert connection: ${error instanceof Error ? error.message : String(error)}\n\n` +
-        `Connection remains as PAT.`
-    );
+
+    // Try to rollback
+    try {
+      console.log('[convertConnectionToEntra] Attempting rollback...');
+      await saveFn(connections); // Restore original
+      console.log('[convertConnectionToEntra] ✅ Rolled back to PAT');
+      vscode.window.showErrorMessage(
+        `Conversion failed and was rolled back: ${error instanceof Error ? error.message : String(error)}\n\n` +
+          `Connection remains as PAT.`
+      );
+    } catch (rollbackError) {
+      console.error('[convertConnectionToEntra] ❌ Rollback failed:', rollbackError);
+      vscode.window.showErrorMessage(
+        `Conversion failed: ${error instanceof Error ? error.message : String(error)}\n\n` +
+          `Please manually edit the connection in settings if needed.`
+      );
+    }
   }
 }
