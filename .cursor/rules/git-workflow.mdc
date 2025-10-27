@@ -1,0 +1,324 @@
+# Git Workflow Instructions for AI Assistant
+
+## Critical Rules
+
+1. **NEVER commit directly to `main`**
+   - Always create a feature/fix branch first
+   - Format: `<type>/<issue>-<description>`
+   - Examples: `feat/123-action-buttons`, `fix/456-css-loading`
+
+2. **Always use Pull Requests**
+   - Create PR after implementing feature
+   - Wait for user approval before merging
+   - Use squash merge to keep history clean
+
+3. **Frequent commits on feature branch**
+   - Commit often during development (this is good!)
+   - Small, focused commits
+   - Will be squashed before merging
+
+---
+
+## Workflow for AI Assistant
+
+### Starting New Work
+
+```
+STEP 1: Create feature branch
+- Ask user for task/issue number if not provided
+- Determine type: feat, fix, refactor, docs, chore
+- Create branch: git checkout -b <type>/<issue>-<description>
+- Inform user: "Created branch feat/123-action-buttons"
+
+STEP 2: Implement changes
+- Make changes as requested
+- Commit frequently with descriptive messages
+- Build and test after each commit
+
+STEP 3: Create Pull Request
+- After feature complete, create PR
+- Include description of changes
+- List what was tested
+- Ask user to review and approve
+
+STEP 4: Wait for approval
+- User will test the PR
+- User will approve or request changes
+- DO NOT merge without explicit user approval
+
+STEP 5: Merge (only after approval)
+- Use squash merge: git merge --squash <branch>
+- Delete feature branch
+- Return to main for next work
+```
+
+---
+
+## Branch Naming
+
+### Format
+```
+<type>/<issue-number>-<kebab-case-description>
+```
+
+### Types
+- `feat/` - New features
+- `fix/` - Bug fixes  
+- `refactor/` - Code improvements
+- `docs/` - Documentation changes
+- `chore/` - Build/tooling updates
+- `test/` - Test additions
+
+### Examples
+```
+feat/action-buttons
+fix/pat-auth-broken
+refactor/fsm-actions
+docs/migration-guide
+chore/update-eslint
+```
+
+---
+
+## Commit Messages on Feature Branch
+
+### During Development (before PR)
+
+Can be informal and frequent:
+```
+git commit -m "wip: add timer UI structure"
+git commit -m "feat: wire timer to FSM"
+git commit -m "fix: handle missing workItemId"
+git commit -m "refactor: extract helper function"
+git commit -m "test: verify timer starts"
+```
+
+### Final Squash Commit (PR merge)
+
+Must be clean and descriptive:
+```
+feat: implement work item action buttons
+
+Add timer, edit, branch, and open actions to work item cards:
+- Timer: Starts timer with UI display in card
+- Edit: In-VSCode field editing via quick pick
+- Branch: Creates branch with work item linking
+- Open: Opens in Azure DevOps browser
+
+Tested:
+- All buttons trigger correct actions
+- Timer displays in status bar and card
+- Edit updates work item fields
+- Branch links via comment
+
+Fixes #123
+```
+
+---
+
+## Pull Request Process
+
+### Creating PR
+
+```bash
+# Push feature branch
+git push origin feat/123-action-buttons
+
+# Create PR (via gh CLI or GitHub UI)
+gh pr create \
+  --title "feat: implement work item action buttons" \
+  --body "$(cat PR_DESCRIPTION.md)"
+```
+
+### PR Description Template
+
+```markdown
+## Summary
+One-paragraph description of the change
+
+## Changes
+- Bullet list of key changes
+- What was added/fixed/changed
+
+## Testing Performed
+- [x] Extension activates
+- [x] Feature X works
+- [x] No regressions
+
+## Screenshots
+(if UI changes)
+
+## Checklist
+- [x] Builds without errors
+- [x] No lint errors
+- [x] Documentation updated
+- [x] Manual testing complete
+
+## Related Issues
+Fixes #123
+```
+
+### AI Assistant PR Actions
+
+1. **Create PR** after feature complete
+2. **Inform user**: "PR created: #45. Please review and test."
+3. **WAIT** for user approval
+4. **Do NOT merge** without explicit "merge this PR" instruction
+5. **After approval**: Squash merge, delete branch, return to main
+
+---
+
+## What AI Should Do
+
+### ✅ DO:
+
+1. **Ask before starting**: "Should I create a branch for this work?"
+2. **Create feature branch**: `git checkout -b feat/my-feature`
+3. **Commit frequently**: Small, incremental commits
+4. **Create PR when done**: With description and testing notes
+5. **Wait for approval**: Don't merge without user OK
+6. **Squash merge**: Keep main history clean
+7. **Delete branch**: After successful merge
+
+### ❌ DON'T:
+
+1. **Don't commit to main directly**
+2. **Don't force push to main or shared branches**
+3. **Don't merge without approval**
+4. **Don't create PRs without description**
+5. **Don't skip testing notes in PR**
+6. **Don't leave feature branches unmerged**
+
+---
+
+## Special Cases
+
+### Hotfix (Critical Bug in Production)
+
+```bash
+# Create hotfix branch from main
+git checkout main
+git checkout -b hotfix/critical-bug
+
+# Fix quickly
+git commit -m "hotfix: fix critical auth failure"
+
+# Create emergency PR
+gh pr create --title "🚨 HOTFIX: Fix critical auth failure" --label urgent
+
+# After approval, merge immediately
+# This is the ONLY case where fast merge is OK
+```
+
+### Documentation-Only Changes
+
+```bash
+# Still use branch + PR even for docs
+git checkout -b docs/update-readme
+
+git commit -m "docs: update installation instructions"
+
+gh pr create --title "docs: update README with new setup steps"
+
+# Can be merged faster but still needs approval
+```
+
+---
+
+## Workflow Diagram
+
+```
+main (protected)
+  │
+  ├─→ feat/123-action-buttons
+  │     │
+  │     ├─ commit: wip structure
+  │     ├─ commit: implement logic  
+  │     ├─ commit: add tests
+  │     │
+  │     └─→ PR #45 → Review → Approve → Squash Merge
+  │                                            │
+  │     ┌──────────────────────────────────────┘
+  │     │
+  │     ├─ SQUASHED: "feat: implement action buttons (#45)"
+  │     │
+  ├─→ fix/456-css-bug
+  │     │
+  │     ├─ commit: fix CSS
+  │     ├─ commit: add fallback
+  │     │
+  │     └─→ PR #46 → Review → Approve → Squash Merge
+  │                                            │
+  │     ┌──────────────────────────────────────┘
+  │     │
+  │     ├─ SQUASHED: "fix: load correct CSS file (#46)"
+  │     │
+  └─→ (continue...)
+```
+
+---
+
+## Migration from Current State
+
+### Current Issue
+We've been committing directly to main with 30+ commits
+
+### Solution
+Going forward:
+1. ✅ Use feature branches
+2. ✅ Create PRs
+3. ✅ Squash merge
+
+Optional cleanup (can skip):
+- Review recent commits
+- Create git tags for stable points
+- Document major changes
+
+---
+
+## AI Response Template
+
+When starting new work:
+
+```
+I'll implement [feature X]. Let me create a feature branch first:
+
+Creating branch: feat/[description]
+[creates branch]
+
+Now I'll:
+1. [Step 1]
+2. [Step 2]  
+3. [Step 3]
+
+I'll commit frequently and create a PR when complete for your review.
+```
+
+When work is complete:
+
+```
+✅ Implementation complete!
+
+Created PR #45: "feat: implement action buttons"
+
+Please review and test:
+1. Checkout the branch: git checkout feat/123-action-buttons
+2. Build: npm run build
+3. Test the features
+4. If approved, I'll squash and merge
+
+Changes:
+- [List key changes]
+
+Let me know if you'd like any adjustments!
+```
+
+---
+
+**Key Takeaway**: Feature branch → Frequent commits → PR → User review → Squash merge → Clean main
+
+This gives you control, keeps history clean, and allows testing before integration.
+
+---
+
+*End of Git Workflow Instructions*
