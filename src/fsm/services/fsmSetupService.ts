@@ -35,17 +35,28 @@ export class FSMSetupService {
   }
 
   async startSetup(options?: { skipInitialChoice?: boolean }): Promise<FSMSetupResult> {
+    // Load connections from workspace configuration (not globalState!)
+    const settings = vscode.workspace.getConfiguration('azureDevOpsIntegration');
+    const existingConnections = settings.get<ProjectConnection[]>('connections', []);
+    const activeConnectionId = this.context.globalState.get<string>(
+      'azureDevOpsInt.activeConnectionId'
+    );
+
+    console.log('[FSMSetupService] Starting setup with:', {
+      connectionsCount: existingConnections.length,
+      activeConnectionId,
+      connectionAuthMethods: existingConnections.map((c) => ({
+        id: c.id,
+        authMethod: c.authMethod,
+      })),
+    });
+
     // Create and start the setup machine
     const actor = createActor(setupMachine, {
       input: {
         extensionContext: this.context,
-        existingConnections: this.context.globalState.get<ProjectConnection[]>(
-          'azureDevOpsInt.connections',
-          []
-        ),
-        activeConnectionId: this.context.globalState.get<string>(
-          'azureDevOpsInt.activeConnectionId'
-        ),
+        existingConnections,
+        activeConnectionId,
       } as any,
     });
 
