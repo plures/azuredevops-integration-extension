@@ -948,13 +948,38 @@ export class AzureDevOpsIntClient {
 
           if (simpleRefs.length === 0) {
             console.log('[azureDevOpsInt][GETWI] No work items in project at all.');
-          } else {
-            console.log(
-              '[azureDevOpsInt][GETWI] Work items exist, but original query has no matches.'
-            );
+            return [];
           }
 
-          return [];
+          // Work items exist - fetch and return them instead of returning empty
+          console.log(
+            '[azureDevOpsInt][GETWI] Original query matched nothing, fetching simple query results...'
+          );
+
+          // Use simpleRefs instead of refs to fetch the work items
+          const simpleIds = simpleRefs
+            .map((w: any) => w.id)
+            .filter((id: any) => id != null)
+            .join(',');
+          if (!simpleIds) {
+            console.log('[azureDevOpsInt][GETWI] No valid IDs in simple query results.');
+            return [];
+          }
+
+          console.log('[azureDevOpsInt][GETWI] Expanding simple query IDs:', simpleIds);
+          const fallbackItemsResp = await this.axios.get(
+            `/wit/workitems?ids=${simpleIds}&$expand=all&api-version=7.0`
+          );
+          const fallbackRawItems: any[] = fallbackItemsResp.data?.value || [];
+          const fallbackItems: WorkItem[] = this._mapRawWorkItems(fallbackRawItems);
+
+          console.log(
+            `[azureDevOpsInt][GETWI] Returning ${fallbackItems.length} work items from simple query fallback.`
+          );
+
+          // Cache the fallback result
+          workItemCache.setWorkItems(cacheKey, fallbackItems);
+          return fallbackItems;
         }
 
         const ids = refs.map((w: any) => w.id).join(',');
