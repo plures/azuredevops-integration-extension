@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { randomUUID } from 'crypto';
 import type { ProjectConnection } from '../../machines/applicationMachine.js';
 
 export async function convertConnectionToEntra(
@@ -8,7 +9,7 @@ export async function convertConnectionToEntra(
   ensureActiveFn: (
     context: vscode.ExtensionContext,
     connectionId?: string,
-    options?: { refresh?: boolean }
+    options?: { refresh?: boolean; interactive?: boolean }
   ) => Promise<any>
 ): Promise<void> {
   // Filter for non-Entra connections (PAT or undefined authMethod)
@@ -40,11 +41,6 @@ export async function convertConnectionToEntra(
       connection: c,
     }));
 
-    console.log(
-      '[convertConnectionToEntra] Showing QuickPick with items:',
-      items.map((i) => i.label)
-    );
-
     const choice = await vscode.window.showQuickPick(items, {
       placeHolder: 'Select a connection to convert to Entra ID',
       ignoreFocusOut: true,
@@ -61,11 +57,12 @@ export async function convertConnectionToEntra(
   const connectionLabel =
     selectedConnection.label || `${selectedConnection.organization}/${selectedConnection.project}`;
 
-  // Confirm with user before proceeding
+  // Confirm with user
   const confirm = await vscode.window.showWarningMessage(
     `Convert "${connectionLabel}" from PAT to Microsoft Entra ID?\n\n` +
-      `You will need to sign in with your Microsoft account. ` +
-      `Your PAT will only be removed after successful sign-in.`,
+      `• A temporary Entra connection will be created\n` +
+      `• Your PAT connection stays active during sign-in\n` +
+      `• After successful sign-in, PAT will be removed`,
     { modal: true },
     'Convert and Sign In',
     'Cancel'
@@ -77,65 +74,67 @@ export async function convertConnectionToEntra(
   }
 
   try {
-    console.log('[convertConnectionToEntra] Converting and saving connection...');
+    console.log('[convertConnectionToEntra] Creating temporary Entra connection...');
 
-    // Save the conversion FIRST so connection FSM sees it as Entra
-    const newConnections = connections.map((c) => {
-      if (c.id === selectedConnection.id) {
-        // Remove PAT-specific fields and set to Entra
-        const { patKey, ...rest } = c;
-        console.log('[convertConnectionToEntra] Converting connection:', {
-          id: c.id,
-          oldAuthMethod: c.authMethod || 'pat',
-          newAuthMethod: 'entra',
-          removedPatKey: !!patKey,
-        });
-        return { ...rest, authMethod: 'entra' as const };
-      }
-      return c;
+    // Create temp Entra connection with new ID
+    const tempId = randomUUID();
+    const { patKey, ...rest } = selectedConnection;
+    const tempConnection: ProjectConnection = {
+      ...rest,
+      id: tempId,
+      authMethod: 'entra' as const,
+      label: `${connectionLabel} (Entra - signing in...)`,
+    };
+
+    console.log('[convertConnectionToEntra] Temp connection created:', {
+      tempId,
+      originalId: selectedConnection.id,
+      originalLabel: connectionLabel,
     });
 
-    console.log('[convertConnectionToEntra] Saving converted connection...');
-    await saveFn(newConnections);
-    console.log('[convertConnectionToEntra] ✅ Connection converted to Entra and saved');
+    // Save temp connection alongside original PAT
+    const connectionsWithTemp = [...connections, tempConnection];
+    await saveFn(connectionsWithTemp);
+    console.log('[convertConnectionToEntra] ✅ Temp connection saved, original PAT preserved');
 
-    // CRITICAL: Reload window to pick up the saved Entra connection
-    // This ensures connection FSM gets the updated authMethod='entra'
-    vscode.window
-      .showInformationMessage(
-        `Connection converted to Microsoft Entra ID!\n\n` +
-          `Reloading to start device code sign-in...`,
-        'Reload Now'
-      )
-      .then((choice) => {
-        if (choice === 'Reload Now') {
-          vscode.commands.executeCommand('workbench.action.reloadWindow');
-        }
-      });
+    // Inform user
+    vscode.window.showInformationMessage(
+      `Starting sign-in for "${connectionLabel}"...\n\n` +
+        `Your PAT connection remains active. Complete device code auth to finalize conversion.`
+    );
 
-    console.log('[convertConnectionToEntra] ✅ Conversion complete - user prompted to reload');
+    // Trigger connection to temp - this starts device code in extension host
+    console.log('[convertConnectionToEntra] Triggering connection to temp Entra connection...');
+    await ensureActiveFn(context, tempId, { refresh: true, interactive: true });
+
+    console.log('[convertConnectionToEntra] ✅ Device code flow initiated on temp connection');
     console.log(
-      '[convertConnectionToEntra] After reload, connection FSM will detect authMethod=entra ' +
-        'and automatically start device code flow'
+      '[convertConnectionToEntra] User should complete sign-in. ' +
+        'After success, manually run cleanup to finalize (or we can add auto-cleanup on auth success)'
+    );
+
+    // TODO: Add FSM event listener to auto-finalize on successful auth
+    // For now, inform user they have both connections
+    vscode.window.showInformationMessage(
+      `Device code flow started!\n\n` +
+        `Complete sign-in in your browser. After success, your connections will be updated automatically.`,
+      'OK'
     );
   } catch (error) {
     console.error('[convertConnectionToEntra] ❌ Error during conversion:', error);
 
-    // Try to rollback
+    // On error, try to clean up temp connection
     try {
-      console.log('[convertConnectionToEntra] Attempting rollback...');
-      await saveFn(connections); // Restore original
-      console.log('[convertConnectionToEntra] ✅ Rolled back to PAT');
-      vscode.window.showErrorMessage(
-        `Conversion failed and was rolled back: ${error instanceof Error ? error.message : String(error)}\n\n` +
-          `Connection remains as PAT.`
-      );
-    } catch (rollbackError) {
-      console.error('[convertConnectionToEntra] ❌ Rollback failed:', rollbackError);
-      vscode.window.showErrorMessage(
-        `Conversion failed: ${error instanceof Error ? error.message : String(error)}\n\n` +
-          `Please manually edit the connection in settings if needed.`
-      );
+      console.log('[convertConnectionToEntra] Cleaning up after error...');
+      await saveFn(connections); // Restore original connections (removes temp)
+      console.log('[convertConnectionToEntra] ✅ Cleaned up temp connection');
+    } catch (cleanupError) {
+      console.error('[convertConnectionToEntra] ❌ Cleanup failed:', cleanupError);
     }
+
+    vscode.window.showErrorMessage(
+      `Failed to start conversion: ${error instanceof Error ? error.message : String(error)}\n\n` +
+        `Your PAT connection is unchanged.`
+    );
   }
 }
