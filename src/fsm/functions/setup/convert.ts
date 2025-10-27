@@ -65,6 +65,10 @@ export async function convertConnectionToEntra(
       `${selectedConnection.organization}/${selectedConnection.project}`,
   });
 
+  // Prepare connection label for messages
+  const connectionLabel =
+    selectedConnection.label || `${selectedConnection.organization}/${selectedConnection.project}`;
+
   try {
     const newConnections = connections.map((c) => {
       if (c.id === selectedConnection.id) {
