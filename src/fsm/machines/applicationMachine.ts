@@ -763,27 +763,99 @@ export const applicationMachine = createMachine(
         if (event.type !== 'SET_QUERY') return {};
         return { activeQuery: event.query };
       }),
-      handleStartTimer: ({ event }) => {
+      handleStartTimer: ({ event, context }) => {
         if (event.type !== 'START_TIMER_INTERACTIVE') return;
-        // Action is just a marker - actual command execution happens in activation.ts
-        // via dispatchApplicationEvent which has access to vscode
-        console.log('[FSM] handleStartTimer event received, command will be dispatched');
+
+        // FSM-managed timer action
+        const { timerActor, pendingWorkItems } = context;
+        const workItemId = event.workItemId;
+
+        if (!workItemId) {
+          console.warn('[FSM] handleStartTimer: No workItemId provided');
+          return;
+        }
+
+        // Find work item to get title
+        const workItems = pendingWorkItems?.workItems || [];
+        const item = workItems.find((wi: any) => wi.id === workItemId);
+        const title =
+          event.workItemTitle || item?.fields?.['System.Title'] || `Work Item ${workItemId}`;
+
+        console.log('[FSM] Starting timer for work item:', { workItemId, title });
+
+        // Send START event to timer actor if available
+        if (timerActor && typeof (timerActor as any).send === 'function') {
+          (timerActor as any).send({ type: 'START', workItemId, workItemTitle: title });
+        }
+        // Note: Actual timer start happens in activation.ts via dispatchApplicationEvent
       },
-      handleEditWorkItem: ({ event }) => {
+      handleEditWorkItem: ({ event, context }) => {
         if (event.type !== 'EDIT_WORK_ITEM') return;
-        console.log('[FSM] handleEditWorkItem event received for item:', event.workItemId);
+
+        const { activeConnectionId, connectionStates } = context;
+        const connectionState = connectionStates.get(activeConnectionId || '');
+        const client = connectionState?.client;
+
+        if (!client || !event.workItemId) {
+          console.warn('[FSM] handleEditWorkItem: No client or workItemId');
+          return;
+        }
+
+        // FSM tracks the request - actual browser open happens in activation.ts
+        console.log('[FSM] Opening work item in browser:', event.workItemId);
+        // activation.ts handles via dispatchApplicationEvent
       },
-      handleOpenInBrowser: ({ event }) => {
+      handleOpenInBrowser: ({ event, context }) => {
         if (event.type !== 'OPEN_IN_BROWSER') return;
-        console.log('[FSM] handleOpenInBrowser event received for item:', event.workItemId);
+
+        const { activeConnectionId, connectionStates } = context;
+        const connectionState = connectionStates.get(activeConnectionId || '');
+        const client = connectionState?.client;
+
+        if (!client || !event.workItemId) {
+          console.warn('[FSM] handleOpenInBrowser: No client or workItemId');
+          return;
+        }
+
+        console.log('[FSM] Opening work item in browser:', event.workItemId);
+        // activation.ts handles via dispatchApplicationEvent
       },
-      handleCreateBranch: ({ event }) => {
+      handleCreateBranch: ({ event, context }) => {
         if (event.type !== 'CREATE_BRANCH') return;
-        console.log('[FSM] handleCreateBranch event received for item:', event.workItemId);
+
+        const { pendingWorkItems } = context;
+        const workItems = pendingWorkItems?.workItems || [];
+        const item = workItems.find((wi: any) => wi.id === event.workItemId);
+
+        if (!item) {
+          console.warn('[FSM] handleCreateBranch: Work item not found:', event.workItemId);
+          return;
+        }
+
+        // FSM prepares branch name from work item data
+        const title = item.fields?.['System.Title'] || '';
+        const branchName = `feature/${event.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
+        console.log('[FSM] Creating branch for work item:', {
+          workItemId: event.workItemId,
+          suggestedName: branchName,
+        });
+        // activation.ts handles via dispatchApplicationEvent
       },
-      handleOpenWorkItem: ({ event }) => {
+      handleOpenWorkItem: ({ event, context }) => {
         if (event.type !== 'OPEN_WORK_ITEM') return;
-        console.log('[FSM] handleOpenWorkItem event received for item:', event.workItemId);
+
+        const { activeConnectionId, connectionStates } = context;
+        const connectionState = connectionStates.get(activeConnectionId || '');
+        const client = connectionState?.client;
+
+        if (!client || !event.workItemId) {
+          console.warn('[FSM] handleOpenWorkItem: No client or workItemId');
+          return;
+        }
+
+        console.log('[FSM] Opening work item:', event.workItemId);
+        // activation.ts handles via dispatchApplicationEvent
       },
       storeDeviceCodeSession: assign(({ event }) => {
         if (event.type !== 'DEVICE_CODE_SESSION_STARTED') return {};

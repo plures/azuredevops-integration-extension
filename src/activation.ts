@@ -142,6 +142,30 @@ export function __setTestContext(ctx: {
 
 export function handleMessage(message: any): void {
   switch (message?.type) {
+    case 'openExternal': {
+      // FSM-requested external URL open
+      if (message.url) {
+        vscode.env.openExternal(vscode.Uri.parse(message.url));
+      }
+      break;
+    }
+    case 'createBranch': {
+      // FSM-requested branch creation
+      if (message.suggestedName) {
+        vscode.window
+          .showInputBox({
+            prompt: 'Enter branch name',
+            value: message.suggestedName,
+            placeHolder: 'feature/123-my-work-item',
+          })
+          .then((name) => {
+            if (name) {
+              vscode.commands.executeCommand('git.branch', name);
+            }
+          });
+      }
+      break;
+    }
     case 'getWorkItems': {
       const items = provider?.getWorkItems?.() || [];
       sendToWebview({
