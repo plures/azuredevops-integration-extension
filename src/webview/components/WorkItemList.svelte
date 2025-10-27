@@ -87,8 +87,27 @@
   }
 
   function handleOpenItem(id: number) {
-    // Future: dispatch open work item
-    console.log('[WorkItemList] Open:', id);
+    sendEvent({ type: 'OPEN_WORK_ITEM', workItemId: id });
+  }
+  
+  function handleStartTimer(item: any, event: Event) {
+    event.stopPropagation();  // Prevent card click
+    sendEvent({ type: 'START_TIMER_INTERACTIVE', workItemId: item.id, workItemTitle: item.fields?.['System.Title'] });
+  }
+  
+  function handleEditItem(item: any, event: Event) {
+    event.stopPropagation();
+    sendEvent({ type: 'EDIT_WORK_ITEM', workItemId: item.id });
+  }
+  
+  function handleOpenInBrowser(item: any, event: Event) {
+    event.stopPropagation();
+    sendEvent({ type: 'OPEN_IN_BROWSER', workItemId: item.id });
+  }
+  
+  function handleCreateBranch(item: any, event: Event) {
+    event.stopPropagation();
+    sendEvent({ type: 'CREATE_BRANCH', workItemId: item.id });
   }
 </script>
 
@@ -173,6 +192,42 @@
                       item.fields['System.AssignedTo']}
                   </span>
                 {/if}
+              </div>
+              
+              <!-- Action Buttons -->
+              <div class="item-actions">
+                <button 
+                  class="action-btn primary" 
+                  on:click={(e) => handleStartTimer(item, e)}
+                  title="Start Timer"
+                >
+                  <span class="codicon">▶</span>
+                  Timer
+                </button>
+                <button 
+                  class="action-btn" 
+                  on:click={(e) => handleEditItem(item, e)}
+                  title="Edit Work Item"
+                >
+                  <span class="codicon">✎</span>
+                  Edit
+                </button>
+                <button 
+                  class="action-btn" 
+                  on:click={(e) => handleCreateBranch(item, e)}
+                  title="Create Branch"
+                >
+                  <span class="codicon">⎇</span>
+                  Branch
+                </button>
+                <button 
+                  class="action-btn" 
+                  on:click={(e) => handleOpenInBrowser(item, e)}
+                  title="Open in Azure DevOps"
+                >
+                  <span class="codicon">🌐</span>
+                  Open
+                </button>
               </div>
             </div>
           </div>
@@ -396,5 +451,59 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
+  }
+  
+  /* Action Buttons */
+  .item-actions {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--vscode-panel-border);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  
+  .work-item-card:hover .item-actions {
+    opacity: 1;
+  }
+  
+  .action-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.6rem;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-button-border, transparent);
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .action-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .action-btn:active {
+    transform: translateY(0);
+  }
+  
+  .action-btn.primary {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+  }
+  
+  .action-btn.primary:hover {
+    background: var(--vscode-button-hoverBackground);
+  }
+  
+  .action-btn .codicon {
+    font-size: 0.9rem;
+    line-height: 1;
   }
 </style>
