@@ -64,6 +64,7 @@ button.svelte-1uil3z2:hover {
 .items-container.svelte-1uil3z2 {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -81,7 +82,7 @@ button.svelte-1uil3z2:hover {
 .work-item-card.svelte-1uil3z2:hover {
   background: var(--vscode-list-hoverBackground);
   border-color: var(--vscode-focusBorder);
-  transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 .card-header.svelte-1uil3z2 {
   display: flex;

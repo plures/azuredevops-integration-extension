@@ -313,6 +313,7 @@
   .items-container {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -332,7 +333,7 @@
   .work-item-card:hover {
     background: var(--vscode-list-hoverBackground);
     border-color: var(--vscode-focusBorder);
-    transform: translateX(2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
 
   .card-header {
