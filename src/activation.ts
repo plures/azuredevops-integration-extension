@@ -1145,6 +1145,22 @@ async function loadConnectionsFromConfig(
   setLoadedConnectionsReader(() => connections);
   setActiveConnectionIdReader(() => activeConnectionId);
 
+  // Initialize PAT retrieval bridge function
+  setGetSecretPAT(async (extensionContext: vscode.ExtensionContext, connectionId?: string) => {
+    if (!connectionId) {
+      return undefined;
+    }
+
+    // Find the connection to get its patKey
+    const connection = connections.find((c) => c.id === connectionId);
+    if (!connection || !connection.patKey) {
+      return undefined;
+    }
+
+    // Retrieve PAT from secrets using the connection's patKey
+    return await extensionContext.secrets.get(connection.patKey);
+  });
+
   notifyConnectionsList();
   return connections;
 }

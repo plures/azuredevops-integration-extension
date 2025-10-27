@@ -93,6 +93,7 @@ export async function addOrEditConnection(
     }
 
     const patKey = `azureDevOpsInt.pat:${newOrUpdatedConnection.id}`;
+    newOrUpdatedConnection.patKey = patKey; // CRITICAL: Add patKey to connection object
     await context.secrets.store(patKey, pat);
   }
 
