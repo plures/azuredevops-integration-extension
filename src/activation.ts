@@ -1405,11 +1405,21 @@ function sendToWebview(message: any): void {
 }
 
 function forwardProviderMessage(connectionId: string, message: unknown) {
-  sendToWebview({
-    type: 'providerMessage',
-    connectionId,
-    message,
-  });
+  // Forward provider messages directly, not wrapped in envelope
+  // This allows sendToWebview to recognize workItemsLoaded and other message types
+  if (message && typeof message === 'object' && 'type' in message) {
+    sendToWebview({
+      ...(message as any),
+      connectionId,
+    });
+  } else {
+    // Fallback for messages without type
+    sendToWebview({
+      type: 'providerMessage',
+      connectionId,
+      message,
+    });
+  }
 }
 
 function resolveSnapshotTypes(
