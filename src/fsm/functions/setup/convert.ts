@@ -87,24 +87,27 @@ export async function convertConnectionToEntra(
 
     // Inform user and trigger device code flow
     vscode.window.showInformationMessage(
-      `Connection "${choice.label}" converted to Microsoft Entra ID. Starting sign-in flow...`
+      `Connection "${connectionLabel}" converted to Microsoft Entra ID. Starting sign-in flow...`
     );
 
     console.log(
       '[convertConnectionToEntra] Triggering connection refresh with interactive auth...'
     );
     // Trigger connection refresh which will start device code flow for Entra
-    await ensureActiveFn(context, choice.connection.id, { refresh: true, interactive: true });
+    await ensureActiveFn(context, selectedConnection.id, { refresh: true, interactive: true });
 
     console.log('[convertConnectionToEntra] Dispatching SIGN_IN_ENTRA event...');
     // Also dispatch sign-in event to trigger device code UI
     const { sendApplicationStoreEvent } = await import('../../services/extensionHostBridge.js');
     sendApplicationStoreEvent({
       type: 'SIGN_IN_ENTRA',
-      connectionId: choice.connection.id,
+      connectionId: selectedConnection.id,
     });
 
-    console.log('[convertConnectionToEntra] ✅ Triggered Entra sign-in for:', choice.connection.id);
+    console.log(
+      '[convertConnectionToEntra] ✅ Triggered Entra sign-in for:',
+      selectedConnection.id
+    );
   } catch (error) {
     console.error('[convertConnectionToEntra] ❌ Error during conversion:', error);
     vscode.window.showErrorMessage(
