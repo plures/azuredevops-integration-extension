@@ -99,20 +99,25 @@ export async function convertConnectionToEntra(
     await saveFn(newConnections);
     console.log('[convertConnectionToEntra] ✅ Connection converted to Entra and saved');
 
-    // Now trigger connection with interactive auth - FSM will see it's Entra and start device code
+    // CRITICAL: Reload window to pick up the saved Entra connection
+    // This ensures connection FSM gets the updated authMethod='entra'
+    vscode.window
+      .showInformationMessage(
+        `Connection converted to Microsoft Entra ID!\n\n` +
+          `Reloading to start device code sign-in...`,
+        'Reload Now'
+      )
+      .then((choice) => {
+        if (choice === 'Reload Now') {
+          vscode.commands.executeCommand('workbench.action.reloadWindow');
+        }
+      });
+
+    console.log('[convertConnectionToEntra] ✅ Conversion complete - user prompted to reload');
     console.log(
-      '[convertConnectionToEntra] Triggering connection refresh with interactive=true...'
+      '[convertConnectionToEntra] After reload, connection FSM will detect authMethod=entra ' +
+        'and automatically start device code flow'
     );
-    await ensureActiveFn(context, selectedConnection.id, { refresh: true, interactive: true });
-
-    console.log('[convertConnectionToEntra] ✅ Connection refresh triggered');
-
-    vscode.window.showInformationMessage(
-      `Connection converted to Microsoft Entra ID! Complete device code sign-in in your browser.\n\n` +
-        `If sign-in fails, you can edit the connection and switch back to PAT.`
-    );
-
-    console.log('[convertConnectionToEntra] ✅ Conversion complete');
   } catch (error) {
     console.error('[convertConnectionToEntra] ❌ Error during conversion:', error);
 
