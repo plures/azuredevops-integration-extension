@@ -210,7 +210,15 @@ export async function convertConnectionToEntra(
         `Your PAT connection remains active. Complete device code auth to finalize conversion.`
     );
 
-    // Trigger connection to temp - this starts device code in extension host
+    // CRITICAL: Reload connections from config so temp connection is available
+    console.log('[convertConnectionToEntra] Reloading connections to pick up temp connection...');
+    const {
+      default: { loadConnectionsFromConfig },
+    } = await import('../../../activation.js');
+    await loadConnectionsFromConfig(context);
+    console.log('[convertConnectionToEntra] ✅ Connections reloaded');
+
+    // Now trigger connection to temp - this starts device code in extension host
     console.log('[convertConnectionToEntra] Triggering connection to temp Entra connection...');
     await ensureActiveFn(context, tempId, { refresh: true, interactive: true });
 
