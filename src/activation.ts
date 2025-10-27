@@ -1379,6 +1379,14 @@ function sendToWebview(message: any): void {
 
   if (messageType === 'workItemsLoaded') {
     const items = Array.isArray(message.workItems) ? [...message.workItems] : [];
+    console.log('[AzureDevOpsInt][sendToWebview] Processing workItemsLoaded:', {
+      messageType,
+      hasWorkItems: !!message.workItems,
+      workItemsIsArray: Array.isArray(message.workItems),
+      itemsCount: items.length,
+      connectionId: message.connectionId,
+    });
+
     dispatchApplicationEvent({
       type: 'WORK_ITEMS_LOADED',
       workItems: items,
@@ -1387,6 +1395,8 @@ function sendToWebview(message: any): void {
       kanbanView: !!message.kanbanView,
       types: Array.isArray(message.types) ? [...message.types] : undefined,
     });
+
+    console.log('[AzureDevOpsInt][sendToWebview] Dispatched WORK_ITEMS_LOADED event to FSM');
   }
 
   if (!panel) {
@@ -1407,6 +1417,15 @@ function sendToWebview(message: any): void {
 function forwardProviderMessage(connectionId: string, message: unknown) {
   // Forward provider messages directly, not wrapped in envelope
   // This allows sendToWebview to recognize workItemsLoaded and other message types
+  console.log('[AzureDevOpsInt][forwardProviderMessage] Received from provider:', {
+    connectionId,
+    messageType: (message as any)?.type,
+    hasWorkItems: !!(message as any)?.workItems,
+    workItemsCount: Array.isArray((message as any)?.workItems)
+      ? (message as any).workItems.length
+      : 'n/a',
+  });
+
   if (message && typeof message === 'object' && 'type' in message) {
     sendToWebview({
       ...(message as any),
