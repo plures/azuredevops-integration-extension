@@ -2519,6 +2519,9 @@ function getSerializableContext(context: any): Record<string, any> {
       connectionsLength: serialized.connections.length,
       activeConnectionId: serialized.activeConnectionId,
       hasDeviceCodeSession: !!serialized.deviceCodeSession,
+      hasPendingWorkItems: !!serialized.pendingWorkItems,
+      workItemsCount: serialized.pendingWorkItems?.workItems?.length || 0,
+      viewMode: serialized.viewMode,
     });
   }
 

@@ -22,6 +22,9 @@
       hasMatches: !!matches,
       matchKeys: Object.keys(matches).filter((k) => matches[k]),
       contextKeys: context ? Object.keys(context) : [],
+      hasPendingWorkItems: !!context?.pendingWorkItems,
+      workItemsCount: context?.pendingWorkItems?.workItems?.length || 0,
+      viewMode: context?.viewMode,
     });
   }
 
