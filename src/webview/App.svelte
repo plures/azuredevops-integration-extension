@@ -53,7 +53,7 @@
   // Query selector support (replaces internal toolbar controls)
   const predefinedQueries = [
     'My Activity',
-    'Assigned To Me',
+    'Assigned to me',  // Lowercase 't' to match azureClient.ts case statement
     'Recently Updated',
     'Created By Me'
   ];
