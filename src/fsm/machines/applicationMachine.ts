@@ -665,13 +665,33 @@ export const applicationMachine = createMachine(
           self.send({ type: 'ERROR', error });
         }
       },
-      routeWebviewMessage: ({ event, self }) => {
+      routeWebviewMessage: async ({ event, self }) => {
         if (event.type !== 'WEBVIEW_MESSAGE') return;
         const { message } = event;
         webviewRouterLogger.debug('Webview message received', { event: message.type }, { message });
-        // Simplified routing
+
+        // Route webview messages to appropriate actions
         if (message.type === 'connection:select') {
           self.send({ type: 'CONNECTION_SELECTED', connectionId: message.payload.connectionId });
+        } else if (message.type === 'START_TIMER_INTERACTIVE') {
+          // Start timer on work item
+          const vscode = await import('vscode');
+          await vscode.commands.executeCommand('azureDevOpsInt.startTimer');
+        } else if (message.type === 'EDIT_WORK_ITEM') {
+          // Edit work item
+          const vscode = await import('vscode');
+          await vscode.commands.executeCommand('azureDevOpsInt.editWorkItem', message.workItemId);
+        } else if (message.type === 'OPEN_IN_BROWSER') {
+          // Open work item in browser
+          const vscode = await import('vscode');
+          await vscode.commands.executeCommand(
+            'azureDevOpsInt.openWorkItemInBrowser',
+            message.workItemId
+          );
+        } else if (message.type === 'CREATE_BRANCH') {
+          // Create branch from work item
+          const vscode = await import('vscode');
+          await vscode.commands.executeCommand('azureDevOpsInt.createBranch', message.workItemId);
         }
       },
       syncDataToWebview: ({ context, event }) => {
