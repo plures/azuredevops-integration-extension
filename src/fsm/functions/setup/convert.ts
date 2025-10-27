@@ -24,29 +24,50 @@ export async function convertConnectionToEntra(
     return;
   }
 
-  const choice = await vscode.window.showQuickPick(
-    patConnections.map((c) => ({
+  // If only one PAT connection, use it directly without prompting
+  let selectedConnection: ProjectConnection;
+  if (patConnections.length === 1) {
+    selectedConnection = patConnections[0];
+    console.log('[convertConnectionToEntra] Only 1 PAT connection, auto-selecting:', {
+      id: selectedConnection.id,
+      label: selectedConnection.label,
+    });
+  } else {
+    // Multiple PAT connections - show picker
+    const items = patConnections.map((c) => ({
       label: c.label || `${c.organization}/${c.project}`,
+      description: c.id,
       connection: c,
-    })),
-    {
-      placeHolder: 'Select a connection to convert to Entra ID',
-    }
-  );
+    }));
 
-  if (!choice) {
-    console.log('[convertConnectionToEntra] User cancelled selection');
-    return;
+    console.log(
+      '[convertConnectionToEntra] Showing QuickPick with items:',
+      items.map((i) => i.label)
+    );
+
+    const choice = await vscode.window.showQuickPick(items, {
+      placeHolder: 'Select a connection to convert to Entra ID',
+      ignoreFocusOut: true,
+    });
+
+    if (!choice) {
+      console.log('[convertConnectionToEntra] User cancelled selection');
+      return;
+    }
+
+    selectedConnection = choice.connection;
   }
 
   console.log('[convertConnectionToEntra] Selected connection to convert:', {
-    connectionId: choice.connection.id,
-    label: choice.label,
+    connectionId: selectedConnection.id,
+    label:
+      selectedConnection.label ||
+      `${selectedConnection.organization}/${selectedConnection.project}`,
   });
 
   try {
     const newConnections = connections.map((c) => {
-      if (c.id === choice.connection.id) {
+      if (c.id === selectedConnection.id) {
         // Remove PAT-specific fields and set to Entra
         const { patKey, ...rest } = c;
         console.log('[convertConnectionToEntra] Converting connection:', {
