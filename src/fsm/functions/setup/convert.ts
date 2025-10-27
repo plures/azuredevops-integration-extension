@@ -11,7 +11,14 @@ export async function convertConnectionToEntra(
     options?: { refresh?: boolean }
   ) => Promise<any>
 ): Promise<void> {
+  // Filter for non-Entra connections (PAT or undefined authMethod)
   const patConnections = connections.filter((c) => c.authMethod !== 'entra');
+  console.log('[convertConnectionToEntra] Found connections:', {
+    totalConnections: connections.length,
+    patConnections: patConnections.length,
+    connectionAuthMethods: connections.map((c) => ({ id: c.id, authMethod: c.authMethod })),
+  });
+
   if (patConnections.length === 0) {
     vscode.window.showInformationMessage('No PAT-based connections to convert.');
     return;

@@ -549,11 +549,13 @@ async function updateAuthStatusBar(): Promise<void> {
   }
 
   const state = connectionStates.get(activeConnectionId);
-  if (!state || state.authMethod !== 'entra') {
-    clearAuthReminder(activeConnectionId);
+  if (!state) {
     authStatusBarItem.hide();
     return;
   }
+
+  // Show status bar for BOTH PAT and Entra connections
+  const authMethod = state.authMethod || state.config?.authMethod || 'pat';
 
   authStatusBarItem.command = {
     title: 'Sign in with Microsoft Entra',
@@ -607,27 +609,44 @@ async function updateAuthStatusBar(): Promise<void> {
     }
 
     if (isConnected && !hasAuthFailure && !hasActiveDeviceCode) {
-      // Show successful Entra auth status
-      authStatusBarItem.text = '$(pass) Entra: Connected';
-      authStatusBarItem.tooltip = `Microsoft Entra ID authentication active for ${connectionLabel}`;
+      // Show successful auth status
+      if (authMethod === 'entra') {
+        authStatusBarItem.text = '$(pass) Entra: Connected';
+        authStatusBarItem.tooltip = `Microsoft Entra ID authentication active for ${connectionLabel}`;
+        authStatusBarItem.command = undefined; // No action needed when connected
+      } else {
+        authStatusBarItem.text = '$(key) PAT: Connected';
+        authStatusBarItem.tooltip = `Personal Access Token authentication active for ${connectionLabel}`;
+        authStatusBarItem.command = 'azureDevOpsInt.setup'; // Allow managing connections
+      }
       authStatusBarItem.backgroundColor = undefined; // Clear warning background
       authStatusBarItem.show();
     } else if (hasAuthFailure) {
       // Show auth failure status
-      authStatusBarItem.text = '$(error) Entra: Auth Failed';
-      authStatusBarItem.tooltip = `Authentication failed for ${connectionLabel}. Click to retry.`;
+      const authLabel = authMethod === 'entra' ? 'Entra' : 'PAT';
+      authStatusBarItem.text = `$(error) ${authLabel}: Auth Failed`;
+      authStatusBarItem.tooltip = `Authentication failed for ${connectionLabel}. Click to manage connections.`;
       authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+      authStatusBarItem.command = 'azureDevOpsInt.setup';
       authStatusBarItem.show();
     } else if (hasActiveDeviceCode) {
-      // Show device code flow in progress
+      // Show device code flow in progress (Entra only)
       authStatusBarItem.text = '$(sync~spin) Entra: Device Code Active';
       authStatusBarItem.tooltip = `Device code authentication in progress for ${connectionLabel}`;
       authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+      authStatusBarItem.command = 'azureDevOpsInt.signInWithEntra';
       authStatusBarItem.show();
     } else {
-      // Show sign-in required status
-      authStatusBarItem.text = '$(warning) Entra: Sign In Required';
-      authStatusBarItem.tooltip = `Sign in required for ${connectionLabel}`;
+      // Show sign-in/auth required status
+      if (authMethod === 'entra') {
+        authStatusBarItem.text = '$(warning) Entra: Sign In Required';
+        authStatusBarItem.tooltip = `Sign in required for ${connectionLabel}`;
+        authStatusBarItem.command = 'azureDevOpsInt.signInWithEntra';
+      } else {
+        authStatusBarItem.text = '$(warning) PAT: Auth Required';
+        authStatusBarItem.tooltip = `Personal Access Token required for ${connectionLabel}. Click to manage connections.`;
+        authStatusBarItem.command = 'azureDevOpsInt.setup';
+      }
       authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
       authStatusBarItem.show();
     }
