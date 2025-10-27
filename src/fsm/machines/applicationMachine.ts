@@ -683,10 +683,23 @@ export const applicationMachine = createMachine(
       },
       storeWorkItemsInContext: assign(({ context, event }) => {
         if (event.type !== 'WORK_ITEMS_LOADED') return {};
+
+        // Debug logging to track work items flow
+        console.log('[AzureDevOpsInt][storeWorkItemsInContext] Storing work items:', {
+          eventType: event.type,
+          hasWorkItems: !!event.workItems,
+          workItemsType: typeof event.workItems,
+          workItemsIsArray: Array.isArray(event.workItems),
+          workItemsCount: Array.isArray(event.workItems) ? event.workItems.length : 'n/a',
+          eventConnectionId: event.connectionId,
+          contextActiveConnectionId: context.activeConnectionId,
+        });
+
         return {
           pendingWorkItems: {
             workItems: event.workItems,
-            connectionId: context.activeConnectionId,
+            connectionId: event.connectionId || context.activeConnectionId,
+            query: event.query,
           },
         };
       }),
