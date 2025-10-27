@@ -10,6 +10,9 @@ export type ProjectConnection = {
   patKey?: string;
   tenantId?: string;
   identityName?: string;
+  // Metadata for safe conversion
+  isBeingReplaced?: boolean; // Marks connection pending deletion after replacement succeeds
+  replacementId?: string; // ID of the temp connection that will replace this one
 };
 
 export type ConnectionContext = {
