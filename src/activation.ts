@@ -293,8 +293,9 @@ export function buildMinimalWebviewHtml(
   const scriptUri = webview.asWebviewUri(
     vscode.Uri.joinPath(context.extensionUri, 'media', 'webview', scriptFile)
   );
-  const stylesUri = webview.asWebviewUri(
-    vscode.Uri.joinPath(context.extensionUri, 'media', 'webview', 'styles.css')
+  // Link to main.css which contains Svelte component styles from esbuild
+  const mainCssUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(context.extensionUri, 'media', 'webview', 'main.css')
   );
   const csp = `default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval'; img-src ${webview.cspSource} data:; connect-src 'self';`;
   return `<!DOCTYPE html>
@@ -302,7 +303,7 @@ export function buildMinimalWebviewHtml(
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="${csp}" />
-  <link href="${stylesUri}" rel="stylesheet" />
+  <link href="${mainCssUri}" rel="stylesheet" />
   <title>Work Items</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="azure-devops-integration" content="minimal-webview" />
@@ -2584,8 +2585,9 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'main.js')
     );
-    const stylesUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'styles.css')
+    // Link to main.css which contains Svelte component styles from esbuild
+    const mainCssUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'main.css')
     );
 
     // The 'unsafe-eval' is required for Svelte's dev mode.
@@ -2599,7 +2601,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta http-equiv="Content-Security-Policy" content="${csp}">
-        <link href="${stylesUri}" rel="stylesheet">
+        <link href="${mainCssUri}" rel="stylesheet">
         <title>Work Items</title>
       </head>
       <body>
