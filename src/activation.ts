@@ -350,37 +350,51 @@ function getApplicationActor():
 }
 
 function dispatchApplicationEvent(event: unknown): void {
-  // Handle work item action events by executing VS Code commands
+  // Route work item action events to legacy handleMessage which has implementations
   if (event && typeof event === 'object' && 'type' in event) {
     const evt = event as any;
 
     switch (evt.type) {
       case 'START_TIMER_INTERACTIVE':
-        vscode.commands.executeCommand('azureDevOpsInt.startTimer').catch((error) => {
-          console.error('[dispatchApplicationEvent] startTimer failed:', error);
-        });
+        // Route to legacy handler with correct message format
+        handleMessage({ type: 'startTimer', workItemId: evt.workItemId });
         break;
       case 'EDIT_WORK_ITEM':
-        vscode.commands
-          .executeCommand('azureDevOpsInt.editWorkItem', evt.workItemId)
-          .catch((error) => {
-            console.error('[dispatchApplicationEvent] editWorkItem failed:', error);
-          });
+        // Open work item in browser for editing (legacy behavior)
+        if (evt.workItemId && client) {
+          const url = client.getBrowserUrl(`/_workitems/edit/${evt.workItemId}`);
+          vscode.env.openExternal(vscode.Uri.parse(url));
+        }
         break;
       case 'OPEN_IN_BROWSER':
       case 'OPEN_WORK_ITEM':
-        vscode.commands
-          .executeCommand('azureDevOpsInt.openWorkItemInBrowser', evt.workItemId)
-          .catch((error) => {
-            console.error('[dispatchApplicationEvent] openWorkItemInBrowser failed:', error);
-          });
+        // Open work item in browser
+        if (evt.workItemId && client) {
+          const url = client.getBrowserUrl(`/_workitems/edit/${evt.workItemId}`);
+          vscode.env.openExternal(vscode.Uri.parse(url));
+        }
         break;
       case 'CREATE_BRANCH':
-        vscode.commands
-          .executeCommand('azureDevOpsInt.createBranch', evt.workItemId)
-          .catch((error) => {
-            console.error('[dispatchApplicationEvent] createBranch failed:', error);
+        // Show input for branch name then create
+        if (evt.workItemId) {
+          provider?.getWorkItems?.().then((items: any[]) => {
+            const item = items.find((i) => i.id === evt.workItemId);
+            if (item) {
+              const title = item.fields?.['System.Title'] || '';
+              const branchName = `feature/${evt.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+              vscode.window
+                .showInputBox({
+                  prompt: 'Enter branch name',
+                  value: branchName,
+                })
+                .then((name) => {
+                  if (name) {
+                    vscode.commands.executeCommand('git.branch', name);
+                  }
+                });
+            }
           });
+        }
         break;
     }
   }
