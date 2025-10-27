@@ -350,6 +350,42 @@ function getApplicationActor():
 }
 
 function dispatchApplicationEvent(event: unknown): void {
+  // Handle work item action events by executing VS Code commands
+  if (event && typeof event === 'object' && 'type' in event) {
+    const evt = event as any;
+
+    switch (evt.type) {
+      case 'START_TIMER_INTERACTIVE':
+        vscode.commands.executeCommand('azureDevOpsInt.startTimer').catch((error) => {
+          console.error('[dispatchApplicationEvent] startTimer failed:', error);
+        });
+        break;
+      case 'EDIT_WORK_ITEM':
+        vscode.commands
+          .executeCommand('azureDevOpsInt.editWorkItem', evt.workItemId)
+          .catch((error) => {
+            console.error('[dispatchApplicationEvent] editWorkItem failed:', error);
+          });
+        break;
+      case 'OPEN_IN_BROWSER':
+      case 'OPEN_WORK_ITEM':
+        vscode.commands
+          .executeCommand('azureDevOpsInt.openWorkItemInBrowser', evt.workItemId)
+          .catch((error) => {
+            console.error('[dispatchApplicationEvent] openWorkItemInBrowser failed:', error);
+          });
+        break;
+      case 'CREATE_BRANCH':
+        vscode.commands
+          .executeCommand('azureDevOpsInt.createBranch', evt.workItemId)
+          .catch((error) => {
+            console.error('[dispatchApplicationEvent] createBranch failed:', error);
+          });
+        break;
+    }
+  }
+
+  // Always send event to FSM for state management
   sendApplicationStoreEvent(event);
 }
 

@@ -763,36 +763,27 @@ export const applicationMachine = createMachine(
         if (event.type !== 'SET_QUERY') return {};
         return { activeQuery: event.query };
       }),
-      handleStartTimer: async ({ event }) => {
+      handleStartTimer: ({ event }) => {
         if (event.type !== 'START_TIMER_INTERACTIVE') return;
-        const vscode = await import('vscode');
-        await vscode.commands.executeCommand('azureDevOpsInt.startTimer');
+        // Action is just a marker - actual command execution happens in activation.ts
+        // via dispatchApplicationEvent which has access to vscode
+        console.log('[FSM] handleStartTimer event received, command will be dispatched');
       },
-      handleEditWorkItem: async ({ event }) => {
+      handleEditWorkItem: ({ event }) => {
         if (event.type !== 'EDIT_WORK_ITEM') return;
-        const vscode = await import('vscode');
-        await vscode.commands.executeCommand('azureDevOpsInt.editWorkItem', event.workItemId);
+        console.log('[FSM] handleEditWorkItem event received for item:', event.workItemId);
       },
-      handleOpenInBrowser: async ({ event }) => {
+      handleOpenInBrowser: ({ event }) => {
         if (event.type !== 'OPEN_IN_BROWSER') return;
-        const vscode = await import('vscode');
-        await vscode.commands.executeCommand(
-          'azureDevOpsInt.openWorkItemInBrowser',
-          event.workItemId
-        );
+        console.log('[FSM] handleOpenInBrowser event received for item:', event.workItemId);
       },
-      handleCreateBranch: async ({ event }) => {
+      handleCreateBranch: ({ event }) => {
         if (event.type !== 'CREATE_BRANCH') return;
-        const vscode = await import('vscode');
-        await vscode.commands.executeCommand('azureDevOpsInt.createBranch', event.workItemId);
+        console.log('[FSM] handleCreateBranch event received for item:', event.workItemId);
       },
-      handleOpenWorkItem: async ({ event }) => {
+      handleOpenWorkItem: ({ event }) => {
         if (event.type !== 'OPEN_WORK_ITEM') return;
-        const vscode = await import('vscode');
-        await vscode.commands.executeCommand(
-          'azureDevOpsInt.openWorkItemInBrowser',
-          event.workItemId
-        );
+        console.log('[FSM] handleOpenWorkItem event received for item:', event.workItemId);
       },
       storeDeviceCodeSession: assign(({ event }) => {
         if (event.type !== 'DEVICE_CODE_SESSION_STARTED') return {};
