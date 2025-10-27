@@ -168,6 +168,12 @@ export type ApplicationEvent =
   | { type: 'TOGGLE_VIEW'; view?: 'list' | 'kanban' }
   | { type: 'TOGGLE_DEBUG_VIEW' }
   | { type: 'SET_QUERY'; query: string }
+  // Work Item Action Events
+  | { type: 'START_TIMER_INTERACTIVE'; workItemId?: number; workItemTitle?: string }
+  | { type: 'EDIT_WORK_ITEM'; workItemId: number }
+  | { type: 'OPEN_IN_BROWSER'; workItemId: number }
+  | { type: 'CREATE_BRANCH'; workItemId: number }
+  | { type: 'OPEN_WORK_ITEM'; workItemId: number }
   // Connection Management Events
   | { type: 'MANAGE_CONNECTIONS' }
   | { type: 'ADD_CONNECTION' }
@@ -448,6 +454,21 @@ export const applicationMachine = createMachine(
               },
               SET_QUERY: {
                 actions: 'setActiveQuery',
+              },
+              START_TIMER_INTERACTIVE: {
+                actions: 'handleStartTimer',
+              },
+              EDIT_WORK_ITEM: {
+                actions: 'handleEditWorkItem',
+              },
+              OPEN_IN_BROWSER: {
+                actions: 'handleOpenInBrowser',
+              },
+              CREATE_BRANCH: {
+                actions: 'handleCreateBranch',
+              },
+              OPEN_WORK_ITEM: {
+                actions: 'handleOpenWorkItem',
               },
               DEVICE_CODE_SESSION_STARTED: {
                 actions: 'storeDeviceCodeSession',
@@ -742,6 +763,37 @@ export const applicationMachine = createMachine(
         if (event.type !== 'SET_QUERY') return {};
         return { activeQuery: event.query };
       }),
+      handleStartTimer: async ({ event }) => {
+        if (event.type !== 'START_TIMER_INTERACTIVE') return;
+        const vscode = await import('vscode');
+        await vscode.commands.executeCommand('azureDevOpsInt.startTimer');
+      },
+      handleEditWorkItem: async ({ event }) => {
+        if (event.type !== 'EDIT_WORK_ITEM') return;
+        const vscode = await import('vscode');
+        await vscode.commands.executeCommand('azureDevOpsInt.editWorkItem', event.workItemId);
+      },
+      handleOpenInBrowser: async ({ event }) => {
+        if (event.type !== 'OPEN_IN_BROWSER') return;
+        const vscode = await import('vscode');
+        await vscode.commands.executeCommand(
+          'azureDevOpsInt.openWorkItemInBrowser',
+          event.workItemId
+        );
+      },
+      handleCreateBranch: async ({ event }) => {
+        if (event.type !== 'CREATE_BRANCH') return;
+        const vscode = await import('vscode');
+        await vscode.commands.executeCommand('azureDevOpsInt.createBranch', event.workItemId);
+      },
+      handleOpenWorkItem: async ({ event }) => {
+        if (event.type !== 'OPEN_WORK_ITEM') return;
+        const vscode = await import('vscode');
+        await vscode.commands.executeCommand(
+          'azureDevOpsInt.openWorkItemInBrowser',
+          event.workItemId
+        );
+      },
       storeDeviceCodeSession: assign(({ event }) => {
         if (event.type !== 'DEVICE_CODE_SESSION_STARTED') return {};
         const expiresAt = event.startedAt + event.expiresInSeconds * 1000;
