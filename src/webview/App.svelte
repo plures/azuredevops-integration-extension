@@ -56,9 +56,9 @@
   // Query selector support (replaces internal toolbar controls)
   const predefinedQueries = [
     'My Activity',
-    'Assigned to me',  // Lowercase 't' to match azureClient.ts case statement
+    'Assigned to me', // Lowercase 't' to match azureClient.ts case statement
     'Recently Updated',
-    'Created By Me'
+    'Created By Me',
   ];
   $: activeQuery = context?.activeQuery || predefinedQueries[0];
   function handleQueryChange(e: Event) {
@@ -156,7 +156,12 @@
                 context.activeConnectionId}
             </span>
           {/if}
-          <select class="query-select" bind:value={activeQuery} on:change={handleQueryChange} title="Work Item Query">
+          <select
+            class="query-select"
+            bind:value={activeQuery}
+            on:change={handleQueryChange}
+            title="Work Item Query"
+          >
             {#each predefinedQueries as q}
               <option value={q}>{q}</option>
             {/each}
@@ -221,14 +226,10 @@
     text-align: center;
     padding: 2rem;
   }
-  .error-container,
-  .error {
+  .error-container {
     color: var(--vscode-errorForeground);
     padding: 1rem;
     margin: 1rem 0;
-  }
-  .info {
-    padding: 1rem;
   }
   button {
     background: var(--vscode-button-background);
@@ -264,26 +265,6 @@
     display: flex;
     gap: 0.5rem;
     align-items: center;
-  }
-  .actions-group { display: none; }
-  .toolbar-btn {
-    background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
-    color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
-    border: 1px solid var(--vscode-panel-border, var(--vscode-input-border));
-    padding: 0.35rem 0.6rem;
-    font-size: 0.7rem;
-    line-height: 1;
-    border-radius: 3px;
-    cursor: pointer;
-  }
-  .toolbar-btn:hover {
-    background: var(--vscode-button-hoverBackground);
-  }
-  .toolbar-btn.active,
-  .toolbar-btn[aria-pressed='true'] {
-    background: var(--vscode-button-background);
-    border-color: var(--vscode-focusBorder);
-    box-shadow: 0 0 0 1px var(--vscode-focusBorder);
   }
   .debug-panel {
     margin: 0.5rem 0 0.75rem;
@@ -329,7 +310,6 @@
     background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
     color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
   }
-  .workitem-count-badge { display: none; }
   .query-select {
     padding: 0.35rem 0.55rem;
     font-size: 0.7rem;
@@ -338,16 +318,7 @@
     border: 1px solid var(--vscode-input-border);
     border-radius: 3px;
   }
-  .query-select:focus { outline: 1px solid var(--vscode-focusBorder); }
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-    border: 0;
+  .query-select:focus {
+    outline: 1px solid var(--vscode-focusBorder);
   }
 </style>

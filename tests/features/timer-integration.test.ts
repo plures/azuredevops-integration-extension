@@ -10,7 +10,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createActor } from 'xstate';
-import { timerMachine } from '../../src/fsm/machines/timerMachine';
+import { timerMachine } from '../../src/features/timer/machine';
 
 describe('Timer Feature Integration', () => {
   describe('Basic Timer Operations', () => {

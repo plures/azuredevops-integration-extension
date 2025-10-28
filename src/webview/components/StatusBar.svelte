@@ -1,6 +1,5 @@
 <script lang="ts">
   export let context: any;
-  export let sendEvent: (event: any) => void;
 
   $: timerState = context?.timerActor?.state || 'idle';
   $: activeConnectionId = context?.activeConnectionId;

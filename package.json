@@ -954,5 +954,14 @@
   "volta": {
     "node": "24.10.0",
     "npm": "10.9.0"
+  },
+  "lint-staged": {
+    "*.{ts,js,mjs}": [
+      "npm run lint:fix",
+      "npm run format:staged"
+    ],
+    "*.{json,md}": [
+      "npm run format:staged"
+    ]
   }
 }
