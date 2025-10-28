@@ -90,35 +90,66 @@
   function handleOpenItem(id: number) {
     sendEvent({ type: 'OPEN_WORK_ITEM', workItemId: id });
   }
-  
+
   function handleStartTimer(item: any, event: Event) {
-    event.stopPropagation();  // Prevent card click
-    sendEvent({ type: 'START_TIMER_INTERACTIVE', workItemId: item.id, workItemTitle: item.fields?.['System.Title'] });
+    event.stopPropagation(); // Prevent card click
+    sendEvent({
+      type: 'START_TIMER_INTERACTIVE',
+      workItemId: item.id,
+      workItemTitle: item.fields?.['System.Title'],
+    });
   }
-  
+
   function handleEditItem(item: any, event: Event) {
     event.stopPropagation();
     sendEvent({ type: 'EDIT_WORK_ITEM', workItemId: item.id });
   }
-  
+
   function handleOpenInBrowser(item: any, event: Event) {
     event.stopPropagation();
     sendEvent({ type: 'OPEN_IN_BROWSER', workItemId: item.id });
   }
-  
+
   function handleCreateBranch(item: any, event: Event) {
     event.stopPropagation();
     sendEvent({ type: 'CREATE_BRANCH', workItemId: item.id });
   }
 
-  function formatElapsedTime(seconds: number): string {
+  // State for timer display preferences
+  let displayTimerSeconds = $state(true);
+  let timerHoverStart = $state(0);
+
+  function formatElapsedTime(seconds: number, forceShowSeconds: boolean = true): string {
     const hours = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
+    
+    // Show seconds for first 30 seconds, or when forced, or when recently hovered
+    const showSeconds = forceShowSeconds && (
+      seconds < 30 || 
+      displayTimerSeconds || 
+      (timerHoverStart > 0 && Date.now() - timerHoverStart < 30000)
+    );
+    
     if (hours > 0) {
-      return `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      return showSeconds
+        ? `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+        : `${hours}:${String(mins).padStart(2, '0')}`;
     }
-    return `${mins}:${String(secs).padStart(2, '0')}`;
+    return showSeconds
+      ? `${mins}:${String(secs).padStart(2, '0')}`
+      : `${mins}m`;
+  }
+  
+  function handleTimerMouseEnter() {
+    timerHoverStart = Date.now();
+  }
+  
+  function handleTimerMouseLeave() {
+    // Keep showing seconds for another 30 seconds after hover ends
+    setTimeout(() => {
+      timerHoverStart = 0;
+    }, 30000);
   }
 </script>
 
@@ -160,7 +191,13 @@
     {#if filteredItems.length === 0 && workItems.length > 0}
       <div class="empty-state">
         <p>No items match your filters.</p>
-        <button on:click={() => { filterText=''; typeFilter=''; stateFilter='all'; }}>Clear Filters</button>
+        <button
+          on:click={() => {
+            filterText = '';
+            typeFilter = '';
+            stateFilter = 'all';
+          }}>Clear Filters</button
+        >
       </div>
     {:else}
       <div class="items-container">
@@ -204,41 +241,46 @@
                   </span>
                 {/if}
                 {#if timerState?.workItemId === item.id}
-                  <span class="meta-badge timer-badge" title="Timer Active">
+                  <span 
+                    class="meta-badge timer-badge" 
+                    title="Timer Active"
+                    on:mouseenter={handleTimerMouseEnter}
+                    on:mouseleave={handleTimerMouseLeave}
+                  >
                     <span class="codicon">⏱</span>
                     {formatElapsedTime(timerState.elapsedSeconds)}
                   </span>
                 {/if}
               </div>
-              
+
               <!-- Action Buttons -->
               <div class="item-actions">
-                <button 
-                  class="action-btn primary" 
+                <button
+                  class="action-btn primary"
                   on:click={(e) => handleStartTimer(item, e)}
                   title="Start Timer"
                 >
                   <span class="codicon">▶</span>
                   Timer
                 </button>
-                <button 
-                  class="action-btn" 
+                <button
+                  class="action-btn"
                   on:click={(e) => handleEditItem(item, e)}
                   title="Edit Work Item"
                 >
                   <span class="codicon">✎</span>
                   Edit
                 </button>
-                <button 
-                  class="action-btn" 
+                <button
+                  class="action-btn"
                   on:click={(e) => handleCreateBranch(item, e)}
                   title="Create Branch"
                 >
                   <span class="codicon">⎇</span>
                   Branch
                 </button>
-                <button 
-                  class="action-btn" 
+                <button
+                  class="action-btn"
                   on:click={(e) => handleOpenInBrowser(item, e)}
                   title="Open in Azure DevOps"
                 >
@@ -486,14 +528,15 @@
   }
 
   @keyframes pulse {
-    0%, 100% {
+    0%,
+    100% {
       opacity: 1;
     }
     50% {
       opacity: 0.7;
     }
   }
-  
+
   /* Action Buttons */
   .item-actions {
     display: flex;
@@ -504,11 +547,11 @@
     opacity: 0;
     transition: opacity 0.2s ease;
   }
-  
+
   .work-item-card:hover .item-actions {
     opacity: 1;
   }
-  
+
   .action-btn {
     display: flex;
     align-items: center;
@@ -523,26 +566,26 @@
     cursor: pointer;
     transition: all 0.15s ease;
   }
-  
+
   .action-btn:hover {
     background: var(--vscode-button-secondaryHoverBackground);
     transform: translateY(-1px);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
-  
+
   .action-btn:active {
     transform: translateY(0);
   }
-  
+
   .action-btn.primary {
     background: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
   }
-  
+
   .action-btn.primary:hover {
     background: var(--vscode-button-hoverBackground);
   }
-  
+
   .action-btn .codicon {
     font-size: 0.9rem;
     line-height: 1;
