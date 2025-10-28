@@ -57,7 +57,7 @@ export const timerMachine = createMachine({
     },
 
     running: {
-      entry: assign(() => ({ lastActivity: Date.now() })),
+      entry: [assign(() => ({ lastActivity: Date.now() }))],
 
       on: {
         PAUSE: {
