@@ -33,25 +33,27 @@ export const timerMachine = createMachine({
       on: {
         START: {
           target: 'running',
-          guard: ({ context }) => !context.workItemId,
-          actions: assign(({ event }) => ({
-            workItemId: event.workItemId,
-            workItemTitle: event.workItemTitle,
-            startTime: Date.now(),
-            isPaused: false,
-            lastActivity: Date.now(),
-          })),
+          actions: [
+            assign(({ event }) => ({
+              workItemId: event.workItemId,
+              workItemTitle: event.workItemTitle,
+              startTime: Date.now(),
+              isPaused: false,
+              lastActivity: Date.now(),
+            })),
+          ],
         },
         RESTORE: {
           target: ({ event }) => (event.isPaused ? 'paused' : 'running'),
-          guard: ({ context }) => !context.workItemId,
-          actions: assign(({ event }) => ({
-            workItemId: event.workItemId,
-            workItemTitle: event.workItemTitle,
-            startTime: event.startTime,
-            isPaused: event.isPaused,
-            lastActivity: Date.now(),
-          })),
+          actions: [
+            assign(({ event }) => ({
+              workItemId: event.workItemId,
+              workItemTitle: event.workItemTitle,
+              startTime: event.startTime,
+              isPaused: event.isPaused,
+              lastActivity: Date.now(),
+            })),
+          ],
         },
       },
     },
@@ -62,22 +64,24 @@ export const timerMachine = createMachine({
       on: {
         PAUSE: {
           target: 'paused',
-          actions: assign(() => ({ isPaused: true })),
+          actions: [assign(() => ({ isPaused: true }))],
         },
 
         STOP: {
           target: 'idle',
-          actions: assign(() => ({
-            workItemId: undefined,
-            workItemTitle: undefined,
-            startTime: undefined,
-            isPaused: false,
-            pomodoroCount: 0,
-          })),
+          actions: [
+            assign(() => ({
+              workItemId: undefined,
+              workItemTitle: undefined,
+              startTime: undefined,
+              isPaused: false,
+              pomodoroCount: 0,
+            })),
+          ],
         },
 
         ACTIVITY: {
-          actions: assign(() => ({ lastActivity: Date.now() })),
+          actions: [assign(() => ({ lastActivity: Date.now() }))],
         },
 
         INACTIVITY_TIMEOUT: {
@@ -94,34 +98,9 @@ export const timerMachine = createMachine({
       on: {
         RESUME: {
           target: 'running',
-          actions: assign(({ context }) => {
-            // Adjust start time to account for paused duration
-            const now = Date.now();
-            const elapsed = context.startTime ? now - context.startTime : 0;
-            return {
-              isPaused: false,
-              startTime: now - elapsed,
-              lastActivity: now,
-            };
-          }),
-        },
-
-        STOP: {
-          target: 'idle',
-          actions: assign(() => ({
-            workItemId: undefined,
-            workItemTitle: undefined,
-            startTime: undefined,
-            isPaused: false,
-            pomodoroCount: 0,
-          })),
-        },
-
-        ACTIVITY: [
-          {
-            target: 'running',
-            guard: ({ context }) => context.isPaused && context.lastActivity > 0,
-            actions: assign(({ context }) => {
+          actions: [
+            assign(({ context }) => {
+              // Adjust start time to account for paused duration
               const now = Date.now();
               const elapsed = context.startTime ? now - context.startTime : 0;
               return {
@@ -130,9 +109,40 @@ export const timerMachine = createMachine({
                 lastActivity: now,
               };
             }),
+          ],
+        },
+
+        STOP: {
+          target: 'idle',
+          actions: [
+            assign(() => ({
+              workItemId: undefined,
+              workItemTitle: undefined,
+              startTime: undefined,
+              isPaused: false,
+              pomodoroCount: 0,
+            })),
+          ],
+        },
+
+        ACTIVITY: [
+          {
+            target: 'running',
+            guard: ({ context }) => context.isPaused && context.lastActivity > 0,
+            actions: [
+              assign(({ context }) => {
+                const now = Date.now();
+                const elapsed = context.startTime ? now - context.startTime : 0;
+                return {
+                  isPaused: false,
+                  startTime: now - elapsed,
+                  lastActivity: now,
+                };
+              }),
+            ],
           },
           {
-            actions: assign(() => ({ lastActivity: Date.now() })),
+            actions: [assign(() => ({ lastActivity: Date.now() }))],
           },
         ],
       },
