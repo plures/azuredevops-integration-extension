@@ -516,7 +516,7 @@ export const applicationMachine = createMachine(
           onDone: 'inactive',
           onError: 'inactive',
         },
-        entry: 'markDeactivating',
+        entry: ['markDeactivating'],
       },
     },
   },
