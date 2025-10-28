@@ -1,12 +1,16 @@
 <script lang="ts">
-  export let context: any;
-  export let sendEvent: (event: any) => void;
+  interface Props {
+    context: any;
+    sendEvent: (event: any) => void;
+  }
+  
+  const { context, sendEvent }: Props = $props();
 
-  $: workItems = context?.pendingWorkItems?.workItems || [];
-  $: activeConnectionId = context?.activeConnectionId;
-  $: connections = context?.connections || [];
-  $: activeConnection = connections.find((c: any) => c.id === activeConnectionId);
-  $: timerState = context?.timerState;
+  const workItems = $derived(context?.pendingWorkItems?.workItems || []);
+  const activeConnectionId = $derived(context?.activeConnectionId);
+  const connections = $derived(context?.connections || []);
+  const activeConnection = $derived(connections.find((c: any) => c.id === activeConnectionId));
+  const timerState = $derived(context?.timerState);
 
   // Filters
   let filterText = '';
@@ -15,17 +19,17 @@
   let sortKey = 'updated-desc';
 
   // Extract available types and states from work items
-  $: availableTypes = [
+  const availableTypes = $derived([
     ...new Set(workItems.map((w: any) => w.fields?.['System.WorkItemType']).filter(Boolean)),
-  ];
-  $: availableStates = [
+  ]);
+  const availableStates = $derived([
     ...new Set(
       workItems.map((w: any) => normalizeState(w.fields?.['System.State'])).filter(Boolean)
     ),
-  ];
+  ]);
 
   // Filter and sort work items
-  $: filteredItems = workItems
+  const filteredItems = $derived(workItems
     .filter((item: any) => {
       const title = (item.fields?.['System.Title'] || '').toLowerCase();
       const matchesText = !filterText || title.includes(filterText.toLowerCase());
@@ -49,7 +53,7 @@
             new Date(a.fields?.['System.ChangedDate'] || 0).getTime()
           );
       }
-    });
+    }));
 
   function normalizeState(raw: string): string {
     if (!raw) return 'new';
@@ -123,28 +127,26 @@
     const hours = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
-    
+
     // Show seconds for first 30 seconds, or when forced, or when recently hovered
-    const showSeconds = forceShowSeconds && (
-      seconds < 30 || 
-      displayTimerSeconds || 
-      (timerHoverStart > 0 && Date.now() - timerHoverStart < 30000)
-    );
-    
+    const showSeconds =
+      forceShowSeconds &&
+      (seconds < 30 ||
+        displayTimerSeconds ||
+        (timerHoverStart > 0 && Date.now() - timerHoverStart < 30000));
+
     if (hours > 0) {
       return showSeconds
         ? `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
         : `${hours}:${String(mins).padStart(2, '0')}`;
     }
-    return showSeconds
-      ? `${mins}:${String(secs).padStart(2, '0')}`
-      : `${mins}m`;
+    return showSeconds ? `${mins}:${String(secs).padStart(2, '0')}` : `${mins}m`;
   }
-  
+
   function handleTimerMouseEnter() {
     timerHoverStart = Date.now();
   }
-  
+
   function handleTimerMouseLeave() {
     // Keep showing seconds for another 30 seconds after hover ends
     setTimeout(() => {
@@ -241,8 +243,8 @@
                   </span>
                 {/if}
                 {#if timerState?.workItemId === item.id}
-                  <span 
-                    class="meta-badge timer-badge" 
+                  <span
+                    class="meta-badge timer-badge"
                     title="Timer Active"
                     on:mouseenter={handleTimerMouseEnter}
                     on:mouseleave={handleTimerMouseLeave}

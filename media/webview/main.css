@@ -183,6 +183,26 @@ button.svelte-1uil3z2:hover {
   align-items: center;
   gap: 0.25rem;
 }
+.meta-badge.timer-badge.svelte-1uil3z2 {
+  background: rgba(0, 120, 212, 0.25);
+  color: #0078d4;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 600;
+  animation: svelte-1uil3z2-pulse 2s ease-in-out infinite;
+}
+.timer-badge.svelte-1uil3z2 .codicon:where(.svelte-1uil3z2) {
+  font-size: 0.9rem;
+}
+@keyframes svelte-1uil3z2-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
 .item-actions.svelte-1uil3z2 {
   display: flex;
   gap: 0.4rem;

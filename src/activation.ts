@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { randomUUID } from 'crypto';
+//import { randomUUID } from 'crypto';
 import { OpenAI } from 'openai';
 import { AzureDevOpsIntClient } from './azureClient.js';
-import { parseAzureDevOpsUrl, isAzureDevOpsWorkItemUrl } from './azureDevOpsUrlParser.js';
+//import { parseAzureDevOpsUrl, isAzureDevOpsWorkItemUrl } from './azureDevOpsUrlParser.js';
 import type { WorkItemsProvider } from './provider.js';
 import { WorkItemTimer } from './timer.js';
 import { SessionTelemetryManager } from './sessionTelemetry.js';
