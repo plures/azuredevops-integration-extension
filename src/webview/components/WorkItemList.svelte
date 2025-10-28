@@ -6,6 +6,7 @@
   $: activeConnectionId = context?.activeConnectionId;
   $: connections = context?.connections || [];
   $: activeConnection = connections.find((c: any) => c.id === activeConnectionId);
+  $: timerState = context?.timerState;
 
   // Filters
   let filterText = '';
@@ -109,6 +110,16 @@
     event.stopPropagation();
     sendEvent({ type: 'CREATE_BRANCH', workItemId: item.id });
   }
+
+  function formatElapsedTime(seconds: number): string {
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    if (hours > 0) {
+      return `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+  }
 </script>
 
 <div class="work-item-list">
@@ -190,6 +201,12 @@
                   <span class="meta-badge assignee">
                     {item.fields['System.AssignedTo'].displayName ||
                       item.fields['System.AssignedTo']}
+                  </span>
+                {/if}
+                {#if timerState?.workItemId === item.id}
+                  <span class="meta-badge timer-badge" title="Timer Active">
+                    <span class="codicon">⏱</span>
+                    {formatElapsedTime(timerState.elapsedSeconds)}
                   </span>
                 {/if}
               </div>
@@ -452,6 +469,29 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
+  }
+
+  .meta-badge.timer-badge {
+    background: rgba(0, 120, 212, 0.25);
+    color: #0078d4;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-weight: 600;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .timer-badge .codicon {
+    font-size: 0.9rem;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
   }
   
   /* Action Buttons */

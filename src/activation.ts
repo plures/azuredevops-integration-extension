@@ -400,24 +400,23 @@ function dispatchApplicationEvent(event: unknown): void {
         break;
       case 'CREATE_BRANCH':
         // Show input for branch name then create
-        if (evt.workItemId) {
-          provider?.getWorkItems?.().then((items: any[]) => {
-            const item = items.find((i) => i.id === evt.workItemId);
-            if (item) {
-              const title = item.fields?.['System.Title'] || '';
-              const branchName = `feature/${evt.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-              vscode.window
-                .showInputBox({
-                  prompt: 'Enter branch name',
-                  value: branchName,
-                })
-                .then((name) => {
-                  if (name) {
-                    vscode.commands.executeCommand('git.branch', name);
-                  }
-                });
-            }
-          });
+        if (evt.workItemId && provider) {
+          const items = provider.getWorkItems?.() || [];
+          const item = items.find((i: any) => i.id === evt.workItemId);
+          if (item) {
+            const title = item.fields?.['System.Title'] || '';
+            const branchName = `feature/${evt.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+            vscode.window
+              .showInputBox({
+                prompt: 'Enter branch name',
+                value: branchName,
+              })
+              .then((name) => {
+                if (name) {
+                  vscode.commands.executeCommand('git.branch', name);
+                }
+              });
+          }
         }
         break;
     }
@@ -2605,6 +2604,25 @@ function getSerializableContext(context: any): Record<string, any> {
     });
   }
 
+  // Get timer state snapshot if timerActor exists
+  let timerState: any = undefined;
+  if (context.timerActor && typeof (context.timerActor as any).getSnapshot === 'function') {
+    try {
+      const timerSnapshot = (context.timerActor as any).getSnapshot();
+      if (timerSnapshot?.context) {
+        timerState = {
+          workItemId: timerSnapshot.context.workItemId,
+          workItemTitle: timerSnapshot.context.workItemTitle,
+          elapsedSeconds: timerSnapshot.context.elapsedSeconds,
+          isPaused: timerSnapshot.context.isPaused,
+          state: timerSnapshot.value,
+        };
+      }
+    } catch (e) {
+      // Ignore errors getting timer snapshot
+    }
+  }
+
   // Extract only serializable properties, excluding VS Code API objects and actors
   const serialized = {
     isActivated: context.isActivated,
@@ -2623,6 +2641,7 @@ function getSerializableContext(context: any): Record<string, any> {
     errorRecoveryAttempts: context.errorRecoveryAttempts,
     viewMode: context.viewMode,
     kanbanColumns: context.kanbanColumns,
+    timerState: timerState,
     deviceCodeSession: context.deviceCodeSession
       ? {
           connectionId: context.deviceCodeSession.connectionId,
