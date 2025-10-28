@@ -20,6 +20,7 @@ export const timerMachine = createMachine({
     workItemId: undefined,
     workItemTitle: undefined,
     startTime: undefined,
+    pausedAt: undefined,
     isPaused: false,
     lastActivity: Date.now(),
     inactivityTimeoutSec: FSM_CONFIG.timer.inactivityTimeoutSec,
@@ -79,7 +80,12 @@ export const timerMachine = createMachine({
       on: {
         PAUSE: {
           target: 'paused',
-          actions: [assign(() => ({ isPaused: true, pausedAt: Date.now() }))],
+          actions: [
+            assign(() => ({
+              isPaused: true,
+              pausedAt: Date.now(),
+            })),
+          ],
         },
 
         STOP: {
@@ -103,7 +109,10 @@ export const timerMachine = createMachine({
         INACTIVITY_TIMEOUT: {
           target: 'paused',
           actions: [
-            assign(() => ({ isPaused: true, pausedAt: Date.now() })),
+            assign(() => ({
+              isPaused: true,
+              pausedAt: Date.now(),
+            })),
             () => logger.info('Timer paused due to inactivity'),
           ],
         },
@@ -118,12 +127,11 @@ export const timerMachine = createMachine({
           actions: [
             assign(({ context }) => {
               const now = Date.now();
-              // Calculate pause duration and adjust startTime forward to exclude it
-              const pauseDuration = context.pausedAt ? now - context.pausedAt : 0;
-              const adjustedStartTime = context.startTime ? context.startTime + pauseDuration : now;
+              const pauseDuration =
+                context.pausedAt && context.startTime ? now - context.pausedAt : 0;
               return {
                 isPaused: false,
-                startTime: adjustedStartTime,
+                startTime: context.startTime ? context.startTime + pauseDuration : now,
                 pausedAt: undefined,
                 lastActivity: now,
               };
@@ -152,12 +160,11 @@ export const timerMachine = createMachine({
             actions: [
               assign(({ context }) => {
                 const now = Date.now();
-                // Calculate pause duration and adjust startTime forward to exclude it
-                const pauseDuration = context.pausedAt ? now - context.pausedAt : 0;
-                const adjustedStartTime = context.startTime ? context.startTime + pauseDuration : now;
+                const pauseDuration =
+                  context.pausedAt && context.startTime ? now - context.pausedAt : 0;
                 return {
                   isPaused: false,
-                  startTime: adjustedStartTime,
+                  startTime: context.startTime ? context.startTime + pauseDuration : now,
                   pausedAt: undefined,
                   lastActivity: now,
                 };
