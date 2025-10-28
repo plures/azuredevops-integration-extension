@@ -170,6 +170,7 @@ export type ApplicationEvent =
   | { type: 'SET_QUERY'; query: string }
   // Work Item Action Events
   | { type: 'START_TIMER_INTERACTIVE'; workItemId?: number; workItemTitle?: string }
+  | { type: 'STOP_TIMER' }
   | { type: 'EDIT_WORK_ITEM'; workItemId: number }
   | { type: 'OPEN_IN_BROWSER'; workItemId: number }
   | { type: 'CREATE_BRANCH'; workItemId: number }
@@ -457,6 +458,9 @@ export const applicationMachine = createMachine(
               },
               START_TIMER_INTERACTIVE: {
                 actions: 'handleStartTimer',
+              },
+              STOP_TIMER: {
+                actions: 'handleStopTimer',
               },
               EDIT_WORK_ITEM: {
                 actions: 'handleEditWorkItem',
@@ -820,6 +824,27 @@ export const applicationMachine = createMachine(
         }
         // Note: Actual timer start happens in activation.ts via dispatchApplicationEvent
       },
+      handleStopTimer: ({ context }) => {
+        const { timerActor } = context;
+
+        if (!timerActor || typeof (timerActor as any).send !== 'function') {
+          console.warn('[FSM] handleStopTimer: No timerActor available');
+          return;
+        }
+
+        console.log('[FSM] Stopping timer');
+        (timerActor as any).send({ type: 'STOP' });
+
+        // Clear persisted timer state
+        if (context.extensionContext) {
+          (context.extensionContext as any).globalState
+            ?.update('azureDevOpsInt.timer.state', undefined)
+            .then(
+              () => {},
+              (e: any) => console.error('[FSM] Failed to clear persisted timer:', e)
+            );
+        }
+      },
       handleEditWorkItem: ({ event, context }) => {
         if (event.type !== 'EDIT_WORK_ITEM') return;
 
@@ -888,29 +913,41 @@ export const applicationMachine = createMachine(
         console.log('[FSM] Opening work item:', event.workItemId);
         // activation.ts handles via dispatchApplicationEvent
       },
-      stopTimerOnWorkItemUpdate: ({ context }) => {
-        // Clear timer when work items are refreshed
-        const { timerActor } = context;
-        if (timerActor && typeof (timerActor as any).getSnapshot === 'function') {
-          try {
-            const timerSnapshot = (timerActor as any).getSnapshot();
-            if (timerSnapshot?.value !== 'idle') {
-              console.log('[FSM] Stopping timer due to work item update');
-              (timerActor as any).send({ type: 'STOP' });
+      stopTimerOnWorkItemUpdate: ({ context, event }) => {
+        // Don't clear timer when work items are refreshed - timer should persist
+        // Only stop timer if the work item it's tracking is no longer in the list
+        if (event.type !== 'WORK_ITEMS_LOADED') return;
 
-              // Clear persisted timer state
-              if (context.extensionContext) {
-                (context.extensionContext as any).globalState
-                  ?.update('azureDevOpsInt.timer.state', undefined)
-                  .then(
-                    () => {},
-                    (e: any) => console.error('[FSM] Failed to clear persisted timer:', e)
-                  );
-              }
+        const { timerActor } = context;
+        if (!timerActor || typeof (timerActor as any).getSnapshot !== 'function') return;
+
+        try {
+          const timerSnapshot = (timerActor as any).getSnapshot();
+          if (timerSnapshot?.value === 'idle') return;
+
+          const timerWorkItemId = timerSnapshot.context.workItemId;
+          if (!timerWorkItemId) return;
+
+          // Check if the work item is still in the refreshed list
+          const workItems = event.workItems || [];
+          const stillExists = workItems.some((wi: any) => wi.id === timerWorkItemId);
+
+          if (!stillExists) {
+            console.log('[FSM] Stopping timer - work item no longer in list:', timerWorkItemId);
+            (timerActor as any).send({ type: 'STOP' });
+
+            // Clear persisted timer state
+            if (context.extensionContext) {
+              (context.extensionContext as any).globalState
+                ?.update('azureDevOpsInt.timer.state', undefined)
+                .then(
+                  () => {},
+                  (e: any) => console.error('[FSM] Failed to clear persisted timer:', e)
+                );
             }
-          } catch (e) {
-            console.error('[FSM] Failed to stop timer on work item update:', e);
           }
+        } catch (e) {
+          console.error('[FSM] Failed to check timer on work item update:', e);
         }
       },
       storeDeviceCodeSession: assign(({ event }) => {

@@ -117,11 +117,17 @@
 
   function handleStartTimer(item: any, event: Event) {
     event.stopPropagation(); // Prevent card click
-    sendEvent({
-      type: 'START_TIMER_INTERACTIVE',
-      workItemId: item.id,
-      workItemTitle: item.fields?.['System.Title'],
-    });
+    
+    // Toggle: if timer is running on this item, stop it; otherwise start it
+    if (timerState?.workItemId === item.id && timerState?.state !== 'idle') {
+      sendEvent({ type: 'STOP_TIMER' });
+    } else {
+      sendEvent({
+        type: 'START_TIMER_INTERACTIVE',
+        workItemId: item.id,
+        workItemTitle: item.fields?.['System.Title'],
+      });
+    }
   }
 
   function handleEditItem(item: any, event: Event) {
@@ -281,10 +287,10 @@
                 <button
                   class="action-btn primary"
                   on:click={(e) => handleStartTimer(item, e)}
-                  title="Start Timer"
+                  title={timerState?.workItemId === item.id ? 'Stop Timer' : 'Start Timer'}
                 >
-                  <span class="codicon">▶</span>
-                  Timer
+                  <span class="codicon">{timerState?.workItemId === item.id ? '⏹' : '▶'}</span>
+                  {timerState?.workItemId === item.id ? 'Stop' : 'Timer'}
                 </button>
                 <button
                   class="action-btn"
