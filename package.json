@@ -882,7 +882,9 @@
     "test:unit": "npm test",
     "test:integration": "node -e \"console.log('Integration tests temporarily disabled');\"",
     "test:ci": "npm run test && node -e \"console.log('Integration tests temporarily disabled');\"",
-    "test:feature": "echo 'Feature tests coming soon'",
+    "test:feature": "vitest run tests/features",
+    "test:feature:watch": "vitest watch tests/features",
+    "test:feature:ui": "vitest --ui tests/features",
     "type-check": "tsc --noEmit",
     "validate:machines": "tsx scripts/validate-xstate-machines.ts",
     "validate:all": "npm run type-check && npm run validate:machines",
@@ -911,10 +913,11 @@
     "@types/chai": "^5.2.2",
     "@types/mocha": "^10.0.10",
     "@types/nock": "^11.1.0",
-    "@types/node": "24.x",
+    "@types/node": "^24.9.1",
     "@types/vscode": "^1.99.0",
     "@typescript-eslint/eslint-plugin": "^8.46.1",
     "@typescript-eslint/parser": "^8.46.1",
+    "@vitest/ui": "^4.0.4",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.6.2",
     "chai": "^6.2.0",
@@ -934,7 +937,8 @@
     "svelte": "^5.40.1",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.4"
   },
   "dependencies": {
     "@azure/msal-node": "^3.8.0",

@@ -17,7 +17,9 @@ export const timerMachine = createMachine({
   },
 
   context: {
-    elapsedSeconds: 0,
+    workItemId: undefined,
+    workItemTitle: undefined,
+    startTime: undefined,
     isPaused: false,
     lastActivity: Date.now(),
     inactivityTimeoutSec: FSM_CONFIG.timer.inactivityTimeoutSec,
@@ -31,21 +33,43 @@ export const timerMachine = createMachine({
       on: {
         START: {
           target: 'running',
-          guard: ({ context }) => !context.workItemId,
-          actions: assign(({ event, context }) => {
-            if (event.type === 'START') {
-              return {
+          actions: [
+            assign(({ event }) => ({
+              workItemId: event.workItemId,
+              workItemTitle: event.workItemTitle,
+              startTime: Date.now(),
+              isPaused: false,
+              lastActivity: Date.now(),
+            })),
+          ],
+        },
+        RESTORE: [
+          {
+            target: 'paused',
+            guard: ({ event }) => event.type === 'RESTORE' && event.isPaused,
+            actions: [
+              assign(({ event }) => ({
                 workItemId: event.workItemId,
                 workItemTitle: event.workItemTitle,
-                startTime: Date.now(),
-                elapsedSeconds: 0,
-                isPaused: false,
+                startTime: event.startTime,
+                isPaused: event.isPaused,
                 lastActivity: Date.now(),
-              };
-            }
-            return context;
-          }),
-        },
+              })),
+            ],
+          },
+          {
+            target: 'running',
+            actions: [
+              assign(({ event }) => ({
+                workItemId: event.workItemId,
+                workItemTitle: event.workItemTitle,
+                startTime: event.startTime,
+                isPaused: event.isPaused,
+                lastActivity: Date.now(),
+              })),
+            ],
+          },
+        ],
       },
     },
 
@@ -53,38 +77,26 @@ export const timerMachine = createMachine({
       entry: [assign(() => ({ lastActivity: Date.now() }))],
 
       on: {
-        TICK: {
-          actions: assign(({ context }) => {
-            if (!context.startTime || context.isPaused) return context;
-
-            const elapsed = Math.floor((Date.now() - context.startTime) / 1000);
-            const cappedElapsed = Math.min(elapsed, context.defaultElapsedLimitHours * 3600);
-
-            return {
-              elapsedSeconds: Math.max(0, cappedElapsed),
-            };
-          }),
-        },
-
         PAUSE: {
           target: 'paused',
-          actions: assign(() => ({ isPaused: true })),
+          actions: [assign(() => ({ isPaused: true }))],
         },
 
         STOP: {
           target: 'idle',
-          actions: assign(() => ({
-            workItemId: undefined,
-            workItemTitle: undefined,
-            startTime: undefined,
-            elapsedSeconds: 0,
-            isPaused: false,
-            pomodoroCount: 0,
-          })),
+          actions: [
+            assign(() => ({
+              workItemId: undefined,
+              workItemTitle: undefined,
+              startTime: undefined,
+              isPaused: false,
+              pomodoroCount: 0,
+            })),
+          ],
         },
 
         ACTIVITY: {
-          actions: assign(() => ({ lastActivity: Date.now() })),
+          actions: [assign(() => ({ lastActivity: Date.now() }))],
         },
 
         INACTIVITY_TIMEOUT: {
@@ -98,30 +110,34 @@ export const timerMachine = createMachine({
     },
 
     paused: {
+      entry: [],
       on: {
         RESUME: {
           target: 'running',
           actions: [
-            assign(({ context }) => ({
-              isPaused: false,
-              startTime: context.startTime
-                ? Date.now() - context.elapsedSeconds * 1000
-                : Date.now(),
-              lastActivity: Date.now(),
-            })),
+            assign(({ context }) => {
+              const now = Date.now();
+              const elapsed = context.startTime ? now - context.startTime : 0;
+              return {
+                isPaused: false,
+                startTime: now - elapsed,
+                lastActivity: now,
+              };
+            }),
           ],
         },
 
         STOP: {
           target: 'idle',
-          actions: assign(() => ({
-            workItemId: undefined,
-            workItemTitle: undefined,
-            startTime: undefined,
-            elapsedSeconds: 0,
-            isPaused: false,
-            pomodoroCount: 0,
-          })),
+          actions: [
+            assign(() => ({
+              workItemId: undefined,
+              workItemTitle: undefined,
+              startTime: undefined,
+              isPaused: false,
+              pomodoroCount: 0,
+            })),
+          ],
         },
 
         ACTIVITY: [
@@ -129,17 +145,19 @@ export const timerMachine = createMachine({
             target: 'running',
             guard: ({ context }) => context.isPaused && context.lastActivity > 0,
             actions: [
-              assign(({ context }) => ({
-                isPaused: false,
-                startTime: context.startTime
-                  ? Date.now() - context.elapsedSeconds * 1000
-                  : Date.now(),
-                lastActivity: Date.now(),
-              })),
+              assign(({ context }) => {
+                const now = Date.now();
+                const elapsed = context.startTime ? now - context.startTime : 0;
+                return {
+                  isPaused: false,
+                  startTime: now - elapsed,
+                  lastActivity: now,
+                };
+              }),
             ],
           },
           {
-            actions: assign(() => ({ lastActivity: Date.now() })),
+            actions: [assign(() => ({ lastActivity: Date.now() }))],
           },
         ],
       },

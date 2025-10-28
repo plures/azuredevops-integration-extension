@@ -25,7 +25,6 @@ export interface TimerContext {
   workItemId?: number;
   workItemTitle?: string;
   startTime?: number;
-  elapsedSeconds: number;
   isPaused: boolean;
   lastActivity: number;
   connectionInfo?: {
@@ -71,10 +70,16 @@ export type ConnectionEvent =
 
 export type TimerEvent =
   | { type: 'START'; workItemId: number; workItemTitle: string }
+  | {
+      type: 'RESTORE';
+      workItemId: number;
+      workItemTitle: string;
+      startTime: number;
+      isPaused: boolean;
+    }
   | { type: 'PAUSE'; manual?: boolean }
   | { type: 'RESUME'; fromActivity?: boolean }
   | { type: 'STOP' }
-  | { type: 'TICK' }
   | { type: 'ACTIVITY' }
   | { type: 'INACTIVITY_TIMEOUT' }
   | { type: 'POMODORO_BREAK' };

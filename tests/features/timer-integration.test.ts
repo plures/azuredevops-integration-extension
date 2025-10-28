@@ -1,0 +1,297 @@
+/**
+ * Timer Feature Integration Tests
+ *
+ * Tests the complete timer feature including:
+ * - Start/stop/pause/resume
+ * - Persistence and restoration
+ * - State transitions
+ * - Integration with FSM
+ */
+
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createActor } from 'xstate';
+import { timerMachine } from '../../src/fsm/machines/timerMachine';
+
+describe('Timer Feature Integration', () => {
+  describe('Basic Timer Operations', () => {
+    let timerActor: any;
+
+    beforeEach(() => {
+      timerActor = createActor(timerMachine).start();
+    });
+
+    it('should start in idle state', () => {
+      const snapshot = timerActor.getSnapshot();
+      expect(snapshot.value).toBe('idle');
+      expect(snapshot.context.workItemId).toBeUndefined();
+      expect(snapshot.context.startTime).toBeUndefined();
+    });
+
+    it('should transition to running when START event is sent', () => {
+      timerActor.send({
+        type: 'START',
+        workItemId: 123,
+        workItemTitle: 'Test Item',
+      });
+
+      const snapshot = timerActor.getSnapshot();
+      expect(snapshot.value).toBe('running');
+      expect(snapshot.context.workItemId).toBe(123);
+      expect(snapshot.context.workItemTitle).toBe('Test Item');
+      expect(snapshot.context.startTime).toBeGreaterThan(0);
+      expect(snapshot.context.isPaused).toBe(false);
+    });
+
+    it('should calculate elapsed time from startTime', () => {
+      const startTime = Date.now();
+      timerActor.send({ type: 'START', workItemId: 123, workItemTitle: 'Test' });
+
+      // Wait a bit
+      const snapshot = timerActor.getSnapshot();
+      const elapsed = Math.floor((Date.now() - snapshot.context.startTime) / 1000);
+
+      expect(elapsed).toBeGreaterThanOrEqual(0);
+      expect(snapshot.context.startTime).toBeGreaterThanOrEqual(startTime);
+    });
+
+    it('should pause timer when PAUSE event is sent', () => {
+      timerActor.send({ type: 'START', workItemId: 123, workItemTitle: 'Test' });
+      timerActor.send({ type: 'PAUSE' });
+
+      const snapshot = timerActor.getSnapshot();
+      expect(snapshot.value).toBe('paused');
+      expect(snapshot.context.isPaused).toBe(true);
+      expect(snapshot.context.workItemId).toBe(123); // Still set
+    });
+
+    it('should stop timer and clear state when STOP event is sent', () => {
+      timerActor.send({ type: 'START', workItemId: 123, workItemTitle: 'Test' });
+      timerActor.send({ type: 'STOP' });
+
+      const snapshot = timerActor.getSnapshot();
+      expect(snapshot.value).toBe('idle');
+      expect(snapshot.context.workItemId).toBeUndefined();
+      expect(snapshot.context.startTime).toBeUndefined();
+    });
+  });
+
+  describe('Timer Persistence and Restoration', () => {
+    it('should restore timer with RESTORE event preserving startTime', () => {
+      // Simulate saved state
+      const savedStartTime = Date.now() - 60000; // 60 seconds ago
+      const savedWorkItemId = 123;
+      const savedWorkItemTitle = 'Persisted Timer';
+
+      const timerActor = createActor(timerMachine).start();
+
+      console.log('[TEST] Before RESTORE:', timerActor.getSnapshot().value);
+
+      // Restore the timer
+      try {
+        timerActor.send({
+          type: 'RESTORE',
+          workItemId: savedWorkItemId,
+          workItemTitle: savedWorkItemTitle,
+          startTime: savedStartTime,
+          isPaused: false,
+        });
+      } catch (error) {
+        console.error('[TEST] RESTORE error:', error);
+        throw error;
+      }
+
+      console.log('[TEST] After RESTORE:', timerActor.getSnapshot().value);
+      const snapshot = timerActor.getSnapshot();
+      expect(snapshot.value).toBe('running');
+      expect(snapshot.context.workItemId).toBe(savedWorkItemId);
+      expect(snapshot.context.workItemTitle).toBe(savedWorkItemTitle);
+      expect(snapshot.context.startTime).toBe(savedStartTime); // CRITICAL: Preserves original time
+      expect(snapshot.context.isPaused).toBe(false);
+    });
+
+    it('should restore timer in paused state when isPaused is true', () => {
+      const savedStartTime = Date.now() - 120000; // 2 minutes ago
+
+      const timerActor = createActor(timerMachine).start();
+
+      timerActor.send({
+        type: 'RESTORE',
+        workItemId: 456,
+        workItemTitle: 'Paused Timer',
+        startTime: savedStartTime,
+        isPaused: true,
+      });
+
+      const snapshot = timerActor.getSnapshot();
+      expect(snapshot.value).toBe('paused');
+      expect(snapshot.context.isPaused).toBe(true);
+      expect(snapshot.context.startTime).toBe(savedStartTime);
+    });
+
+    it('should preserve elapsed time across save/restore cycle', () => {
+      // Start a timer
+      const actor1 = createActor(timerMachine).start();
+      actor1.send({ type: 'START', workItemId: 789, workItemTitle: 'Test' });
+
+      const snapshot1 = actor1.getSnapshot();
+      const originalStartTime = snapshot1.context.startTime!;
+
+      // Simulate persistence
+      const persistedState = {
+        workItemId: snapshot1.context.workItemId,
+        workItemTitle: snapshot1.context.workItemTitle,
+        startTime: snapshot1.context.startTime,
+        isPaused: snapshot1.context.isPaused,
+      };
+
+      // Create new actor and restore
+      const actor2 = createActor(timerMachine).start();
+      actor2.send({
+        type: 'RESTORE',
+        workItemId: persistedState.workItemId!,
+        workItemTitle: persistedState.workItemTitle!,
+        startTime: persistedState.startTime!,
+        isPaused: persistedState.isPaused!,
+      });
+
+      const snapshot2 = actor2.getSnapshot();
+      expect(snapshot2.context.startTime).toBe(originalStartTime);
+
+      // Elapsed time should be calculated from original start time
+      const elapsed1 = Math.floor((Date.now() - originalStartTime) / 1000);
+      const elapsed2 = Math.floor((Date.now() - snapshot2.context.startTime!) / 1000);
+      expect(elapsed2).toBeGreaterThanOrEqual(elapsed1);
+    });
+  });
+
+  describe('State Machine Contract', () => {
+    it('should not allow START when timer is already running', () => {
+      const timerActor = createActor(timerMachine).start();
+
+      timerActor.send({ type: 'START', workItemId: 111, workItemTitle: 'First' });
+      const snapshot1 = timerActor.getSnapshot();
+      expect(snapshot1.value).toBe('running');
+      expect(snapshot1.context.workItemId).toBe(111);
+
+      // Try to start again with different work item
+      timerActor.send({ type: 'START', workItemId: 222, workItemTitle: 'Second' });
+      const snapshot2 = timerActor.getSnapshot();
+
+      // Should remain with first work item (guard prevents transition)
+      expect(snapshot2.value).toBe('running');
+      expect(snapshot2.context.workItemId).toBe(111);
+    });
+
+    it('should only allow RESTORE when timer is idle', () => {
+      const timerActor = createActor(timerMachine).start();
+
+      // Start a timer
+      timerActor.send({ type: 'START', workItemId: 111, workItemTitle: 'First' });
+
+      // Try to restore while running (should be ignored by guard)
+      timerActor.send({
+        type: 'RESTORE',
+        workItemId: 222,
+        workItemTitle: 'Second',
+        startTime: Date.now(),
+        isPaused: false,
+      });
+
+      const snapshot = timerActor.getSnapshot();
+      expect(snapshot.context.workItemId).toBe(111); // Unchanged
+    });
+  });
+
+  describe('Timer Context', () => {
+    it('should track lastActivity on ACTIVITY events', () => {
+      const timerActor = createActor(timerMachine).start();
+      timerActor.send({ type: 'START', workItemId: 123, workItemTitle: 'Test' });
+
+      const before = timerActor.getSnapshot().context.lastActivity;
+
+      // Wait a tiny bit
+      setTimeout(() => {}, 10);
+
+      timerActor.send({ type: 'ACTIVITY' });
+      const after = timerActor.getSnapshot().context.lastActivity;
+
+      expect(after).toBeGreaterThanOrEqual(before);
+    });
+
+    it('should maintain context fields across state transitions', () => {
+      const timerActor = createActor(timerMachine).start();
+
+      timerActor.send({ type: 'START', workItemId: 999, workItemTitle: 'Persistent' });
+      const runningSnapshot = timerActor.getSnapshot();
+      const originalStartTime = runningSnapshot.context.startTime;
+
+      timerActor.send({ type: 'PAUSE' });
+      const pausedSnapshot = timerActor.getSnapshot();
+
+      // Context should persist across pause
+      expect(pausedSnapshot.context.workItemId).toBe(999);
+      expect(pausedSnapshot.context.workItemTitle).toBe('Persistent');
+      expect(pausedSnapshot.context.startTime).toBe(originalStartTime);
+    });
+  });
+
+  describe('Real-World Scenarios', () => {
+    it('should handle typical timer workflow: start -> work -> pause -> resume -> stop', () => {
+      const timerActor = createActor(timerMachine).start();
+
+      // User starts timer
+      timerActor.send({ type: 'START', workItemId: 1, workItemTitle: 'Feature Work' });
+      expect(timerActor.getSnapshot().value).toBe('running');
+
+      // User takes a break
+      timerActor.send({ type: 'PAUSE' });
+      expect(timerActor.getSnapshot().value).toBe('paused');
+
+      // User resumes work
+      timerActor.send({ type: 'RESUME' });
+      expect(timerActor.getSnapshot().value).toBe('running');
+
+      // User finishes work
+      timerActor.send({ type: 'STOP' });
+      expect(timerActor.getSnapshot().value).toBe('idle');
+    });
+
+    it('should handle VSCode restart scenario with persistence', () => {
+      // Scenario: User starts timer, closes VSCode, reopens VSCode
+
+      // Session 1: Start timer
+      const session1Actor = createActor(timerMachine).start();
+      session1Actor.send({ type: 'START', workItemId: 42, workItemTitle: 'Bug Fix' });
+
+      const session1Snapshot = session1Actor.getSnapshot();
+      const persistedData = {
+        workItemId: session1Snapshot.context.workItemId,
+        workItemTitle: session1Snapshot.context.workItemTitle,
+        startTime: session1Snapshot.context.startTime,
+        isPaused: session1Snapshot.context.isPaused,
+        state: session1Snapshot.value,
+      };
+
+      session1Actor.stop();
+
+      // Session 2: VSCode reopens, restore timer
+      const session2Actor = createActor(timerMachine).start();
+      session2Actor.send({
+        type: 'RESTORE',
+        workItemId: persistedData.workItemId!,
+        workItemTitle: persistedData.workItemTitle!,
+        startTime: persistedData.startTime!,
+        isPaused: persistedData.isPaused!,
+      });
+
+      const session2Snapshot = session2Actor.getSnapshot();
+      expect(session2Snapshot.value).toBe(persistedData.state);
+      expect(session2Snapshot.context.workItemId).toBe(42);
+      expect(session2Snapshot.context.startTime).toBe(persistedData.startTime);
+
+      // Elapsed time should be calculated from original start time
+      const elapsed = Math.floor((Date.now() - session2Snapshot.context.startTime!) / 1000);
+      expect(elapsed).toBeGreaterThanOrEqual(0);
+    });
+  });
+});
