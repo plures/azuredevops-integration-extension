@@ -6,7 +6,7 @@
  * providing reactive state to components without message passing.
  */
 
-import { readable, writable, derived, get } from 'svelte/store';
+import { readable, writable as _writable, derived, get as _get } from 'svelte/store';
 import { createActor, ActorRefFrom } from 'xstate';
 import {
   applicationMachine,

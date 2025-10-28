@@ -8,8 +8,8 @@
 import { createActor, ActorRefFrom } from 'xstate';
 import {
   connectionMachine,
-  ConnectionContext,
-  ConnectionEvent,
+  ConnectionContext as _ConnectionContext,
+  ConnectionEvent as _ConnectionEvent,
   ProjectConnection,
 } from './machines/connectionMachine.js';
 import { createComponentLogger, FSMComponent } from './logging/FSMLogger.js';

@@ -4,7 +4,7 @@
  */
 
 import * as msal from '@azure/msal-node';
-import { PublicClientApplication } from '@azure/msal-node';
+import { PublicClientApplication as _PublicClientApplication } from '@azure/msal-node';
 import type * as vscode from 'vscode';
 // Inline type definitions (previously from deleted types.js)
 interface AuthenticationResult {

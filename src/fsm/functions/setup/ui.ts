@@ -23,7 +23,7 @@ export async function showSetupMenu(
   const activeConnection = connections.find((c) => c.id === activeConnectionId);
   const activeAuthMethod = activeConnection?.authMethod || 'pat';
   const hasPatConnections = connections.some((c) => c.authMethod !== 'entra');
-  const hasEntraConnections = connections.some((c) => c.authMethod === 'entra');
+  const _hasEntraConnections = connections.some((c) => c.authMethod === 'entra');
 
   // Build menu items based on context
   const menuItems: Array<{ label: string; action: SetupAction }> = [

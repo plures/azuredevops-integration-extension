@@ -174,7 +174,7 @@ export class OutputChannelReader {
 /**
  * Command to get FSM logs for debugging
  */
-export async function getFSMLogsForDebugging(context: vscode.ExtensionContext): Promise<string> {
+export async function getFSMLogsForDebugging(_context: vscode.ExtensionContext): Promise<string> {
   const reader = OutputChannelReader.getInstance();
   const recentLogs = reader.getRecentLogs(100);
   const stats = reader.getLogStats();

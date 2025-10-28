@@ -7,6 +7,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 ## Foundation Architecture Discipline ✅
 
 ### Validation Infrastructure
+
 - [x] Architecture discipline documentation
 - [x] TDD template and workflow
 - [x] XState v5 validation script
@@ -18,6 +19,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] **Validation passes** - all machines valid
 
 ### Test Infrastructure
+
 - [x] Create `tests/features/` directory
 - [x] Add vitest configuration
 - [x] Write timer integration test (14 tests)
@@ -27,6 +29,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Fixed with guard-based transition array
 
 ### Module Extraction
+
 - [x] Extract timer module into small files (< 300 lines each)
 - [x] Create feature-based directory structure
 - [x] Implement pure functions for persistence
@@ -34,6 +37,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Maintain single responsibility principle
 
 ### Pre-Commit Enforcement
+
 - [x] Update `.husky/pre-commit` with validation checks
 - [x] Add lint-staged configuration
 - [x] Run XState validation before commit
@@ -41,6 +45,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Prevent broken code from entering git history
 
 ### Quality Gates
+
 - [x] All state machines pass validation
 - [x] Timer feature has integration tests (14 tests)
 - [x] Timer module extracted into small files
@@ -48,6 +53,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Build succeeds without errors
 
 ### Developer Experience
+
 - [x] Can add features without fear
 - [x] Tests catch regressions immediately
 - [x] Small modules easy to understand
