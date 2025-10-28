@@ -9,7 +9,7 @@ import { createActor, ActorRefFrom } from 'xstate';
 import { applicationMachine } from './machines/applicationMachine.js';
 import { FSMManager } from './FSMManager.js';
 import { TimerAdapter } from './adapters/TimerAdapter.js';
-import { FSM_CONFIG } from './config.js';
+import { FSM_CONFIG as _FSM_CONFIG } from './config.js';
 import { createComponentLogger, FSMComponent } from './logging/FSMLogger.js';
 import { fsmTracer } from './logging/FSMTracer.js';
 

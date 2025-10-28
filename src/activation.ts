@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { randomUUID } from 'crypto';
+import { randomUUID as _randomUUID } from 'crypto';
 import { OpenAI } from 'openai';
 import { AzureDevOpsIntClient } from './azureClient.js';
-import { parseAzureDevOpsUrl, isAzureDevOpsWorkItemUrl } from './azureDevOpsUrlParser.js';
+import { parseAzureDevOpsUrl as _parseAzureDevOpsUrl, isAzureDevOpsWorkItemUrl as _isAzureDevOpsWorkItemUrl } from './azureDevOpsUrlParser.js';
 import type { WorkItemsProvider } from './provider.js';
 import { WorkItemTimer } from './timer.js';
 import { SessionTelemetryManager } from './sessionTelemetry.js';
@@ -17,7 +17,7 @@ import {
 import { getConnectionLabel } from './fsm/functions/connection/connectionLabel.js';
 import {
   createBranchAwareTransform,
-  createConnectionProvider,
+  createConnectionProvider as _createConnectionProvider,
 } from './fsm/functions/connection/providerFactory.js';
 import { createSharedContextBridge } from './bridge/sharedContextBridge.js';
 import {
@@ -39,14 +39,14 @@ import { migrateGlobalPATToConnections } from './fsm/functions/secrets/patMigrat
 import {
   getApplicationStoreActor,
   sendApplicationStoreEvent,
-  setActiveConnectionHandler,
+  setActiveConnectionHandler as _setActiveConnectionHandler,
   setActiveConnectionIdReader,
   setExtensionContextRef as setExtensionContextRefBridge,
-  setForwardProviderMessage,
+  setForwardProviderMessage as _setForwardProviderMessage,
   setGetSecretPAT,
   setLoadedConnectionsReader,
-  setRegisterAllCommands,
-  setWebviewMessageHandler,
+  setRegisterAllCommands as _setRegisterAllCommands,
+  setWebviewMessageHandler as _setWebviewMessageHandler,
 } from './fsm/services/extensionHostBridge.js';
 import { registerTraceCommands } from './fsm/commands/traceCommands.js';
 import { FSMSetupService } from './fsm/services/fsmSetupService.js';
@@ -61,7 +61,7 @@ import type {
 } from './fsm/machines/applicationMachine.js';
 import type { WorkItemTimerState, TimeEntry } from './types.js';
 
-type AuthMethod = 'pat' | 'entra';
+type _AuthMethod = 'pat' | 'entra';
 
 // Local lightweight type definitions for internal messaging helpers.
 // These were previously only present in a temporary bundle artifact.
@@ -95,7 +95,7 @@ let sessionTelemetry: SessionTelemetryManager | undefined;
 let client: AzureDevOpsIntClient | undefined;
 let statusBarItem: vscode.StatusBarItem | undefined;
 let authStatusBarItem: vscode.StatusBarItem | undefined;
-const PAT_KEY = 'azureDevOpsInt.pat';
+const _PAT_KEY = 'azureDevOpsInt.pat';
 const OPENAI_SECRET_KEY = 'azureDevOpsInt.openai.apiKey';
 let viewProviderRegistered = false;
 const initialRefreshedConnections = new Set<string>();

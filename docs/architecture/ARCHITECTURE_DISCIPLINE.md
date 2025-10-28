@@ -9,6 +9,7 @@ This document establishes **non-negotiable** standards for developing features i
 ## Development Process (Mandatory)
 
 ### Phase 1: Specification
+
 1. **Write design doc** in `docs/features/FEATURE_NAME.md`
    - Problem statement
    - User stories (Gherkin format)
@@ -19,6 +20,7 @@ This document establishes **non-negotiable** standards for developing features i
 2. **Review & approval** - Design must be reviewed before coding
 
 ### Phase 2: Test-Driven Development
+
 1. **Write integration test** in `tests/features/FEATURE_NAME.test.ts`
    - Test file created BEFORE implementation
    - Tests describe expected behavior from design doc
@@ -30,11 +32,13 @@ This document establishes **non-negotiable** standards for developing features i
    - Test edge cases
 
 ### Phase 3: Implementation
+
 1. **Write minimal code** to make tests pass
 2. **Refactor** while keeping tests green
 3. **Code review** before merge
 
 ### Phase 4: Validation
+
 1. **All tests pass** (100% of feature tests)
 2. **No linter errors**
 3. **Manual testing** of happy path + edge cases
@@ -44,16 +48,17 @@ This document establishes **non-negotiable** standards for developing features i
 
 ## File Size Limits (Enforced)
 
-| File Type | Max Lines | Rationale |
-|-----------|-----------|-----------|
-| TypeScript source | 500 | Easy to understand in one sitting |
-| Test files | 300 | Focused test suites |
-| Svelte components | 300 | Single responsibility |
-| FSM machines | 400 | State complexity bounded |
+| File Type         | Max Lines | Rationale                         |
+| ----------------- | --------- | --------------------------------- |
+| TypeScript source | 500       | Easy to understand in one sitting |
+| Test files        | 300       | Focused test suites               |
+| Svelte components | 300       | Single responsibility             |
+| FSM machines      | 400       | State complexity bounded          |
 
 **Enforcement**: ESLint rule `max-lines` set to these limits.
 
-**When file exceeds limit**: 
+**When file exceeds limit**:
+
 1. Extract to separate module
 2. Use composition over large files
 3. Split by responsibility
@@ -63,6 +68,7 @@ This document establishes **non-negotiable** standards for developing features i
 ## Module Design Principles
 
 ### Pure Functions First
+
 ```typescript
 // ✅ GOOD: Pure, testable, no side effects
 export function calculateElapsedSeconds(startTime: number, stopTime?: number): number {
@@ -79,6 +85,7 @@ function updateTimer() {
 ```
 
 ### Single Responsibility
+
 ```typescript
 // ✅ GOOD: One thing
 export function formatElapsedTime(seconds: number): string {
@@ -101,17 +108,15 @@ function handleTimer(action: string, workItemId?: number) {
 ```
 
 ### Dependency Injection
+
 ```typescript
 // ✅ GOOD: Dependencies injected
-export function createTimerService(
-  persistence: PersistenceService,
-  logger: Logger
-): TimerService {
+export function createTimerService(persistence: PersistenceService, logger: Logger): TimerService {
   return {
     start: (workItemId, title) => {
       logger.info('Starting timer', { workItemId });
       persistence.save({ workItemId, startTime: Date.now() });
-    }
+    },
   };
 }
 
@@ -129,6 +134,7 @@ function startTimer(workItemId: number) {
 ### Enforce Correct Types
 
 Create `src/fsm/xstate-helpers.ts`:
+
 ```typescript
 import { assign, ActorRefFrom } from 'xstate';
 
@@ -136,18 +142,14 @@ import { assign, ActorRefFrom } from 'xstate';
  * Type-safe action array creator
  * Ensures actions are always wrapped in arrays for XState v5
  */
-export function actions<TContext, TEvent>(
-  ...actionList: Array<any>
-): Array<any> {
+export function actions<TContext, TEvent>(...actionList: Array<any>): Array<any> {
   return actionList;
 }
 
 /**
  * Type-safe entry/exit array creator
  */
-export function entryActions<TContext, TEvent>(
-  ...actionList: Array<any>
-): Array<any> {
+export function entryActions<TContext, TEvent>(...actionList: Array<any>): Array<any> {
   return actionList;
 }
 
@@ -161,6 +163,7 @@ export function entryActions<TContext, TEvent>(
 ### Machine Validation
 
 Add `scripts/validate-machines.ts`:
+
 ```typescript
 /**
  * Validates all state machines follow XState v5 conventions:
@@ -185,6 +188,7 @@ Run in pre-commit hook.
 ### Runes Mode Enforcement
 
 Add ESLint rule:
+
 ```json
 {
   "rules": {
@@ -195,6 +199,7 @@ Add ESLint rule:
 ```
 
 ### Component Contract
+
 ```typescript
 // ✅ GOOD: Explicit props interface
 interface Props {
@@ -228,12 +233,12 @@ describe('Timer Feature', () => {
   });
 
   it('starts timer and sets workItemId', () => {
-    timerActor.send({ 
-      type: 'START', 
-      workItemId: 123, 
-      workItemTitle: 'Test Item' 
+    timerActor.send({
+      type: 'START',
+      workItemId: 123,
+      workItemTitle: 'Test Item',
     });
-    
+
     const snapshot = timerActor.getSnapshot();
     expect(snapshot.value).toBe('running');
     expect(snapshot.context.workItemId).toBe(123);
@@ -244,7 +249,7 @@ describe('Timer Feature', () => {
     // Start timer
     timerActor.send({ type: 'START', workItemId: 123, workItemTitle: 'Test' });
     const snapshot1 = timerActor.getSnapshot();
-    
+
     // Create new actor and restore
     const restored = createActor(timerMachine).start();
     restored.send({
@@ -254,7 +259,7 @@ describe('Timer Feature', () => {
       startTime: snapshot1.context.startTime,
       isPaused: false,
     });
-    
+
     const snapshot2 = restored.getSnapshot();
     expect(snapshot2.context.workItemId).toBe(123);
     expect(snapshot2.context.startTime).toBe(snapshot1.context.startTime);
@@ -289,6 +294,7 @@ describe('formatElapsedTime', () => {
 ## Pre-Commit Enforcement
 
 ### `.husky/pre-commit`
+
 ```bash
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
@@ -315,6 +321,7 @@ echo "✅ All checks passed!"
 ```
 
 ### `package.json` scripts
+
 ```json
 {
   "scripts": {
@@ -332,6 +339,7 @@ echo "✅ All checks passed!"
 ## File Structure Refactoring
 
 ### Current Problem
+
 ```
 src/
   activation.ts (3000+ lines) ❌
@@ -341,6 +349,7 @@ src/
 ```
 
 ### Target Structure
+
 ```
 src/
   activation/
@@ -348,19 +357,19 @@ src/
     command-handlers.ts (200 lines) ✅
     event-dispatcher.ts (150 lines) ✅
     context-serializer.ts (100 lines) ✅
-  
+
   features/
     timer/
       timer-machine.ts (150 lines) ✅
       timer-persistence.ts (80 lines) ✅
       timer-ui-integration.ts (100 lines) ✅
       timer.test.ts (200 lines) ✅
-    
+
     edit-dialog/
       edit-dialog-handler.ts (150 lines) ✅
       field-selectors.ts (100 lines) ✅
       edit-dialog.test.ts (150 lines) ✅
-  
+
   utils/
     time-formatting.ts (50 lines) ✅
     time-formatting.test.ts (100 lines) ✅
@@ -371,6 +380,7 @@ src/
 ## Immediate Action Plan
 
 ### Step 1: Create Foundation (Today)
+
 1. ✅ Create this architecture doc
 2. ⬜ Add ESLint `max-lines` rules
 3. ⬜ Add XState validation script
@@ -378,6 +388,7 @@ src/
 5. ⬜ Update pre-commit hooks
 
 ### Step 2: Extract Timer Module (Tomorrow)
+
 1. ⬜ Create `src/features/timer/` directory
 2. ⬜ Extract timer logic from activation.ts
 3. ⬜ Write integration tests
@@ -385,12 +396,14 @@ src/
 5. ⬜ Document timer module
 
 ### Step 3: Apply to All Features (This Week)
+
 1. ⬜ Repeat for edit-dialog
 2. ⬜ Repeat for branch-linking
 3. ⬜ Repeat for connection management
 4. ⬜ Establish pattern
 
 ### Step 4: Prevent Regression (Ongoing)
+
 1. ⬜ Every feature gets integration test
 2. ⬜ Every PR runs full test suite
 3. ⬜ No merge without passing tests
@@ -403,9 +416,9 @@ src/
 **I strongly recommend** we pause feature development and spend 2-3 days building this foundation. Otherwise, we'll keep hitting the same issues.
 
 **Your call**: Should I:
+
 1. **Implement this foundation** (stop features, build discipline)
 2. **Try to fix timer one more time** (risky, might break again)
 3. **Revert to working state** (abandon FSM, start over with better plan)
 
 What would you like me to do?
-

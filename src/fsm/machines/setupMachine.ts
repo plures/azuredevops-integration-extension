@@ -16,7 +16,7 @@ import type * as vscode from 'vscode';
 
 const fsmLogger = createScopedLogger('setupMachine');
 
-enum FSMComponent {
+enum _FSMComponent {
   SETUP = 'SETUP',
 }
 
