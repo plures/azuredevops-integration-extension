@@ -42,6 +42,17 @@ export const timerMachine = createMachine({
             lastActivity: Date.now(),
           })),
         },
+        RESTORE: {
+          target: ({ event }) => (event.isPaused ? 'paused' : 'running'),
+          guard: ({ context }) => !context.workItemId,
+          actions: assign(({ event }) => ({
+            workItemId: event.workItemId,
+            workItemTitle: event.workItemTitle,
+            startTime: event.startTime,
+            isPaused: event.isPaused,
+            lastActivity: Date.now(),
+          })),
+        },
       },
     },
 

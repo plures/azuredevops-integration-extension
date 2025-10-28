@@ -633,17 +633,14 @@ export const applicationMachine = createMachine(
             persistedState?.workItemTitle &&
             persistedState?.startTime
           ) {
-            // Restore the timer - the startTime will be adjusted by the timerMachine
+            // Restore timer with original startTime preserved
             timerActor.send({
-              type: 'START',
+              type: 'RESTORE',
               workItemId: persistedState.workItemId,
               workItemTitle: persistedState.workItemTitle,
+              startTime: persistedState.startTime,
+              isPaused: persistedState.isPaused || false,
             });
-
-            // If it was paused, pause it again
-            if (persistedState.isPaused) {
-              setTimeout(() => timerActor.send({ type: 'PAUSE' }), 0);
-            }
           }
         }
 
