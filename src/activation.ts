@@ -1997,10 +1997,66 @@ export async function activate(context: vscode.ExtensionContext) {
     (appActor as any).send({ type: 'ACTIVATE', context });
   }
 
+  // Setup periodic timer state updates to webview
+  let timerUpdateInterval: NodeJS.Timeout | undefined;
+  function startTimerUpdateInterval() {
+    if (timerUpdateInterval) return;
+    timerUpdateInterval = setInterval(() => {
+      if (!panel) return;
+
+      const appActor = getApplicationStoreActor();
+      if (!appActor || typeof (appActor as any).getSnapshot !== 'function') return;
+
+      const snapshot = (appActor as any).getSnapshot();
+      const timerActor = snapshot?.context?.timerActor;
+
+      if (timerActor && typeof (timerActor as any).getSnapshot === 'function') {
+        const timerSnapshot = (timerActor as any).getSnapshot();
+        if (timerSnapshot?.value !== 'idle') {
+          // Force webview to refresh timer state by sending current state
+          const timerState = {
+            workItemId: timerSnapshot.context.workItemId,
+            workItemTitle: timerSnapshot.context.workItemTitle,
+            elapsedSeconds: timerSnapshot.context.startTime
+              ? Math.floor((Date.now() - timerSnapshot.context.startTime) / 1000)
+              : 0,
+            isPaused: timerSnapshot.context.isPaused,
+            state: timerSnapshot.value,
+          };
+
+          panel.webview.postMessage({
+            type: 'syncTimerState',
+            payload: {
+              fsmState: snapshot.value,
+              context: { timerState },
+            },
+          });
+        }
+      }
+    }, 1000);
+  }
+
+  function stopTimerUpdateInterval() {
+    if (timerUpdateInterval) {
+      clearInterval(timerUpdateInterval);
+      timerUpdateInterval = undefined;
+    }
+  }
+
   if (appActor && typeof (appActor as any).subscribe === 'function') {
     (appActor as any).subscribe((snapshot: any) => {
-      // Persist timer state whenever it changes
+      // Start/stop timer update interval based on timer state
       const timerActor = snapshot.context?.timerActor;
+      if (timerActor && typeof (timerActor as any).getSnapshot === 'function') {
+        const timerSnapshot = (timerActor as any).getSnapshot();
+        if (timerSnapshot?.value !== 'idle') {
+          startTimerUpdateInterval();
+        } else {
+          stopTimerUpdateInterval();
+        }
+      }
+
+      // Persist timer state whenever it changes
       if (timerActor && typeof (timerActor as any).getSnapshot === 'function') {
         try {
           const timerSnapshot = (timerActor as any).getSnapshot();
@@ -2581,6 +2637,10 @@ export function deactivate(): Thenable<void> {
   verbose('[deactivate] starting');
 
   // Stop periodic tasks
+  if (timerUpdateInterval) {
+    clearInterval(timerUpdateInterval);
+    timerUpdateInterval = undefined;
+  }
   stopCacheCleanup();
   for (const connectionId of connectionStates.keys()) {
     updateBuildRefreshTimer(connectionId, undefined, false);

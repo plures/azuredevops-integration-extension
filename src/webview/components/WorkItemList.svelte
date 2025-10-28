@@ -140,6 +140,7 @@
         ? `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
         : `${hours}:${String(mins).padStart(2, '0')}`;
     }
+    // Always show MM:SS format, even for 0:00
     return showSeconds ? `${mins}:${String(secs).padStart(2, '0')}` : `${mins}m`;
   }
 
