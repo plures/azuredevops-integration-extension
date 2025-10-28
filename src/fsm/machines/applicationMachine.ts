@@ -611,10 +611,10 @@ export const applicationMachine = createMachine(
       markDeactivating: assign({
         isDeactivating: true,
       }),
-      initializeChildActors: () => {
+      initializeChildActors: assign(() => {
         const timerActor = createActor(timerMachine).start();
         return { timerActor };
-      },
+      }),
       delegateConnectionActivation: ({ context, event }) => {
         if (event.type === 'CONNECTION_SELECTED') {
           activateConnection(context, event.connectionId);
