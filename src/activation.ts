@@ -395,6 +395,18 @@ function dispatchApplicationEvent(event: unknown): void {
         // Route to legacy handler with correct message format
         handleMessage({ type: 'startTimer', workItemId: evt.workItemId });
         break;
+      case 'STOP_TIMER':
+        // Stop the FSM timer
+        {
+          const actor = getApplicationActor();
+          const snapshot = actor?.getSnapshot?.();
+          const timerActor = snapshot?.context?.timerActor;
+
+          if (timerActor && typeof (timerActor as any).send === 'function') {
+            (timerActor as any).send({ type: 'STOP' });
+          }
+        }
+        break;
       case 'EDIT_WORK_ITEM':
         // Show in-VSCode edit dialog with field selection
         if (evt.workItemId && client && provider) {
