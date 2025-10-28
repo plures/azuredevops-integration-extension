@@ -208,6 +208,9 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Query selector provides easy access to all default queries
 - [x] Query selector includes descriptive text for each query option
 - [x] Query selection is persisted per connection
+- [x] Timer action button displays active timer with elapsed time on work item cards
+- [ ] Edit action button implements in-VSCode edit dialog with field selection
+- [ ] Branch action button links created branch back to work item
 
 ### Azure DevOps Integration
 
