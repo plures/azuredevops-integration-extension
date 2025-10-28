@@ -613,6 +613,16 @@ export const applicationMachine = createMachine(
       }),
       initializeChildActors: ({ context: _context }) => {
         _context.timerActor = createActor(timerMachine).start();
+
+        // Setup tick interval for timer updates
+        setInterval(() => {
+          if (_context.timerActor) {
+            const currentState = _context.timerActor.getSnapshot?.();
+            if (currentState?.matches?.('running')) {
+              _context.timerActor.send({ type: 'TICK' });
+            }
+          }
+        }, 1000);
       },
       delegateConnectionActivation: ({ context, event }) => {
         if (event.type === 'CONNECTION_SELECTED') {

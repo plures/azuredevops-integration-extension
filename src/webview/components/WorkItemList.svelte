@@ -13,10 +13,10 @@
   const timerState = $derived(context?.timerState);
 
   // Filters
-  let filterText = '';
-  let typeFilter = '';
-  let stateFilter = 'all';
-  let sortKey = 'updated-desc';
+  let filterText = $state('');
+  let typeFilter = $state('');
+  let stateFilter = $state('all');
+  let sortKey = $state('updated-desc');
 
   // Extract available types and states from work items
   const availableTypes = $derived([
