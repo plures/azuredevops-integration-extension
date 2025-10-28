@@ -1999,6 +1999,34 @@ export async function activate(context: vscode.ExtensionContext) {
 
   if (appActor && typeof (appActor as any).subscribe === 'function') {
     (appActor as any).subscribe((snapshot: any) => {
+      // Persist timer state whenever it changes
+      const timerActor = snapshot.context?.timerActor;
+      if (timerActor && typeof (timerActor as any).getSnapshot === 'function') {
+        try {
+          const timerSnapshot = (timerActor as any).getSnapshot();
+          if (timerSnapshot?.context) {
+            const persistedState = {
+              workItemId: timerSnapshot.context.workItemId,
+              workItemTitle: timerSnapshot.context.workItemTitle,
+              startTime: timerSnapshot.context.startTime,
+              isPaused: timerSnapshot.context.isPaused,
+              state: timerSnapshot.value,
+            };
+            // Only persist if we have a workItemId (timer is active)
+            if (persistedState.workItemId) {
+              context.globalState.update(STATE_TIMER, persistedState).then(
+                () => {},
+                (e: any) => {
+                  console.error('[activation] Failed to persist timer state:', e);
+                }
+              );
+            }
+          }
+        } catch (e) {
+          // Ignore timer persistence errors
+        }
+      }
+
       if (panel && snapshot) {
         // Pre-compute all state matches since snapshot.matches() doesn't survive JSON serialization
         const matches = {
