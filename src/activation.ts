@@ -182,14 +182,26 @@ export function handleMessage(message: any): void {
     }
     case 'startTimer': {
       const id = message.workItemId;
-      if (!timer || typeof timer.start !== 'function' || !provider) break;
+      if (!provider) break;
+
+      // Use FSM timer actor instead of legacy timer
+      const actor = getApplicationActor();
+      const snapshot = actor?.getSnapshot?.();
+      const timerActor = snapshot?.context?.timerActor;
+
+      if (!timerActor || typeof (timerActor as any).send !== 'function') {
+        console.warn('[handleMessage] Timer actor not available');
+        break;
+      }
+
       const items = provider.getWorkItems?.() || [];
       const match = items.find((i: any) => i.id === id);
       const title = match?.fields?.['System.Title'] || `Work Item ${id}`;
+
       try {
-        timer.start(id, title);
-      } catch {
-        /* ignore */
+        (timerActor as any).send({ type: 'START', workItemId: id, workItemTitle: title });
+      } catch (error) {
+        console.error('[handleMessage] Failed to start timer:', error);
       }
       break;
     }
