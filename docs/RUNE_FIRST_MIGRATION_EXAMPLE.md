@@ -3,6 +3,7 @@
 This document shows how to migrate from the current FSM snapshot store approach to the new Svelte 5 rune-first helpers with pub/sub broker pattern.
 
 ## Table of Contents
+
 1. [Overview](#overview)
 2. [Current Approach](#current-approach)
 3. [New Rune-First Approach](#new-rune-first-approach)
@@ -18,6 +19,7 @@ This document shows how to migrate from the current FSM snapshot store approach 
 **Goal**: Migrate webview components from custom store-based FSM state to Svelte 5 rune-first helpers with deterministic UI.
 
 **Benefits**:
+
 - Native Svelte 5 runes (better performance, cleaner code)
 - Deterministic UI (machine owns all UI state)
 - Pub/sub broker pattern (retained snapshots, automatic replay)
@@ -33,22 +35,22 @@ This document shows how to migrate from the current FSM snapshot store approach 
 ```svelte
 <script lang="ts">
   import { applicationSnapshot } from './fsmSnapshotStore.js';
-  
+
   // Reactive FSM state derived from snapshot store
   $: snapshot = $applicationSnapshot;
   $: context = snapshot.context;
   $: matches = snapshot.matches || {};
-  
+
   // Get VS Code API
   const vscode = (window as any).__vscodeApi;
-  
+
   // Send events back to extension
   function sendEvent(event: any) {
     if (vscode) {
       vscode.postMessage({ type: 'fsmEvent', event });
     }
   }
-  
+
   // Derive UI state from machine states
   $: isActiveReady = matches['active.ready'];
   $: viewMode = context?.viewMode || 'list';
@@ -67,6 +69,7 @@ This document shows how to migrate from the current FSM snapshot store approach 
 ```
 
 **Issues with Current Approach**:
+
 1. Manual message passing (`vscode.postMessage`)
 2. No automatic snapshot retention/replay
 3. UI logic derived in component (not deterministic)
@@ -84,7 +87,7 @@ This document shows how to migrate from the current FSM snapshot store approach 
 <script lang="ts">
   import { state as $state, effect as $effect } from 'svelte/runes';
   import { useApplicationMachine, matchesState, createOptimisticReducer } from './useApplicationMachine.runes';
-  
+
   // Initialize rune-first machine connection
   const runes = { state: $state, effect: $effect };
   const { state, send, connected, pendingCount } = useApplicationMachine(runes, {
@@ -93,19 +96,19 @@ This document shows how to migrate from the current FSM snapshot store approach 
       console.log('[App] Connection status:', isConnected);
     },
   });
-  
+
   // Request initial snapshot on mount
   $effect(() => {
     if ($state(connected)) {
       // Connection established, snapshot will be auto-replayed by broker
     }
   });
-  
+
   // Extract current snapshot (reactive via runes)
   $: snapshot = $state(state);
   $: context = snapshot?.context;
   $: ui = context?.ui;
-  
+
   // Use pre-computed matches from machine
   $: isActiveReady = matchesState(snapshot, 'active.ready');
 </script>
@@ -121,11 +124,11 @@ This document shows how to migrate from the current FSM snapshot store approach 
         <span class="spinner"></span>
       {/if}
     </button>
-    
+
     <button onclick={() => send({ type: 'TOGGLE_VIEW' })}>
       {ui?.buttons?.toggleView?.label || 'Toggle View'}
     </button>
-    
+
     {#if $state(pendingCount) > 0}
       <div class="pending-indicator">
         {$state(pendingCount)} pending update(s)
@@ -144,11 +147,11 @@ This document shows how to migrate from the current FSM snapshot store approach 
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
   }
-  
+
   @keyframes spin {
     to { transform: rotate(360deg); }
   }
-  
+
   .pending-indicator {
     font-size: 0.8em;
     opacity: 0.7;
@@ -157,6 +160,7 @@ This document shows how to migrate from the current FSM snapshot store approach 
 ```
 
 **Benefits of New Approach**:
+
 1. ✅ Automatic pub/sub connection via VS Code adapter
 2. ✅ Retained snapshots auto-replayed on subscribe
 3. ✅ UI state from machine context (deterministic)
@@ -171,6 +175,7 @@ This document shows how to migrate from the current FSM snapshot store approach 
 ### Step 1: Update Imports
 
 **Before**:
+
 ```svelte
 <script lang="ts">
   import { onMount } from 'svelte';
@@ -179,6 +184,7 @@ This document shows how to migrate from the current FSM snapshot store approach 
 ```
 
 **After**:
+
 ```svelte
 <script lang="ts">
   import { state as $state, effect as $effect } from 'svelte/runes';
@@ -189,6 +195,7 @@ This document shows how to migrate from the current FSM snapshot store approach 
 ### Step 2: Initialize Machine Connection
 
 **Before**:
+
 ```svelte
 $: snapshot = $applicationSnapshot;
 const vscode = (window as any).__vscodeApi;
@@ -199,6 +206,7 @@ function sendEvent(event: any) {
 ```
 
 **After**:
+
 ```svelte
 const runes = { state: $state, effect: $effect };
 const { state, send, connected, pendingCount } = useApplicationMachine(runes, {
@@ -211,11 +219,13 @@ $: snapshot = $state(state);
 ### Step 3: Update Event Handlers
 
 **Before**:
+
 ```svelte
 <button on:click={() => sendEvent({ type: 'REFRESH_DATA' })}>
 ```
 
 **After**:
+
 ```svelte
 <button onclick={() => send({ type: 'REFRESH_DATA' })}>
 ```
@@ -223,6 +233,7 @@ $: snapshot = $state(state);
 ### Step 4: Render from Deterministic UI State
 
 **Before** (Derived UI):
+
 ```svelte
 <button on:click={...}>
   {$state.matches('loading') ? 'Loading...' : 'Refresh'}
@@ -230,6 +241,7 @@ $: snapshot = $state(state);
 ```
 
 **After** (Deterministic UI):
+
 ```svelte
 <button onclick={...}>
   {snapshot?.context?.ui?.buttons?.refreshData?.label || 'Refresh'}
@@ -242,11 +254,13 @@ $: snapshot = $state(state);
 ### Step 5: Update State Matching
 
 **Before**:
+
 ```svelte
 $: isActiveReady = matches['active.ready'];
 ```
 
 **After**:
+
 ```svelte
 $: isActiveReady = matchesState(snapshot, 'active.ready');
 ```
@@ -263,7 +277,7 @@ $: isActiveReady = matchesState(snapshot, 'active.ready');
   import { useApplicationMachine, matchesState } from './useApplicationMachine.runes';
   import WorkItemList from './components/WorkItemList.svelte';
   import KanbanBoard from './components/KanbanBoard.svelte';
-  
+
   // Initialize machine connection with optimistic reducer
   const runes = { state: $state, effect: $effect };
   const { state, send, connected, pendingCount } = useApplicationMachine(runes, {
@@ -286,14 +300,14 @@ $: isActiveReady = matchesState(snapshot, 'active.ready');
       },
     },
   });
-  
+
   // Reactive state
   $: snapshot = $state(state);
   $: context = snapshot?.context;
   $: workItems = context?.pendingWorkItems?.workItems || [];
   $: viewMode = context?.viewMode || 'list';
   $: ui = context?.ui;
-  
+
   // State matches
   $: isReady = matchesState(snapshot, 'active.ready');
   $: isLoading = ui?.loading?.workItems || false;
@@ -306,7 +320,7 @@ $: isActiveReady = matchesState(snapshot, 'active.ready');
     <div class="status">Initializing...</div>
   {:else}
     <div class="toolbar">
-      <button 
+      <button
         onclick={() => send({ type: 'REFRESH_DATA' })}
         disabled={isLoading}
       >
@@ -315,18 +329,18 @@ $: isActiveReady = matchesState(snapshot, 'active.ready');
           <span class="spinner" />
         {/if}
       </button>
-      
+
       <button onclick={() => send({ type: 'TOGGLE_VIEW' })}>
         {ui?.buttons?.toggleView?.label || (viewMode === 'list' ? 'Kanban' : 'List')}
       </button>
-      
+
       {#if $state(pendingCount) > 0}
         <span class="pending">
           ({$state(pendingCount)} pending)
         </span>
       {/if}
     </div>
-    
+
     {#if viewMode === 'kanban'}
       <KanbanBoard {workItems} {send} />
     {:else}
@@ -342,12 +356,12 @@ $: isActiveReady = matchesState(snapshot, 'active.ready');
     padding: 8px;
     border-bottom: 1px solid var(--vscode-panel-border);
   }
-  
+
   .pending {
     font-size: 0.85em;
     opacity: 0.7;
   }
-  
+
   .spinner {
     /* ... spinner styles ... */
   }
@@ -421,10 +435,11 @@ export function customOptimisticReducer(
 ```
 
 **Usage**:
+
 ```svelte
 <script lang="ts">
   import { customOptimisticReducer } from './customOptimisticReducer';
-  
+
   const { state, send } = useApplicationMachine(runes, {
     optimistic: { reducer: customOptimisticReducer },
   });
@@ -432,6 +447,7 @@ export function customOptimisticReducer(
 ```
 
 **Best Practices**:
+
 1. Keep optimistic reducer **small** and **deterministic**
 2. Only modify **UI state** (not business logic)
 3. Expect authoritative snapshot to **overwrite** optimistic changes
@@ -446,15 +462,22 @@ export function customOptimisticReducer(
 **Problem**: Component shows "Connecting..." forever.
 
 **Solution**:
+
 1. Check extension host broker is publishing snapshots:
+
    ```typescript
-   broker.publish(`machine:application:snapshot`, { 
-     snapshot: { value: state.value, context: state.context },
-     echoSubseq: lastSubseq
-   }, { retain: true });
+   broker.publish(
+     `machine:application:snapshot`,
+     {
+       snapshot: { value: state.value, context: state.context },
+       echoSubseq: lastSubseq,
+     },
+     { retain: true }
+   );
    ```
 
 2. Verify webview is registered as subscriber:
+
    ```typescript
    broker.addSubscriber(webviewPanel);
    ```
@@ -466,7 +489,9 @@ export function customOptimisticReducer(
 **Problem**: `pendingCount` keeps growing, events never cleared.
 
 **Solution**:
+
 1. Ensure broker echoes `echoSubseq` in snapshots:
+
    ```typescript
    broker.publish(topic, {
      snapshot: { ... },
@@ -489,13 +514,16 @@ export function customOptimisticReducer(
 **Problem**: UI shows old data even after updates.
 
 **Solution**:
+
 1. Verify monotonic `pubseq` increments:
+
    ```typescript
    // Broker should increment pubseq for every publish
    broker.publish(topic, payload, { retain: true });
    ```
 
 2. Check for pubseq warnings in console:
+
    ```
    [useRemoteMachineRunes] Ignoring stale snapshot. pubseq 5 <= lastPubseq 10
    ```
@@ -507,21 +535,23 @@ export function customOptimisticReducer(
 **Problem**: Optimistic UI changes don't revert to authoritative state.
 
 **Solution**:
+
 1. Ensure optimistic reducer returns **new object** (not mutated):
+
    ```typescript
    // ❌ WRONG
    reducer: (snapshot, event) => {
-     snapshot.context.ui.loading = true;  // Mutation!
+     snapshot.context.ui.loading = true; // Mutation!
      return snapshot;
-   }
-   
+   };
+
    // ✅ CORRECT
    reducer: (snapshot, event) => ({
      ...snapshot,
      context: {
        ...snapshot.context,
-       ui: { ...snapshot.context.ui, loading: { workItems: true } }
-     }
+       ui: { ...snapshot.context.ui, loading: { workItems: true } },
+     },
    });
    ```
 
@@ -546,4 +576,3 @@ export function customOptimisticReducer(
 - [PubSubBroker Implementation](../src/fsm/services/PubSubBroker.ts)
 - [VS Code PubSub Adapter](../src/webview/vscode-pubsub-adapter.ts)
 - [Rune-First Helpers](../src/fsm/xstate-svelte/src/useRemoteMachine.runes.ts)
-

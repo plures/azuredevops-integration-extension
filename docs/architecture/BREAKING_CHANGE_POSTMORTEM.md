@@ -23,14 +23,17 @@
 ## Root Cause Analysis
 
 ### Immediate Cause
+
 Changed this:
+
 ```typescript
-entry: assign(() => ({ lastActivity: Date.now() }))  // ❌ Not array
+entry: assign(() => ({ lastActivity: Date.now() })); // ❌ Not array
 ```
 
 XState v5 requires:
+
 ```typescript
-entry: [assign(() => ({ lastActivity: Date.now() }))]  // ✅ Array
+entry: [assign(() => ({ lastActivity: Date.now() }))]; // ✅ Array
 ```
 
 ### Contributing Factors
@@ -54,17 +57,20 @@ entry: [assign(() => ({ lastActivity: Date.now() }))]  // ✅ Array
 ## Impact
 
 ### Developer Experience
+
 - **Frustration**: Multiple failed fix attempts
 - **Time Lost**: Hours debugging instead of building features
 - **Confidence Lost**: Fear of making changes
 - **Morale Impact**: "Afraid to change or improve code"
 
 ### Code Quality
+
 - **Technical Debt**: Rushed fixes without proper testing
 - **Fragility**: Working code broke from "simple" change
 - **Regression**: No way to detect if other features broke
 
 ### Project Risk
+
 - **Delivery Risk**: Feature velocity drops to near zero
 - **Quality Risk**: Unknown number of latent bugs
 - **Maintenance Risk**: Future changes will be risky
@@ -74,16 +80,19 @@ entry: [assign(() => ({ lastActivity: Date.now() }))]  // ✅ Array
 ## Lessons Learned
 
 ### What Worked
+
 - **Debug Logging**: Console logs helped identify the issue
 - **Systematic Search**: Eventually found all action arrays
 - **Git History**: Could see working state
 
 ### What Didn't Work
+
 - **Ad-hoc Fixes**: Fixing one instance at a time didn't work
 - **Manual Testing**: Didn't catch all issues
 - **Large Files**: Too much code to audit manually
 
 ### What Was Missing
+
 - **Tests**: Would have caught this immediately
 - **Validation**: Script to check XState conventions
 - **Type Safety**: Compile-time enforcement
@@ -94,6 +103,7 @@ entry: [assign(() => ({ lastActivity: Date.now() }))]  // ✅ Array
 ## Prevention Measures
 
 ### Immediate (Implemented)
+
 1. ✅ XState validation script (`scripts/validate-xstate-machines.ts`)
 2. ✅ Type-safe helpers (`src/fsm/xstate-helpers.ts`)
 3. ✅ ESLint file size limits (`.eslintrc.feature-rules.json`)
@@ -101,6 +111,7 @@ entry: [assign(() => ({ lastActivity: Date.now() }))]  // ✅ Array
 5. ✅ Architecture discipline doc
 
 ### Short-term (Next 3 Days)
+
 1. ⬜ Add integration tests for ALL existing features
 2. ⬜ Refactor activation.ts into modules (<500 lines each)
 3. ⬜ Add pre-commit hook with validation
@@ -108,6 +119,7 @@ entry: [assign(() => ({ lastActivity: Date.now() }))]  // ✅ Array
 5. ⬜ Document XState v5 migration guide
 
 ### Long-term (Next 2 Weeks)
+
 1. ⬜ 90% test coverage for features
 2. ⬜ CI/CD with test gates
 3. ⬜ Automated regression testing
@@ -119,11 +131,13 @@ entry: [assign(() => ({ lastActivity: Date.now() }))]  // ✅ Array
 ## Action Items
 
 ### For This Project
+
 - [ ] **STOP** all feature development
 - [ ] **BUILD** foundation (tests, validation, refactoring)
 - [ ] **RESUME** features only after foundation is solid
 
 ### For Future Features
+
 - [ ] **DESIGN** document required
 - [ ] **TESTS** written before code
 - [ ] **VALIDATE** with scripts
@@ -153,6 +167,7 @@ entry: [assign(() => ({ lastActivity: Date.now() }))]  // ✅ Array
 ## Conclusion
 
 The timer breaking wasn't a one-off bug. It's a symptom of systemic problems:
+
 - No TDD discipline
 - No validation infrastructure
 - No test coverage
@@ -160,4 +175,3 @@ The timer breaking wasn't a one-off bug. It's a symptom of systemic problems:
 - No guard rails
 
 **We must fix the system, not just the symptom.**
-

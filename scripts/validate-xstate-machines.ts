@@ -1,10 +1,10 @@
 #!/usr/bin/env tsx
 /**
  * XState v5 Machine Validator
- * 
+ *
  * Validates that all state machines follow XState v5 conventions:
  * - entry must be array or undefined
- * - exit must be array or undefined  
+ * - exit must be array or undefined
  * - actions must be array or undefined
  * - Catches the "entry is not iterable" error at build time
  */
@@ -40,13 +40,13 @@ async function validateMachines() {
     process.exit(0);
   } else {
     console.error(`❌ Found ${errors.length} validation error(s):\n`);
-    
+
     for (const error of errors) {
       console.error(`${error.file}:${error.line}`);
       console.error(`  Issue: ${error.issue}`);
       console.error(`  Fix: ${error.suggestion}\n`);
     }
-    
+
     process.exit(1);
   }
 }
@@ -107,4 +107,3 @@ validateMachines().catch((error) => {
   console.error('💥 Validation script failed:', error);
   process.exit(1);
 });
-

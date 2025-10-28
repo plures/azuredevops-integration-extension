@@ -18,6 +18,7 @@ This document outlines the state machine issues identified and resolved in the A
 
 **Problem**:
 Custom events were using the reserved `xstate.*` namespace:
+
 ```typescript
 // ❌ INCORRECT - Reserved namespace
 | { type: 'xstate.snapshot.auth'; snapshot: any }
@@ -27,6 +28,7 @@ Custom events were using the reserved `xstate.*` namespace:
 ```
 
 **Why This Is Critical**:
+
 - The `xstate.` prefix is **reserved** by XState for internal system events
 - Using it for custom events can cause:
   - Event handling conflicts
@@ -35,6 +37,7 @@ Custom events were using the reserved `xstate.*` namespace:
   - Version upgrade issues
 
 **Solution** ✅:
+
 ```typescript
 // ✅ CORRECT - Custom namespace
 | { type: 'AUTH_SNAPSHOT'; snapshot: any }
@@ -44,6 +47,7 @@ Custom events were using the reserved `xstate.*` namespace:
 ```
 
 **References Updated**:
+
 - Event type definitions (lines 125-129)
 - Event handlers (lines 375-386)
 - Action implementations (lines 577-614)
@@ -56,6 +60,7 @@ Custom events were using the reserved `xstate.*` namespace:
 
 **Problem**:
 Unconditional `always` transition competing with `onDone`:
+
 ```typescript
 // ❌ INCORRECT - Race condition / infinite loop
 loading_connections: {
@@ -79,6 +84,7 @@ loading_connections: {
 ```
 
 **Why This Is Critical**:
+
 - `always` transitions evaluate **immediately** upon state entry
 - Creates a race condition with `invoke` → `onDone`
 - Can cause:
@@ -88,6 +94,7 @@ loading_connections: {
   - Unpredictable behavior in tests
 
 **Solution** ✅:
+
 ```typescript
 // ✅ CORRECT - Guarded fallback only
 loading_connections: {
@@ -105,7 +112,7 @@ loading_connections: {
   },
   /**
    * Fallback transition for test environments.
-   * BEST PRACTICE: Using 'after' with guard instead of 'always' 
+   * BEST PRACTICE: Using 'after' with guard instead of 'always'
    * to prevent infinite loops.
    */
   after: {
@@ -120,6 +127,7 @@ loading_connections: {
 ```
 
 **Key Improvements**:
+
 1. Removed unconditional `always` transition
 2. Kept single `after` timeout as safety fallback
 3. Added guard to prevent duplicate transitions
@@ -132,6 +140,7 @@ loading_connections: {
 ### 1. Event Naming Conventions
 
 #### ✅ DO:
+
 ```typescript
 // Use SCREAMING_SNAKE_CASE for events
 | { type: 'AUTHENTICATE' }
@@ -146,6 +155,7 @@ loading_connections: {
 ```
 
 #### ❌ DON'T:
+
 ```typescript
 // Never use reserved prefixes
 | { type: 'xstate.*' }      // Reserved by XState
@@ -162,6 +172,7 @@ loading_connections: {
 #### ✅ GOOD Uses of `always`:
 
 **Pattern 1: Router/Switch Pattern** (with guards)
+
 ```typescript
 handlingAction: {
   always: [
@@ -172,12 +183,15 @@ handlingAction: {
   ],
 }
 ```
+
 ✅ **Why this is safe**:
+
 - Only ONE transition will match (mutually exclusive guards)
 - Immediately exits to another state
 - No side effects that could create loops
 
 **Pattern 2: Conditional Initial State**
+
 ```typescript
 someState: {
   always: [
@@ -190,6 +204,7 @@ someState: {
 #### ❌ BAD Uses of `always`:
 
 **Anti-Pattern 1: Competing with `invoke`**
+
 ```typescript
 // ❌ WRONG - races with onDone
 someState: {
@@ -204,6 +219,7 @@ someState: {
 ```
 
 **Anti-Pattern 2: Unconditional Loop**
+
 ```typescript
 // ❌ WRONG - infinite loop
 stateA: {
@@ -215,6 +231,7 @@ stateB: {
 ```
 
 **Anti-Pattern 3: Context-Modifying Guard**
+
 ```typescript
 // ❌ WRONG - guards should be pure
 always: {
@@ -228,6 +245,7 @@ always: {
 ### 3. Fallback Mechanisms
 
 **Use `after` for timeout fallbacks**:
+
 ```typescript
 ✅ CORRECT:
 someState: {
@@ -247,6 +265,7 @@ someState: {
 ### 4. Guard Best Practices
 
 #### ✅ DO:
+
 ```typescript
 // Pure functions - no side effects
 guard: ({ context }) => context.isReady && !context.hasError,
@@ -259,6 +278,7 @@ guards: {
 ```
 
 #### ❌ DON'T:
+
 ```typescript
 // Mutating context in guard
 guard: ({ context }) => {
@@ -276,13 +296,14 @@ guard: async ({ context }) => {  // ❌ Guards must be synchronous!
 ### 5. Action Best Practices
 
 #### ✅ DO:
+
 ```typescript
 actions: {
   // Use assign for context updates
   setToken: assign({
     token: ({ event }) => event.token,
   }),
-  
+
   // Implement action typing
   logError: ({ context, event }) => {
     if (event.type === 'ERROR') {
@@ -293,13 +314,14 @@ actions: {
 ```
 
 #### ❌ DON'T:
+
 ```typescript
 actions: {
   // Direct context mutation
   badAction: ({ context }) => {
     context.token = 'new-token';  // ❌ Won't work!
   },
-  
+
   // Async logic in actions (use invoke instead)
   asyncAction: async () => {  // ❌ Actions should be synchronous!
     await fetchData();
@@ -310,6 +332,7 @@ actions: {
 ### 6. Invoke Patterns
 
 #### ✅ CORRECT Patterns:
+
 ```typescript
 // Pattern 1: Promise-based service
 invoke: {
@@ -356,31 +379,37 @@ invoke: {
 ## Machine-Specific Analysis
 
 ### ✅ `applicationMachine.ts`
+
 - **Status**: Fixed
-- **Issues Resolved**: 
+- **Issues Resolved**:
   - Reserved event names → Renamed to `AUTH_SNAPSHOT`, `AUTH_ERROR`, `DATA_SNAPSHOT`, `DATA_ERROR`
   - Infinite loop `always` → Replaced with guarded `after` transition
 - **Best Practices Applied**: Added guard to fallback transition
 
 ### ✅ `setupMachine.ts`
+
 - **Status**: Valid
 - **Pattern**: Uses guarded `always` for routing (acceptable pattern)
 - **Notes**: `handlingAction` state correctly implements router pattern with mutually exclusive guards
 
 ### ✅ `connectionMachine.ts`
+
 - **Status**: Valid
 - **Pattern**: Uses guarded `always` in `checking_existing_token` (acceptable)
 - **Notes**: Guard ensures transition only fires when `forceInteractive` is true
 
 ### ✅ `timerMachine.ts`
+
 - **Status**: Valid
 - **Notes**: Clean state machine, no anti-patterns detected
 
 ### ✅ `authMachine.ts`
+
 - **Status**: Valid
 - **Notes**: Proper use of invoke patterns
 
 ### ✅ `dataMachine.ts`
+
 - **Status**: Valid
 - **Notes**: Proper use of invoke patterns
 
@@ -389,26 +418,28 @@ invoke: {
 ## Testing Recommendations
 
 ### Test for Infinite Loops:
+
 ```typescript
 test('should not infinite loop on setup', async () => {
   const actor = createActor(applicationMachine);
   actor.start();
-  
+
   actor.send({ type: 'ACTIVATE', context: mockContext });
-  
+
   // Wait for state stabilization
   await waitFor(actor, (state) => state.matches('active.ready'), { timeout: 1000 });
-  
+
   expect(actor.getSnapshot().value).toMatch(/active\.ready/);
 });
 ```
 
 ### Test Event Handling:
+
 ```typescript
 test('should handle AUTH_SNAPSHOT event', () => {
   const actor = createActor(applicationMachine);
   actor.start();
-  
+
   actor.send({
     type: 'AUTH_SNAPSHOT',
     snapshot: {
@@ -416,7 +447,7 @@ test('should handle AUTH_SNAPSHOT event', () => {
       context: { connection: { id: 'test' }, token: 'abc123' },
     },
   });
-  
+
   // Verify no errors and proper handling
   expect(actor.getSnapshot().context.connections).toBeDefined();
 });
@@ -429,6 +460,7 @@ test('should handle AUTH_SNAPSHOT event', () => {
 ### For Developers Updating Event Handlers:
 
 **Old Code**:
+
 ```typescript
 actor.subscribe((state) => {
   if (state.event.type === 'xstate.snapshot.auth') {
@@ -438,6 +470,7 @@ actor.subscribe((state) => {
 ```
 
 **New Code**:
+
 ```typescript
 actor.subscribe((state) => {
   if (state.event.type === 'AUTH_SNAPSHOT') {
@@ -447,6 +480,7 @@ actor.subscribe((state) => {
 ```
 
 ### Search & Replace Patterns:
+
 ```bash
 # If you have any external references to old events:
 'xstate.snapshot.auth'    → 'AUTH_SNAPSHOT'
@@ -505,4 +539,3 @@ The state machines now follow XState v5 best practices and are production-ready.
 **Document Version**: 1.0  
 **Last Updated**: 2025-10-26  
 **Maintained By**: Development Team
-

@@ -204,7 +204,7 @@ export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
   let parsed: URL;
   try {
     parsed = new URL(url.trim());
-  } catch (_error) {
+  } catch {
     return makeInvalid('Invalid URL: URL must include a valid protocol (http or https)');
   }
 

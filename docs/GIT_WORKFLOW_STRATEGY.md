@@ -26,14 +26,14 @@ This document defines the Git workflow for the Azure DevOps Integration Extensio
 
 ### Branch Types
 
-| Type | Prefix | Purpose | Example |
-|------|--------|---------|---------|
-| Feature | `feat/` | New functionality | `feat/rune-first-migration` |
-| Bug Fix | `fix/` | Bug fixes | `fix/pat-authentication` |
-| Refactor | `refactor/` | Code improvements | `refactor/fsm-actions` |
-| Docs | `docs/` | Documentation only | `docs/api-guide` |
-| Chore | `chore/` | Build/tooling | `chore/update-deps` |
-| Experimental | `exp/` | Experimental work | `exp/webgl-renderer` |
+| Type         | Prefix      | Purpose            | Example                     |
+| ------------ | ----------- | ------------------ | --------------------------- |
+| Feature      | `feat/`     | New functionality  | `feat/rune-first-migration` |
+| Bug Fix      | `fix/`      | Bug fixes          | `fix/pat-authentication`    |
+| Refactor     | `refactor/` | Code improvements  | `refactor/fsm-actions`      |
+| Docs         | `docs/`     | Documentation only | `docs/api-guide`            |
+| Chore        | `chore/`    | Build/tooling      | `chore/update-deps`         |
+| Experimental | `exp/`      | Experimental work  | `exp/webgl-renderer`        |
 
 ### Branch Naming Convention
 
@@ -128,6 +128,7 @@ gh pr create \
 ### 5. Review & Test
 
 **User/Reviewer Actions**:
+
 1. Checkout PR branch locally
 2. Run `npm install && npm run build`
 3. Test all changes
@@ -190,6 +191,7 @@ gh pr merge --squash --delete-branch
 ### Examples
 
 **Good**:
+
 ```
 feat(ui): add action buttons to work item cards
 
@@ -203,6 +205,7 @@ Fixes #123
 ```
 
 **Bad**:
+
 ```
 update stuff
 ```
@@ -231,20 +234,25 @@ update stuff
 
 ```markdown
 ## Summary
+
 Brief description of changes
 
 ## Changes
+
 - Bullet list of key changes
 
 ## Testing
+
 - [ ] Tested scenario A
 - [ ] Tested scenario B
 
 ## Screenshots (if UI changes)
+
 ![before](url)
 ![after](url)
 
 ## Related Issues
+
 Fixes #123
 Related to #456
 ```
@@ -282,6 +290,7 @@ git merge main
 ### Scenario: Multiple Related Features
 
 **Option A**: Separate PRs (preferred)
+
 ```bash
 git checkout -b feat/timer-ui
 # Implement timer UI
@@ -294,6 +303,7 @@ git checkout -b feat/edit-dialog
 ```
 
 **Option B**: Single PR with multiple commits
+
 ```bash
 git checkout -b feat/action-buttons-complete
 git commit -m "feat(timer): add timer UI"
@@ -353,6 +363,7 @@ git config alias.cleanup "!git branch --merged main | grep -v '\\*\\|main\\|deve
 Before approving PR:
 
 ### Code Quality
+
 - [ ] Follows TypeScript best practices
 - [ ] FSM patterns applied correctly
 - [ ] No console.log in production code (use logger)
@@ -360,12 +371,14 @@ Before approving PR:
 - [ ] No hardcoded values
 
 ### Testing
+
 - [ ] Extension activates without errors
 - [ ] Feature works as described
 - [ ] No regressions in existing features
 - [ ] Edge cases handled
 
 ### Documentation
+
 - [ ] README updated if public API changed
 - [ ] JSDoc comments for new functions
 - [ ] CHANGELOG.md entry added
@@ -377,17 +390,20 @@ Before approving PR:
 ### ❌ Don't Do This:
 
 1. **Direct commits to main**
+
    ```bash
    git commit -m "quick fix"
    git push origin main  # ❌ NO!
    ```
 
 2. **Force push to main**
+
    ```bash
    git push --force origin main  # ❌ NEVER!
    ```
 
 3. **Merge without squash**
+
    ```bash
    # This creates messy history with "fix typo" commits
    git merge feat/my-feature  # ❌ Use squash merge
@@ -455,16 +471,19 @@ Provides PR management directly in VS Code.
 ## Transition Plan
 
 ### Phase 1: Immediate (Next PR)
+
 - Start using feature branches
 - Create PRs for review
 - Test before merging
 
 ### Phase 2: Clean Up (Next Week)
+
 - Review recent commits on main
 - Create retroactive PR documentation
 - Set up branch protection rules
 
 ### Phase 3: Automation (Future)
+
 - CI/CD on PR creation
 - Automated tests before merge
 - Release automation
@@ -519,9 +538,8 @@ gh pr create --title "feat: implement Svelte 5 rune-first helpers"
 ---
 
 **Status**: Document active, ready for implementation  
-**Next Action**: Create feature branch for next work item  
+**Next Action**: Create feature branch for next work item
 
 ---
 
-*End of Git Workflow Strategy*
-
+_End of Git Workflow Strategy_
