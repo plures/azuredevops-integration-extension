@@ -14,7 +14,9 @@ Date: 2025-10-27
 ## Required Functionality
 
 ### 1. Timer Button ▶
-**Expected**: 
+
+**Expected**:
+
 - Start timer on work item
 - Display timer control/element IN the work item card or status bar
 - Show elapsed time
@@ -25,7 +27,9 @@ Date: 2025-10-27
 **TODO**: Add timer UI element to work item card when timer is active
 
 ### 2. Edit Button ✎
+
 **Expected**:
+
 - Edit work item FROM WITHIN VS Code
 - Quick pick to select field (Title, State, Assigned To, Tags, Description)
 - Input box to enter new value
@@ -37,7 +41,9 @@ Date: 2025-10-27
 **TODO**: Implement in-VSCode editing with quick pick
 
 ### 3. Branch Button ⎇
+
 **Expected**:
+
 - Get git username from config
 - Format: `{username}-{workitemID}-{short-desc}`
 - Show input with suggested name
@@ -52,6 +58,7 @@ Date: 2025-10-27
 ## Implementation Notes
 
 All logic should be in `dispatchApplicationEvent` in activation.ts where:
+
 - `timer`, `client`, `provider` are available
 - `vscode` API is accessible
 - Can call `handleMessage` for legacy functions
@@ -62,4 +69,3 @@ FSM actions track state, activation.ts executes functionality.
 
 Focus on completing these 3 action button implementations to match
 the functionality from previous tagged versions.
-

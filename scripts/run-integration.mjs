@@ -1,5 +1,5 @@
 /* eslint-env node */
-/* eslint-disable no-console */
+ 
 import path from 'node:path';
 process.env.ESBK_TSCONFIG_PATH = path.resolve('tsconfig.tests.json');
 

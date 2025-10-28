@@ -5,6 +5,7 @@
 **Symptom**: Connection exists in settings but fails with "PAT not found in secrets" error.
 
 **Root Causes Identified & Fixed**:
+
 1. ✅ `getSecretPAT` bridge function was never initialized (fixed in `activation.ts`)
 2. ✅ `patKey` wasn't being saved to connection object (fixed in `connection.ts`)
 3. ✅ Missing `matches` field in initial webview state (fixed in `activation.ts`)
@@ -44,12 +45,14 @@ If you have an existing connection with this error, follow these steps:
 ### 1. PAT Bridge Function Initialization
 
 **Before** (Bug):
+
 ```typescript
 // Bridge function imported but NEVER initialized
-setGetSecretPAT  // ← Never called with implementation!
+setGetSecretPAT; // ← Never called with implementation!
 ```
 
 **After** (Fixed):
+
 ```typescript
 // Now properly initialized after connections load
 setGetSecretPAT(async (extensionContext, connectionId) => {
@@ -62,22 +65,25 @@ setGetSecretPAT(async (extensionContext, connectionId) => {
 ### 2. Missing patKey in Connection Object
 
 **Before** (Bug):
+
 ```typescript
 const patKey = `azureDevOpsInt.pat:${newOrUpdatedConnection.id}`;
-await context.secrets.store(patKey, pat);  // Stored in secrets
+await context.secrets.store(patKey, pat); // Stored in secrets
 // ❌ But patKey NOT added to connection object!
 ```
 
 **After** (Fixed):
+
 ```typescript
 const patKey = `azureDevOpsInt.pat:${newOrUpdatedConnection.id}`;
-newOrUpdatedConnection.patKey = patKey;  // ✅ NOW saves patKey reference
+newOrUpdatedConnection.patKey = patKey; // ✅ NOW saves patKey reference
 await context.secrets.store(patKey, pat);
 ```
 
 ### 3. Webview Initial State Missing Matches
 
 **Before** (Bug):
+
 ```typescript
 webview.postMessage({
   type: 'syncState',
@@ -90,6 +96,7 @@ webview.postMessage({
 ```
 
 **After** (Fixed):
+
 ```typescript
 const matches = {
   inactive: snapshot.matches('inactive'),
@@ -104,7 +111,7 @@ webview.postMessage({
   payload: {
     fsmState: snapshot.value,
     context: getSerializableContext(snapshot.context),
-    matches,  // ✅ NOW includes matches
+    matches, // ✅ NOW includes matches
   },
 });
 ```
@@ -114,6 +121,7 @@ webview.postMessage({
 ## How It Works Now
 
 ### Connection Creation Flow:
+
 ```
 1. User enters Azure DevOps URL
 2. Selects "Personal Access Token (PAT)"
@@ -126,6 +134,7 @@ webview.postMessage({
 ```
 
 ### Authentication Flow:
+
 ```
 1. Connection loaded from settings.json
 2. Has connection.patKey field
@@ -145,6 +154,7 @@ After updating to the fixed version, verify:
    - Find "Connections" setting
    - Click "Edit in settings.json"
    - Verify each connection has a `patKey` field:
+
    ```json
    {
      "azureDevOpsIntegration.connections": [
@@ -153,7 +163,7 @@ After updating to the fixed version, verify:
          "organization": "myorg",
          "project": "myproject",
          "authMethod": "pat",
-         "patKey": "azureDevOpsInt.pat:790aa7ed-79a4-4eb2-b431-b0057c0dccbf",  // ← Must have this!
+         "patKey": "azureDevOpsInt.pat:790aa7ed-79a4-4eb2-b431-b0057c0dccbf", // ← Must have this!
          "label": "myorg/myproject"
        }
      ]
@@ -193,7 +203,7 @@ const connection: ProjectConnection = {
   organization: 'myorg',
   project: 'myproject',
   authMethod: 'pat',
-  patKey: patKey,  // ← CRITICAL: Don't forget this!
+  patKey: patKey, // ← CRITICAL: Don't forget this!
   // ... other fields
 };
 
@@ -222,14 +232,16 @@ if (!pat) {
 ### Debugging Steps:
 
 1. **Check bridge is initialized**:
+
    ```typescript
    // Should be called in loadConnectionsFromConfig
    setGetSecretPAT(async (ctx, connId) => {...});
    ```
 
 2. **Check connection has patKey**:
+
    ```typescript
-   const connection = connections.find(c => c.id === connectionId);
+   const connection = connections.find((c) => c.id === connectionId);
    console.log('Connection patKey:', connection?.patKey);
    ```
 
@@ -244,15 +256,17 @@ if (!pat) {
 ## Summary
 
 **Fixed in Version**: 1.10.1+  
-**Commit**: ac875f6  
+**Commit**: ac875f6
 
 **What to Do Now**:
+
 1. Reload VS Code extension (F5 or "Developer: Reload Window")
 2. Go to ⚙️ → "Manage Existing Connections"
 3. Edit your connection and re-enter PAT
 4. Connection will now work properly! ✅
 
 **Critical Fixes Applied**:
+
 - ✅ PAT bridge function now initialized
 - ✅ patKey now saved to connection object
 - ✅ Webview displays properly with matches
@@ -260,5 +274,4 @@ if (!pat) {
 
 ---
 
-*Last Updated: 2025-10-26*
-
+_Last Updated: 2025-10-26_

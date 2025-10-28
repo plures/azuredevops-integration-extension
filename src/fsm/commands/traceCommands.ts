@@ -12,7 +12,7 @@
 import * as vscode from 'vscode';
 import {
   fsmTracer,
-  FSMTracer,
+  FSMTracer as _FSMTracer,
   analyzeCurrentTrace,
   exportCurrentTrace,
 } from '../logging/FSMTracer.js';

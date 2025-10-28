@@ -11,13 +11,16 @@ Every feature MUST follow this exact workflow. No exceptions.
 **File**: `docs/features/FEATURE_NAME.md`
 
 ### Template
-```markdown
+
+````markdown
 # Feature: [Feature Name]
 
 ## Problem Statement
+
 [What problem does this solve?]
 
 ## User Stories
+
 ```gherkin
 Feature: [Feature Name]
   As a [user type]
@@ -28,14 +31,16 @@ Scenario: [Happy path]
   Given [initial state]
   When [action]
   Then [expected result]
-  
+
 Scenario: [Edge case]
   Given [edge condition]
   When [action]
   Then [expected handling]
 ```
+````
 
 ## API Contract
+
 ```typescript
 // Public API
 export interface FeatureAPI {
@@ -43,9 +48,8 @@ export interface FeatureAPI {
 }
 
 // Events
-export type FeatureEvent = 
-  | { type: 'ACTION_NAME'; payload: Data }
-  
+export type FeatureEvent = { type: 'ACTION_NAME'; payload: Data };
+
 // State
 export interface FeatureState {
   field: Type;
@@ -53,6 +57,7 @@ export interface FeatureState {
 ```
 
 ## State Machine (if applicable)
+
 ```
 [idle] --ACTION--> [processing] --SUCCESS--> [complete]
                         |
@@ -63,10 +68,12 @@ export interface FeatureState {
 ```
 
 ## Success Criteria
+
 - [ ] User can perform X in < 3 clicks
 - [ ] Feature persists across restarts
 - [ ] Error states have clear messages
-```
+
+````
 
 **Approval Required**: Design must be reviewed before proceeding.
 
@@ -124,7 +131,7 @@ describe('Feature: [Feature Name]', () => {
     });
   });
 });
-```
+````
 
 **Requirement**: Tests must FAIL initially (RED phase).
 
@@ -133,6 +140,7 @@ describe('Feature: [Feature Name]', () => {
 ## Step 3: Implement (GREEN Phase)
 
 ### Module Structure
+
 ```
 src/features/FEATURE_NAME/
   index.ts          # Public API (exports)
@@ -145,12 +153,14 @@ src/features/FEATURE_NAME/
 ```
 
 ### Implementation Rules
+
 1. **Start with pure functions** (easiest to test)
 2. **Then add state machine** (if needed)
 3. **Finally add integration** (VSCode commands, webview)
 4. **Keep running tests** - stay in GREEN
 
 ### Code Standards
+
 ```typescript
 // ✅ Pure function - no side effects
 export function calculateValue(input: number): number {
@@ -160,7 +170,7 @@ export function calculateValue(input: number): number {
 // ✅ Dependency injection
 export function createService(deps: Dependencies): Service {
   return {
-    method: () => deps.logger.info('Called')
+    method: () => deps.logger.info('Called'),
   };
 }
 
@@ -181,6 +191,7 @@ function calculate(x: number): number {
 ## Step 4: Refactor (REFACTOR Phase)
 
 While tests stay GREEN:
+
 1. Extract repeated code
 2. Improve naming
 3. Add documentation
@@ -191,6 +202,7 @@ While tests stay GREEN:
 ## Step 5: Integration
 
 ### Checklist
+
 - [ ] Feature has integration test
 - [ ] Feature has unit tests for pure functions
 - [ ] All tests pass
@@ -204,10 +216,12 @@ While tests stay GREEN:
 ## Example: Timer Feature TDD
 
 ### 1. Design
-```markdown
+
+````markdown
 # Feature: Work Item Timer
 
 ## User Story
+
 ```gherkin
 Scenario: Start timer
   Given I have a work item
@@ -216,14 +230,16 @@ Scenario: Start timer
   And the button changes to "Stop"
   And elapsed time displays
 ```
+````
 
 ### 2. Test (RED)
+
 ```typescript
 describe('Timer Feature', () => {
   it('starts timer and shows elapsed time', () => {
     const timer = createTimer();
     timer.start(123, 'Test Item');
-    
+
     expect(timer.getState()).toBe('running');
     expect(timer.getElapsed()).toBeGreaterThan(0);
   });
@@ -231,6 +247,7 @@ describe('Timer Feature', () => {
 ```
 
 ### 3. Implement (GREEN)
+
 ```typescript
 export function createTimer(persistence: Persistence) {
   let state: TimerState = { status: 'idle' };
@@ -245,16 +262,15 @@ export function createTimer(persistence: Persistence) {
       };
       persistence.save(state);
     },
-    
+
     getState: () => state.status,
-    getElapsed: () => state.startTime 
-      ? Math.floor((Date.now() - state.startTime) / 1000)
-      : 0,
+    getElapsed: () => (state.startTime ? Math.floor((Date.now() - state.startTime) / 1000) : 0),
   };
 }
 ```
 
 ### 4. Refactor
+
 - Extract `calculateElapsed` to utils
 - Add proper types
 - Document public API
@@ -264,12 +280,14 @@ export function createTimer(persistence: Persistence) {
 ## Enforcement
 
 ### Pre-Commit Hook
+
 ```bash
 npm run test:feature || exit 1
 npm run validate:machines || exit 1
 ```
 
 ### CI/CD
+
 ```yaml
 - name: Validate Architecture
   run: |
@@ -283,6 +301,7 @@ npm run validate:machines || exit 1
 ## When Something Breaks
 
 ### Debug Process
+
 1. **Run feature tests** - which test fails?
 2. **Check git diff** - what changed?
 3. **Isolate the module** - test in isolation
@@ -290,6 +309,7 @@ npm run validate:machines || exit 1
 5. **Add regression test** - prevent future breaks
 
 ### Red Flags
+
 - "It worked before" - missing test coverage
 - "I changed one file and X broke" - tight coupling
 - "I can't reproduce" - non-deterministic state
@@ -299,6 +319,7 @@ npm run validate:machines || exit 1
 ## Bottom Line
 
 **No feature development without:**
+
 1. Design doc
 2. Tests written first
 3. Tests passing
@@ -306,4 +327,3 @@ npm run validate:machines || exit 1
 5. Validation passing
 
 **This is non-negotiable.**
-

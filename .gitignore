@@ -200,3 +200,167 @@ mcp-server/dist/
 mcp-server/**/*.js
 mcp-server/**/*.js.map
 !mcp-server/src/**/*.js
+
+# Transpiled and bundled files (not needed for source control)
+src/**/*.js
+src/**/*.js.map
+src/**/*.cjs
+src/**/*.cjs.map
+src/**/*.mjs
+src/**/*.mjs.map
+
+# Temporary and experimentation files
+tmp/
+tmp-*.js
+tmp-*.mjs
+tmp-*.ts
+tmp_*.js
+tmp_*.mjs
+tmp_*.ts
+temp_*.js
+temp_*.mjs
+temp_*.ts
+temp_*.txt
+temp_*.css
+
+# Bundled files from build processes
+*-bundle.js
+*-bundle.mjs
+*-meta.json
+*-extract/
+temp_extract/
+
+# Debug and diagnostic files
+debug-*.txt
+debug-*.mjs
+debug-*.js
+*.debug
+*.diag
+
+# Experimental and prototype files
+experimental/
+prototype/
+sandbox/
+playground/
+scratch/
+
+# Generated analysis files
+analysis-*.json
+analysis-*.txt
+architecture-*.json
+architecture-*.txt
+
+# Temporary webview files
+webview-*.js
+webview-*.mjs
+webview-*.ts
+
+# Temporary test files
+test-*.js
+test-*.mjs
+test-*.ts
+!tests/**/*.ts
+!tests/**/*.js
+
+# Temporary script outputs
+script-*.js
+script-*.mjs
+script-*.ts
+!scripts/**/*.ts
+!scripts/**/*.js
+!scripts/**/*.mjs
+
+# Temporary configuration files
+config-*.js
+config-*.mjs
+config-*.ts
+!config/**/*.ts
+!config/**/*.js
+
+# Temporary documentation files
+doc-*.md
+doc-*.txt
+!docs/**/*.md
+
+# Temporary package files
+package-*.json
+!package.json
+!package-lock.json
+
+# Temporary TypeScript files
+ts-*.ts
+ts-*.js
+ts-*.mjs
+!tsconfig*.json
+
+# Temporary ESLint files
+eslint-*.js
+eslint-*.mjs
+eslint-*.ts
+!eslint.config.js
+
+# Temporary build files
+build-*.js
+build-*.mjs
+build-*.ts
+!build/
+
+# Temporary release files
+release-*.js
+release-*.mjs
+release-*.ts
+
+# Temporary validation files
+validate-*.js
+validate-*.mjs
+validate-*.ts
+
+# Temporary migration files
+migrate-*.js
+migrate-*.mjs
+migrate-*.ts
+
+# Temporary fix files
+fix-*.js
+fix-*.mjs
+fix-*.ts
+
+# Temporary update files
+update-*.js
+update-*.mjs
+update-*.ts
+
+# Temporary generate files
+generate-*.js
+generate-*.mjs
+generate-*.ts
+
+# Temporary serve files
+serve-*.js
+serve-*.mjs
+serve-*.ts
+
+# Temporary watch files
+watch-*.js
+watch-*.mjs
+watch-*.ts
+
+# Temporary capture files
+capture-*.js
+capture-*.mjs
+capture-*.ts
+
+# Temporary screenshot files
+screenshot-*.js
+screenshot-*.mjs
+screenshot-*.ts
+
+# Temporary select files
+select-*.js
+select-*.mjs
+select-*.ts
+
+# Temporary run files
+run-*.js
+run-*.mjs
+run-*.ts

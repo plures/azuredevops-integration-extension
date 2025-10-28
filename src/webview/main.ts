@@ -35,7 +35,7 @@ if (typeof (globalThis as any).process === 'undefined') {
   };
   // Ensure identifier binding in module scope
 
-  var process = (globalThis as any).process;
+  var _process = (globalThis as any).process;
   console.log('[AzureDevOpsInt][webview] process shim installed');
 }
 

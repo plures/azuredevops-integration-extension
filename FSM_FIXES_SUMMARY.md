@@ -14,6 +14,7 @@ Successfully analyzed and fixed critical state machine issues:
 3. **Best Practices** - Validated all 6 state machines and documented patterns
 
 **Files Modified**:
+
 - `src/fsm/machines/applicationMachine.ts` (19 insertions, 21 deletions)
 - `docs/FSM_BEST_PRACTICES_ANALYSIS.md` (created)
 
@@ -22,6 +23,7 @@ Successfully analyzed and fixed critical state machine issues:
 ## 🔴 Critical Issue #1: Reserved Event Name Collision
 
 ### Problem
+
 Custom events were using XState's reserved `xstate.*` namespace:
 
 ```typescript
@@ -34,6 +36,7 @@ export type ApplicationEvent =
 ```
 
 ### Impact
+
 - **High Risk**: Could cause event handling conflicts with XState internals
 - **Debugging**: Would make debugging extremely difficult
 - **Upgrades**: Breaking changes in future XState versions
@@ -50,6 +53,7 @@ export type ApplicationEvent =
 ```
 
 **Changes Made**:
+
 1. Renamed 4 event types to remove `xstate.` prefix
 2. Updated event handlers in state machine configuration
 3. Updated action implementations that check event types
@@ -59,6 +63,7 @@ export type ApplicationEvent =
 ## 🔴 Critical Issue #2: Infinite Loop from `always` Transition
 
 ### Problem
+
 Unconditional `always` transition racing with `invoke` → `onDone`:
 
 ```typescript
@@ -87,6 +92,7 @@ loading_connections: {
 ```
 
 ### Impact
+
 - **High Risk**: Race condition causes unpredictable behavior
 - **Context Corruption**: Actions may execute out of order
 - **Test Failures**: Intermittent failures in test environments
@@ -111,7 +117,7 @@ loading_connections: {
   },
   /**
    * Fallback transition for test environments.
-   * BEST PRACTICE: Using 'after' with guard instead of 'always' 
+   * BEST PRACTICE: Using 'after' with guard instead of 'always'
    * to prevent infinite loops.
    */
   after: {
@@ -126,6 +132,7 @@ loading_connections: {
 ```
 
 **Changes Made**:
+
 1. Removed unconditional `always` transition (source of race condition)
 2. Kept single `after` timeout as safety fallback
 3. Added guard to prevent duplicate transitions
@@ -137,14 +144,14 @@ loading_connections: {
 
 ### All State Machines Analyzed:
 
-| Machine | File | Status | Issues Found | Notes |
-|---------|------|--------|--------------|-------|
-| `applicationMachine` | `applicationMachine.ts` | ✅ Fixed | 2 critical | Reserved events + infinite loop |
-| `setupMachine` | `setupMachine.ts` | ✅ Valid | 0 | Router pattern is acceptable |
-| `connectionMachine` | `connectionMachine.ts` | ✅ Valid | 0 | Guarded `always` is correct |
-| `timerMachine` | `timerMachine.ts` | ✅ Valid | 0 | Clean implementation |
-| `authMachine` | `authMachine.ts` | ✅ Valid | 0 | Proper invoke patterns |
-| `dataMachine` | `dataMachine.ts` | ✅ Valid | 0 | Proper invoke patterns |
+| Machine              | File                    | Status   | Issues Found | Notes                           |
+| -------------------- | ----------------------- | -------- | ------------ | ------------------------------- |
+| `applicationMachine` | `applicationMachine.ts` | ✅ Fixed | 2 critical   | Reserved events + infinite loop |
+| `setupMachine`       | `setupMachine.ts`       | ✅ Valid | 0            | Router pattern is acceptable    |
+| `connectionMachine`  | `connectionMachine.ts`  | ✅ Valid | 0            | Guarded `always` is correct     |
+| `timerMachine`       | `timerMachine.ts`       | ✅ Valid | 0            | Clean implementation            |
+| `authMachine`        | `authMachine.ts`        | ✅ Valid | 0            | Proper invoke patterns          |
+| `dataMachine`        | `dataMachine.ts`        | ✅ Valid | 0            | Proper invoke patterns          |
 
 ### Best Practices Checklist:
 
@@ -164,6 +171,7 @@ loading_connections: {
 ### 1. Event Naming Convention
 
 ✅ **Now Using**:
+
 - `AUTH_SNAPSHOT`, `AUTH_ERROR` - Authentication events
 - `DATA_SNAPSHOT`, `DATA_ERROR` - Data events
 - All custom events use SCREAMING_SNAKE_CASE
@@ -172,6 +180,7 @@ loading_connections: {
 ### 2. Transition Patterns
 
 ✅ **Now Using**:
+
 - `after` for timeout fallbacks (not `always`)
 - Guards on fallback transitions to prevent duplicates
 - Clear documentation for complex patterns
@@ -179,6 +188,7 @@ loading_connections: {
 ### 3. Acceptable `always` Patterns
 
 **Router Pattern** (used in `setupMachine.ts`):
+
 ```typescript
 // ✅ CORRECT - Mutually exclusive guards, immediate exit
 handlingAction: {
@@ -192,6 +202,7 @@ handlingAction: {
 ```
 
 **Conditional Initial State** (used in `connectionMachine.ts`):
+
 ```typescript
 // ✅ CORRECT - Guarded shortcut to skip unnecessary work
 checking_existing_token: {
@@ -213,6 +224,7 @@ checking_existing_token: {
 ## 📚 Documentation Created
 
 ### New Files:
+
 1. **`docs/FSM_BEST_PRACTICES_ANALYSIS.md`** - Comprehensive guide covering:
    - All issues identified and resolved
    - XState v5 best practices
@@ -230,55 +242,56 @@ checking_existing_token: {
 ### Tests to Add/Update:
 
 1. **Verify No Infinite Loops**:
+
 ```typescript
 test('applicationMachine should not infinite loop during activation', async () => {
   const actor = createActor(applicationMachine, {
     input: { extensionContext: mockContext },
   });
-  
+
   actor.start();
   actor.send({ type: 'ACTIVATE', context: mockContext });
-  
-  await waitFor(actor, (state) => state.matches('active.ready'), { 
-    timeout: 1000 
+
+  await waitFor(actor, (state) => state.matches('active.ready'), {
+    timeout: 1000,
   });
-  
+
   expect(actor.getSnapshot().value).toMatch(/active\.ready/);
 });
 ```
 
 2. **Verify New Event Names**:
+
 ```typescript
 test('should handle AUTH_SNAPSHOT event correctly', () => {
   const actor = createActor(applicationMachine);
   actor.start();
-  
+
   actor.send({
     type: 'AUTH_SNAPSHOT',
     snapshot: {
       value: 'authenticated',
-      context: { 
-        connection: { id: 'test-conn' }, 
-        token: 'test-token' 
+      context: {
+        connection: { id: 'test-conn' },
+        token: 'test-token',
       },
     },
   });
-  
+
   // Verify AUTHENTICATION_SUCCESS was sent
-  waitFor(actor, (state) => 
-    state.context.connections.some(c => c.id === 'test-conn')
-  );
+  waitFor(actor, (state) => state.context.connections.some((c) => c.id === 'test-conn'));
 });
 ```
 
 3. **Verify Fallback Behavior**:
+
 ```typescript
 test('fallback transition should trigger if setupUI hangs', async () => {
   const slowSetupUI = fromPromise(async () => {
-    await new Promise(resolve => setTimeout(resolve, 500)); // Exceeds 250ms timeout
+    await new Promise((resolve) => setTimeout(resolve, 500)); // Exceeds 250ms timeout
     return mockSetupResult;
   });
-  
+
   const actor = createActor(applicationMachine, {
     input: { extensionContext: mockContext },
   }).provide({
@@ -286,15 +299,14 @@ test('fallback transition should trigger if setupUI hangs', async () => {
       setupUI: slowSetupUI,
     },
   });
-  
+
   actor.start();
   actor.send({ type: 'ACTIVATE', context: mockContext });
-  
+
   // Should reach waiting_for_panel via fallback
-  await waitFor(actor, (state) => 
-    state.matches('active.setup.waiting_for_panel'),
-    { timeout: 400 }
-  );
+  await waitFor(actor, (state) => state.matches('active.setup.waiting_for_panel'), {
+    timeout: 400,
+  });
 });
 ```
 
@@ -303,12 +315,15 @@ test('fallback transition should trigger if setupUI hangs', async () => {
 ## 🚀 Next Steps
 
 ### Immediate Actions:
+
 1. ✅ **Completed**: Fixed critical issues
 2. ✅ **Completed**: Validated all state machines
 3. ✅ **Completed**: Created documentation
 
 ### Recommended Follow-up:
+
 1. **Run Full Test Suite**: Ensure no regressions
+
    ```bash
    npm test
    ```
@@ -330,18 +345,21 @@ test('fallback transition should trigger if setupUI hangs', async () => {
 ## 📊 Impact Analysis
 
 ### Before:
+
 - ❌ 4 events using reserved namespace
 - ❌ 1 infinite loop risk
 - ❌ 2 redundant fallback mechanisms
 - ❌ Race condition in setup flow
 
 ### After:
+
 - ✅ All events use custom namespace
 - ✅ No infinite loop risks
 - ✅ Single, guarded fallback mechanism
 - ✅ Predictable, deterministic state transitions
 
 ### Risk Reduction:
+
 - **Critical Bugs**: 2 → 0
 - **Anti-Patterns**: 3 → 0
 - **Code Clarity**: Significantly improved with documentation
@@ -362,6 +380,7 @@ test('fallback transition should trigger if setupUI hangs', async () => {
 All critical state machine issues have been successfully resolved. The codebase now follows XState v5 best practices and is production-ready.
 
 **Changes Summary**:
+
 - 2 critical bugs fixed
 - 6 state machines validated
 - 1 comprehensive best practices guide created
@@ -373,4 +392,3 @@ All critical state machine issues have been successfully resolved. The codebase 
 **Report Generated**: 2025-10-26  
 **Validated By**: AI Code Analysis  
 **Status**: ✅ COMPLETE
-
