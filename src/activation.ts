@@ -396,10 +396,115 @@ function dispatchApplicationEvent(event: unknown): void {
         handleMessage({ type: 'startTimer', workItemId: evt.workItemId });
         break;
       case 'EDIT_WORK_ITEM':
-        // Open work item in browser for editing (legacy behavior)
-        if (evt.workItemId && client) {
-          const url = client.getBrowserUrl(`/_workitems/edit/${evt.workItemId}`);
-          vscode.env.openExternal(vscode.Uri.parse(url));
+        // Show in-VSCode edit dialog with field selection
+        if (evt.workItemId && client && provider) {
+          (async () => {
+            try {
+              const items = provider.getWorkItems?.() || [];
+              const item = items.find((i: any) => i.id === evt.workItemId);
+
+              if (!item) {
+                vscode.window.showWarningMessage(`Work item #${evt.workItemId} not found`);
+                return;
+              }
+
+              // Show quick pick for field selection
+              const fieldOptions = [
+                { label: 'Title', field: 'System.Title', current: item.fields?.['System.Title'] },
+                { label: 'State', field: 'System.State', current: item.fields?.['System.State'] },
+                {
+                  label: 'Assigned To',
+                  field: 'System.AssignedTo',
+                  current:
+                    item.fields?.['System.AssignedTo']?.displayName ||
+                    item.fields?.['System.AssignedTo'],
+                },
+                { label: 'Tags', field: 'System.Tags', current: item.fields?.['System.Tags'] },
+                {
+                  label: 'Description',
+                  field: 'System.Description',
+                  current: item.fields?.['System.Description'],
+                },
+              ];
+
+              const selected = await vscode.window.showQuickPick(
+                fieldOptions.map((f) => ({
+                  label: f.label,
+                  description: f.current
+                    ? `Current: ${String(f.current).substring(0, 50)}`
+                    : 'Not set',
+                  field: f.field,
+                  current: f.current,
+                })),
+                {
+                  placeHolder: `Select field to edit for #${evt.workItemId}`,
+                }
+              );
+
+              if (!selected) return;
+
+              // Get new value based on field type
+              let newValue: any;
+
+              if (selected.field === 'System.State') {
+                // Get available states for this work item type
+                const workItemType = item.fields?.['System.WorkItemType'];
+                if (!workItemType) {
+                  vscode.window.showWarningMessage('Cannot determine work item type');
+                  return;
+                }
+
+                const states = await client.getWorkItemTypeStates?.(workItemType);
+                if (!states || states.length === 0) {
+                  vscode.window.showWarningMessage('No states available for this work item type');
+                  return;
+                }
+
+                const selectedState = await vscode.window.showQuickPick(states, {
+                  placeHolder: `Select new state for #${evt.workItemId}`,
+                });
+
+                if (!selectedState) return;
+                newValue = selectedState;
+              } else if (selected.field === 'System.AssignedTo') {
+                // For now, use simple input box (TODO: could fetch team members)
+                newValue = await vscode.window.showInputBox({
+                  prompt: `Enter assigned to (email or display name) for #${evt.workItemId}`,
+                  value: selected.current || '',
+                });
+              } else {
+                // Text fields: Title, Tags, Description
+                const isMultiline = selected.field === 'System.Description';
+                newValue = await vscode.window.showInputBox({
+                  prompt: `Enter new ${selected.label} for #${evt.workItemId}`,
+                  value: selected.current || '',
+                  placeHolder: isMultiline ? 'Enter description...' : undefined,
+                });
+              }
+
+              if (newValue === undefined) return; // Cancelled
+
+              // Update the work item
+              const patchOp = {
+                op: 'add',
+                path: `/fields/${selected.field}`,
+                value: newValue,
+              };
+
+              await client.updateWorkItem?.(evt.workItemId, [patchOp]);
+              vscode.window.showInformationMessage(
+                `Updated ${selected.label} for work item #${evt.workItemId}`
+              );
+
+              // Refresh work items to show changes
+              provider.refresh(getStoredQueryForConnection(activeConnectionId));
+            } catch (error: any) {
+              vscode.window.showErrorMessage(`Failed to edit work item: ${error.message || error}`);
+              console.error('[EDIT_WORK_ITEM] Error:', error);
+            }
+          })().catch((err) => {
+            console.error('[EDIT_WORK_ITEM] Unhandled error:', err);
+          });
         }
         break;
       case 'OPEN_IN_BROWSER':
