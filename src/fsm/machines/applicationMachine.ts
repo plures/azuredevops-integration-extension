@@ -174,6 +174,7 @@ export type ApplicationEvent =
   | { type: 'OPEN_IN_BROWSER'; workItemId: number }
   | { type: 'CREATE_BRANCH'; workItemId: number }
   | { type: 'OPEN_WORK_ITEM'; workItemId: number }
+  | { type: 'TIMER_TICK' }
   // Connection Management Events
   | { type: 'MANAGE_CONNECTIONS' }
   | { type: 'ADD_CONNECTION' }
@@ -470,6 +471,9 @@ export const applicationMachine = createMachine(
               OPEN_WORK_ITEM: {
                 actions: 'handleOpenWorkItem',
               },
+              TIMER_TICK: {
+                actions: 'handleTimerTick',
+              },
               DEVICE_CODE_SESSION_STARTED: {
                 actions: 'storeDeviceCodeSession',
               },
@@ -611,18 +615,18 @@ export const applicationMachine = createMachine(
       markDeactivating: assign({
         isDeactivating: true,
       }),
-      initializeChildActors: ({ context: _context }) => {
-        _context.timerActor = createActor(timerMachine).start();
+      initializeChildActors: ({ self }) => {
+        const timerActor = createActor(timerMachine).start();
 
         // Setup tick interval for timer updates
         setInterval(() => {
-          if (_context.timerActor) {
-            const currentState = _context.timerActor.getSnapshot?.();
-            if (currentState?.matches?.('running')) {
-              _context.timerActor.send({ type: 'TICK' });
-            }
+          if (self) {
+            self.send({ type: 'TIMER_TICK' });
           }
         }, 1000);
+
+        // Store timer actor reference for context
+        return { timerActor };
       },
       delegateConnectionActivation: ({ context, event }) => {
         if (event.type === 'CONNECTION_SELECTED') {
@@ -632,6 +636,15 @@ export const applicationMachine = createMachine(
       delegateAuthenticationStart: ({ context, event }) => {
         if (event.type === 'AUTHENTICATION_REQUIRED') {
           startAuthentication(context, event.connectionId);
+        }
+      },
+      handleTimerTick: ({ context }) => {
+        // Forward tick to timer actor if it exists and is in running state
+        if (context.timerActor) {
+          const timerSnapshot = (context.timerActor as any).getSnapshot?.();
+          if (timerSnapshot?.matches?.('running')) {
+            (context.timerActor as any).send({ type: 'TICK' });
+          }
         }
       },
       handleAuthSuccess: ({ context, event }) => {
