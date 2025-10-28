@@ -2785,6 +2785,15 @@ function getSerializableContext(context: any): Record<string, any> {
   if (context.timerActor && typeof (context.timerActor as any).getSnapshot === 'function') {
     try {
       const timerSnapshot = (context.timerActor as any).getSnapshot();
+
+      console.log('[getSerializableContext] Timer snapshot:', {
+        hasSnapshot: !!timerSnapshot,
+        hasContext: !!timerSnapshot?.context,
+        state: timerSnapshot?.value,
+        workItemId: timerSnapshot?.context?.workItemId,
+        startTime: timerSnapshot?.context?.startTime,
+      });
+
       if (timerSnapshot?.context) {
         const timerCtx = timerSnapshot.context;
 
@@ -2808,10 +2817,17 @@ function getSerializableContext(context: any): Record<string, any> {
           isPaused: timerCtx.isPaused,
           state: timerSnapshot.value,
         };
+
+        console.log('[getSerializableContext] Created timerState:', timerState);
       }
     } catch (e) {
-      // Ignore errors getting timer snapshot
+      console.error('[getSerializableContext] Error getting timer snapshot:', e);
     }
+  } else {
+    console.log('[getSerializableContext] No timerActor or getSnapshot:', {
+      hasTimerActor: !!context.timerActor,
+      hasGetSnapshot: typeof (context.timerActor as any)?.getSnapshot,
+    });
   }
 
   // Extract only serializable properties, excluding VS Code API objects and actors
