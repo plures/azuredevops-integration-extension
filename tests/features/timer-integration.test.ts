@@ -256,6 +256,54 @@ describe('Timer Feature Integration', () => {
       expect(timerActor.getSnapshot().value).toBe('idle');
     });
 
+    it('should correctly exclude pause duration from elapsed time', () => {
+      const timerActor = createActor(timerMachine).start();
+
+      // Start timer
+      const startTime = Date.now();
+      timerActor.send({ type: 'START', workItemId: 1, workItemTitle: 'Test' });
+      const snapshot1 = timerActor.getSnapshot();
+      const originalStartTime = snapshot1.context.startTime!;
+
+      // Wait 100ms of active time
+      const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+      return wait(100).then(() => {
+        // Pause timer
+        timerActor.send({ type: 'PAUSE' });
+        const snapshot2 = timerActor.getSnapshot();
+        expect(snapshot2.context.isPaused).toBe(true);
+        expect(snapshot2.context.pausedAt).toBeDefined();
+        const pausedAt = snapshot2.context.pausedAt!;
+
+        // Calculate elapsed time before pause (should be ~100ms)
+        const elapsedBeforePause = Date.now() - originalStartTime;
+
+        // Wait 200ms while paused (this should NOT count toward elapsed time)
+        return wait(200).then(() => {
+          // Resume timer
+          timerActor.send({ type: 'RESUME' });
+          const snapshot3 = timerActor.getSnapshot();
+          expect(snapshot3.context.isPaused).toBe(false);
+          expect(snapshot3.context.pausedAt).toBeUndefined();
+
+          // The startTime should have been adjusted forward by the pause duration
+          const pauseDuration = Date.now() - pausedAt;
+          const adjustedStartTime = snapshot3.context.startTime!;
+
+          // Adjusted start time should be approximately: originalStartTime + pauseDuration
+          // This ensures elapsed time (now - adjustedStartTime) excludes the pause
+          expect(adjustedStartTime).toBeGreaterThan(originalStartTime);
+          expect(adjustedStartTime).toBeCloseTo(originalStartTime + pauseDuration, -1); // Within 10ms
+
+          // Current elapsed time should be approximately equal to time before pause
+          // (plus a small amount for the resume operation itself)
+          const currentElapsed = Date.now() - adjustedStartTime;
+          expect(currentElapsed).toBeLessThan(elapsedBeforePause + 50); // Small tolerance
+          expect(currentElapsed).toBeGreaterThanOrEqual(0);
+        });
+      });
+    });
+
     it('should handle VSCode restart scenario with persistence', () => {
       // Scenario: User starts timer, closes VSCode, reopens VSCode
 

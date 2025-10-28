@@ -87,12 +87,7 @@ export const timerMachine = createMachine({
       on: {
         PAUSE: {
           target: 'paused',
-          actions: [
-            assign(() => ({
-              isPaused: true,
-              pausedAt: Date.now(),
-            })),
-          ],
+          actions: [assign(() => ({ isPaused: true, pausedAt: Date.now() }))],
         },
 
         STOP: {
@@ -102,6 +97,7 @@ export const timerMachine = createMachine({
               workItemId: undefined,
               workItemTitle: undefined,
               startTime: undefined,
+              pausedAt: undefined,
               isPaused: false,
               pausedAt: undefined,
               pomodoroCount: 0,
@@ -134,13 +130,13 @@ export const timerMachine = createMachine({
           actions: [
             assign(({ context }) => {
               const now = Date.now();
-              // Calculate pause duration and adjust startTime to exclude it
+              // Calculate pause duration and adjust startTime forward to exclude it
               const pauseDuration = context.pausedAt ? now - context.pausedAt : 0;
-              const newStartTime = context.startTime ? context.startTime + pauseDuration : now;
+              const adjustedStartTime = context.startTime ? context.startTime + pauseDuration : now;
               return {
                 isPaused: false,
+                startTime: adjustedStartTime,
                 pausedAt: undefined,
-                startTime: newStartTime,
                 lastActivity: now,
               };
             }),
@@ -154,6 +150,7 @@ export const timerMachine = createMachine({
               workItemId: undefined,
               workItemTitle: undefined,
               startTime: undefined,
+              pausedAt: undefined,
               isPaused: false,
               pausedAt: undefined,
               pomodoroCount: 0,
@@ -168,13 +165,13 @@ export const timerMachine = createMachine({
             actions: [
               assign(({ context }) => {
                 const now = Date.now();
-                // Calculate pause duration and adjust startTime to exclude it
+                // Calculate pause duration and adjust startTime forward to exclude it
                 const pauseDuration = context.pausedAt ? now - context.pausedAt : 0;
-                const newStartTime = context.startTime ? context.startTime + pauseDuration : now;
+                const adjustedStartTime = context.startTime ? context.startTime + pauseDuration : now;
                 return {
                   isPaused: false,
+                  startTime: adjustedStartTime,
                   pausedAt: undefined,
-                  startTime: newStartTime,
                   lastActivity: now,
                 };
               }),
