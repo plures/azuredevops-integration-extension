@@ -11,6 +11,26 @@
   const connections = $derived(context?.connections || []);
   const activeConnection = $derived(connections.find((c: any) => c.id === activeConnectionId));
   const timerState = $derived(context?.timerState);
+  
+  // Force reactivity every second to update timer display
+  let tick = $state(0);
+  setInterval(() => {
+    tick = (tick + 1) % 1000;
+  }, 1000);
+  
+  // Compute elapsed time from startTime
+  const timerElapsedSeconds = $derived.by(() => {
+    // Trigger recomputation on tick
+    const _currentTick = tick;
+    
+    if (!timerState?.startTime) return 0;
+    
+    const stopTime = timerState.stopTime;
+    const now = stopTime || Date.now();
+    const elapsed = Math.floor((now - timerState.startTime) / 1000);
+    
+    return Math.max(0, elapsed);
+  });
 
   // Filters
   let filterText = $state('');
@@ -251,7 +271,7 @@
                     on:mouseleave={handleTimerMouseLeave}
                   >
                     <span class="codicon">⏱</span>
-                    {formatElapsedTime(timerState.elapsedSeconds)}
+                    {formatElapsedTime(timerElapsedSeconds)}
                   </span>
                 {/if}
               </div>

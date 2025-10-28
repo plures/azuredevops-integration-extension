@@ -104,7 +104,6 @@ const connectionStates = new Map<string, ConnectionState>();
 let connectionAdapterInstance: ConnectionAdapter | undefined;
 let activeConnectionId: string | undefined;
 let tokenRefreshInterval: NodeJS.Timeout | undefined;
-let timerUpdateInterval: NodeJS.Timeout | undefined;
 let gcInterval: NodeJS.Timeout | undefined;
 let isDeactivating = false;
 let rejectionHandler: ((reason: any, promise: Promise<any>) => void) | undefined;
@@ -1998,86 +1997,10 @@ export async function activate(context: vscode.ExtensionContext) {
     (appActor as any).send({ type: 'ACTIVATE', context });
   }
 
-  // Setup periodic timer state updates to webview
-  function startTimerUpdateInterval() {
-    if (timerUpdateInterval) return;
-    console.log('[activation] Starting timer update interval');
-    timerUpdateInterval = setInterval(() => {
-      if (!panel) {
-        console.log('[activation] Timer update: no panel');
-        return;
-      }
-
-      const appActor = getApplicationStoreActor();
-      if (!appActor || typeof (appActor as any).getSnapshot !== 'function') {
-        console.log('[activation] Timer update: no appActor');
-        return;
-      }
-
-      const snapshot = (appActor as any).getSnapshot();
-      const timerActor = snapshot?.context?.timerActor;
-
-      if (timerActor && typeof (timerActor as any).getSnapshot === 'function') {
-        const timerSnapshot = (timerActor as any).getSnapshot();
-        if (timerSnapshot?.value !== 'idle') {
-          const elapsedSeconds = timerSnapshot.context.startTime
-            ? Math.floor((Date.now() - timerSnapshot.context.startTime) / 1000)
-            : 0;
-
-          console.log('[activation] Timer update:', {
-            state: timerSnapshot.value,
-            workItemId: timerSnapshot.context.workItemId,
-            elapsedSeconds,
-            startTime: timerSnapshot.context.startTime,
-          });
-
-          // Force webview to refresh timer state by sending current state
-          const timerState = {
-            workItemId: timerSnapshot.context.workItemId,
-            workItemTitle: timerSnapshot.context.workItemTitle,
-            elapsedSeconds,
-            isPaused: timerSnapshot.context.isPaused,
-            state: timerSnapshot.value,
-          };
-
-          panel.webview.postMessage({
-            type: 'syncTimerState',
-            payload: {
-              fsmState: snapshot.value,
-              context: { timerState },
-            },
-          });
-        } else {
-          console.log('[activation] Timer update: timer is idle');
-        }
-      } else {
-        console.log('[activation] Timer update: no timerActor');
-      }
-    }, 1000);
-  }
-
-  function stopTimerUpdateInterval() {
-    if (timerUpdateInterval) {
-      console.log('[activation] Stopping timer update interval');
-      clearInterval(timerUpdateInterval);
-      timerUpdateInterval = undefined;
-    }
-  }
-
   if (appActor && typeof (appActor as any).subscribe === 'function') {
     (appActor as any).subscribe((snapshot: any) => {
-      // Start/stop timer update interval based on timer state
-      const timerActor = snapshot.context?.timerActor;
-      if (timerActor && typeof (timerActor as any).getSnapshot === 'function') {
-        const timerSnapshot = (timerActor as any).getSnapshot();
-        if (timerSnapshot?.value !== 'idle') {
-          startTimerUpdateInterval();
-        } else {
-          stopTimerUpdateInterval();
-        }
-      }
-
       // Persist timer state whenever it changes
+      const timerActor = snapshot.context?.timerActor;
       if (timerActor && typeof (timerActor as any).getSnapshot === 'function') {
         try {
           const timerSnapshot = (timerActor as any).getSnapshot();
@@ -2658,10 +2581,6 @@ export function deactivate(): Thenable<void> {
   verbose('[deactivate] starting');
 
   // Stop periodic tasks
-  if (timerUpdateInterval) {
-    clearInterval(timerUpdateInterval);
-    timerUpdateInterval = undefined;
-  }
   stopCacheCleanup();
   for (const connectionId of connectionStates.keys()) {
     updateBuildRefreshTimer(connectionId, undefined, false);
@@ -2748,7 +2667,8 @@ function getSerializableContext(context: any): Record<string, any> {
         timerState = {
           workItemId: timerCtx.workItemId,
           workItemTitle: timerCtx.workItemTitle,
-          elapsedSeconds: elapsedSeconds,
+          startTime: timerCtx.startTime,
+          stopTime: undefined, // TODO: Add stop time when timer stops
           isPaused: timerCtx.isPaused,
           state: timerSnapshot.value,
         };
