@@ -28,6 +28,7 @@ export const timerMachine = createMachine({
     workItemTitle: undefined,
     startTime: undefined,
     isPaused: false,
+    pausedAt: undefined,
     lastActivity: Date.now(),
     inactivityTimeoutSec: FSM_CONFIG.timer.inactivityTimeoutSec,
     defaultElapsedLimitHours: FSM_CONFIG.timer.defaultElapsedLimitHours,
@@ -98,6 +99,7 @@ export const timerMachine = createMachine({
               startTime: undefined,
               pausedAt: undefined,
               isPaused: false,
+              pausedAt: undefined,
               pomodoroCount: 0,
             })),
           ],
@@ -110,7 +112,10 @@ export const timerMachine = createMachine({
         INACTIVITY_TIMEOUT: {
           target: 'paused',
           actions: [
-            assign(() => ({ isPaused: true, pausedAt: Date.now() })),
+            assign(() => ({
+              isPaused: true,
+              pausedAt: Date.now(),
+            })),
             () => logger.info('Timer paused due to inactivity'),
           ],
         },
@@ -147,6 +152,7 @@ export const timerMachine = createMachine({
               startTime: undefined,
               pausedAt: undefined,
               isPaused: false,
+              pausedAt: undefined,
               pomodoroCount: 0,
             })),
           ],

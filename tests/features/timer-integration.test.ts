@@ -341,5 +341,45 @@ describe('Timer Feature Integration', () => {
       const elapsed = Math.floor((Date.now() - session2Snapshot.context.startTime!) / 1000);
       expect(elapsed).toBeGreaterThanOrEqual(0);
     });
+
+    it('should not count pause duration in elapsed time', async () => {
+      const timerActor = createActor(timerMachine).start();
+
+      // Start timer
+      timerActor.send({ type: 'START', workItemId: 100, workItemTitle: 'Pause Test' });
+      const startSnapshot = timerActor.getSnapshot();
+      const originalStartTime = startSnapshot.context.startTime!;
+
+      // Wait a bit (simulate some work)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Pause timer
+      timerActor.send({ type: 'PAUSE' });
+      const pauseSnapshot = timerActor.getSnapshot();
+      expect(pauseSnapshot.value).toBe('paused');
+      expect(pauseSnapshot.context.pausedAt).toBeDefined();
+
+      // Calculate elapsed at pause
+      const elapsedAtPause = Date.now() - originalStartTime;
+
+      // Wait during pause (this time should NOT be counted)
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Resume timer
+      timerActor.send({ type: 'RESUME' });
+      const resumeSnapshot = timerActor.getSnapshot();
+      expect(resumeSnapshot.value).toBe('running');
+      expect(resumeSnapshot.context.pausedAt).toBeUndefined();
+
+      // The startTime should have been adjusted to exclude the pause duration
+      // New startTime = old startTime + pause duration
+      // So elapsed = now - new startTime should be approximately same as elapsed at pause
+      const currentElapsed = Date.now() - resumeSnapshot.context.startTime!;
+
+      // The difference should be close to elapsedAtPause (within tolerance)
+      // The current elapsed should NOT include the 200ms pause
+      expect(currentElapsed).toBeLessThan(elapsedAtPause + 50); // small tolerance for timing
+      expect(resumeSnapshot.context.startTime).toBeGreaterThan(originalStartTime);
+    });
   });
 });
