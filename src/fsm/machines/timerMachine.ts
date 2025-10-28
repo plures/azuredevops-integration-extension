@@ -79,7 +79,18 @@ export const timerMachine = createMachine({
       on: {
         PAUSE: {
           target: 'paused',
-          actions: [assign(() => ({ isPaused: true }))],
+          actions: [
+            assign(({ context }) => {
+              // When pausing, adjust startTime to preserve elapsed time
+              // This ensures that when resumed, elapsed = now - startTime remains correct
+              const now = Date.now();
+              const elapsed = context.startTime ? now - context.startTime : 0;
+              return {
+                isPaused: true,
+                startTime: now - elapsed,
+              };
+            }),
+          ],
         },
 
         STOP: {
@@ -102,7 +113,15 @@ export const timerMachine = createMachine({
         INACTIVITY_TIMEOUT: {
           target: 'paused',
           actions: [
-            assign(() => ({ isPaused: true })),
+            assign(({ context }) => {
+              // When pausing due to inactivity, adjust startTime to preserve elapsed time
+              const now = Date.now();
+              const elapsed = context.startTime ? now - context.startTime : 0;
+              return {
+                isPaused: true,
+                startTime: now - elapsed,
+              };
+            }),
             () => logger.info('Timer paused due to inactivity'),
           ],
         },
@@ -115,15 +134,10 @@ export const timerMachine = createMachine({
         RESUME: {
           target: 'running',
           actions: [
-            assign(({ context }) => {
-              const now = Date.now();
-              const elapsed = context.startTime ? now - context.startTime : 0;
-              return {
-                isPaused: false,
-                startTime: now - elapsed,
-                lastActivity: now,
-              };
-            }),
+            assign(() => ({
+              isPaused: false,
+              lastActivity: Date.now(),
+            })),
           ],
         },
 
@@ -145,15 +159,10 @@ export const timerMachine = createMachine({
             target: 'running',
             guard: ({ context }) => context.isPaused && context.lastActivity > 0,
             actions: [
-              assign(({ context }) => {
-                const now = Date.now();
-                const elapsed = context.startTime ? now - context.startTime : 0;
-                return {
-                  isPaused: false,
-                  startTime: now - elapsed,
-                  lastActivity: now,
-                };
-              }),
+              assign(() => ({
+                isPaused: false,
+                lastActivity: Date.now(),
+              })),
             ],
           },
           {
