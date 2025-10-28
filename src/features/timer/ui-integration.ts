@@ -132,8 +132,9 @@ export class TimerUI {
       }
 
       case 'paused': {
-        const pausedElapsed = context.startTime
-          ? formatElapsedTime(Math.floor((Date.now() - context.startTime) / 1000))
+        // When paused, show elapsed time at the moment of pause (frozen)
+        const pausedElapsed = context.startTime && context.pausedAt
+          ? formatElapsedTime(Math.floor((context.pausedAt - context.startTime) / 1000))
           : '0s';
         this.statusBarItem.text = `$(debug-pause) ${pausedElapsed}`;
         this.statusBarItem.tooltip = `Timer paused for: ${context.workItemTitle}`;
