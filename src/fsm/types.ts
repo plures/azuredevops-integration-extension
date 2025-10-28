@@ -26,6 +26,7 @@ export interface TimerContext {
   workItemTitle?: string;
   startTime?: number;
   isPaused: boolean;
+  pausedAt?: number;
   lastActivity: number;
   connectionInfo?: {
     id?: string;

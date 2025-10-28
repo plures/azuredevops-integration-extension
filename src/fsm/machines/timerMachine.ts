@@ -21,6 +21,7 @@ export const timerMachine = createMachine({
     workItemTitle: undefined,
     startTime: undefined,
     isPaused: false,
+    pausedAt: undefined,
     lastActivity: Date.now(),
     inactivityTimeoutSec: FSM_CONFIG.timer.inactivityTimeoutSec,
     defaultElapsedLimitHours: FSM_CONFIG.timer.defaultElapsedLimitHours,
@@ -79,7 +80,12 @@ export const timerMachine = createMachine({
       on: {
         PAUSE: {
           target: 'paused',
-          actions: [assign(() => ({ isPaused: true }))],
+          actions: [
+            assign(() => ({
+              isPaused: true,
+              pausedAt: Date.now(),
+            })),
+          ],
         },
 
         STOP: {
@@ -90,6 +96,7 @@ export const timerMachine = createMachine({
               workItemTitle: undefined,
               startTime: undefined,
               isPaused: false,
+              pausedAt: undefined,
               pomodoroCount: 0,
             })),
           ],
@@ -102,7 +109,10 @@ export const timerMachine = createMachine({
         INACTIVITY_TIMEOUT: {
           target: 'paused',
           actions: [
-            assign(() => ({ isPaused: true })),
+            assign(() => ({
+              isPaused: true,
+              pausedAt: Date.now(),
+            })),
             () => logger.info('Timer paused due to inactivity'),
           ],
         },
@@ -117,10 +127,13 @@ export const timerMachine = createMachine({
           actions: [
             assign(({ context }) => {
               const now = Date.now();
-              const elapsed = context.startTime ? now - context.startTime : 0;
+              // Calculate pause duration and adjust startTime to exclude it
+              const pauseDuration = context.pausedAt ? now - context.pausedAt : 0;
+              const newStartTime = context.startTime ? context.startTime + pauseDuration : now;
               return {
                 isPaused: false,
-                startTime: now - elapsed,
+                pausedAt: undefined,
+                startTime: newStartTime,
                 lastActivity: now,
               };
             }),
@@ -135,6 +148,7 @@ export const timerMachine = createMachine({
               workItemTitle: undefined,
               startTime: undefined,
               isPaused: false,
+              pausedAt: undefined,
               pomodoroCount: 0,
             })),
           ],
@@ -147,10 +161,13 @@ export const timerMachine = createMachine({
             actions: [
               assign(({ context }) => {
                 const now = Date.now();
-                const elapsed = context.startTime ? now - context.startTime : 0;
+                // Calculate pause duration and adjust startTime to exclude it
+                const pauseDuration = context.pausedAt ? now - context.pausedAt : 0;
+                const newStartTime = context.startTime ? context.startTime + pauseDuration : now;
                 return {
                   isPaused: false,
-                  startTime: now - elapsed,
+                  pausedAt: undefined,
+                  startTime: newStartTime,
                   lastActivity: now,
                 };
               }),
