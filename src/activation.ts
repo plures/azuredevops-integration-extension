@@ -516,8 +516,8 @@ function dispatchApplicationEvent(event: unknown): void {
         }
         break;
       case 'CREATE_BRANCH':
-        // Show input for branch name then create
-        if (evt.workItemId && provider) {
+        // Show input for branch name then create and link to work item
+        if (evt.workItemId && provider && client) {
           const items = provider.getWorkItems?.() || [];
           const item = items.find((i: any) => i.id === evt.workItemId);
           if (item) {
@@ -528,10 +528,29 @@ function dispatchApplicationEvent(event: unknown): void {
                 prompt: 'Enter branch name',
                 value: branchName,
               })
-              .then((name) => {
+              .then(async (name) => {
                 if (name) {
-                  vscode.commands.executeCommand('git.branch', name);
+                  try {
+                    // Create the branch
+                    await vscode.commands.executeCommand('git.branch', name);
+
+                    // Link branch to work item via comment
+                    const branchComment = `Created branch: ${name}`;
+                    await client.addWorkItemComment?.(evt.workItemId, branchComment);
+
+                    vscode.window.showInformationMessage(
+                      `Branch "${name}" created and linked to work item #${evt.workItemId}`
+                    );
+                  } catch (error: any) {
+                    console.error('[CREATE_BRANCH] Failed to link branch:', error);
+                    vscode.window.showWarningMessage(
+                      `Branch created but failed to link: ${error.message || error}`
+                    );
+                  }
                 }
+              })
+              .catch((err) => {
+                console.error('[CREATE_BRANCH] Error:', err);
               });
           }
         }
