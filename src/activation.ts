@@ -2610,11 +2610,25 @@ function getSerializableContext(context: any): Record<string, any> {
     try {
       const timerSnapshot = (context.timerActor as any).getSnapshot();
       if (timerSnapshot?.context) {
+        const timerCtx = timerSnapshot.context;
+
+        // Calculate elapsed time on-demand based on startTime
+        let elapsedSeconds = 0;
+        if (timerCtx.startTime) {
+          const now = Date.now();
+          elapsedSeconds = Math.floor((now - timerCtx.startTime) / 1000);
+
+          // Apply cap if configured
+          const maxHours = timerCtx.defaultElapsedLimitHours || 3.5;
+          const maxSeconds = maxHours * 3600;
+          elapsedSeconds = Math.min(elapsedSeconds, maxSeconds);
+        }
+
         timerState = {
-          workItemId: timerSnapshot.context.workItemId,
-          workItemTitle: timerSnapshot.context.workItemTitle,
-          elapsedSeconds: timerSnapshot.context.elapsedSeconds,
-          isPaused: timerSnapshot.context.isPaused,
+          workItemId: timerCtx.workItemId,
+          workItemTitle: timerCtx.workItemTitle,
+          elapsedSeconds: elapsedSeconds,
+          isPaused: timerCtx.isPaused,
           state: timerSnapshot.value,
         };
       }

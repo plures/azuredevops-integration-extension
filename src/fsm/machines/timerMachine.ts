@@ -17,7 +17,9 @@ export const timerMachine = createMachine({
   },
 
   context: {
-    elapsedSeconds: 0,
+    workItemId: undefined,
+    workItemTitle: undefined,
+    startTime: undefined,
     isPaused: false,
     lastActivity: Date.now(),
     inactivityTimeoutSec: FSM_CONFIG.timer.inactivityTimeoutSec,
@@ -32,19 +34,13 @@ export const timerMachine = createMachine({
         START: {
           target: 'running',
           guard: ({ context }) => !context.workItemId,
-          actions: assign(({ event, context }) => {
-            if (event.type === 'START') {
-              return {
-                workItemId: event.workItemId,
-                workItemTitle: event.workItemTitle,
-                startTime: Date.now(),
-                elapsedSeconds: 0,
-                isPaused: false,
-                lastActivity: Date.now(),
-              };
-            }
-            return context;
-          }),
+          actions: assign(({ event }) => ({
+            workItemId: event.workItemId,
+            workItemTitle: event.workItemTitle,
+            startTime: Date.now(),
+            isPaused: false,
+            lastActivity: Date.now(),
+          })),
         },
       },
     },
@@ -53,19 +49,6 @@ export const timerMachine = createMachine({
       entry: assign(() => ({ lastActivity: Date.now() })),
 
       on: {
-        TICK: {
-          actions: assign(({ context }) => {
-            if (!context.startTime || context.isPaused) return context;
-
-            const elapsed = Math.floor((Date.now() - context.startTime) / 1000);
-            const cappedElapsed = Math.min(elapsed, context.defaultElapsedLimitHours * 3600);
-
-            return {
-              elapsedSeconds: Math.max(0, cappedElapsed),
-            };
-          }),
-        },
-
         PAUSE: {
           target: 'paused',
           actions: assign(() => ({ isPaused: true })),
@@ -77,7 +60,6 @@ export const timerMachine = createMachine({
             workItemId: undefined,
             workItemTitle: undefined,
             startTime: undefined,
-            elapsedSeconds: 0,
             isPaused: false,
             pomodoroCount: 0,
           })),
@@ -101,15 +83,16 @@ export const timerMachine = createMachine({
       on: {
         RESUME: {
           target: 'running',
-          actions: [
-            assign(({ context }) => ({
+          actions: assign(({ context }) => {
+            // Adjust start time to account for paused duration
+            const now = Date.now();
+            const elapsed = context.startTime ? now - context.startTime : 0;
+            return {
               isPaused: false,
-              startTime: context.startTime
-                ? Date.now() - context.elapsedSeconds * 1000
-                : Date.now(),
-              lastActivity: Date.now(),
-            })),
-          ],
+              startTime: now - elapsed,
+              lastActivity: now,
+            };
+          }),
         },
 
         STOP: {
@@ -118,7 +101,6 @@ export const timerMachine = createMachine({
             workItemId: undefined,
             workItemTitle: undefined,
             startTime: undefined,
-            elapsedSeconds: 0,
             isPaused: false,
             pomodoroCount: 0,
           })),
@@ -128,15 +110,15 @@ export const timerMachine = createMachine({
           {
             target: 'running',
             guard: ({ context }) => context.isPaused && context.lastActivity > 0,
-            actions: [
-              assign(({ context }) => ({
+            actions: assign(({ context }) => {
+              const now = Date.now();
+              const elapsed = context.startTime ? now - context.startTime : 0;
+              return {
                 isPaused: false,
-                startTime: context.startTime
-                  ? Date.now() - context.elapsedSeconds * 1000
-                  : Date.now(),
-                lastActivity: Date.now(),
-              })),
-            ],
+                startTime: now - elapsed,
+                lastActivity: now,
+              };
+            }),
           },
           {
             actions: assign(() => ({ lastActivity: Date.now() })),
