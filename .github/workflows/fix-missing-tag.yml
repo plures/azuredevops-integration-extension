@@ -1,5 +1,8 @@
 name: Fix Missing Release Tag
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
     inputs:

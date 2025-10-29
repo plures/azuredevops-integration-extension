@@ -1,0 +1,23 @@
+# Ensure shell scripts always use LF line endings
+*.sh text eol=lf
+.husky/* text eol=lf
+
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Explicitly declare text files you want to always be normalized and converted to native line endings on checkout
+*.ts text
+*.js text
+*.mjs text
+*.json text
+*.md text
+*.yml text
+*.yaml text
+
+# Denote all files that are truly binary and should not be modified
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.vsix binary
