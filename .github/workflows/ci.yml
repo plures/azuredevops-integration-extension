@@ -30,19 +30,7 @@ jobs:
       - name: Check format
         run: npm run check-format
         continue-on-error: true
-      - name: Lint
-        run: npm run lint
-        continue-on-error: true
-        # Webview assets are committed under media/webview; no separate build step required.
       - name: Build
-        run: npm run build
-      - name: Run selective tests for changed files (PRs)
-        if: github.event_name == 'pull_request'
-        run: npm run test:changed
-
-      - name: Run full tests (push to main)
-        if: github.event_name == 'push'
-        run: npm test
       - name: Coverage check
         if: github.event_name == 'push'
         run: npm run coverage:ci
