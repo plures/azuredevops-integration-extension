@@ -1,54 +1,83 @@
 <script lang="ts">
-  export let context: any;
-  export let sendEvent: (event: any) => void;
+  interface Props {
+    context: any;
+    sendEvent: (event: any) => void;
+  }
 
-  $: workItems = context?.pendingWorkItems?.workItems || [];
-  $: activeConnectionId = context?.activeConnectionId;
-  $: connections = context?.connections || [];
-  $: activeConnection = connections.find((c: any) => c.id === activeConnectionId);
+  const { context, sendEvent }: Props = $props();
+
+  const workItems = $derived(context?.workItems || context?.pendingWorkItems?.workItems || []);
+  const activeConnectionId = $derived(context?.activeConnectionId);
+  const connections = $derived(context?.connections || []);
+  const activeConnection = $derived(connections.find((c: any) => c.id === activeConnectionId));
+  const timerState = $derived(context?.timerState);
+
+  // Force reactivity every second to update timer display
+  let tick = $state(0);
+  setInterval(() => {
+    tick = (tick + 1) % 1000;
+  }, 1000);
+
+  // Compute elapsed time from startTime
+  const timerElapsedSeconds = $derived.by(() => {
+    // Trigger recomputation on tick
+    const _currentTick = tick;
+
+    if (!timerState?.startTime) return 0;
+
+    const stopTime = timerState.stopTime;
+    const now = stopTime || Date.now();
+    const elapsed = Math.floor((now - timerState.startTime) / 1000);
+
+    return Math.max(0, elapsed);
+  });
 
   // Filters
-  let filterText = '';
-  let typeFilter = '';
-  let stateFilter = 'all';
-  let sortKey = 'updated-desc';
+  let filterText = $state('');
+  let typeFilter = $state('');
+  let stateFilter = $state('all');
+  let sortKey = $state('updated-desc');
 
   // Extract available types and states from work items
-  $: availableTypes = [
+  const availableTypes = $derived([
     ...new Set(workItems.map((w: any) => w.fields?.['System.WorkItemType']).filter(Boolean)),
-  ];
-  $: availableStates = [
+  ]);
+  const availableStates = $derived([
     ...new Set(
       workItems.map((w: any) => normalizeState(w.fields?.['System.State'])).filter(Boolean)
     ),
-  ];
+  ]);
 
   // Filter and sort work items
-  $: filteredItems = workItems
-    .filter((item: any) => {
-      const title = (item.fields?.['System.Title'] || '').toLowerCase();
-      const matchesText = !filterText || title.includes(filterText.toLowerCase());
-      const matchesType = !typeFilter || item.fields?.['System.WorkItemType'] === typeFilter;
-      const itemState = normalizeState(item.fields?.['System.State']);
-      const matchesState = stateFilter === 'all' || itemState === stateFilter;
-      return matchesText && matchesType && matchesState;
-    })
-    .sort((a: any, b: any) => {
-      switch (sortKey) {
-        case 'id-asc':
-          return Number(a.id) - Number(b.id);
-        case 'id-desc':
-          return Number(b.id) - Number(a.id);
-        case 'title-asc':
-          return (a.fields?.['System.Title'] || '').localeCompare(b.fields?.['System.Title'] || '');
-        case 'updated-desc':
-        default:
-          return (
-            new Date(b.fields?.['System.ChangedDate'] || 0).getTime() -
-            new Date(a.fields?.['System.ChangedDate'] || 0).getTime()
-          );
-      }
-    });
+  const filteredItems = $derived(
+    workItems
+      .filter((item: any) => {
+        const title = (item.fields?.['System.Title'] || '').toLowerCase();
+        const matchesText = !filterText || title.includes(filterText.toLowerCase());
+        const matchesType = !typeFilter || item.fields?.['System.WorkItemType'] === typeFilter;
+        const itemState = normalizeState(item.fields?.['System.State']);
+        const matchesState = stateFilter === 'all' || itemState === stateFilter;
+        return matchesText && matchesType && matchesState;
+      })
+      .sort((a: any, b: any) => {
+        switch (sortKey) {
+          case 'id-asc':
+            return Number(a.id) - Number(b.id);
+          case 'id-desc':
+            return Number(b.id) - Number(a.id);
+          case 'title-asc':
+            return (a.fields?.['System.Title'] || '').localeCompare(
+              b.fields?.['System.Title'] || ''
+            );
+          case 'updated-desc':
+          default:
+            return (
+              new Date(b.fields?.['System.ChangedDate'] || 0).getTime() -
+              new Date(a.fields?.['System.ChangedDate'] || 0).getTime()
+            );
+        }
+      })
+  );
 
   function normalizeState(raw: string): string {
     if (!raw) return 'new';
@@ -86,28 +115,70 @@
     sendEvent({ type: 'REFRESH_DATA' });
   }
 
-  function handleOpenItem(id: number) {
-    sendEvent({ type: 'OPEN_WORK_ITEM', workItemId: id });
-  }
-  
   function handleStartTimer(item: any, event: Event) {
-    event.stopPropagation();  // Prevent card click
-    sendEvent({ type: 'START_TIMER_INTERACTIVE', workItemId: item.id, workItemTitle: item.fields?.['System.Title'] });
+    event.stopPropagation();
+
+    // Toggle: if timer is running on this item, stop it; otherwise start it
+    if (timerState?.workItemId === item.id && timerState?.state !== 'idle') {
+      sendEvent({ type: 'STOP_TIMER' });
+    } else {
+      sendEvent({
+        type: 'START_TIMER_INTERACTIVE',
+        workItemId: item.id,
+        workItemTitle: item.fields?.['System.Title'],
+      });
+    }
   }
-  
+
   function handleEditItem(item: any, event: Event) {
     event.stopPropagation();
     sendEvent({ type: 'EDIT_WORK_ITEM', workItemId: item.id });
   }
-  
+
   function handleOpenInBrowser(item: any, event: Event) {
     event.stopPropagation();
     sendEvent({ type: 'OPEN_IN_BROWSER', workItemId: item.id });
   }
-  
+
   function handleCreateBranch(item: any, event: Event) {
     event.stopPropagation();
     sendEvent({ type: 'CREATE_BRANCH', workItemId: item.id });
+  }
+
+  // State for timer display preferences
+  let displayTimerSeconds = $state(true);
+  let timerHoverStart = $state(0);
+
+  function formatElapsedTime(seconds: number, forceShowSeconds: boolean = true): string {
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    // Show seconds for first 30 seconds, or when forced, or when recently hovered
+    const showSeconds =
+      forceShowSeconds &&
+      (seconds < 30 ||
+        displayTimerSeconds ||
+        (timerHoverStart > 0 && Date.now() - timerHoverStart < 30000));
+
+    if (hours > 0) {
+      return showSeconds
+        ? `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+        : `${hours}:${String(mins).padStart(2, '0')}`;
+    }
+    // Always show MM:SS format, even for 0:00
+    return showSeconds ? `${mins}:${String(secs).padStart(2, '0')}` : `${mins}m`;
+  }
+
+  function handleTimerMouseEnter() {
+    timerHoverStart = Date.now();
+  }
+
+  function handleTimerMouseLeave() {
+    // Keep showing seconds for another 30 seconds after hover ends
+    setTimeout(() => {
+      timerHoverStart = 0;
+    }, 30000);
   }
 </script>
 
@@ -149,18 +220,18 @@
     {#if filteredItems.length === 0 && workItems.length > 0}
       <div class="empty-state">
         <p>No items match your filters.</p>
-        <button on:click={() => { filterText=''; typeFilter=''; stateFilter='all'; }}>Clear Filters</button>
+        <button
+          onclick={() => {
+            filterText = '';
+            typeFilter = '';
+            stateFilter = 'all';
+          }}>Clear Filters</button
+        >
       </div>
     {:else}
       <div class="items-container">
         {#each filteredItems as item (item.id)}
-          <div
-            class="work-item-card"
-            on:click={() => handleOpenItem(item.id)}
-            on:keydown
-            role="button"
-            tabindex="0"
-          >
+          <div class="work-item-card">
             <div class="card-header">
               <span class="type-icon"
                 >{getWorkItemTypeIcon(item.fields?.['System.WorkItemType'])}</span
@@ -192,41 +263,54 @@
                       item.fields['System.AssignedTo']}
                   </span>
                 {/if}
+                {#if timerState?.workItemId === item.id}
+                  <span
+                    class="meta-badge timer-badge"
+                    title="Timer Active"
+                    role="button"
+                    tabindex="0"
+                    onmouseenter={handleTimerMouseEnter}
+                    onmouseleave={handleTimerMouseLeave}
+                  >
+                    <span class="codicon">⏱</span>
+                    {formatElapsedTime(timerElapsedSeconds)}
+                  </span>
+                {/if}
               </div>
-              
+
               <!-- Action Buttons -->
               <div class="item-actions">
-                <button 
-                  class="action-btn primary" 
-                  on:click={(e) => handleStartTimer(item, e)}
-                  title="Start Timer"
+                <button
+                  class="action-btn primary"
+                  onclick={(e) => handleStartTimer(item, e)}
+                  title={timerState?.workItemId === item.id ? 'Stop Timer' : 'Start Timer'}
+                  aria-label={timerState?.workItemId === item.id ? 'Stop Timer' : 'Start Timer'}
                 >
-                  <span class="codicon">▶</span>
-                  Timer
+                  <span class="codicon">{timerState?.workItemId === item.id ? '⏹' : '▶'}</span>
                 </button>
-                <button 
-                  class="action-btn" 
-                  on:click={(e) => handleEditItem(item, e)}
+                <button
+                  class="action-btn"
+                  onclick={(e) => handleEditItem(item, e)}
                   title="Edit Work Item"
+                  aria-label="Edit Work Item"
                 >
                   <span class="codicon">✎</span>
-                  Edit
                 </button>
-                <button 
-                  class="action-btn" 
-                  on:click={(e) => handleCreateBranch(item, e)}
+                <button
+                  class="action-btn"
+                  onclick={(e) => handleCreateBranch(item, e)}
                   title="Create Branch"
+                  aria-label="Create Branch"
                 >
                   <span class="codicon">⎇</span>
-                  Branch
                 </button>
-                <button 
-                  class="action-btn" 
-                  on:click={(e) => handleOpenInBrowser(item, e)}
+                <button
+                  class="action-btn"
+                  onclick={(e) => handleOpenInBrowser(item, e)}
                   title="Open in Azure DevOps"
+                  aria-label="Open in Azure DevOps"
                 >
                   <span class="codicon">🌐</span>
-                  Open
                 </button>
               </div>
             </div>
@@ -453,7 +537,31 @@
     align-items: center;
     gap: 0.25rem;
   }
-  
+
+  .meta-badge.timer-badge {
+    background: rgba(0, 120, 212, 0.25);
+    color: #0078d4;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-weight: 600;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .timer-badge .codicon {
+    font-size: 0.9rem;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+
   /* Action Buttons */
   .item-actions {
     display: flex;
@@ -464,11 +572,11 @@
     opacity: 0;
     transition: opacity 0.2s ease;
   }
-  
+
   .work-item-card:hover .item-actions {
     opacity: 1;
   }
-  
+
   .action-btn {
     display: flex;
     align-items: center;
@@ -483,26 +591,26 @@
     cursor: pointer;
     transition: all 0.15s ease;
   }
-  
+
   .action-btn:hover {
     background: var(--vscode-button-secondaryHoverBackground);
     transform: translateY(-1px);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
-  
+
   .action-btn:active {
     transform: translateY(0);
   }
-  
+
   .action-btn.primary {
     background: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
   }
-  
+
   .action-btn.primary:hover {
     background: var(--vscode-button-hoverBackground);
   }
-  
+
   .action-btn .codicon {
     font-size: 0.9rem;
     line-height: 1;

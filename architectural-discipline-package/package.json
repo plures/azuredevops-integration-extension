@@ -1,0 +1,57 @@
+{
+  "name": "@architectural-discipline/monorepo",
+  "version": "1.0.0",
+  "description": "Intelligent Architectural Discipline System - A comprehensive toolkit for enforcing sustainable software architecture patterns",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "lint:fix": "npm run lint:fix --workspaces",
+    "format": "prettier --write \"**/*.{ts,js,json,md}\"",
+    "validate:all": "npm run validate:all --workspaces",
+    "check:architecture": "npm run check:architecture --workspaces",
+    "release": "changeset publish",
+    "version": "changeset version",
+    "changeset": "changeset"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1",
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/architectural-discipline/monorepo.git"
+  },
+  "keywords": [
+    "architecture",
+    "discipline",
+    "eslint",
+    "code-quality",
+    "maintainability",
+    "software-engineering",
+    "best-practices",
+    "refactoring",
+    "complexity",
+    "modularity"
+  ],
+  "author": "Architectural Discipline Team",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/architectural-discipline/monorepo/issues"
+  },
+  "homepage": "https://github.com/architectural-discipline/monorepo#readme"
+}

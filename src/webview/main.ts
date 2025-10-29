@@ -68,6 +68,26 @@ window.addEventListener('message', (event) => {
     } catch (e) {
       console.error('[AzureDevOpsInt][webview] Failed to apply FSM snapshot', e);
     }
+  } else if (msg?.type === 'syncTimerState' && msg?.payload) {
+    console.log('[AzureDevOpsInt][webview] Processing syncTimerState message:', {
+      hasPayload: !!msg.payload,
+      hasContext: !!msg.payload.context,
+      hasTimerState: !!msg.payload.context?.timerState,
+    });
+    try {
+      // Update just the timer state in the existing snapshot
+      const current = applicationSnapshot.peek();
+      applicationSnapshot.set({
+        ...current,
+        context: {
+          ...current.context,
+          ...msg.payload.context,
+        },
+      });
+      console.log('[AzureDevOpsInt][webview] Successfully updated timer state in snapshot');
+    } catch (e) {
+      console.error('[AzureDevOpsInt][webview] Failed to apply timer state update', e);
+    }
   }
 });
 

@@ -11,60 +11,17 @@ import type {
   WorkItemRelation as _WorkItemRelation,
   WorkItemRelationInfo,
 } from './types.js';
+import { WIQLBuilder } from './wiql-builder.js';
 
 export class WorkItemsService {
   private httpClient: AzureHttpClient;
   private cache: WorkItemCache;
+  private wiqlBuilder: WIQLBuilder;
 
   constructor(httpClient: AzureHttpClient) {
     this.httpClient = httpClient;
     this.cache = workItemCache;
-  }
-
-  buildWIQL(queryNameOrText: string): string {
-    // Use capability cache to decide whether to include [System.StateCategory]
-    const useStateCategory = true; // This would be determined by capability cache
-
-    switch (queryNameOrText) {
-      case 'My Activity': {
-        const activeFilter = this._buildActiveFilter(useStateCategory);
-        return `SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.ChangedDate]
-                        FROM WorkItems
-                        WHERE [System.TeamProject] = @project
-                        AND ([System.AssignedTo] = @Me OR [System.CreatedBy] = @Me OR [System.ChangedBy] = @Me)
-                        ${activeFilter}
-                        ORDER BY [System.ChangedDate] DESC`;
-      }
-
-      case 'Following': {
-        return `SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.ChangedDate]
-                        FROM WorkItems
-                        WHERE [System.TeamProject] = @project
-                        AND [System.AssignedTo] = @Me
-                        ${this._buildActiveFilter(useStateCategory)}
-                        ORDER BY [System.ChangedDate] DESC`;
-      }
-
-      case 'Mentioned': {
-        return `SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.ChangedDate]
-                        FROM WorkItems
-                        WHERE [System.TeamProject] = @project
-                        AND [System.ChangedBy] = @Me
-                        ${this._buildActiveFilter(useStateCategory)}
-                        ORDER BY [System.ChangedDate] DESC`;
-      }
-
-      default: {
-        return queryNameOrText;
-      }
-    }
-  }
-
-  private _buildActiveFilter(useStateCategory: boolean): string {
-    if (useStateCategory) {
-      return `AND [System.StateCategory] <> 'Completed' AND [System.State] <> 'Removed'`;
-    }
-    return `AND [System.State] <> 'Removed'`;
+    this.wiqlBuilder = new WIQLBuilder();
   }
 
   private _mapWorkItems(rawItems: any[]): WorkItem[] {
@@ -152,7 +109,7 @@ export class WorkItemsService {
         return cached;
       }
 
-      const wiql = this.buildWIQL(query);
+      const wiql = this.wiqlBuilder.buildWIQL(query);
       const response = await this.httpClient.post<WIQLQueryResult>('/wit/wiql', {
         query: wiql,
       });
@@ -215,6 +172,73 @@ export class WorkItemsService {
     return null;
   }
 
+  async updateWorkItem(id: number, patches: WorkItemPatch[]): Promise<WorkItem | null> {
+    try {
+      const response = await this.httpClient.patch(
+        `/wit/workitems/${id}?bypassRules=true&suppressNotifications=true`,
+        patches,
+        {
+          headers: {
+            'Content-Type': 'application/json-patch+json',
+          },
+        }
+      );
+
+      if (response.data?.id) {
+        const workItem = this._mapWorkItems([response.data])[0];
+        // Invalidate cache for this work item
+        this.cache.invalidateWorkItem(id);
+        return workItem;
+      }
+    } catch (error) {
+      console.error('[WorkItemsService] Error updating work item:', error);
+      if (error.response?.status === 403) {
+        console.error(
+          '[WorkItemsService] 403 Forbidden - insufficient permissions to update work items'
+        );
+      }
+    }
+
+    return null;
+  }
+
+  async addWorkItemComment(id: number, comment: string): Promise<boolean> {
+    try {
+      const patch: WorkItemPatch[] = [
+        {
+          op: 'add',
+          path: '/fields/System.History',
+          value: comment,
+        },
+      ];
+
+      const response = await this.httpClient.patch(
+        `/wit/workitems/${id}?bypassRules=true&suppressNotifications=true`,
+        patch,
+        {
+          headers: {
+            'Content-Type': 'application/json-patch+json',
+          },
+        }
+      );
+
+      if (response.data?.id) {
+        // Invalidate cache for this work item
+        this.cache.invalidateWorkItem(id);
+        return true;
+      }
+    } catch (error) {
+      console.error('[WorkItemsService] Error adding comment to work item:', error);
+      if (error.response?.status === 403) {
+        console.error(
+          '[WorkItemsService] 403 Forbidden - insufficient permissions to add comments'
+        );
+      }
+    }
+
+    return false;
+  }
+
   async addWorkItemTime(id: number, timeEntry: WorkItemTimeEntry): Promise<boolean> {
     if (typeof timeEntry.hours !== 'number' || timeEntry.hours <= 0) {
       throw new Error('hours must be positive number');
@@ -249,48 +273,10 @@ export class WorkItemsService {
     }
   }
 
-  async addWorkItemComment(id: number, comment: string): Promise<boolean> {
-    try {
-      await this.httpClient.post(`/wit/workitems/${id}/comments`, {
-        text: comment,
-      });
-      return true;
-    } catch (error) {
-      console.error('[WorkItemsService] Error adding comment to work item:', error);
-      return false;
-    }
-  }
-
   async searchWorkItems(term: string, filter?: WorkItemFilter): Promise<WorkItem[]> {
     if (!term?.trim()) return [];
-    const safe = this._escapeWIQL(term.trim());
-    const base = `SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.ChangedDate]
-                  FROM WorkItems
-                  WHERE [System.TeamProject] = @project
-                  AND ([System.Title] CONTAINS '${safe}' OR [System.Description] CONTAINS '${safe}')`;
 
-    const clauses: string[] = [];
-
-    if (filter?.sprint && filter.sprint !== 'All') {
-      if (filter.sprint === '@CurrentIteration') {
-        clauses.push('[System.IterationPath] UNDER @CurrentIteration');
-      } else {
-        clauses.push(`[System.IterationPath] UNDER '${this._escapeWIQL(filter.sprint)}'`);
-      }
-    }
-
-    if (filter?.includeState) {
-      clauses.push(`[System.State] = '${this._escapeWIQL(filter.includeState)}'`);
-    }
-
-    if (filter?.type && filter.type !== 'All') {
-      clauses.push(`[System.WorkItemType] = '${this._escapeWIQL(filter.type)}'`);
-    }
-    if (filter?.assignedTo === 'Me') clauses.push('[System.AssignedTo] = @Me');
-    else if (filter?.assignedTo === 'Unassigned') clauses.push('[System.AssignedTo] = ""');
-    if (clauses.length === 0) clauses.push('[System.State] <> "Removed"');
-
-    const wiql = base + clauses.join(' AND ') + ' ORDER BY [System.ChangedDate] DESC';
+    const wiql = this.wiqlBuilder.buildSearchWIQL(term, filter);
 
     try {
       const response = await this.httpClient.post<WIQLQueryResult>('/wit/wiql', {
@@ -307,9 +293,5 @@ export class WorkItemsService {
       console.error('[WorkItemsService] Error searching work items:', error);
       return [];
     }
-  }
-
-  private _escapeWIQL(value: string): string {
-    return value.replace(/'/g, "''");
   }
 }

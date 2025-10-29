@@ -6,6 +6,7 @@ import type {
   WorkItemFilter,
   WorkItemCreateData,
   WorkItemTimeEntry,
+  WorkItemPatch,
   RepositoryInfo,
   PullRequestInfo,
   BuildInfo,
@@ -38,8 +39,21 @@ export class AzureDevOpsIntClient {
     return this.workItemsService.getWorkItemsByQuery(query);
   }
 
+  async updateWorkItem(id: number, patches: WorkItemPatch[]): Promise<WorkItem | null> {
+    return this.workItemsService.updateWorkItem(id, patches);
+  }
+
+  async addWorkItemComment(id: number, comment: string): Promise<boolean> {
+    return this.workItemsService.addWorkItemComment(id, comment);
+  }
+
   async getWorkItemsByIds(ids: number[]): Promise<WorkItem[]> {
     return this.workItemsService.getWorkItemsByIds(ids);
+  }
+
+  async getWorkItemById(id: number): Promise<WorkItem | null> {
+    const items = await this.workItemsService.getWorkItemsByIds([id]);
+    return items.length > 0 ? items[0] : null;
   }
 
   async createWorkItem(data: WorkItemCreateData): Promise<WorkItem | null> {
@@ -48,10 +62,6 @@ export class AzureDevOpsIntClient {
 
   async addWorkItemTime(id: number, timeEntry: WorkItemTimeEntry): Promise<boolean> {
     return this.workItemsService.addWorkItemTime(id, timeEntry);
-  }
-
-  async addWorkItemComment(id: number, comment: string): Promise<boolean> {
-    return this.workItemsService.addWorkItemComment(id, comment);
   }
 
   async searchWorkItems(term: string, filter?: WorkItemFilter): Promise<WorkItem[]> {

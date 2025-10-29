@@ -52,6 +52,8 @@ import {
   setWebviewMessageHandler as _setWebviewMessageHandler,
 } from './fsm/services/extensionHostBridge.js';
 import { registerCommands } from './features/commands/index.js';
+import { registerTraceCommands } from './fsm/commands/traceCommands.js';
+import { registerQuickDebugCommands } from './fsm/commands/quickDebugCommands.js';
 import { FSMSetupService } from './fsm/services/fsmSetupService.js';
 import { ConnectionAdapter } from './fsm/adapters/ConnectionAdapter.js';
 import { getConnectionFSMManager } from './fsm/ConnectionFSMManager.js';
@@ -376,6 +378,122 @@ function getApplicationActor():
   return actor as { getSnapshot?: () => any; send?: (event: unknown) => void };
 }
 
+async function showEditDialog(item: any, client: any, provider: any): Promise<void> {
+  // Define editable fields with their display names and current values
+  const editableFields = [
+    {
+      id: 'System.Title',
+      label: 'Title',
+      value: item.fields?.['System.Title'] || '',
+      type: 'text',
+    },
+    {
+      id: 'System.State',
+      label: 'State',
+      value: item.fields?.['System.State'] || '',
+      type: 'picklist',
+      options: ['New', 'Active', 'Resolved', 'Closed', 'Removed'],
+    },
+    {
+      id: 'System.AssignedTo',
+      label: 'Assigned To',
+      value:
+        item.fields?.['System.AssignedTo']?.displayName || item.fields?.['System.AssignedTo'] || '',
+      type: 'text',
+    },
+    {
+      id: 'System.Tags',
+      label: 'Tags',
+      value: item.fields?.['System.Tags'] || '',
+      type: 'text',
+    },
+    {
+      id: 'System.Description',
+      label: 'Description',
+      value: item.fields?.['System.Description'] || '',
+      type: 'multiline',
+    },
+  ];
+
+  // Show field selection
+  const fieldItems = editableFields.map((field) => ({
+    label: field.label,
+    description: `Current: ${field.value}`,
+    field: field,
+  }));
+
+  const selectedField = await vscode.window.showQuickPick(fieldItems, {
+    placeHolder: 'Select field to edit',
+    title: `Edit Work Item #${item.id}`,
+  });
+
+  if (!selectedField) return;
+
+  const field = selectedField.field;
+  let newValue: string | undefined;
+
+  if (field.type === 'picklist') {
+    // Show picklist for state field
+    const stateItems = field.options.map((option) => ({
+      label: option,
+      picked: option === field.value,
+    }));
+
+    const selectedState = await vscode.window.showQuickPick(stateItems, {
+      placeHolder: 'Select new state',
+      title: `Edit ${field.label}`,
+    });
+
+    if (!selectedState) return;
+    newValue = selectedState.label;
+  } else if (field.type === 'multiline') {
+    // Show input box for multiline text
+    newValue = await vscode.window.showInputBox({
+      prompt: `Enter new ${field.label}`,
+      value: field.value,
+      ignoreFocusOut: true,
+    });
+  } else {
+    // Show input box for single-line text
+    newValue = await vscode.window.showInputBox({
+      prompt: `Enter new ${field.label}`,
+      value: field.value,
+      ignoreFocusOut: true,
+    });
+  }
+
+  if (newValue === undefined) return; // User cancelled
+
+  // Update the work item
+  try {
+    const patches = [
+      {
+        op: 'replace' as const,
+        path: `/fields/${field.id}`,
+        value: newValue,
+      },
+    ];
+
+    const updatedItem = await client.updateWorkItem(item.id, patches);
+
+    if (updatedItem) {
+      vscode.window.showInformationMessage(
+        `Successfully updated ${field.label} for work item #${item.id}`
+      );
+
+      // Refresh the provider to show updated data
+      provider.refresh?.(getStoredQueryForConnection(activeConnectionId));
+    } else {
+      vscode.window.showErrorMessage(`Failed to update ${field.label} for work item #${item.id}`);
+    }
+  } catch (error) {
+    console.error('Error updating work item:', error);
+    vscode.window.showErrorMessage(
+      `Error updating work item: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
 function dispatchApplicationEvent(event: unknown): void {
   // Route work item action events to legacy handleMessage which has implementations
   if (event && typeof event === 'object' && 'type' in event) {
@@ -384,13 +502,123 @@ function dispatchApplicationEvent(event: unknown): void {
     switch (evt.type) {
       case 'START_TIMER_INTERACTIVE':
         // Route to legacy handler with correct message format
-        handleMessage({ type: 'startTimer', workItemId: evt.workItemId });
+        try {
+          handleMessage({ type: 'startTimer', workItemId: evt.workItemId });
+        } catch (error) {
+          console.error('Error starting timer:', error);
+          vscode.window.showErrorMessage(
+            `Failed to start timer: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+        break;
+      case 'STOP_TIMER':
+        // Show comment dialog for time entry
+        (async () => {
+          try {
+            const appActor = getApplicationStoreActor();
+            const snapshot = appActor?.getSnapshot?.();
+            const timerState = snapshot?.context?.timerState;
+
+            if (!timerState?.workItemId || !timerState?.startTime) {
+              vscode.window.showWarningMessage('No active timer to stop');
+              return;
+            }
+
+            // Calculate elapsed time
+            const elapsed = Math.floor((Date.now() - timerState.startTime) / 1000);
+            const hours = (elapsed / 3600).toFixed(2);
+
+            // Prompt for comment
+            const comment = await vscode.window.showInputBox({
+              prompt: `Add comment for ${hours} hours logged on work item #${timerState.workItemId}`,
+              placeHolder: 'Optional: describe what you worked on...',
+            });
+
+            // Stop the timer (send to FSM)
+            const timerActor = snapshot?.context?.timerActor;
+            if (timerActor && typeof timerActor.send === 'function') {
+              timerActor.send({ type: 'STOP' });
+            }
+
+            // Add time entry and comment if we have a client
+            if (client && timerState.workItemId) {
+              try {
+                // Update completed/remaining work
+                const wi = await client.getWorkItemById(timerState.workItemId);
+                const completed = Number(
+                  wi?.fields?.['Microsoft.VSTS.Scheduling.CompletedWork'] || 0
+                );
+                const remaining = Number(
+                  wi?.fields?.['Microsoft.VSTS.Scheduling.RemainingWork'] || 0
+                );
+                const hoursDecimal = Number(hours);
+
+                await client.updateWorkItem(timerState.workItemId, [
+                  {
+                    op: 'add',
+                    path: '/fields/Microsoft.VSTS.Scheduling.CompletedWork',
+                    value: completed + hoursDecimal,
+                  },
+                  {
+                    op: 'add',
+                    path: '/fields/Microsoft.VSTS.Scheduling.RemainingWork',
+                    value: Math.max(remaining - hoursDecimal, 0),
+                  },
+                ]);
+
+                // Add comment
+                const finalComment = comment
+                  ? `${comment} (Logged ${hours}h)`
+                  : `Logged ${hours}h via timer stop.`;
+                await client.addWorkItemComment(timerState.workItemId, finalComment);
+
+                vscode.window.showInformationMessage(
+                  `Timer stopped. Logged ${hours} hours to work item #${timerState.workItemId}`
+                );
+              } catch (error) {
+                console.error('Error adding time entry:', error);
+                vscode.window.showErrorMessage(
+                  `Timer stopped but failed to log time: ${error instanceof Error ? error.message : String(error)}`
+                );
+              }
+            } else {
+              vscode.window.showInformationMessage(`Timer stopped. ${hours} hours elapsed.`);
+            }
+
+            // Clear persisted timer state
+            if (snapshot?.context?.extensionContext) {
+              await snapshot.context.extensionContext.globalState.update(
+                'azureDevOpsInt.timer.state',
+                undefined
+              );
+            }
+          } catch (error) {
+            console.error('Error stopping timer:', error);
+            vscode.window.showErrorMessage(
+              `Failed to stop timer: ${error instanceof Error ? error.message : String(error)}`
+            );
+          }
+        })();
         break;
       case 'EDIT_WORK_ITEM':
-        // Open work item in browser for editing (legacy behavior)
-        if (evt.workItemId && client) {
-          const url = client.getBrowserUrl(`/_workitems/edit/${evt.workItemId}`);
-          vscode.env.openExternal(vscode.Uri.parse(url));
+        // Implement in-VSCode edit dialog
+        try {
+          if (evt.workItemId && client && provider) {
+            const items = provider.getWorkItems?.() || [];
+            const item = items.find((i: any) => i.id === evt.workItemId);
+            if (item) {
+              showEditDialog(item, client, provider);
+            } else {
+              vscode.window.showErrorMessage('Work item not found');
+            }
+          } else {
+            vscode.window.showErrorMessage('Unable to edit work item: missing client or provider');
+          }
+        } catch (error) {
+          console.error('Error editing work item:', error);
+          vscode.window.showErrorMessage(
+            `Failed to edit work item: ${error instanceof Error ? error.message : String(error)}`
+          );
         }
         break;
       case 'OPEN_IN_BROWSER':
@@ -402,26 +630,63 @@ function dispatchApplicationEvent(event: unknown): void {
         }
         break;
       case 'CREATE_BRANCH':
-        // Show input for branch name then create
-        if (evt.workItemId) {
-          provider?.getWorkItems?.().then((items: any[]) => {
-            const item = items.find((i) => i.id === evt.workItemId);
-            if (item) {
-              const title = item.fields?.['System.Title'] || '';
-              const branchName = `feature/${evt.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-              vscode.window
-                .showInputBox({
+        // Show input for branch name then create and link to work item
+        (async () => {
+          try {
+            if (evt.workItemId) {
+              const items = provider?.getWorkItems?.() || [];
+              const item = items.find((i: any) => i.id === evt.workItemId);
+
+              if (item) {
+                const title = item.fields?.['System.Title'] || '';
+                const branchName = `feature/${evt.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+                const name = await vscode.window.showInputBox({
                   prompt: 'Enter branch name',
                   value: branchName,
-                })
-                .then((name) => {
-                  if (name) {
-                    vscode.commands.executeCommand('git.branch', name);
-                  }
                 });
+
+                if (name) {
+                  try {
+                    // Create the branch
+                    await vscode.commands.executeCommand('git.branch', name);
+
+                    // Add comment to work item linking the branch
+                    if (client) {
+                      const comment = `Created branch: ${name}`;
+                      const success = await client.addWorkItemComment(evt.workItemId, comment);
+
+                      if (success) {
+                        vscode.window.showInformationMessage(
+                          `Branch "${name}" created and linked to work item #${evt.workItemId}`
+                        );
+                      } else {
+                        vscode.window.showWarningMessage(
+                          `Branch "${name}" created but failed to link to work item #${evt.workItemId}`
+                        );
+                      }
+                    } else {
+                      vscode.window.showInformationMessage(`Branch "${name}" created`);
+                    }
+                  } catch (error) {
+                    console.error('Error creating branch:', error);
+                    vscode.window.showErrorMessage(
+                      `Failed to create branch: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                  }
+                }
+              } else {
+                vscode.window.showErrorMessage('Work item not found');
+              }
+            } else {
+              vscode.window.showErrorMessage('No work item ID provided for branch creation');
             }
-          });
-        }
+          } catch (error) {
+            console.error('Error in branch creation:', error);
+            vscode.window.showErrorMessage(
+              `Failed to create branch: ${error instanceof Error ? error.message : String(error)}`
+            );
+          }
+        })();
         break;
     }
   }
@@ -1913,17 +2178,8 @@ export async function activate(context: vscode.ExtensionContext) {
   registerTraceCommands(context);
 
   // Register quick debug commands for instant troubleshooting
-  import('./fsm/commands/quickDebugCommands.js')
-    .then(({ registerQuickDebugCommands }) => {
-      registerQuickDebugCommands(context);
-      verbose('[ACTIVATION] Quick debug commands registered');
-    })
-    .catch((error) => {
-      console.error(
-        '[AzureDevOpsInt] ❌ [ACTIVATION] Failed to import quick debug commands:',
-        error
-      );
-    });
+  registerQuickDebugCommands(context);
+  verbose('[ACTIVATION] Quick debug commands registered');
 
   // Register output channel reader for programmatic log access
   import('./fsm/commands/outputChannelReader.js')
@@ -2219,6 +2475,8 @@ function getSerializableContext(context: any): Record<string, any> {
       ? Object.fromEntries(context.pendingAuthReminders)
       : {},
     pendingWorkItems: context.pendingWorkItems,
+    workItems: context.pendingWorkItems?.workItems || [],
+    timerState: context.timerState,
     lastError: context.lastError
       ? { message: context.lastError.message, stack: context.lastError.stack }
       : undefined,
@@ -2245,7 +2503,7 @@ function getSerializableContext(context: any): Record<string, any> {
       activeConnectionId: serialized.activeConnectionId,
       hasDeviceCodeSession: !!serialized.deviceCodeSession,
       hasPendingWorkItems: !!serialized.pendingWorkItems,
-      workItemsCount: serialized.pendingWorkItems?.workItems?.length || 0,
+      workItemsCount: serialized.workItems?.length || 0,
       viewMode: serialized.viewMode,
     });
   }
@@ -2276,6 +2534,15 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
     };
 
+    const nonce = getNonce();
+    const scriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'main.js')
+    );
+    // Link to main.css which contains Svelte component styles from esbuild
+    const mainCssUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'main.css')
+    );
+
     // The 'unsafe-eval' is required for Svelte's dev mode.
     // TODO: Remove 'unsafe-eval' in production builds.
     const csp = `default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval'; img-src ${webview.cspSource} data:; connect-src 'self';`;
@@ -2296,6 +2563,18 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
       </body>
       </html>
     `;
+
+    // Set up message handler to receive events from webview
+    webview.onDidReceiveMessage((message) => {
+      if (message.type === 'fsmEvent' && message.event) {
+        // Forward webview events to the FSM
+        console.log('[AzureDevOpsIntViewProvider] Received event from webview:', {
+          eventType: message.event.type,
+          event: message.event,
+        });
+        dispatchApplicationEvent(message.event);
+      }
+    });
 
     // Notify FSM that webview panel is ready
     this.fsm?.send?.({ type: 'UPDATE_WEBVIEW_PANEL', webviewPanel: webviewView });

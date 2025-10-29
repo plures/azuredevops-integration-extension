@@ -49,6 +49,22 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Run feature tests before commit
 - [x] Prevent broken code from entering git history
 
+### Action Buttons Implementation
+
+- [x] **Fixed Svelte deprecation warnings** (on:click → onclick, on:keydown → onkeydown)
+- [x] **Added missing webview variables** (nonce, scriptUri, mainCssUri)
+- [x] **Fixed webview loading error** - view now renders correctly
+- [x] **Enhanced branch creation** with work item linking and comments
+- [x] **Added in-VSCode edit dialog** for work items
+- [x] **Improved timer state synchronization** between FSM and webview
+- [x] **Added comprehensive error handling** for all action buttons
+- [x] **Resolved build errors** - duplicate methods, file size limits
+- [x] **Extension activation successful** - all features operational
+- [x] **Added webview message handler** - critical fix for ALL button functionality
+- [x] **Fixed timer state sync** - timer actor now broadcasts state to application context
+- [x] **Fixed branch creation** - corrected synchronous getWorkItems usage
+- [x] **Removed unused syncDataToWebview** - eliminated confusing dead code
+
 ### Quality Gates
 
 - [x] All state machines pass validation
@@ -272,6 +288,13 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Query selector provides easy access to all default queries
 - [x] Query selector includes descriptive text for each query option
 - [x] Query selection is persisted per connection
+- [x] Timer action button displays active timer with elapsed time on work item cards
+- [x] Timer button toggles between Start and Stop states
+- [x] Timer persists across VSCode restarts and work item refreshes
+- [x] Edit action button implements in-VSCode edit dialog with field selection
+- [x] Edit dialog supports Title, State, Assigned To, Tags, and Description fields
+- [x] Branch action button links created branch back to work item
+- [x] Branch linking adds comment to work item with branch name
 
 ### Azure DevOps Integration
 
@@ -287,6 +310,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] PAT isolation between connections works correctly
 - [x] Each connection stores its own base URL (supports different Azure DevOps instances)
 - [x] Base URL migration works for existing connections
+- [x] New Azure client exposes getWorkItemById (timer/comment operations)
 
 ### Git Integration
 

@@ -100,6 +100,14 @@ export type ApplicationContext = {
     connectionId?: string;
     query?: string;
   };
+  timerState?: {
+    state: string;
+    workItemId?: number;
+    workItemTitle?: string;
+    startTime?: number;
+    stopTime?: number;
+    pausedAt?: number;
+  };
   lastError?: Error;
   errorRecoveryAttempts: number;
   viewMode: 'list' | 'kanban';
@@ -170,6 +178,8 @@ export type ApplicationEvent =
   | { type: 'SET_QUERY'; query: string }
   // Work Item Action Events
   | { type: 'START_TIMER_INTERACTIVE'; workItemId?: number; workItemTitle?: string }
+  | { type: 'STOP_TIMER' }
+  | { type: 'TIMER_STATE_CHANGED'; timerState: any }
   | { type: 'EDIT_WORK_ITEM'; workItemId: number }
   | { type: 'OPEN_IN_BROWSER'; workItemId: number }
   | { type: 'CREATE_BRANCH'; workItemId: number }
@@ -444,7 +454,7 @@ export const applicationMachine = createMachine(
                 actions: 'handleDataError',
               },
               WORK_ITEMS_LOADED: {
-                actions: 'storeWorkItemsInContext',
+                actions: ['storeWorkItemsInContext', 'stopTimerOnWorkItemUpdate'],
               },
               TOGGLE_VIEW: {
                 actions: 'toggleViewMode',
@@ -457,6 +467,9 @@ export const applicationMachine = createMachine(
               },
               START_TIMER_INTERACTIVE: {
                 actions: 'handleStartTimer',
+              },
+              STOP_TIMER: {
+                actions: 'handleStopTimer',
               },
               EDIT_WORK_ITEM: {
                 actions: 'handleEditWorkItem',
@@ -487,6 +500,9 @@ export const applicationMachine = createMachine(
           },
           DEVICE_CODE_SESSION_STARTED: {
             actions: 'storeDeviceCodeSession',
+          },
+          TIMER_STATE_CHANGED: {
+            actions: 'updateTimerState',
           },
         },
       },
@@ -611,9 +627,52 @@ export const applicationMachine = createMachine(
       markDeactivating: assign({
         isDeactivating: true,
       }),
-      initializeChildActors: ({ context: _context }) => {
-        _context.timerActor = createActor(timerMachine).start();
-      },
+      initializeChildActors: assign(({ context, self }) => {
+        const timerActor = createActor(timerMachine).start();
+
+        // Subscribe to timer actor to sync timer state to application context
+        timerActor.subscribe((snapshot) => {
+          self.send({
+            type: 'TIMER_STATE_CHANGED',
+            timerState: {
+              state: snapshot.value as string,
+              workItemId: snapshot.context.workItemId,
+              workItemTitle: snapshot.context.workItemTitle,
+              startTime: snapshot.context.startTime,
+              stopTime: snapshot.context.stopTime,
+              pausedAt: snapshot.context.pausedAt,
+            },
+          });
+        });
+
+        // Restore persisted timer state on startup
+        if (context.extensionContext) {
+          const persistedState = (context.extensionContext as any).globalState?.get<{
+            workItemId?: number;
+            workItemTitle?: string;
+            startTime?: number;
+            isPaused?: boolean;
+            state?: string;
+          }>('azureDevOpsInt.timer.state');
+
+          if (
+            persistedState?.workItemId &&
+            persistedState?.workItemTitle &&
+            persistedState?.startTime
+          ) {
+            // Restore timer with original startTime preserved
+            timerActor.send({
+              type: 'RESTORE',
+              workItemId: persistedState.workItemId,
+              workItemTitle: persistedState.workItemTitle,
+              startTime: persistedState.startTime,
+              isPaused: persistedState.isPaused || false,
+            });
+          }
+        }
+
+        return { timerActor };
+      }),
       delegateConnectionActivation: ({ context, event }) => {
         if (event.type === 'CONNECTION_SELECTED') {
           activateConnection(context, event.connectionId);
@@ -715,13 +774,6 @@ export const applicationMachine = createMachine(
           await vscode.commands.executeCommand('azureDevOpsInt.createBranch', message.workItemId);
         }
       },
-      syncDataToWebview: ({ context, event }) => {
-        if (event.type !== 'WORK_ITEMS_LOADED') return;
-        context.webviewPanel?.webview.postMessage({
-          type: 'work-items-update',
-          workItems: event.workItems,
-        });
-      },
       storeWorkItemsInContext: assign(({ context, event }) => {
         if (event.type !== 'WORK_ITEMS_LOADED') return {};
 
@@ -789,6 +841,31 @@ export const applicationMachine = createMachine(
         }
         // Note: Actual timer start happens in activation.ts via dispatchApplicationEvent
       },
+      handleStopTimer: ({ context }) => {
+        const { timerActor } = context;
+
+        if (!timerActor || typeof (timerActor as any).send !== 'function') {
+          console.warn('[FSM] handleStopTimer: No timerActor available');
+          return;
+        }
+
+        console.log('[FSM] Stopping timer');
+        (timerActor as any).send({ type: 'STOP' });
+
+        // Clear persisted timer state
+        if (context.extensionContext) {
+          (context.extensionContext as any).globalState
+            ?.update('azureDevOpsInt.timer.state', undefined)
+            .then(
+              () => {},
+              (e: any) => console.error('[FSM] Failed to clear persisted timer:', e)
+            );
+        }
+      },
+      updateTimerState: assign(({ event }) => {
+        if (event.type !== 'TIMER_STATE_CHANGED') return {};
+        return { timerState: event.timerState };
+      }),
       handleEditWorkItem: ({ event, context }) => {
         if (event.type !== 'EDIT_WORK_ITEM') return;
 
@@ -856,6 +933,43 @@ export const applicationMachine = createMachine(
 
         console.log('[FSM] Opening work item:', event.workItemId);
         // activation.ts handles via dispatchApplicationEvent
+      },
+      stopTimerOnWorkItemUpdate: ({ context, event }) => {
+        // Don't clear timer when work items are refreshed - timer should persist
+        // Only stop timer if the work item it's tracking is no longer in the list
+        if (event.type !== 'WORK_ITEMS_LOADED') return;
+
+        const { timerActor } = context;
+        if (!timerActor || typeof (timerActor as any).getSnapshot !== 'function') return;
+
+        try {
+          const timerSnapshot = (timerActor as any).getSnapshot();
+          if (timerSnapshot?.value === 'idle') return;
+
+          const timerWorkItemId = timerSnapshot.context.workItemId;
+          if (!timerWorkItemId) return;
+
+          // Check if the work item is still in the refreshed list
+          const workItems = event.workItems || [];
+          const stillExists = workItems.some((wi: any) => wi.id === timerWorkItemId);
+
+          if (!stillExists) {
+            console.log('[FSM] Stopping timer - work item no longer in list:', timerWorkItemId);
+            (timerActor as any).send({ type: 'STOP' });
+
+            // Clear persisted timer state
+            if (context.extensionContext) {
+              (context.extensionContext as any).globalState
+                ?.update('azureDevOpsInt.timer.state', undefined)
+                .then(
+                  () => {},
+                  (e: any) => console.error('[FSM] Failed to clear persisted timer:', e)
+                );
+            }
+          }
+        } catch (e) {
+          console.error('[FSM] Failed to check timer on work item update:', e);
+        }
       },
       storeDeviceCodeSession: assign(({ event }) => {
         if (event.type !== 'DEVICE_CODE_SESSION_STARTED') return {};

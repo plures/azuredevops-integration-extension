@@ -1,0 +1,54 @@
+{
+  "name": "@architectural-discipline/template-vscode-extension",
+  "version": "1.0.0",
+  "description": "VS Code extension template with architectural discipline",
+  "main": "dist/extension.js",
+  "files": [
+    "template/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.{ts,js,json}\"",
+    "validate:all": "npm run lint && npm run test && npm run build",
+    "check:architecture": "architectural-discipline analyze"
+  },
+  "dependencies": {
+    "@architectural-discipline/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@architectural-discipline/eslint-plugin": "workspace:*",
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0",
+    "vsce": "^2.19.0"
+  },
+  "keywords": [
+    "vscode",
+    "extension",
+    "template",
+    "architecture",
+    "discipline"
+  ],
+  "author": "Architectural Discipline Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/architectural-discipline/monorepo.git",
+    "directory": "packages/templates/vscode-extension"
+  },
+  "bugs": {
+    "url": "https://github.com/architectural-discipline/monorepo/issues"
+  },
+  "homepage": "https://github.com/architectural-discipline/monorepo#readme"
+}
