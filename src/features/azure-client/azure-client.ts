@@ -51,6 +51,11 @@ export class AzureDevOpsIntClient {
     return this.workItemsService.getWorkItemsByIds(ids);
   }
 
+  async getWorkItemById(id: number): Promise<WorkItem | null> {
+    const items = await this.workItemsService.getWorkItemsByIds([id]);
+    return items.length > 0 ? items[0] : null;
+  }
+
   async createWorkItem(data: WorkItemCreateData): Promise<WorkItem | null> {
     return this.workItemsService.createWorkItem(data);
   }

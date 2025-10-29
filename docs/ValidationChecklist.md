@@ -310,6 +310,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] PAT isolation between connections works correctly
 - [x] Each connection stores its own base URL (supports different Azure DevOps instances)
 - [x] Base URL migration works for existing connections
+- [x] New Azure client exposes getWorkItemById (timer/comment operations)
 
 ### Git Integration
 
