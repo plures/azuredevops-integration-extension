@@ -215,6 +215,71 @@ export class WorkItemsService {
     return null;
   }
 
+  async updateWorkItem(id: number, patches: WorkItemPatch[]): Promise<WorkItem | null> {
+    try {
+      const response = await this.httpClient.patch(
+        `/wit/workitems/${id}?bypassRules=true&suppressNotifications=true`,
+        patches,
+        {
+          headers: {
+            'Content-Type': 'application/json-patch+json',
+          },
+        }
+      );
+
+      if (response.data?.id) {
+        const workItem = this._mapWorkItems([response.data])[0];
+        // Invalidate cache for this work item
+        this.cache.invalidateWorkItem(id);
+        return workItem;
+      }
+    } catch (error) {
+      console.error('[WorkItemsService] Error updating work item:', error);
+      if (error.response?.status === 403) {
+        console.error(
+          '[WorkItemsService] 403 Forbidden - insufficient permissions to update work items'
+        );
+      }
+    }
+
+    return null;
+  }
+
+  async addWorkItemComment(id: number, comment: string): Promise<boolean> {
+    try {
+      const patch: WorkItemPatch[] = [{
+        op: 'add',
+        path: '/fields/System.History',
+        value: comment
+      }];
+
+      const response = await this.httpClient.patch(
+        `/wit/workitems/${id}?bypassRules=true&suppressNotifications=true`,
+        patch,
+        {
+          headers: {
+            'Content-Type': 'application/json-patch+json',
+          },
+        }
+      );
+
+      if (response.data?.id) {
+        // Invalidate cache for this work item
+        this.cache.invalidateWorkItem(id);
+        return true;
+      }
+    } catch (error) {
+      console.error('[WorkItemsService] Error adding comment to work item:', error);
+      if (error.response?.status === 403) {
+        console.error(
+          '[WorkItemsService] 403 Forbidden - insufficient permissions to add comments'
+        );
+      }
+    }
+
+    return false;
+  }
+
   async addWorkItemTime(id: number, timeEntry: WorkItemTimeEntry): Promise<boolean> {
     if (typeof timeEntry.hours !== 'number' || timeEntry.hours <= 0) {
       throw new Error('hours must be positive number');

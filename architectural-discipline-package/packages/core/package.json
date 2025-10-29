@@ -1,0 +1,54 @@
+{
+  "name": "@architectural-discipline/core",
+  "version": "1.0.0",
+  "description": "Core statistical analysis engine and architectural rule definitions",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.{ts,js,json}\"",
+    "validate:all": "npm run lint && npm run test && npm run build",
+    "check:architecture": "tsx scripts/check-architecture.ts"
+  },
+  "dependencies": {
+    "typescript": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "prettier": "^3.1.0",
+    "tsx": "^4.6.0",
+    "vitest": "^1.0.0"
+  },
+  "keywords": [
+    "architecture",
+    "analysis",
+    "statistics",
+    "complexity",
+    "maintainability",
+    "code-quality"
+  ],
+  "author": "Architectural Discipline Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/architectural-discipline/monorepo.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/architectural-discipline/monorepo/issues"
+  },
+  "homepage": "https://github.com/architectural-discipline/monorepo#readme"
+}

@@ -6,6 +6,7 @@ import type {
   WorkItemFilter,
   WorkItemCreateData,
   WorkItemTimeEntry,
+  WorkItemPatch,
   RepositoryInfo,
   PullRequestInfo,
   BuildInfo,
@@ -36,6 +37,14 @@ export class AzureDevOpsIntClient {
   // Delegate work items operations to the service
   async getWorkItems(query: string): Promise<WorkItem[]> {
     return this.workItemsService.getWorkItemsByQuery(query);
+  }
+
+  async updateWorkItem(id: number, patches: WorkItemPatch[]): Promise<WorkItem | null> {
+    return this.workItemsService.updateWorkItem(id, patches);
+  }
+
+  async addWorkItemComment(id: number, comment: string): Promise<boolean> {
+    return this.workItemsService.addWorkItemComment(id, comment);
   }
 
   async getWorkItemsByIds(ids: number[]): Promise<WorkItem[]> {

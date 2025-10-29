@@ -221,7 +221,7 @@
       <div class="empty-state">
         <p>No items match your filters.</p>
         <button
-          on:click={() => {
+          onclick={() => {
             filterText = '';
             typeFilter = '';
             stateFilter = 'all';
@@ -233,8 +233,13 @@
         {#each filteredItems as item (item.id)}
           <div
             class="work-item-card"
-            on:click={() => handleOpenItem(item.id)}
-            on:keydown
+            onclick={() => handleOpenItem(item.id)}
+            onkeydown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleOpenItem(item.id);
+              }
+            }}
             role="button"
             tabindex="0"
           >
@@ -273,8 +278,10 @@
                   <span
                     class="meta-badge timer-badge"
                     title="Timer Active"
-                    on:mouseenter={handleTimerMouseEnter}
-                    on:mouseleave={handleTimerMouseLeave}
+                    role="button"
+                    tabindex="0"
+                    onmouseenter={handleTimerMouseEnter}
+                    onmouseleave={handleTimerMouseLeave}
                   >
                     <span class="codicon">⏱</span>
                     {formatElapsedTime(timerElapsedSeconds)}
@@ -286,7 +293,7 @@
               <div class="item-actions">
                 <button
                   class="action-btn primary"
-                  on:click={(e) => handleStartTimer(item, e)}
+                  onclick={(e) => handleStartTimer(item, e)}
                   title={timerState?.workItemId === item.id ? 'Stop Timer' : 'Start Timer'}
                 >
                   <span class="codicon">{timerState?.workItemId === item.id ? '⏹' : '▶'}</span>
@@ -294,7 +301,7 @@
                 </button>
                 <button
                   class="action-btn"
-                  on:click={(e) => handleEditItem(item, e)}
+                  onclick={(e) => handleEditItem(item, e)}
                   title="Edit Work Item"
                 >
                   <span class="codicon">✎</span>
@@ -302,7 +309,7 @@
                 </button>
                 <button
                   class="action-btn"
-                  on:click={(e) => handleCreateBranch(item, e)}
+                  onclick={(e) => handleCreateBranch(item, e)}
                   title="Create Branch"
                 >
                   <span class="codicon">⎇</span>
@@ -310,7 +317,7 @@
                 </button>
                 <button
                   class="action-btn"
-                  on:click={(e) => handleOpenInBrowser(item, e)}
+                  onclick={(e) => handleOpenInBrowser(item, e)}
                   title="Open in Azure DevOps"
                 >
                   <span class="codicon">🌐</span>
