@@ -237,6 +237,8 @@ Select multiple work items (Ctrl/Cmd+Click or checkboxes) for batch operations:
 
 Contributions welcome! Please open an issue for substantial changes. Built with TypeScript, Svelte, and ESBuild following VS Code extension best practices.
 
+This repository includes comprehensive [GitHub Copilot instructions](.github/copilot-instructions.md) to help AI coding assistants understand our architecture and development workflow.
+
 **Quick Development:**
 
 ```bash
