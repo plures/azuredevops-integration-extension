@@ -1,6 +1,6 @@
 /**
  * @architectural-discipline/eslint-plugin
- * 
+ *
  * ESLint plugin for architectural discipline rules
  */
 
@@ -60,7 +60,8 @@ export const maxLinesRule = {
     ],
     messages: {
       exceedMaxLines: 'File has {{actual}} lines, maximum allowed is {{max}}',
-      statisticalOutlier: 'File exceeds statistical threshold for {{fileType}} files ({{actual}} lines, expected {{expected}})',
+      statisticalOutlier:
+        'File exceeds statistical threshold for {{fileType}} files ({{actual}} lines, expected {{expected}})',
     },
   },
 
@@ -190,10 +191,16 @@ export const maxLinesPerFunctionRule = {
 /**
  * Helper function to check function length
  */
-function checkFunction(node: any, context: any, maxLines: number, skipBlankLines: boolean, skipComments: boolean) {
+function checkFunction(
+  node: any,
+  context: any,
+  maxLines: number,
+  skipBlankLines: boolean,
+  skipComments: boolean
+) {
   const sourceCode = context.getSourceCode();
   const lines = sourceCode.getLines();
-  
+
   let lineCount = node.loc.end.line - node.loc.start.line + 1;
 
   // Skip blank lines if configured
@@ -277,9 +284,19 @@ export const maxComplexityRule = {
 function checkComplexity(node: any, context: any, maxComplexity: number) {
   const sourceCode = context.getSourceCode();
   const text = sourceCode.getText(node);
-  
+
   const complexityKeywords = [
-    'if', 'else', 'while', 'for', 'switch', 'case', 'catch', '&&', '||', '?', ':'
+    'if',
+    'else',
+    'while',
+    'for',
+    'switch',
+    'case',
+    'catch',
+    '&&',
+    '||',
+    '?',
+    ':',
   ];
 
   let complexity = 1; // Base complexity
@@ -317,7 +334,10 @@ export default {
     recommended: {
       plugins: ['@architectural-discipline'],
       rules: {
-        '@architectural-discipline/max-lines': ['error', { max: 300, enableStatisticalAnalysis: true }],
+        '@architectural-discipline/max-lines': [
+          'error',
+          { max: 300, enableStatisticalAnalysis: true },
+        ],
         '@architectural-discipline/max-lines-per-function': ['error', { max: 100 }],
         '@architectural-discipline/max-complexity': ['warn', { max: 10 }],
       },
@@ -325,7 +345,10 @@ export default {
     strict: {
       plugins: ['@architectural-discipline'],
       rules: {
-        '@architectural-discipline/max-lines': ['error', { max: 200, enableStatisticalAnalysis: true }],
+        '@architectural-discipline/max-lines': [
+          'error',
+          { max: 200, enableStatisticalAnalysis: true },
+        ],
         '@architectural-discipline/max-lines-per-function': ['error', { max: 50 }],
         '@architectural-discipline/max-complexity': ['error', { max: 8 }],
       },

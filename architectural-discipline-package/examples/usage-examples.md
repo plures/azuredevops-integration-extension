@@ -29,12 +29,12 @@ console.log('File metrics:', {
   lines: metrics.lines,
   complexity: metrics.complexity,
   purity: metrics.purity,
-  functions: metrics.functions.length
+  functions: metrics.functions.length,
 });
 
 // Analyze entire project
 const files = ['src/file1.ts', 'src/file2.ts'];
-const allMetrics = files.map(file => {
+const allMetrics = files.map((file) => {
   const content = fs.readFileSync(file, 'utf-8');
   return analyzer.analyzeFile(file, content);
 });
@@ -56,20 +56,18 @@ import { performStatisticalAnalysis } from '@architectural-discipline/core';
 
 async function analyzeProject() {
   const analysis = await performStatisticalAnalysis();
-  
+
   // Project health overview
   console.log(`Health Score: ${analysis.projectHealth.overall}/100`);
-  
+
   // File type statistics
   analysis.fileTypeStats.forEach((stats, type) => {
     console.log(`${type}: ${stats.count} files, avg ${stats.meanLines} lines`);
   });
-  
+
   // Critical outliers
-  const critical = analysis.outliers.filter(o => 
-    o.lines > o.fileType.expectedSizeRange[1] * 1.5
-  );
-  
+  const critical = analysis.outliers.filter((o) => o.lines > o.fileType.expectedSizeRange[1] * 1.5);
+
   if (critical.length > 0) {
     console.log(`⚠️ ${critical.length} critical files need attention`);
   }
@@ -91,16 +89,25 @@ export default [
       '@architectural-discipline': architecturalDiscipline,
     },
     rules: {
-      '@architectural-discipline/max-lines': ['error', { 
-        max: 300,
-        enableStatisticalAnalysis: true 
-      }],
-      '@architectural-discipline/max-lines-per-function': ['error', { 
-        max: 100 
-      }],
-      '@architectural-discipline/max-complexity': ['warn', { 
-        max: 10 
-      }],
+      '@architectural-discipline/max-lines': [
+        'error',
+        {
+          max: 300,
+          enableStatisticalAnalysis: true,
+        },
+      ],
+      '@architectural-discipline/max-lines-per-function': [
+        'error',
+        {
+          max: 100,
+        },
+      ],
+      '@architectural-discipline/max-complexity': [
+        'warn',
+        {
+          max: 10,
+        },
+      ],
     },
   },
 ];
@@ -264,11 +271,13 @@ my-app/
 ### Adding to Existing Project
 
 1. **Install packages**:
+
 ```bash
 npm install @architectural-discipline/core @architectural-discipline/eslint-plugin
 ```
 
 2. **Update ESLint configuration**:
+
 ```javascript
 // eslint.config.js
 import architecturalDiscipline from '@architectural-discipline/eslint-plugin';
@@ -290,6 +299,7 @@ export default [
 ```
 
 3. **Add analysis script**:
+
 ```json
 {
   "scripts": {
@@ -300,6 +310,7 @@ export default [
 ```
 
 4. **Gradual adoption**:
+
 ```bash
 # Start with warnings only
 npm run check:architecture
@@ -350,7 +361,7 @@ import { ArchitecturalAnalyzer } from '@architectural-discipline/core';
 class CustomAnalyzer extends ArchitecturalAnalyzer {
   classifyFileType(filePath: string, content: string) {
     const baseType = super.classifyFileType(filePath, content);
-    
+
     // Custom classification logic
     if (content.includes('@Component')) {
       return {
@@ -360,7 +371,7 @@ class CustomAnalyzer extends ArchitecturalAnalyzer {
         complexityThreshold: 6,
       };
     }
-    
+
     return baseType;
   }
 }
@@ -382,16 +393,16 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: '18'
-      
+
       - name: Install dependencies
         run: npm install
-      
+
       - name: Install architectural discipline CLI
         run: npm install -g @architectural-discipline/cli
-      
+
       - name: Run architectural analysis
         run: architectural-discipline analyze --format json --output analysis.json
-      
+
       - name: Check for critical issues
         run: |
           CRITICAL=$(jq '.outliers | map(select(.lines > .fileType.expectedSizeRange[1] * 1.5)) | length' analysis.json)
@@ -412,10 +423,7 @@ jobs:
     }
   },
   "lint-staged": {
-    "*.{ts,js}": [
-      "eslint --fix",
-      "architectural-discipline analyze --path"
-    ]
+    "*.{ts,js}": ["eslint --fix", "architectural-discipline analyze --path"]
   }
 }
 ```
@@ -430,7 +438,7 @@ import { ArchitecturalAnalyzer } from '@architectural-discipline/core';
 async function trackHealthScore() {
   const analyzer = new ArchitecturalAnalyzer();
   const analysis = await performAnalysis();
-  
+
   // Track health score over time
   const healthData = {
     timestamp: new Date().toISOString(),
@@ -441,7 +449,7 @@ async function trackHealthScore() {
     complexity: analysis.projectHealth.complexity,
     outlierCount: analysis.outliers.length,
   };
-  
+
   // Send to monitoring system
   await sendToMonitoring(healthData);
 }
@@ -453,13 +461,14 @@ async function trackHealthScore() {
 async function analyzeTrends() {
   const currentAnalysis = await performAnalysis();
   const previousAnalysis = await loadPreviousAnalysis();
-  
+
   const trends = {
     healthChange: currentAnalysis.projectHealth.overall - previousAnalysis.projectHealth.overall,
     outlierChange: currentAnalysis.outliers.length - previousAnalysis.outliers.length,
-    complexityTrend: currentAnalysis.projectHealth.complexity - previousAnalysis.projectHealth.complexity,
+    complexityTrend:
+      currentAnalysis.projectHealth.complexity - previousAnalysis.projectHealth.complexity,
   };
-  
+
   console.log('Architectural trends:', trends);
 }
 ```

@@ -61,8 +61,8 @@ export default [
     rules: {
       '@architectural-discipline/max-lines': 'error',
       '@architectural-discipline/max-complexity': 'warn',
-    }
-  }
+    },
+  },
 ];
 ```
 
@@ -87,24 +87,28 @@ packages/
 ## 📊 Features
 
 ### Intelligent Analysis
+
 - **Statistical Analysis**: Analyzes codebase patterns and identifies outliers
 - **Complexity Metrics**: Measures cyclomatic complexity and cognitive load
 - **Purity Scoring**: Evaluates function purity and side effects
 - **Modularity Assessment**: Analyzes module cohesion and coupling
 
 ### Automated Recommendations
+
 - **Refactoring Suggestions**: Provides specific, actionable refactoring recommendations
 - **Priority Classification**: Categorizes issues by severity and impact
 - **Context-Aware**: Considers project type and domain-specific patterns
 - **Incremental Improvement**: Supports gradual architectural improvement
 
 ### Quality Enforcement
+
 - **ESLint Integration**: Seamless integration with existing linting workflows
 - **Pre-commit Hooks**: Automated quality checks before commits
 - **CI/CD Integration**: Continuous quality monitoring in pipelines
 - **Customizable Rules**: Configurable thresholds and rule sets
 
 ### Project Templates
+
 - **Best Practices**: Pre-configured with architectural discipline rules
 - **Framework Support**: Templates for popular frameworks and platforms
 - **Documentation**: Comprehensive guides and examples
@@ -140,6 +144,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## 🙏 Acknowledgments
 
 Built with inspiration from:
+
 - Clean Architecture principles
 - SOLID design principles
 - Statistical analysis methodologies

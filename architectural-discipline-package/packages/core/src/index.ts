@@ -1,6 +1,6 @@
 /**
  * @architectural-discipline/core
- * 
+ *
  * Core statistical analysis engine and architectural rule definitions
  * for the Architectural Discipline System.
  */
@@ -397,7 +397,8 @@ export class ArchitecturalAnalyzer {
       const median = lines[Math.floor(lines.length / 2)];
 
       // Calculate standard deviation
-      const variance = lines.reduce((sum, line) => sum + Math.pow(line - mean, 2), 0) / lines.length;
+      const variance =
+        lines.reduce((sum, line) => sum + Math.pow(line - mean, 2), 0) / lines.length;
       const standardDeviation = Math.sqrt(variance);
 
       // Calculate percentiles
@@ -424,10 +425,7 @@ export class ArchitecturalAnalyzer {
   /**
    * Detect outliers using statistical methods
    */
-  detectOutliers(
-    metrics: FileMetrics[],
-    stats: Map<string, FileTypeStatistics>
-  ): FileMetrics[] {
+  detectOutliers(metrics: FileMetrics[], stats: Map<string, FileTypeStatistics>): FileMetrics[] {
     const outliers: FileMetrics[] = [];
 
     metrics.forEach((metric) => {
@@ -550,7 +548,8 @@ export class ArchitecturalAnalyzer {
     const testability = Math.max(0, avgPurity - 20);
 
     // Calculate modularity score (0-100)
-    const avgFunctionsPerFile = metrics.reduce((sum, m) => sum + m.functions.length, 0) / totalFiles;
+    const avgFunctionsPerFile =
+      metrics.reduce((sum, m) => sum + m.functions.length, 0) / totalFiles;
     const modularity = Math.max(0, 100 - avgFunctionsPerFile * 2);
 
     // Calculate complexity score (0-100)

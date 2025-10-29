@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @architectural-discipline/cli
- * 
+ *
  * Command-line interface for architectural discipline analysis
  */
 
@@ -33,10 +33,10 @@ program
   .action(async (options) => {
     try {
       console.log(chalk.blue('🔍 Analyzing project architecture...'));
-      
+
       const analyzer = new ArchitecturalAnalyzer();
       const analysis = await performAnalysis(options.path, options.ignore);
-      
+
       if (options.format === 'json') {
         const output = JSON.stringify(analysis, null, 2);
         if (options.output) {
@@ -48,15 +48,20 @@ program
       } else {
         printAnalysisReport(analysis);
       }
-      
+
       // Exit with error code if critical issues found
       const criticalOutliers = analysis.outliers.filter(
-        (o) => o.lines > o.fileType.expectedSizeRange[1] * 1.5 ||
-               o.complexity > o.fileType.complexityThreshold * 2
+        (o) =>
+          o.lines > o.fileType.expectedSizeRange[1] * 1.5 ||
+          o.complexity > o.fileType.complexityThreshold * 2
       );
-      
+
       if (criticalOutliers.length > 0) {
-        console.log(chalk.red(`\n❌ ${criticalOutliers.length} critical outliers require immediate attention.`));
+        console.log(
+          chalk.red(
+            `\n❌ ${criticalOutliers.length} critical outliers require immediate attention.`
+          )
+        );
         process.exit(1);
       } else {
         console.log(chalk.green('\n✅ Analysis complete!'));
@@ -78,14 +83,14 @@ program
   .action(async (options) => {
     try {
       console.log(chalk.blue('💡 Generating refactoring recommendations...'));
-      
+
       const analyzer = new ArchitecturalAnalyzer();
       const analysis = await performAnalysis(options.path);
-      
-      const recommendations = options.priority 
-        ? analysis.recommendations.filter(r => r.priority === options.priority)
+
+      const recommendations = options.priority
+        ? analysis.recommendations.filter((r) => r.priority === options.priority)
         : analysis.recommendations;
-      
+
       printRecommendations(recommendations);
     } catch (error) {
       console.error(chalk.red('❌ Recommendation generation failed:'), error);
@@ -105,10 +110,10 @@ program
   .action(async (name, options) => {
     try {
       console.log(chalk.blue(`🚀 Creating ${options.template} project: ${name}`));
-      
+
       const targetDir = options.directory || name;
       await createProject(name, options.template, targetDir);
-      
+
       console.log(chalk.green(`✅ Project created successfully in ${targetDir}`));
       console.log(chalk.yellow('📚 Next steps:'));
       console.log(`   cd ${targetDir}`);
@@ -123,20 +128,19 @@ program
 /**
  * Perform architectural analysis
  */
-async function performAnalysis(srcPath: string, ignorePatterns?: string): Promise<StatisticalAnalysis> {
-  const ignore = ignorePatterns ? ignorePatterns.split(',') : [
-    '**/*.test.ts',
-    '**/*.spec.ts',
-    '**/node_modules/**',
-    '**/dist/**',
-    '**/build/**',
-  ];
+async function performAnalysis(
+  srcPath: string,
+  ignorePatterns?: string
+): Promise<StatisticalAnalysis> {
+  const ignore = ignorePatterns
+    ? ignorePatterns.split(',')
+    : ['**/*.test.ts', '**/*.spec.ts', '**/node_modules/**', '**/dist/**', '**/build/**'];
 
   const files = await glob(`${srcPath}/**/*.ts`, { ignore });
   const analyzer = new ArchitecturalAnalyzer();
-  
+
   const metrics: FileMetrics[] = [];
-  
+
   for (const file of files) {
     try {
       const content = await fs.readFile(file, 'utf-8');
@@ -146,12 +150,12 @@ async function performAnalysis(srcPath: string, ignorePatterns?: string): Promis
       console.warn(chalk.yellow(`⚠️  Skipping ${file}: ${error}`));
     }
   }
-  
+
   const fileTypeStats = analyzer.calculateStatisticalThresholds(metrics);
   const outliers = analyzer.detectOutliers(metrics, fileTypeStats);
   const recommendations = analyzer.generateRecommendations(outliers);
   const projectHealth = analyzer.calculateProjectHealth(metrics, fileTypeStats);
-  
+
   return {
     fileTypeStats,
     outliers,
@@ -259,28 +263,25 @@ async function createProject(name: string, template: string, targetDir: string):
   // This would integrate with the template system
   console.log(chalk.yellow(`📋 Template: ${template}`));
   console.log(chalk.yellow(`📁 Directory: ${targetDir}`));
-  
+
   // For now, just create a basic structure
   await fs.ensureDir(targetDir);
-  
+
   const packageJson = {
     name,
     version: '1.0.0',
     description: `Project created with architectural discipline (${template} template)`,
     scripts: {
       'check:architecture': 'architectural-discipline analyze',
-      'recommend': 'architectural-discipline recommend',
+      recommend: 'architectural-discipline recommend',
     },
     devDependencies: {
       '@architectural-discipline/eslint-plugin': '^1.0.0',
     },
   };
-  
-  await fs.writeFile(
-    path.join(targetDir, 'package.json'),
-    JSON.stringify(packageJson, null, 2)
-  );
-  
+
+  await fs.writeFile(path.join(targetDir, 'package.json'), JSON.stringify(packageJson, null, 2));
+
   console.log(chalk.green('📦 Created package.json with architectural discipline integration'));
 }
 

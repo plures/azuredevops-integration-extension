@@ -13,6 +13,7 @@ All three action button features have been successfully implemented on the `feat
 ## Feature 1: Timer UI
 
 ### Implementation
+
 - **Toggle Button**: Click to start, click again to stop (▶ Timer / ⏹ Stop)
 - **Timer Display**: Shows elapsed time badge on active work item card
 - **Smart Seconds**: Shows seconds for first 30s, or 30s after hover, otherwise shows minutes only
@@ -21,12 +22,14 @@ All three action button features have been successfully implemented on the `feat
 - **Refresh Behavior**: Timer continues running when work items refresh (only stops if work item disappears from list)
 
 ### Technical Details
+
 - **FSM**: `timerMachine` manages timer lifecycle (idle → running → paused)
 - **Context**: Stores `workItemId`, `workItemTitle`, `startTime`, `isPaused`
 - **Display**: Webview calculates `elapsed = (Date.now() - startTime) / 1000` every second
 - **Storage**: Timer state saved to `globalState` and restored on activation
 
 ### Files Modified
+
 - `src/fsm/machines/timerMachine.ts` - Simplified to store only `startTime` (no TICK events)
 - `src/fsm/machines/applicationMachine.ts` - Initialize and persist timerActor
 - `src/activation.ts` - Route timer start/stop, persist state, serialize for webview
@@ -35,6 +38,7 @@ All three action button features have been successfully implemented on the `feat
 - `src/fsm/types.ts` - Updated `TimerContext` and `TimerEvent` types
 
 ### Commits
+
 - `e613c33` - Initial timer simplification (remove TICK events)
 - `1432cd7` - Route timer start to FSM timerActor
 - `064900c` - Fix timerActor context storage with assign
@@ -48,6 +52,7 @@ All three action button features have been successfully implemented on the `feat
 ## Feature 2: Edit Dialog
 
 ### Implementation
+
 - **Field Selection**: Quick pick shows Title, State, Assigned To, Tags, Description
 - **Current Values**: Shows current value for each field in description
 - **State Dropdown**: For State field, fetches available states from work item type
@@ -56,6 +61,7 @@ All three action button features have been successfully implemented on the `feat
 - **Auto-Refresh**: Work items refresh after successful update
 
 ### User Flow
+
 1. Click Edit button (✎ Edit) on work item card
 2. Quick pick shows 5 fields with current values
 3. Select field to edit
@@ -67,6 +73,7 @@ All three action button features have been successfully implemented on the `feat
 9. Success message displayed
 
 ### Technical Details
+
 - Uses `vscode.window.showQuickPick` for field selection
 - Uses `vscode.window.showInputBox` for text fields
 - Uses `client.getWorkItemTypeStates(type)` for state options
@@ -74,9 +81,11 @@ All three action button features have been successfully implemented on the `feat
 - Patch operation format: `{ op: 'add', path: '/fields/System.Title', value: 'New Title' }`
 
 ### Files Modified
+
 - `src/activation.ts` - Implemented edit workflow in `dispatchApplicationEvent`
 
 ### Commits
+
 - `e40ef09` - Implement in-VSCode edit dialog with field selection
 
 ---
@@ -84,12 +93,14 @@ All three action button features have been successfully implemented on the `feat
 ## Feature 3: Branch Linking
 
 ### Implementation
+
 - **Branch Creation**: Uses VS Code's built-in Git command
 - **Smart Naming**: Suggests `feature/<id>-<title-slug>` format
 - **Automatic Linking**: Adds comment to work item with branch name
 - **Success Feedback**: Shows message when branch created and linked
 
 ### User Flow
+
 1. Click Branch button (⎇ Branch) on work item card
 2. Input box shows suggested branch name
 3. Edit name if desired
@@ -99,15 +110,18 @@ All three action button features have been successfully implemented on the `feat
 7. Success message displayed
 
 ### Technical Details
+
 - Uses `vscode.commands.executeCommand('git.branch', name)` to create branch
 - Uses `client.addWorkItemComment(id, text)` to link branch
 - Title slug generation: lowercase, replace non-alphanumeric with hyphens
 - Graceful error handling if linking fails (branch still created)
 
 ### Files Modified
+
 - `src/activation.ts` - Enhanced CREATE_BRANCH handler with comment linking
 
 ### Commits
+
 - `7932a8b` - Link created branch to work item via comment
 
 ---
@@ -115,22 +129,28 @@ All three action button features have been successfully implemented on the `feat
 ## Timer Architecture Deep Dive
 
 ### Design Philosophy
+
 Your feedback led to a much cleaner design:
+
 > "The webview should not need additional timer updates from outside the webview to increment. The startTime should be enough to start the timer and (stopTime ? stopTime : timeNow) - startTime = timerDuration."
 
 ### Final Architecture
+
 **Extension (FSM)**:
+
 - Stores: `startTime`, `stopTime`, `workItemId`, `workItemTitle`, `isPaused`
 - Sends: These values to webview via `syncState`
 - Does NOT: Send periodic updates
 
 **Webview (Svelte)**:
+
 - Receives: `startTime` and `stopTime` from extension
-- Computes: `elapsed = (stopTime || Date.now()) - startTime` 
+- Computes: `elapsed = (stopTime || Date.now()) - startTime`
 - Updates: Uses `$derived` with 1-second tick to trigger reactivity
 - Displays: Formatted time with smart seconds display
 
 ### Benefits
+
 - ✅ No extension→webview messages every second
 - ✅ Webview is self-sufficient for display
 - ✅ FSM only manages lifecycle (start/stop/pause)
@@ -142,6 +162,7 @@ Your feedback led to a much cleaner design:
 ## Testing Recommendations
 
 ### Timer Testing
+
 1. Start timer on work item → verify timer badge appears with 0:00
 2. Wait 30 seconds → verify timer advances (0:30)
 3. Hover over timer → verify shows seconds (0:30 → 0:00:30)
@@ -151,6 +172,7 @@ Your feedback led to a much cleaner design:
 7. Click Stop → verify timer stops and badge disappears
 
 ### Edit Dialog Testing
+
 1. Click Edit button → verify quick pick shows 5 fields with current values
 2. Select State → verify dropdown shows valid states for work item type
 3. Select Title → verify input box pre-filled with current title
@@ -158,6 +180,7 @@ Your feedback led to a much cleaner design:
 5. Verify view refreshes and shows new value
 
 ### Branch Linking Testing
+
 1. Click Branch button → verify suggested name format `feature/123-title`
 2. Edit branch name and create → verify branch created via Git
 3. Check Azure DevOps → verify comment added with branch name
@@ -168,18 +191,21 @@ Your feedback led to a much cleaner design:
 ## Future Enhancements
 
 ### Timer
+
 - Add pause/resume button
 - Show timer in status bar
 - Add time report with all logged time
 - Export time entries to CSV
 
 ### Edit Dialog
+
 - Fetch team members for Assigned To dropdown
 - Support multiline Description editing
 - Validate field values before submitting
 - Show field history/audit
 
 ### Branch Linking
+
 - Add Development Link relation (not just comment)
 - Link commits to work items automatically
 - Show related branches in work item view
@@ -190,6 +216,7 @@ Your feedback led to a much cleaner design:
 ## Validation Checklist Updates
 
 Updated `docs/ValidationChecklist.md`:
+
 - ✅ Timer action button displays active timer with elapsed time on work item cards
 - ✅ Timer button toggles between Start and Stop states
 - ✅ Timer persists across VSCode restarts and work item refreshes
@@ -210,4 +237,3 @@ All three action button features are production-ready and follow the FSM-first a
 **Architecture**: FSM-first with reactive webview
 
 Ready for merge to main! 🎉
-

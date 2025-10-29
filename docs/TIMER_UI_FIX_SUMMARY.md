@@ -1,18 +1,22 @@
 # Timer UI Fix Summary
 
 ## Issue
+
 The timer was not incrementing after several minutes. The timer actor was initialized but not receiving TICK events to update elapsed time.
 
 ## Root Cause
+
 The timer machine expects TICK events every second to update elapsed time, but these events were never being sent to the timer actor.
 
 ## Solution
 
 ### 1. Added Timer Tick Infrastructure
+
 - Created a periodic tick interval in `initializeChildActors` that sends `TIMER_TICK` events every second
 - The tick interval triggers the application machine to send TICK events to the timer actor
 
 ### 2. Event Flow
+
 ```
 setInterval (every 1000ms)
   → sends TIMER_TICK event to application machine
@@ -21,6 +25,7 @@ setInterval (every 1000ms)
 ```
 
 ### 3. Timer State Exposure
+
 - Enhanced `getSerializableContext()` to capture timer actor snapshot
 - Timer state now flows to webview showing:
   - `workItemId` - active work item ID
@@ -30,6 +35,7 @@ setInterval (every 1000ms)
   - `state` - timer machine state
 
 ### 4. Webview Display
+
 - Timer badge shows on work item cards with elapsed time
 - Smart seconds display:
   - Shows seconds for first 30 seconds
@@ -48,6 +54,7 @@ setInterval (every 1000ms)
 ## Testing
 
 The timer should now:
+
 - Start when clicking the Timer button on a work item
 - Display elapsed time on the work item card
 - Update every second showing the correct elapsed time
@@ -65,4 +72,3 @@ The timer should now:
 1. Test timer functionality in VS Code
 2. Implement Edit dialog feature
 3. Implement Branch linking feature
-

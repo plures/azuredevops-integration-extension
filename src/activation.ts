@@ -383,45 +383,46 @@ async function showEditDialog(item: any, client: any, provider: any): Promise<vo
       id: 'System.Title',
       label: 'Title',
       value: item.fields?.['System.Title'] || '',
-      type: 'text'
+      type: 'text',
     },
     {
       id: 'System.State',
       label: 'State',
       value: item.fields?.['System.State'] || '',
       type: 'picklist',
-      options: ['New', 'Active', 'Resolved', 'Closed', 'Removed']
+      options: ['New', 'Active', 'Resolved', 'Closed', 'Removed'],
     },
     {
       id: 'System.AssignedTo',
       label: 'Assigned To',
-      value: item.fields?.['System.AssignedTo']?.displayName || item.fields?.['System.AssignedTo'] || '',
-      type: 'text'
+      value:
+        item.fields?.['System.AssignedTo']?.displayName || item.fields?.['System.AssignedTo'] || '',
+      type: 'text',
     },
     {
       id: 'System.Tags',
       label: 'Tags',
       value: item.fields?.['System.Tags'] || '',
-      type: 'text'
+      type: 'text',
     },
     {
       id: 'System.Description',
       label: 'Description',
       value: item.fields?.['System.Description'] || '',
-      type: 'multiline'
-    }
+      type: 'multiline',
+    },
   ];
 
   // Show field selection
-  const fieldItems = editableFields.map(field => ({
+  const fieldItems = editableFields.map((field) => ({
     label: field.label,
     description: `Current: ${field.value}`,
-    field: field
+    field: field,
   }));
 
   const selectedField = await vscode.window.showQuickPick(fieldItems, {
     placeHolder: 'Select field to edit',
-    title: `Edit Work Item #${item.id}`
+    title: `Edit Work Item #${item.id}`,
   });
 
   if (!selectedField) return;
@@ -431,16 +432,16 @@ async function showEditDialog(item: any, client: any, provider: any): Promise<vo
 
   if (field.type === 'picklist') {
     // Show picklist for state field
-    const stateItems = field.options.map(option => ({
+    const stateItems = field.options.map((option) => ({
       label: option,
-      picked: option === field.value
+      picked: option === field.value,
     }));
-    
+
     const selectedState = await vscode.window.showQuickPick(stateItems, {
       placeHolder: 'Select new state',
-      title: `Edit ${field.label}`
+      title: `Edit ${field.label}`,
     });
-    
+
     if (!selectedState) return;
     newValue = selectedState.label;
   } else if (field.type === 'multiline') {
@@ -448,14 +449,14 @@ async function showEditDialog(item: any, client: any, provider: any): Promise<vo
     newValue = await vscode.window.showInputBox({
       prompt: `Enter new ${field.label}`,
       value: field.value,
-      ignoreFocusOut: true
+      ignoreFocusOut: true,
     });
   } else {
     // Show input box for single-line text
     newValue = await vscode.window.showInputBox({
       prompt: `Enter new ${field.label}`,
       value: field.value,
-      ignoreFocusOut: true
+      ignoreFocusOut: true,
     });
   }
 
@@ -463,17 +464,21 @@ async function showEditDialog(item: any, client: any, provider: any): Promise<vo
 
   // Update the work item
   try {
-    const patches = [{
-      op: 'replace' as const,
-      path: `/fields/${field.id}`,
-      value: newValue
-    }];
+    const patches = [
+      {
+        op: 'replace' as const,
+        path: `/fields/${field.id}`,
+        value: newValue,
+      },
+    ];
 
     const updatedItem = await client.updateWorkItem(item.id, patches);
-    
+
     if (updatedItem) {
-      vscode.window.showInformationMessage(`Successfully updated ${field.label} for work item #${item.id}`);
-      
+      vscode.window.showInformationMessage(
+        `Successfully updated ${field.label} for work item #${item.id}`
+      );
+
       // Refresh the provider to show updated data
       provider.refresh?.(getStoredQueryForConnection(activeConnectionId));
     } else {
@@ -481,7 +486,9 @@ async function showEditDialog(item: any, client: any, provider: any): Promise<vo
     }
   } catch (error) {
     console.error('Error updating work item:', error);
-    vscode.window.showErrorMessage(`Error updating work item: ${error instanceof Error ? error.message : String(error)}`);
+    vscode.window.showErrorMessage(
+      `Error updating work item: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 
@@ -497,7 +504,9 @@ function dispatchApplicationEvent(event: unknown): void {
           handleMessage({ type: 'startTimer', workItemId: evt.workItemId });
         } catch (error) {
           console.error('Error starting timer:', error);
-          vscode.window.showErrorMessage(`Failed to start timer: ${error instanceof Error ? error.message : String(error)}`);
+          vscode.window.showErrorMessage(
+            `Failed to start timer: ${error instanceof Error ? error.message : String(error)}`
+          );
         }
         break;
       case 'EDIT_WORK_ITEM':
@@ -516,7 +525,9 @@ function dispatchApplicationEvent(event: unknown): void {
           }
         } catch (error) {
           console.error('Error editing work item:', error);
-          vscode.window.showErrorMessage(`Failed to edit work item: ${error instanceof Error ? error.message : String(error)}`);
+          vscode.window.showErrorMessage(
+            `Failed to edit work item: ${error instanceof Error ? error.message : String(error)}`
+          );
         }
         break;
       case 'OPEN_IN_BROWSER':
@@ -531,52 +542,65 @@ function dispatchApplicationEvent(event: unknown): void {
         // Show input for branch name then create and link to work item
         try {
           if (evt.workItemId) {
-            provider?.getWorkItems?.().then(async (items: any[]) => {
-              const item = items.find((i) => i.id === evt.workItemId);
-              if (item) {
-                const title = item.fields?.['System.Title'] || '';
-                const branchName = `feature/${evt.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-                const name = await vscode.window.showInputBox({
-                  prompt: 'Enter branch name',
-                  value: branchName,
-                });
-                
-                if (name) {
-                  try {
-                    // Create the branch
-                    await vscode.commands.executeCommand('git.branch', name);
-                    
-                    // Add comment to work item linking the branch
-                    if (client) {
-                      const comment = `Created branch: ${name}`;
-                      const success = await client.addWorkItemComment(evt.workItemId, comment);
-                      
-                      if (success) {
-                        vscode.window.showInformationMessage(`Branch "${name}" created and linked to work item #${evt.workItemId}`);
+            provider
+              ?.getWorkItems?.()
+              .then(async (items: any[]) => {
+                const item = items.find((i) => i.id === evt.workItemId);
+                if (item) {
+                  const title = item.fields?.['System.Title'] || '';
+                  const branchName = `feature/${evt.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+                  const name = await vscode.window.showInputBox({
+                    prompt: 'Enter branch name',
+                    value: branchName,
+                  });
+
+                  if (name) {
+                    try {
+                      // Create the branch
+                      await vscode.commands.executeCommand('git.branch', name);
+
+                      // Add comment to work item linking the branch
+                      if (client) {
+                        const comment = `Created branch: ${name}`;
+                        const success = await client.addWorkItemComment(evt.workItemId, comment);
+
+                        if (success) {
+                          vscode.window.showInformationMessage(
+                            `Branch "${name}" created and linked to work item #${evt.workItemId}`
+                          );
+                        } else {
+                          vscode.window.showWarningMessage(
+                            `Branch "${name}" created but failed to link to work item #${evt.workItemId}`
+                          );
+                        }
                       } else {
-                        vscode.window.showWarningMessage(`Branch "${name}" created but failed to link to work item #${evt.workItemId}`);
+                        vscode.window.showInformationMessage(`Branch "${name}" created`);
                       }
-                    } else {
-                      vscode.window.showInformationMessage(`Branch "${name}" created`);
+                    } catch (error) {
+                      console.error('Error creating branch:', error);
+                      vscode.window.showErrorMessage(
+                        `Failed to create branch: ${error instanceof Error ? error.message : String(error)}`
+                      );
                     }
-                  } catch (error) {
-                    console.error('Error creating branch:', error);
-                    vscode.window.showErrorMessage(`Failed to create branch: ${error instanceof Error ? error.message : String(error)}`);
                   }
+                } else {
+                  vscode.window.showErrorMessage('Work item not found');
                 }
-              } else {
-                vscode.window.showErrorMessage('Work item not found');
-              }
-            }).catch((error) => {
-              console.error('Error getting work items for branch creation:', error);
-              vscode.window.showErrorMessage(`Failed to get work item details: ${error instanceof Error ? error.message : String(error)}`);
-            });
+              })
+              .catch((error) => {
+                console.error('Error getting work items for branch creation:', error);
+                vscode.window.showErrorMessage(
+                  `Failed to get work item details: ${error instanceof Error ? error.message : String(error)}`
+                );
+              });
           } else {
             vscode.window.showErrorMessage('No work item ID provided for branch creation');
           }
         } catch (error) {
           console.error('Error in branch creation:', error);
-          vscode.window.showErrorMessage(`Failed to create branch: ${error instanceof Error ? error.message : String(error)}`);
+          vscode.window.showErrorMessage(
+            `Failed to create branch: ${error instanceof Error ? error.message : String(error)}`
+          );
         }
         break;
     }

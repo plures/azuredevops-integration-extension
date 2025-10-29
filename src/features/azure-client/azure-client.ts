@@ -59,10 +59,6 @@ export class AzureDevOpsIntClient {
     return this.workItemsService.addWorkItemTime(id, timeEntry);
   }
 
-  async addWorkItemComment(id: number, comment: string): Promise<boolean> {
-    return this.workItemsService.addWorkItemComment(id, comment);
-  }
-
   async searchWorkItems(term: string, filter?: WorkItemFilter): Promise<WorkItem[]> {
     return this.workItemsService.searchWorkItems(term, filter);
   }
