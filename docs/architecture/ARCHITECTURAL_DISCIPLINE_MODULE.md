@@ -9,12 +9,14 @@ This package provides intelligent, data-driven architecture analysis that grows 
 ## 📦 Packages
 
 ### Core Packages
+
 - `@architectural-discipline/core` - Core analysis engine and types
 - `@architectural-discipline/eslint-plugin` - ESLint integration
 - `@architectural-discipline/cli` - Command-line analysis tool
 - `@architectural-discipline/templates` - Project templates
 
 ### Framework-Specific Packages
+
 - `@architectural-discipline/react` - React-specific rules and templates
 - `@architectural-discipline/vue` - Vue-specific rules and templates
 - `@architectural-discipline/svelte` - Svelte-specific rules and templates
@@ -23,11 +25,13 @@ This package provides intelligent, data-driven architecture analysis that grows 
 ## 🚀 Quick Start
 
 ### Installation
+
 ```bash
 npm install @architectural-discipline/core @architectural-discipline/eslint-plugin @architectural-discipline/cli
 ```
 
 ### Basic Usage
+
 ```bash
 # Analyze current project
 npx architectural-discipline analyze
@@ -40,6 +44,7 @@ npx architectural-discipline recommend
 ```
 
 ### ESLint Integration
+
 ```javascript
 // eslint.config.js
 import architecturalDiscipline from '@architectural-discipline/eslint-plugin';
@@ -50,19 +55,21 @@ export default [
     rules: {
       '@architectural-discipline/statistical-file-size': 'error',
       '@architectural-discipline/function-purity': 'warn',
-    }
-  }
+    },
+  },
 ];
 ```
 
 ## 🧠 Core Concepts
 
 ### Statistical Thresholds
+
 - **Adaptive**: Thresholds adjust based on project patterns
 - **File Type Aware**: Different expectations for different file types
 - **Outlier Detection**: Uses 95th percentile and 2 standard deviations
 
 ### File Type Classification
+
 - **Machine**: State machines, FSM definitions (50-200 lines)
 - **Client**: API clients, services (100-400 lines)
 - **Handler**: Event handlers, controllers (80-300 lines)
@@ -72,6 +79,7 @@ export default [
 - **Config**: Configuration files (20-100 lines)
 
 ### Function Purity Scoring
+
 - **0-100 scale**: Higher is more pure
 - **Side effect detection**: Logging, state mutation, I/O
 - **Complexity penalties**: High cyclomatic complexity reduces score
@@ -80,6 +88,7 @@ export default [
 ## 📊 Analysis Output
 
 ### Project Health Score
+
 - **Overall**: 0-100 composite score
 - **Maintainability**: Based on file sizes and complexity
 - **Testability**: Based on function purity
@@ -87,6 +96,7 @@ export default [
 - **Complexity**: Based on cyclomatic complexity
 
 ### Recommendations
+
 - **High Priority**: Critical outliers requiring immediate attention
 - **Medium Priority**: Significant improvements recommended
 - **Low Priority**: Minor optimizations suggested
@@ -94,6 +104,7 @@ export default [
 ## 🔧 Configuration
 
 ### Custom File Types
+
 ```javascript
 // architectural-discipline.config.js
 export default {
@@ -101,32 +112,34 @@ export default {
     'custom-component': {
       patterns: ['**/components/**/*.tsx'],
       expectedSizeRange: [50, 200],
-      complexityThreshold: 8
-    }
+      complexityThreshold: 8,
+    },
   },
   thresholds: {
     outlierPercentile: 95,
-    standardDeviationMultiplier: 2
-  }
+    standardDeviationMultiplier: 2,
+  },
 };
 ```
 
 ### Custom Rules
+
 ```javascript
 // eslint.config.js
 export default [
   {
     rules: {
       '@architectural-discipline/custom-purity': ['error', { minScore: 80 }],
-      '@architectural-discipline/custom-complexity': ['warn', { maxComplexity: 5 }]
-    }
-  }
+      '@architectural-discipline/custom-complexity': ['warn', { maxComplexity: 5 }],
+    },
+  },
 ];
 ```
 
 ## 🛠️ Development Workflow
 
 ### Pre-commit Hooks
+
 ```bash
 # .husky/pre-commit
 #!/bin/sh
@@ -134,6 +147,7 @@ npx architectural-discipline check || exit 1
 ```
 
 ### CI/CD Integration
+
 ```yaml
 # .github/workflows/architecture.yml
 name: Architecture Analysis

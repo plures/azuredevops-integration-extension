@@ -165,7 +165,9 @@ export const timerMachine = createMachine({
                 const now = Date.now();
                 // Calculate pause duration and adjust startTime forward to exclude it
                 const pauseDuration = context.pausedAt ? now - context.pausedAt : 0;
-                const adjustedStartTime = context.startTime ? context.startTime + pauseDuration : now;
+                const adjustedStartTime = context.startTime
+                  ? context.startTime + pauseDuration
+                  : now;
                 return {
                   isPaused: false,
                   startTime: adjustedStartTime,

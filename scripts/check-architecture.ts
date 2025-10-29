@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Architecture Discipline Compliance Checker
- * 
+ *
  * This script enforces our foundation architecture discipline rules:
  * - Files must be < 300 lines
  * - Functions must be < 100 lines
@@ -45,12 +45,12 @@ const MAX_COMPLEXITY = 10;
 function analyzeFile(filePath: string): FileMetrics {
   const content = fs.readFileSync(filePath, 'utf-8');
   const lines = content.split('\n');
-  
+
   const metrics: FileMetrics = {
     file: filePath,
     lines: lines.length,
     functions: [],
-    violations: []
+    violations: [],
   };
 
   // Check file size
@@ -70,11 +70,12 @@ function analyzeFile(filePath: string): FileMetrics {
     const trimmed = line.trim();
 
     // Detect function start
-    if (!inFunction && (
-      trimmed.match(/^(export\s+)?(async\s+)?function\s+\w+/) ||
-      trimmed.match(/^(export\s+)?(async\s+)?\w+\s*\([^)]*\)\s*[:=]\s*(async\s+)?\(/) ||
-      trimmed.match(/^(export\s+)?(async\s+)?\w+\s*\([^)]*\)\s*[:=]\s*async\s+function/)
-    )) {
+    if (
+      !inFunction &&
+      (trimmed.match(/^(export\s+)?(async\s+)?function\s+\w+/) ||
+        trimmed.match(/^(export\s+)?(async\s+)?\w+\s*\([^)]*\)\s*[:=]\s*(async\s+)?\(/) ||
+        trimmed.match(/^(export\s+)?(async\s+)?\w+\s*\([^)]*\)\s*[:=]\s*async\s+function/))
+    ) {
       inFunction = true;
       functionStart = i;
       functionName = extractFunctionName(trimmed);
@@ -90,11 +91,11 @@ function analyzeFile(filePath: string): FileMetrics {
       // Function ended
       if (braceCount === 0 && trimmed.includes('}')) {
         const functionLines = i - functionStart + 1;
-        
+
         metrics.functions.push({
           name: functionName,
           line: functionLine,
-          lines: functionLines
+          lines: functionLines,
         });
 
         // Check function size
@@ -120,7 +121,7 @@ function extractFunctionName(line: string): string {
   const patterns = [
     /function\s+(\w+)/,
     /(\w+)\s*\([^)]*\)\s*[:=]/,
-    /(\w+)\s*\([^)]*\)\s*[:=]\s*async\s+function/
+    /(\w+)\s*\([^)]*\)\s*[:=]\s*async\s+function/,
   ];
 
   for (const pattern of patterns) {
@@ -137,7 +138,7 @@ function extractFunctionName(line: string): string {
  * Generate architecture compliance report
  */
 async function generateReport(): Promise<ArchitectureReport> {
-  const srcFiles = await glob('src/**/*.ts', { 
+  const srcFiles = await glob('src/**/*.ts', {
     ignore: [
       'src/**/*.test.ts',
       'src/**/*.spec.ts',
@@ -149,23 +150,25 @@ async function generateReport(): Promise<ArchitectureReport> {
       'src/webview/ReactiveApp*.svelte',
       'src/webview/ReactiveDemo.svelte',
       'src/webview/reactive-main*.ts',
-      'src/webview/context-demo-main.ts'
-    ]
+      'src/webview/context-demo-main.ts',
+    ],
   });
 
   const metrics = srcFiles.map(analyzeFile);
-  const violations = metrics.filter(m => m.violations.length > 0);
+  const violations = metrics.filter((m) => m.violations.length > 0);
 
   const report: ArchitectureReport = {
     totalFiles: metrics.length,
     compliantFiles: metrics.length - violations.length,
     violations,
     summary: {
-      oversizedFiles: violations.filter(v => v.lines > MAX_FILE_LINES).length,
-      oversizedFunctions: violations.reduce((sum, v) => 
-        sum + v.functions.filter(f => f.lines > MAX_FUNCTION_LINES).length, 0),
-      complexityViolations: 0 // TODO: Implement complexity analysis
-    }
+      oversizedFiles: violations.filter((v) => v.lines > MAX_FILE_LINES).length,
+      oversizedFunctions: violations.reduce(
+        (sum, v) => sum + v.functions.filter((f) => f.lines > MAX_FUNCTION_LINES).length,
+        0
+      ),
+      complexityViolations: 0, // TODO: Implement complexity analysis
+    },
   };
 
   return report;
@@ -176,24 +179,26 @@ async function generateReport(): Promise<ArchitectureReport> {
  */
 function printReport(report: ArchitectureReport): void {
   console.log('\n🏗️  Architecture Discipline Compliance Report');
-  console.log('=' .repeat(50));
-  
+  console.log('='.repeat(50));
+
   console.log(`\n📊 Summary:`);
   console.log(`   Total Files: ${report.totalFiles}`);
   console.log(`   Compliant Files: ${report.compliantFiles}`);
   console.log(`   Violations: ${report.violations.length}`);
-  
+
   console.log(`\n📈 Metrics:`);
   console.log(`   Oversized Files (>${MAX_FILE_LINES} lines): ${report.summary.oversizedFiles}`);
-  console.log(`   Oversized Functions (>${MAX_FUNCTION_LINES} lines): ${report.summary.oversizedFunctions}`);
+  console.log(
+    `   Oversized Functions (>${MAX_FUNCTION_LINES} lines): ${report.summary.oversizedFunctions}`
+  );
   console.log(`   Complexity Violations: ${report.summary.complexityViolations}`);
 
   if (report.violations.length > 0) {
     console.log(`\n❌ Violations Found:`);
-    
-    report.violations.forEach(violation => {
+
+    report.violations.forEach((violation) => {
       console.log(`\n   📁 ${violation.file} (${violation.lines} lines)`);
-      violation.violations.forEach(v => {
+      violation.violations.forEach((v) => {
         console.log(`      ⚠️  ${v}`);
       });
     });
@@ -203,7 +208,7 @@ function printReport(report: ArchitectureReport): void {
     console.log(`   2. Split large files into focused modules`);
     console.log(`   3. Apply single responsibility principle`);
     console.log(`   4. Use composition over inheritance`);
-    
+
     console.log(`\n📚 See docs/architecture/FOUNDATION_PROGRESS.md for extraction guidelines`);
   } else {
     console.log(`\n✅ All files comply with architecture discipline!`);
@@ -217,7 +222,7 @@ async function main(): Promise<void> {
   try {
     const report = await generateReport();
     printReport(report);
-    
+
     // Exit with error code if violations found
     if (report.violations.length > 0) {
       process.exit(1);

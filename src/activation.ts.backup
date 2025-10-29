@@ -4,10 +4,7 @@ import * as path from 'path';
 import { randomUUID as _randomUUID } from 'crypto';
 import { OpenAI } from 'openai';
 import { AzureDevOpsIntClient } from './azureClient.js';
-import {
-  parseAzureDevOpsUrl as _parseAzureDevOpsUrl,
-  isAzureDevOpsWorkItemUrl as _isAzureDevOpsWorkItemUrl,
-} from './azureDevOpsUrlParser.js';
+import { parseAzureDevOpsUrl as _parseAzureDevOpsUrl, isAzureDevOpsWorkItemUrl as _isAzureDevOpsWorkItemUrl } from './azureDevOpsUrlParser.js';
 import type { WorkItemsProvider } from './provider.js';
 import { WorkItemTimer } from './timer.js';
 import { SessionTelemetryManager } from './sessionTelemetry.js';
@@ -2103,9 +2100,319 @@ export async function activate(context: vscode.ExtensionContext) {
     statusBarItem,
     authStatusBarItem,
   };
-
+  
   const commandDisposables = registerCommands(context, commandContext);
   context.subscriptions.push(...commandDisposables);
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.signOutEntra',
+      safeCommandHandler((target?: unknown) => {
+        return signOutEntra(
+          context,
+          typeof target === 'string' ? target : (target as ProjectConnection | undefined)?.id
+        );
+      })
+    ),
+    vscode.commands.registerCommand('azureDevOpsInt.openLogs', () => {
+      (async () => {
+        try {
+          let channel = getOutputChannel();
+          if (!channel) {
+            channel = vscode.window.createOutputChannel('Azure DevOps Integration');
+            setOutputChannel(channel);
+            logLine('[logs] Output channel created on demand');
+          }
+          channel.show(true);
+          const currentConfig = getConfig();
+          if (!currentConfig.get<boolean>('debugLogging')) {
+            const pick = await vscode.window.showInformationMessage(
+              'Verbose logging is currently disabled. Enable it to capture more diagnostics?',
+              'Enable',
+              'Skip'
+            );
+            if (pick === 'Enable') {
+              await currentConfig.update('debugLogging', true, vscode.ConfigurationTarget.Global);
+              logLine('[logs] Debug logging enabled');
+            }
+          }
+        } catch (e: any) {
+          vscode.window.showErrorMessage('Failed to open logs: ' + (e?.message || String(e)));
+        }
+      })().catch((err) => console.error('[azureDevOpsInt.openLogs] Error:', err));
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.copyLogsToClipboard', () => {
+      (async () => {
+        try {
+          const version = extensionContextRef ? getExtensionVersion(extensionContextRef) : 'dev';
+          const buffer = getLogBufferSnapshot();
+          const header = `Azure DevOps Integration Logs\nVersion: ${version}\nTimestamp: ${new Date().toISOString()}\nLines: ${buffer.length}\n---\n`;
+          const body = buffer.join('\n');
+          const text = header + body + (body.endsWith('\n') ? '' : '\n');
+          await vscode.env.clipboard.writeText(text);
+          vscode.window.showInformationMessage('Copied extension logs to clipboard.');
+        } catch (e: any) {
+          vscode.window.showErrorMessage(
+            'Failed to copy logs to clipboard: ' + (e?.message || String(e))
+          );
+        }
+      })().catch((err) => console.error('[azureDevOpsInt.copyLogsToClipboard] Error:', err));
+    }),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.diagnoseWorkItems',
+      safeCommandHandler(async () => {
+        try {
+          await diagnoseWorkItemsIssue(context);
+        } catch (e: any) {
+          vscode.window.showErrorMessage('Diagnostic failed: ' + (e?.message || String(e)));
+        }
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.openLogsFolder',
+      safeCommandHandler(async () => {
+        try {
+          await vscode.commands.executeCommand('workbench.action.openLogsFolder');
+        } catch {
+          try {
+            await vscode.env.openExternal((vscode.env as any).logUri ?? vscode.Uri.file(''));
+          } catch (e: any) {
+            vscode.window.showErrorMessage(
+              'Failed to open logs folder: ' + (e?.message || String(e))
+            );
+          }
+        }
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.focusWorkItemsView',
+      safeCommandHandler(() => {
+        vscode.commands.executeCommand('azureDevOpsWorkItems.focus');
+      })
+    ),
+
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.setDefaultElapsedLimit',
+      safeCommandHandler(async () => {
+        try {
+          const cfg = getConfig();
+          const prev = cfg.get<number>('defaultElapsedLimitHours') ?? 3.5;
+          const input = await vscode.window.showInputBox({
+            prompt: 'Default elapsed hours to cap long-running timers (e.g. 3.5)',
+            value: String(prev),
+            validateInput: (v) => {
+              const n = Number(v);
+              if (isNaN(n) || !isFinite(n) || n < 0) return 'Enter a non-negative number';
+              return null;
+            },
+          });
+          if (typeof input === 'undefined') return; // cancelled
+          const val = Number(input);
+          await cfg.update('defaultElapsedLimitHours', val, vscode.ConfigurationTarget.Global);
+          vscode.window.showInformationMessage(`Default elapsed cap updated to ${val} hours.`);
+          // Propagate to any running timer
+          if (timer && typeof (timer as any).setDefaultElapsedLimitHours === 'function') {
+            try {
+              (timer as any).setDefaultElapsedLimitHours(val);
+            } catch (e) {
+              console.warn(
+                '[azureDevOpsInt] Failed to propagate defaultElapsedLimitHours to running timer',
+                e
+              );
+            }
+          }
+        } catch (err: any) {
+          console.error('[AzureDevOpsInt] Failed to update default elapsed cap', err);
+          vscode.window.showErrorMessage(
+            'Failed to update default elapsed cap: ' + (err?.message || String(err))
+          );
+        }
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.showWorkItems',
+      safeCommandHandler(() => {
+        vscode.commands.executeCommand('azureDevOpsWorkItems.focus');
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.refreshWorkItems',
+      safeCommandHandler(async () => {
+        // Use connection-specific query instead of global default
+        const connectionSpecificQuery = activeConnectionId
+          ? getStoredQueryForConnection(activeConnectionId)
+          : getDefaultQuery();
+
+        verbose('[command] refreshWorkItems invoked', {
+          hasProvider: !!provider,
+          query: connectionSpecificQuery,
+          activeConnectionId,
+        });
+        if (!provider && extensionContextRef) {
+          verbose('[command] refreshWorkItems no provider; attempting ensureActiveConnection');
+          try {
+            await ensureActiveConnection(extensionContextRef, activeConnectionId, {
+              refresh: false,
+            });
+          } catch (e: any) {
+            verbose('[command] ensureActiveConnection failed in refreshWorkItems', e?.message || e);
+          }
+        }
+        provider?.refresh(connectionSpecificQuery);
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.createWorkItem',
+      safeCommandHandler(() => {
+        dispatchApplicationEvent({ type: 'CREATE_WORK_ITEM' });
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.startTimer',
+      safeCommandHandler(() => {
+        dispatchApplicationEvent({ type: 'START_TIMER_INTERACTIVE' });
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.pauseTimer',
+      safeCommandHandler(() => {
+        timer?.pause();
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.resumeTimer',
+      safeCommandHandler(() => {
+        timer?.resume();
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.stopTimer',
+      safeCommandHandler(async () => {
+        if (!timer) {
+          vscode.window.showInformationMessage('No active timer to stop.');
+          return;
+        }
+        const timerConnectionSnapshot: TimerConnectionInfo = { ...timerConnectionInfo };
+        setTimerConnectionFrom(undefined);
+        const stopped = timer.stop();
+        updateTimerContext(undefined);
+        if (stopped) {
+          dispatchApplicationEvent({
+            type: 'TIMER_STOPPED',
+            payload: {
+              ...stopped,
+              connection: timerConnectionSnapshot,
+            },
+          });
+        }
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.showTimeReport',
+      safeCommandHandler(() => {
+        dispatchApplicationEvent({ type: 'SHOW_TIME_REPORT' });
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.createBranch',
+      safeCommandHandler(() => {
+        dispatchApplicationEvent({ type: 'CREATE_BRANCH_INTERACTIVE' });
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.createPullRequest',
+      safeCommandHandler(() => {
+        dispatchApplicationEvent({ type: 'CREATE_PULL_REQUEST_INTERACTIVE' });
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.showPullRequests',
+      safeCommandHandler(() => {
+        dispatchApplicationEvent({ type: 'SHOW_MY_PULL_REQUESTS' });
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.showBuildStatus',
+      safeCommandHandler(() => {
+        dispatchApplicationEvent({ type: 'SHOW_BUILD_STATUS' });
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.toggleKanbanView',
+      safeCommandHandler(() => {
+        dispatchApplicationEvent({ type: 'TOGGLE_KANBAN_VIEW' });
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.toggleDebugView',
+      safeCommandHandler(() => {
+        dispatchApplicationEvent({ type: 'TOGGLE_DEBUG_VIEW' });
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.selectTeam',
+      safeCommandHandler(() => {
+        dispatchApplicationEvent({ type: 'SELECT_TEAM_INTERACTIVE' });
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.resetPreferredRepositories',
+      safeCommandHandler(() => {
+        dispatchApplicationEvent({ type: 'RESET_PREFERRED_REPOSITORIES' });
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.selfTestWebview',
+      safeCommandHandler(() => {
+        dispatchApplicationEvent({ type: 'SELF_TEST_WEBVIEW' });
+      })
+    ),
+    vscode.commands.registerCommand('azureDevOpsInt.clearPerformanceData', () => {
+      performanceMonitor.clear();
+      vscode.window.showInformationMessage('Performance data cleared successfully');
+    }),
+    vscode.commands.registerCommand('azureDevOpsInt.forceGC', () => {
+      if (global.gc) {
+        global.gc();
+        vscode.window.showInformationMessage('Forced garbage collection.');
+      } else {
+        vscode.window.showWarningMessage(
+          'Garbage collection is not exposed. Run VS Code with --expose-gc flag.'
+        );
+      }
+    }),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.bulkAssign',
+      safeCommandHandler(() => {
+        dispatchApplicationEvent({
+          type: 'WEBVIEW_MESSAGE',
+          message: { type: 'bulkAssign', connectionId: activeConnectionId },
+        });
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.setOpenAIApiKey',
+      safeCommandHandler(() => setOpenAIApiKey(context))
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.generateCopilotPrompt',
+      safeCommandHandler(async () => {
+        if (!openAiClient) {
+          const choice = await vscode.window.showWarningMessage(
+            'OpenAI API key is not set. Please set it to use this feature.',
+            'Set API Key'
+          );
+          if (choice === 'Set API Key') {
+            await setOpenAIApiKey(context);
+          }
+          return;
+        }
+        dispatchApplicationEvent({ type: 'GENERATE_COPILOT_PROMPT' });
+      })
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.cycleAuthSignIn',
+      safeCommandHandler(() => cycleAuthSignIn(context))
+    )
+  );
 
   // Set up listeners and handlers
   context.subscriptions.push(
@@ -2120,6 +2427,9 @@ export async function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  // Initialize connections on startup
+  await loadConnectionsFromConfig(context);
+  // Don't await initial connection - let it happen in background to avoid blocking activation
   // The webview will initialize immediately and show auth UI when ready
   ensureActiveConnection(context, activeConnectionId, { refresh: true }).catch((error) => {
     verbose('[activation] Initial connection failed:', error);
@@ -2158,6 +2468,67 @@ export async function activate(context: vscode.ExtensionContext) {
       5 * 60 * 1000
     ); // every 5 minutes
   }
+
+  // Finalize activation
+  dispatchApplicationEvent({ type: 'EXTENSION_ACTIVATED' });
+  verbose('[activation] complete');
+  return {
+    /**
+     * @internal
+     * This is an internal API for integration testing and is not intended for public use.
+     * It may be removed or changed at any time.
+     */
+    __testing__: {
+      get connections() {
+        return connections;
+      },
+      get activeConnectionId() {
+        return activeConnectionId;
+      },
+      get provider() {
+        return provider;
+      },
+      get client() {
+        return client;
+      },
+      get timer() {
+        return timer;
+      },
+      get panel() {
+        return panel;
+      },
+      get connectionStates() {
+        return connectionStates;
+      },
+      get fsmSetupService() {
+        return fsmSetupService;
+      },
+      get openAiClient() {
+        return openAiClient;
+      },
+      get sessionTelemetry() {
+        return sessionTelemetry;
+      },
+      get sharedContextBridge() {
+        return sharedContextBridge;
+      },
+      get selfTestPending() {
+        return selfTestPending;
+      },
+      set selfTestPending(v) {
+        selfTestPending = v;
+      },
+      ensureActiveConnection,
+      saveConnectionsToConfig,
+      loadConnectionsFromConfig,
+      ensureConnectionsInitialized,
+      signInWithEntra,
+      signOutEntra,
+      setOpenAIApiKey,
+      cycleAuthSignIn,
+      diagnoseWorkItemsIssue,
+    },
+  };
 }
 
 export function deactivate(): Thenable<void> {
@@ -2178,8 +2549,28 @@ export function deactivate(): Thenable<void> {
     gcInterval = undefined;
   }
 
-  // Clear all caches and state
+  // Clean up promise rejection handler
+  if (rejectionHandler) {
+    process.removeListener('unhandledRejection', rejectionHandler);
+    rejectionHandler = undefined;
+  }
+
+  // Stop the timer if it's running
+  timer?.stop();
+
+  // Dispose of status bar items
+  statusBarItem?.dispose();
+  authStatusBarItem?.dispose();
+
+  // Clean up other resources
+  panel = undefined;
+  provider = undefined;
+  client = undefined;
+  timer = undefined;
+  sessionTelemetry = undefined;
+  openAiClient = undefined;
   connectionStates.clear();
+  initialRefreshedConnections.clear();
   activeQueryByConnection.clear();
 
   dispatchApplicationEvent({ type: 'EXTENSION_DEACTIVATED' });
@@ -2199,6 +2590,7 @@ function getSerializableContext(context: any): Record<string, any> {
   if (shouldLogDebug()) {
     console.log('[AzureDevOpsInt][getSerializableContext] Original context:', {
       hasConnections: !!context.connections,
+      connectionsLength: context.connections?.length,
       connectionsType: typeof context.connections,
       connectionsIsArray: Array.isArray(context.connections),
       connectionsValue: context.connections,
@@ -2276,6 +2668,15 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
     };
 
+    const nonce = getNonce();
+    const scriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'main.js')
+    );
+    // Link to main.css which contains Svelte component styles from esbuild
+    const mainCssUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'main.css')
+    );
+
     // The 'unsafe-eval' is required for Svelte's dev mode.
     // TODO: Remove 'unsafe-eval' in production builds.
     const csp = `default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval'; img-src ${webview.cspSource} data:; connect-src 'self';`;
@@ -2351,6 +2752,124 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
         });
       }
     }
+
+    webview.onDidReceiveMessage(async (message) => {
+      // Handle messages from the webview
+      switch (message.type) {
+        case 'fsmEvent':
+          // Route FSM events from webview to the application FSM
+          if (message.event) {
+            dispatchApplicationEvent(message.event);
+          }
+          break;
+        case 'webviewReady':
+        case 'ready': {
+          console.log('[AzureDevOpsIntViewProvider] Received ready message from webview');
+          // Webview initialization complete - send current FSM state
+          const actor = getApplicationStoreActor();
+          console.log('[AzureDevOpsIntViewProvider] Getting snapshot for ready message:', {
+            hasActor: !!actor,
+            hasGetSnapshot: typeof (actor as any)?.getSnapshot === 'function',
+          });
+          if (actor && typeof (actor as any).getSnapshot === 'function') {
+            const snap = (actor as any).getSnapshot();
+            console.log('[AzureDevOpsIntViewProvider] Ready handler snapshot:', {
+              hasSnap: !!snap,
+              value: snap?.value,
+            });
+            if (snap) {
+              // Pre-compute state matches
+              const matches = {
+                inactive: snap.matches('inactive'),
+                activating: snap.matches('activating'),
+                activation_failed: snap.matches('activation_failed'),
+                active: snap.matches('active'),
+                error_recovery: snap.matches('error_recovery'),
+                deactivating: snap.matches('deactivating'),
+                'active.setup': snap.matches({ active: 'setup' }),
+                'active.setup.loading_connections': snap.matches({
+                  active: { setup: 'loading_connections' },
+                }),
+                'active.setup.waiting_for_panel': snap.matches({
+                  active: { setup: 'waiting_for_panel' },
+                }),
+                'active.setup.panel_ready': snap.matches({ active: { setup: 'panel_ready' } }),
+                'active.setup.setup_error': snap.matches({ active: { setup: 'setup_error' } }),
+                'active.ready': snap.matches({ active: 'ready' }),
+                'active.ready.idle': snap.matches({ active: { ready: 'idle' } }),
+                'active.ready.loadingData': snap.matches({ active: { ready: 'loadingData' } }),
+                'active.ready.managingConnections': snap.matches({
+                  active: { ready: 'managingConnections' },
+                }),
+                'active.ready.error': snap.matches({ active: { ready: 'error' } }),
+              };
+
+              console.log(
+                '[AzureDevOpsIntViewProvider] Posting syncState in response to ready with matches'
+              );
+              webview.postMessage({
+                type: 'syncState',
+                payload: {
+                  fsmState: snap.value,
+                  context: getSerializableContext(snap.context),
+                  matches,
+                },
+              });
+            }
+          }
+          break;
+        }
+        case 'someMessageType':
+          // Handle specific message type
+          break;
+        case 'openDeviceCodeBrowser': {
+          try {
+            const actor = getApplicationStoreActor();
+            const snap =
+              actor && typeof (actor as any).getSnapshot === 'function'
+                ? (actor as any).getSnapshot()
+                : undefined;
+            const session = snap?.context?.deviceCodeSession;
+            const requestedId = message.payload?.connectionId;
+            if (session && session.connectionId === requestedId) {
+              // Copy code then open verification URI via VS Code API (more reliable than webview window.open)
+              try {
+                await vscode.env.clipboard.writeText(session.userCode);
+              } catch (clipboardError) {
+                // Non-fatal: clipboard may be unavailable in restricted environments
+                console.warn('[AzureDevOpsIntViewProvider] Clipboard write failed', clipboardError);
+              }
+              await vscode.env.openExternal(vscode.Uri.parse(session.verificationUri));
+              vscode.window.showInformationMessage(
+                `Auth code ${session.userCode} copied. Complete sign-in in the browser.`
+              );
+            } else {
+              vscode.window.showWarningMessage(
+                'No active device code session for this connection.'
+              );
+            }
+          } catch (error) {
+            console.error(
+              '[AzureDevOpsIntViewProvider] Failed handling openDeviceCodeBrowser',
+              error
+            );
+          }
+          break;
+        }
+      }
+    });
+  }
+
+  public postMessage(message: unknown) {
+    if (!this.view) {
+      return;
+    }
+
+    try {
+      this.view.webview.postMessage(message);
+    } catch (error) {
+      console.error('[AzureDevOpsIntViewProvider] postMessage error:', error);
+    }
   }
 }
 
@@ -2365,16 +2884,14 @@ async function diagnoseWorkItemsIssue(context: vscode.ExtensionContext) {
   log(`Found ${connections.length} connections.`);
   log(`Active connection ID: ${activeId}`);
 
-  if (!activeId) {
-    log('No active connection. Aborting.');
-    getOutputChannel()?.show();
+  if (connections.length === 0) {
+    log('No connections configured. Aborting.');
     return;
   }
 
   const activeConn = connections.find((c) => c.id === activeId);
   if (!activeConn) {
-    log('Active connection not found in config. Aborting.');
-    getOutputChannel()?.show();
+    log('Active connection not found in configuration. Aborting.');
     return;
   }
 

@@ -17,8 +17,10 @@ This document outlines the plan to extract our intelligent statistical architect
 ### Core Packages
 
 #### `@architectural-discipline/core`
+
 **Purpose**: Core analysis engine and shared types
 **Contents**:
+
 - Statistical analysis algorithms
 - File type classification system
 - Function purity scoring
@@ -27,6 +29,7 @@ This document outlines the plan to extract our intelligent statistical architect
 - TypeScript types and interfaces
 
 **API**:
+
 ```typescript
 export interface FileMetrics {
   file: string;
@@ -52,8 +55,10 @@ export function generateRecommendations(outliers: FileMetrics[]): RefactoringRec
 ```
 
 #### `@architectural-discipline/eslint-plugin`
+
 **Purpose**: ESLint integration for real-time analysis
 **Contents**:
+
 - ESLint rules for statistical file size
 - Function purity rules
 - Complexity rules
@@ -61,6 +66,7 @@ export function generateRecommendations(outliers: FileMetrics[]): RefactoringRec
 - Configuration presets
 
 **Usage**:
+
 ```javascript
 // eslint.config.js
 import architecturalDiscipline from '@architectural-discipline/eslint-plugin';
@@ -71,15 +77,17 @@ export default [
     rules: {
       '@architectural-discipline/statistical-file-size': 'error',
       '@architectural-discipline/function-purity': 'warn',
-      '@architectural-discipline/complexity-threshold': 'error'
-    }
-  }
+      '@architectural-discipline/complexity-threshold': 'error',
+    },
+  },
 ];
 ```
 
 #### `@architectural-discipline/cli`
+
 **Purpose**: Command-line analysis tool
 **Contents**:
+
 - `analyze` command for comprehensive analysis
 - `check` command for compliance checking
 - `recommend` command for refactoring suggestions
@@ -87,6 +95,7 @@ export default [
 - Configuration file management
 
 **Commands**:
+
 ```bash
 # Analyze project architecture
 npx architectural-discipline analyze
@@ -107,30 +116,38 @@ npx architectural-discipline report --format json
 ### Framework-Specific Packages
 
 #### `@architectural-discipline/react`
+
 **Purpose**: React-specific rules and templates
 **Contents**:
+
 - React component file type definitions
 - Hook-specific purity rules
 - Component complexity thresholds
 - React project templates
 
 #### `@architectural-discipline/vue`
+
 **Purpose**: Vue-specific rules and templates
 **Contents**:
+
 - Vue component file type definitions
 - Composition API rules
 - Vue project templates
 
 #### `@architectural-discipline/svelte`
+
 **Purpose**: Svelte-specific rules and templates
 **Contents**:
+
 - Svelte component file type definitions
 - Store-specific rules
 - Svelte project templates
 
 #### `@architectural-discipline/node`
+
 **Purpose**: Node.js-specific rules and templates
 **Contents**:
+
 - Node.js service file type definitions
 - API endpoint rules
 - Node.js project templates
@@ -138,8 +155,10 @@ npx architectural-discipline report --format json
 ### Template Packages
 
 #### `@architectural-discipline/templates`
+
 **Purpose**: Project templates with architecture discipline built-in
 **Contents**:
+
 - React + TypeScript template
 - Vue + TypeScript template
 - Svelte + TypeScript template
@@ -152,6 +171,7 @@ npx architectural-discipline report --format json
 ### Phase 1: Core Package Extraction (Week 1)
 
 #### 1.1 Extract Core Analysis Engine
+
 - [ ] Create `@architectural-discipline/core` package
 - [ ] Move statistical analysis functions
 - [ ] Extract file type classification system
@@ -160,6 +180,7 @@ npx architectural-discipline report --format json
 - [ ] Add unit tests for core functionality
 
 #### 1.2 Create ESLint Plugin
+
 - [ ] Create `@architectural-discipline/eslint-plugin` package
 - [ ] Extract ESLint rules from current config
 - [ ] Create rule implementations
@@ -167,6 +188,7 @@ npx architectural-discipline report --format json
 - [ ] Create documentation
 
 #### 1.3 Create CLI Tool
+
 - [ ] Create `@architectural-discipline/cli` package
 - [ ] Extract CLI functionality from current script
 - [ ] Add command-line interface
@@ -176,6 +198,7 @@ npx architectural-discipline report --format json
 ### Phase 2: Framework Integration (Week 2)
 
 #### 2.1 Framework-Specific Packages
+
 - [ ] Create React package with component rules
 - [ ] Create Vue package with component rules
 - [ ] Create Svelte package with component rules
@@ -183,6 +206,7 @@ npx architectural-discipline report --format json
 - [ ] Add framework-specific file type definitions
 
 #### 2.2 Project Templates
+
 - [ ] Create React + TypeScript template
 - [ ] Create Vue + TypeScript template
 - [ ] Create Svelte + TypeScript template
@@ -192,6 +216,7 @@ npx architectural-discipline report --format json
 ### Phase 3: Documentation & Publishing (Week 3)
 
 #### 3.1 Documentation
+
 - [ ] Create comprehensive README files
 - [ ] Create getting started guides
 - [ ] Create configuration documentation
@@ -199,6 +224,7 @@ npx architectural-discipline report --format json
 - [ ] Create best practices documentation
 
 #### 3.2 Publishing
+
 - [ ] Set up npm publishing
 - [ ] Create GitHub repositories
 - [ ] Set up CI/CD pipelines
@@ -303,16 +329,19 @@ packages/
 ### For Existing Projects
 
 #### 1. Install Packages
+
 ```bash
 npm install @architectural-discipline/core @architectural-discipline/eslint-plugin @architectural-discipline/cli
 ```
 
 #### 2. Initialize Configuration
+
 ```bash
 npx architectural-discipline init
 ```
 
 #### 3. Update ESLint Config
+
 ```javascript
 // eslint.config.js
 import architecturalDiscipline from '@architectural-discipline/eslint-plugin';
@@ -324,6 +353,7 @@ export default [
 ```
 
 #### 4. Add Pre-commit Hook
+
 ```bash
 # .husky/pre-commit
 #!/bin/sh
@@ -331,6 +361,7 @@ npx architectural-discipline check || exit 1
 ```
 
 #### 5. Add CI/CD Integration
+
 ```yaml
 # .github/workflows/architecture.yml
 name: Architecture Analysis
@@ -353,11 +384,13 @@ jobs:
 ### For New Projects
 
 #### 1. Use Template
+
 ```bash
 npx create-project my-project --template @architectural-discipline/react-typescript
 ```
 
 #### 2. Or Initialize Manually
+
 ```bash
 npx create-react-app my-project --template typescript
 cd my-project
@@ -367,16 +400,19 @@ npx architectural-discipline init
 ## 📊 Success Metrics
 
 ### Package Adoption
+
 - [ ] 100+ npm downloads in first month
 - [ ] 10+ GitHub stars
 - [ ] 5+ community contributions
 
 ### Project Impact
+
 - [ ] 50% reduction in large files across projects
 - [ ] 30% improvement in function purity scores
 - [ ] 25% reduction in cyclomatic complexity
 
 ### Developer Experience
+
 - [ ] <5 minute setup time for new projects
 - [ ] <30 second analysis time for typical projects
 - [ ] 90%+ developer satisfaction in surveys
@@ -384,6 +420,7 @@ npx architectural-discipline init
 ## 🚀 Future Enhancements
 
 ### Advanced Features
+
 - [ ] Machine learning-based recommendations
 - [ ] Integration with code review tools
 - [ ] Real-time IDE integration
@@ -391,6 +428,7 @@ npx architectural-discipline init
 - [ ] Historical trend analysis
 
 ### Additional Frameworks
+
 - [ ] Angular support
 - [ ] Next.js support
 - [ ] Nuxt.js support
@@ -398,6 +436,7 @@ npx architectural-discipline init
 - [ ] Express.js support
 
 ### Enterprise Features
+
 - [ ] Team dashboards
 - [ ] Compliance reporting
 - [ ] Custom rule creation

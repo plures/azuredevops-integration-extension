@@ -30,12 +30,12 @@ export default [
       'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
       'prefer-const': 'error',
       '@typescript-eslint/explicit-function-return-type': 'off',
-      
+
       // Statistical Complexity Rules (adaptive thresholds)
       'max-statements': ['warn', { max: 50 }],
       'max-depth': ['warn', { max: 4 }],
-      'complexity': ['warn', { max: 10 }],
-      
+      complexity: ['warn', { max: 10 }],
+
       // Purity and Side Effect Rules
       'no-console': 'off', // Allow console in development
       'no-var': 'error',
@@ -137,9 +137,9 @@ export default [
   {
     files: ['**/*.{js,ts,mjs,cjs}'],
     ignores: [
-      'node_modules/**', 
-      'out-tests/**', 
-      'dist/**', 
+      'node_modules/**',
+      'out-tests/**',
+      'dist/**',
       'media/**',
       'tmp/**',
       'tmp-*.js',
@@ -182,9 +182,9 @@ export default [
   {
     files: [
       'src/activation.ts',
-      'src/azureClient.ts', 
-      'src/bridge/sharedContextBridge.ts', 
-      'src/fsm/machines/connectionMachine.ts', 
+      'src/azureClient.ts',
+      'src/bridge/sharedContextBridge.ts',
+      'src/fsm/machines/connectionMachine.ts',
       'src/fsm/machines/applicationMachine.ts',
       'src/auth/entraAuthProvider.ts',
       'src/azureDevOpsUrlParser.ts',
@@ -211,14 +211,14 @@ export default [
       'src/provider.ts',
       'src/sessionTelemetry.ts',
       'src/timer.ts',
-      'src/workItemNormalize.ts'
+      'src/workItemNormalize.ts',
     ],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
       'max-lines': 'off', // TODO: Extract into modules < 300 lines each
       'max-lines-per-function': 'off', // TODO: Extract functions < 100 lines each
       'max-statements': 'off', // TODO: Reduce complexity
-      'complexity': 'off', // TODO: Reduce complexity
+      complexity: 'off', // TODO: Reduce complexity
       'max-depth': 'off', // TODO: Reduce nesting
     },
   },

@@ -100,32 +100,36 @@ export class StatisticalAnalyzer {
     const fileTypeStats = this.calculateFileTypeStatistics(files);
     const outliers = this.detectOutliers(files, fileTypeStats);
     const recommendations = this.generateRecommendations(outliers);
-    
+
     return {
       fileTypeStats,
       outliers,
       recommendations,
-      projectHealth: this.calculateProjectHealth(files, outliers)
+      projectHealth: this.calculateProjectHealth(files, outliers),
     };
   }
 
   private calculateFileTypeStatistics(files: FileMetrics[]): Map<string, FileTypeStatistics> {
     const stats = new Map<string, FileTypeStatistics>();
-    
+
     // Group files by type
-    const grouped = files.reduce((acc, file) => {
-      if (!acc[file.fileType]) acc[file.fileType] = [];
-      acc[file.fileType].push(file);
-      return acc;
-    }, {} as Record<string, FileMetrics[]>);
+    const grouped = files.reduce(
+      (acc, file) => {
+        if (!acc[file.fileType]) acc[file.fileType] = [];
+        acc[file.fileType].push(file);
+        return acc;
+      },
+      {} as Record<string, FileMetrics[]>
+    );
 
     // Calculate statistics for each type
     for (const [fileType, fileList] of Object.entries(grouped)) {
-      const lines = fileList.map(f => f.lines);
+      const lines = fileList.map((f) => f.lines);
       const mean = lines.reduce((a, b) => a + b, 0) / lines.length;
       const sorted = [...lines].sort((a, b) => a - b);
       const median = sorted[Math.floor(sorted.length / 2)];
-      const variance = lines.reduce((acc, line) => acc + Math.pow(line - mean, 2), 0) / lines.length;
+      const variance =
+        lines.reduce((acc, line) => acc + Math.pow(line - mean, 2), 0) / lines.length;
       const stdDev = Math.sqrt(variance);
       const percentile95 = this.calculatePercentile(sorted, 95);
       const percentile99 = this.calculatePercentile(sorted, 99);
@@ -138,25 +142,25 @@ export class StatisticalAnalyzer {
         stdDev,
         percentile95,
         percentile99,
-        outliers: []
+        outliers: [],
       });
     }
 
     return stats;
   }
 
-  private detectOutliers(files: FileMetrics[], stats: Map<string, FileTypeStatistics>): FileMetrics[] {
+  private detectOutliers(
+    files: FileMetrics[],
+    stats: Map<string, FileTypeStatistics>
+  ): FileMetrics[] {
     const outliers: FileMetrics[] = [];
-    
+
     for (const file of files) {
       const fileStats = stats.get(file.fileType);
       if (!fileStats) continue;
 
       // Use 95th percentile and 2 standard deviations as thresholds
-      const threshold = Math.max(
-        fileStats.percentile95,
-        fileStats.mean + (2 * fileStats.stdDev)
-      );
+      const threshold = Math.max(fileStats.percentile95, fileStats.mean + 2 * fileStats.stdDev);
 
       if (file.lines > threshold) {
         outliers.push(file);
@@ -167,17 +171,20 @@ export class StatisticalAnalyzer {
   }
 
   private generateRecommendations(outliers: FileMetrics[]): RefactoringRecommendation[] {
-    return outliers.map(file => ({
+    return outliers.map((file) => ({
       file: file.file,
       priority: this.calculatePriority(file),
       type: this.determineRefactoringType(file),
       description: this.generateDescription(file),
       estimatedEffort: this.estimateEffort(file),
-      impact: this.calculateImpact(file)
+      impact: this.calculateImpact(file),
     }));
   }
 
-  private calculateProjectHealth(files: FileMetrics[], outliers: FileMetrics[]): ProjectHealthScore {
+  private calculateProjectHealth(
+    files: FileMetrics[],
+    outliers: FileMetrics[]
+  ): ProjectHealthScore {
     const totalFiles = files.length;
     const outlierCount = outliers.length;
     const avgComplexity = files.reduce((sum, f) => sum + f.complexity, 0) / totalFiles;
@@ -189,7 +196,7 @@ export class StatisticalAnalyzer {
       testability: Math.round(avgPurity),
       modularity: Math.round(100 - (outlierCount / totalFiles) * 100),
       complexity: Math.round(100 - avgComplexity * 10),
-      recommendations: []
+      recommendations: [],
     };
   }
 }
@@ -201,45 +208,18 @@ export class StatisticalAnalyzer {
 // packages/core/src/classification/fileTypeClassifier.ts
 export class FileTypeClassifier {
   private static readonly FILE_TYPE_PATTERNS = {
-    'machine': [
-      '**/machines/**/*.ts',
-      '**/fsm/**/*.ts',
-      '**/state/**/*.ts'
-    ],
-    'client': [
-      '**/client/**/*.ts',
-      '**/api/**/*.ts',
-      '**/service/**/*.ts'
-    ],
-    'handler': [
-      '**/handler/**/*.ts',
-      '**/controller/**/*.ts',
-      '**/command/**/*.ts'
-    ],
-    'utility': [
-      '**/util/**/*.ts',
-      '**/helper/**/*.ts',
-      '**/common/**/*.ts'
-    ],
-    'integration': [
-      '**/bridge/**/*.ts',
-      '**/adapter/**/*.ts',
-      '**/integration/**/*.ts'
-    ],
-    'test': [
-      '**/*.test.ts',
-      '**/*.spec.ts',
-      '**/tests/**/*.ts'
-    ],
-    'config': [
-      '**/config/**/*.ts',
-      '**/*.config.ts'
-    ]
+    machine: ['**/machines/**/*.ts', '**/fsm/**/*.ts', '**/state/**/*.ts'],
+    client: ['**/client/**/*.ts', '**/api/**/*.ts', '**/service/**/*.ts'],
+    handler: ['**/handler/**/*.ts', '**/controller/**/*.ts', '**/command/**/*.ts'],
+    utility: ['**/util/**/*.ts', '**/helper/**/*.ts', '**/common/**/*.ts'],
+    integration: ['**/bridge/**/*.ts', '**/adapter/**/*.ts', '**/integration/**/*.ts'],
+    test: ['**/*.test.ts', '**/*.spec.ts', '**/tests/**/*.ts'],
+    config: ['**/config/**/*.ts', '**/*.config.ts'],
   };
 
   classifyFile(filePath: string): string {
     for (const [fileType, patterns] of Object.entries(this.FILE_TYPE_PATTERNS)) {
-      if (patterns.some(pattern => this.matchesPattern(filePath, pattern))) {
+      if (patterns.some((pattern) => this.matchesPattern(filePath, pattern))) {
         return fileType;
       }
     }
@@ -261,37 +241,37 @@ export class FileTypeClassifier {
 export class PurityScorer {
   scoreFunction(functionNode: any): number {
     let score = 100;
-    
+
     // Check for side effects
     if (this.hasSideEffects(functionNode)) {
       score -= 30;
     }
-    
+
     // Check for external dependencies
     if (this.hasExternalDependencies(functionNode)) {
       score -= 20;
     }
-    
+
     // Check for mutation
     if (this.hasMutation(functionNode)) {
       score -= 25;
     }
-    
+
     // Check for I/O operations
     if (this.hasIOOperations(functionNode)) {
       score -= 35;
     }
-    
+
     // Check for console.log
     if (this.hasConsoleLog(functionNode)) {
       score -= 15;
     }
-    
+
     // Check for complex logic
     if (this.hasComplexLogic(functionNode)) {
       score -= 10;
     }
-    
+
     return Math.max(0, score);
   }
 
@@ -303,7 +283,7 @@ export class PurityScorer {
         if (callee.type === 'MemberExpression') {
           const object = callee.object.name;
           const property = callee.property.name;
-          
+
           // Check for common side effects
           if (object === 'console' || object === 'process') return true;
           if (property === 'log' || property === 'error' || property === 'warn') return true;
@@ -349,7 +329,7 @@ export class PurityScorer {
         if (callee.type === 'MemberExpression') {
           const object = callee.object.name;
           const property = callee.property.name;
-          
+
           // Check for I/O operations
           if (object === 'fs' || object === 'path') return true;
           if (property === 'readFile' || property === 'writeFile') return true;
@@ -367,7 +347,7 @@ export class PurityScorer {
         if (callee.type === 'MemberExpression') {
           const object = callee.object.name;
           const property = callee.property.name;
-          
+
           if (object === 'console' && property === 'log') return true;
         }
       }
@@ -390,7 +370,7 @@ export class PurityScorer {
 
   private traverseAST(node: any, callback: (node: any) => boolean): boolean {
     if (callback(node)) return true;
-    
+
     for (const key in node) {
       if (node.hasOwnProperty(key)) {
         const child = node[key];
@@ -405,7 +385,7 @@ export class PurityScorer {
         }
       }
     }
-    
+
     return false;
   }
 }
@@ -437,7 +417,7 @@ export const statisticalFileSize: Rule.RuleModule = {
     docs: {
       description: 'Enforce statistical file size limits based on file type',
       category: 'Best Practices',
-      recommended: true
+      recommended: true,
     },
     schema: [
       {
@@ -450,14 +430,14 @@ export const statisticalFileSize: Rule.RuleModule = {
               properties: {
                 patterns: { type: 'array', items: { type: 'string' } },
                 expectedSizeRange: { type: 'array', items: { type: 'number' } },
-                complexityThreshold: { type: 'number' }
-              }
-            }
-          }
+                complexityThreshold: { type: 'number' },
+              },
+            },
+          },
         },
-        additionalProperties: false
-      }
-    ]
+        additionalProperties: false,
+      },
+    ],
   },
   create(context) {
     return {
@@ -465,22 +445,22 @@ export const statisticalFileSize: Rule.RuleModule = {
         const filename = context.getFilename();
         const sourceCode = context.getSourceCode();
         const lines = sourceCode.lines.length;
-        
+
         // Classify file type
         const fileType = classifyFile(filename);
-        
+
         // Get expected size range for file type
         const expectedRange = getExpectedSizeRange(fileType);
-        
+
         if (lines > expectedRange.max) {
           context.report({
             node,
-            message: `File "${filename}" has ${lines} lines, exceeding the expected range of ${expectedRange.min}-${expectedRange.max} lines for ${fileType} files.`
+            message: `File "${filename}" has ${lines} lines, exceeding the expected range of ${expectedRange.min}-${expectedRange.max} lines for ${fileType} files.`,
           });
         }
-      }
+      },
     };
-  }
+  },
 };
 ```
 
@@ -498,15 +478,15 @@ export const analyzeCommand = new Command('analyze')
   .option('-f, --format <format>', 'Output format (json, html, markdown)', 'json')
   .action(async (options) => {
     console.log('🔍 Analyzing project architecture...');
-    
+
     const analyzer = new StatisticalAnalyzer();
     const results = await analyzer.analyzeProject(options.dir);
-    
+
     console.log('📊 Analysis Results:');
     console.log(`Overall Health Score: ${results.projectHealth.overall}/100`);
     console.log(`Outliers Found: ${results.outliers.length}`);
     console.log(`Recommendations: ${results.recommendations.length}`);
-    
+
     if (options.output) {
       await writeResults(results, options.output, options.format);
     }
@@ -537,26 +517,32 @@ touch README.md
 
 ```markdown
 # packages/core/README.md
+
 # packages/eslint-plugin/README.md
+
 # packages/cli/README.md
+
 # packages/templates/README.md
 ```
 
 ## 🚀 Implementation Timeline
 
 ### Week 1: Core Package
+
 - [ ] Extract core analysis engine
 - [ ] Create TypeScript types
 - [ ] Add unit tests
 - [ ] Create ESLint plugin
 
 ### Week 2: CLI & Integration
+
 - [ ] Create CLI tool
 - [ ] Add configuration management
 - [ ] Create project templates
 - [ ] Add documentation
 
 ### Week 3: Publishing & Community
+
 - [ ] Publish to npm
 - [ ] Create GitHub repositories
 - [ ] Set up CI/CD
