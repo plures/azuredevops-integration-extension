@@ -2450,6 +2450,15 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
     };
 
+    const nonce = getNonce();
+    const scriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'main.js')
+    );
+    // Link to main.css which contains Svelte component styles from esbuild
+    const mainCssUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'main.css')
+    );
+
     // The 'unsafe-eval' is required for Svelte's dev mode.
     // TODO: Remove 'unsafe-eval' in production builds.
     const csp = `default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval'; img-src ${webview.cspSource} data:; connect-src 'self';`;
