@@ -67,6 +67,8 @@ fi
 - Check for features first, then breaking changes
 - Require exact match `^BREAKING CHANGE:` (with colon) in commit body
 - Pre-1.0 versions never get major bumps - breaking changes become minor bumps
+- **Major bumps reserved for comprehensive architectural changes** (rare for VS Code extensions)
+- **VSCode Extension Convention**: Even minor versions (e.g., 3.0, 3.2, 3.4) for releases, odd for pre-releases
 - Added logging to show commits being analyzed and bump decisions
 
 ### 2. Fixed Release Check Script
@@ -146,20 +148,29 @@ For future commits, follow these patterns:
 fix: correct timer display bug
 fix(auth): resolve token refresh issue
 ```
+*Result*: 3.0.0 → 3.0.1
 
 **Minor bump** (new features):
 ```
 feat: add dark mode support
 feat(ui): implement new dashboard view
 ```
+*Result*: 3.0.0 → 3.2.0 (skips to next even number per VSCode convention)
 
-**Major bump** (breaking changes, only for v1.0.0+):
+**Major bump** (comprehensive architectural changes, rare for VS Code extensions):
 ```
 feat!: redesign API interface
 
 BREAKING CHANGE: The authentication API has been redesigned.
 Users must update their integration code.
 ```
+*Result*: 3.0.0 → 4.0.0
+
+**VSCode Extension Version Convention:**
+- **Release versions**: Even minor numbers (3.0, 3.2, 3.4, etc.)
+- **Pre-release versions**: Odd minor numbers (3.1, 3.3, 3.5, etc.)
+- CI automatically adjusts minor versions to be even for releases
+- Major bumps are reserved for comprehensive architectural changes only
 
 For pre-1.0 versions:
 ```
