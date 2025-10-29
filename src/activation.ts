@@ -542,68 +542,62 @@ function dispatchApplicationEvent(event: unknown): void {
         break;
       case 'CREATE_BRANCH':
         // Show input for branch name then create and link to work item
-        try {
-          if (evt.workItemId) {
-            provider
-              ?.getWorkItems?.()
-              .then(async (items: any[]) => {
-                const item = items.find((i) => i.id === evt.workItemId);
-                if (item) {
-                  const title = item.fields?.['System.Title'] || '';
-                  const branchName = `feature/${evt.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-                  const name = await vscode.window.showInputBox({
-                    prompt: 'Enter branch name',
-                    value: branchName,
-                  });
+        (async () => {
+          try {
+            if (evt.workItemId) {
+              const items = provider?.getWorkItems?.() || [];
+              const item = items.find((i: any) => i.id === evt.workItemId);
 
-                  if (name) {
-                    try {
-                      // Create the branch
-                      await vscode.commands.executeCommand('git.branch', name);
+              if (item) {
+                const title = item.fields?.['System.Title'] || '';
+                const branchName = `feature/${evt.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+                const name = await vscode.window.showInputBox({
+                  prompt: 'Enter branch name',
+                  value: branchName,
+                });
 
-                      // Add comment to work item linking the branch
-                      if (client) {
-                        const comment = `Created branch: ${name}`;
-                        const success = await client.addWorkItemComment(evt.workItemId, comment);
+                if (name) {
+                  try {
+                    // Create the branch
+                    await vscode.commands.executeCommand('git.branch', name);
 
-                        if (success) {
-                          vscode.window.showInformationMessage(
-                            `Branch "${name}" created and linked to work item #${evt.workItemId}`
-                          );
-                        } else {
-                          vscode.window.showWarningMessage(
-                            `Branch "${name}" created but failed to link to work item #${evt.workItemId}`
-                          );
-                        }
+                    // Add comment to work item linking the branch
+                    if (client) {
+                      const comment = `Created branch: ${name}`;
+                      const success = await client.addWorkItemComment(evt.workItemId, comment);
+
+                      if (success) {
+                        vscode.window.showInformationMessage(
+                          `Branch "${name}" created and linked to work item #${evt.workItemId}`
+                        );
                       } else {
-                        vscode.window.showInformationMessage(`Branch "${name}" created`);
+                        vscode.window.showWarningMessage(
+                          `Branch "${name}" created but failed to link to work item #${evt.workItemId}`
+                        );
                       }
-                    } catch (error) {
-                      console.error('Error creating branch:', error);
-                      vscode.window.showErrorMessage(
-                        `Failed to create branch: ${error instanceof Error ? error.message : String(error)}`
-                      );
+                    } else {
+                      vscode.window.showInformationMessage(`Branch "${name}" created`);
                     }
+                  } catch (error) {
+                    console.error('Error creating branch:', error);
+                    vscode.window.showErrorMessage(
+                      `Failed to create branch: ${error instanceof Error ? error.message : String(error)}`
+                    );
                   }
-                } else {
-                  vscode.window.showErrorMessage('Work item not found');
                 }
-              })
-              .catch((error) => {
-                console.error('Error getting work items for branch creation:', error);
-                vscode.window.showErrorMessage(
-                  `Failed to get work item details: ${error instanceof Error ? error.message : String(error)}`
-                );
-              });
-          } else {
-            vscode.window.showErrorMessage('No work item ID provided for branch creation');
+              } else {
+                vscode.window.showErrorMessage('Work item not found');
+              }
+            } else {
+              vscode.window.showErrorMessage('No work item ID provided for branch creation');
+            }
+          } catch (error) {
+            console.error('Error in branch creation:', error);
+            vscode.window.showErrorMessage(
+              `Failed to create branch: ${error instanceof Error ? error.message : String(error)}`
+            );
           }
-        } catch (error) {
-          console.error('Error in branch creation:', error);
-          vscode.window.showErrorMessage(
-            `Failed to create branch: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
+        })();
         break;
     }
   }
