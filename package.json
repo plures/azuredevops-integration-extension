@@ -894,6 +894,8 @@
     "format:staged": "prettier --write",
     "format": "npx prettier --write \"**/*.{ts,js,json,md,mjs}\" && npm run lint:fix",
     "check-format": "npx prettier --check \"**/*.{ts,js,json,md,mjs}\"",
+    "coverage:ci": "npx c8 --reporter=text --reporter=lcov npm test",
+    "release-check": "node scripts/release-check.js",
     "prepare": "husky install",
     "postinstall": "npm run prepare",
     "build": "npm run format && npm run compile && npm run validate:all",
