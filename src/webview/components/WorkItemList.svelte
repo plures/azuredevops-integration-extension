@@ -6,7 +6,7 @@
   
   const { context, sendEvent }: Props = $props();
 
-  const workItems = $derived(context?.pendingWorkItems?.workItems || []);
+  const workItems = $derived(context?.workItems || context?.pendingWorkItems?.workItems || []);
   const activeConnectionId = $derived(context?.activeConnectionId);
   const connections = $derived(context?.connections || []);
   const activeConnection = $derived(connections.find((c: any) => c.id === activeConnectionId));
