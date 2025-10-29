@@ -511,6 +511,95 @@ function dispatchApplicationEvent(event: unknown): void {
           );
         }
         break;
+      case 'STOP_TIMER':
+        // Show comment dialog for time entry
+        (async () => {
+          try {
+            const appActor = getApplicationStoreActor();
+            const snapshot = appActor?.getSnapshot?.();
+            const timerState = snapshot?.context?.timerState;
+
+            if (!timerState?.workItemId || !timerState?.startTime) {
+              vscode.window.showWarningMessage('No active timer to stop');
+              return;
+            }
+
+            // Calculate elapsed time
+            const elapsed = Math.floor((Date.now() - timerState.startTime) / 1000);
+            const hours = (elapsed / 3600).toFixed(2);
+
+            // Prompt for comment
+            const comment = await vscode.window.showInputBox({
+              prompt: `Add comment for ${hours} hours logged on work item #${timerState.workItemId}`,
+              placeHolder: 'Optional: describe what you worked on...',
+            });
+
+            // Stop the timer (send to FSM)
+            const timerActor = snapshot?.context?.timerActor;
+            if (timerActor && typeof timerActor.send === 'function') {
+              timerActor.send({ type: 'STOP' });
+            }
+
+            // Add time entry and comment if we have a client
+            if (client && timerState.workItemId) {
+              try {
+                // Update completed/remaining work
+                const wi = await client.getWorkItemById(timerState.workItemId);
+                const completed = Number(
+                  wi?.fields?.['Microsoft.VSTS.Scheduling.CompletedWork'] || 0
+                );
+                const remaining = Number(
+                  wi?.fields?.['Microsoft.VSTS.Scheduling.RemainingWork'] || 0
+                );
+                const hoursDecimal = Number(hours);
+
+                await client.updateWorkItem(timerState.workItemId, [
+                  {
+                    op: 'add',
+                    path: '/fields/Microsoft.VSTS.Scheduling.CompletedWork',
+                    value: completed + hoursDecimal,
+                  },
+                  {
+                    op: 'add',
+                    path: '/fields/Microsoft.VSTS.Scheduling.RemainingWork',
+                    value: Math.max(remaining - hoursDecimal, 0),
+                  },
+                ]);
+
+                // Add comment
+                const finalComment = comment
+                  ? `${comment} (Logged ${hours}h)`
+                  : `Logged ${hours}h via timer stop.`;
+                await client.addWorkItemComment(timerState.workItemId, finalComment);
+
+                vscode.window.showInformationMessage(
+                  `Timer stopped. Logged ${hours} hours to work item #${timerState.workItemId}`
+                );
+              } catch (error) {
+                console.error('Error adding time entry:', error);
+                vscode.window.showErrorMessage(
+                  `Timer stopped but failed to log time: ${error instanceof Error ? error.message : String(error)}`
+                );
+              }
+            } else {
+              vscode.window.showInformationMessage(`Timer stopped. ${hours} hours elapsed.`);
+            }
+
+            // Clear persisted timer state
+            if (snapshot?.context?.extensionContext) {
+              await snapshot.context.extensionContext.globalState.update(
+                'azureDevOpsInt.timer.state',
+                undefined
+              );
+            }
+          } catch (error) {
+            console.error('Error stopping timer:', error);
+            vscode.window.showErrorMessage(
+              `Failed to stop timer: ${error instanceof Error ? error.message : String(error)}`
+            );
+          }
+        })();
+        break;
       case 'EDIT_WORK_ITEM':
         // Implement in-VSCode edit dialog
         try {
