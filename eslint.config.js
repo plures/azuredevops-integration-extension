@@ -25,10 +25,21 @@ export default [
       'no-undef': 'off',
       'no-console': 'off',
 
-      // FSM-First Development Rules
-      'max-lines-per-function': ['warn', { max: 100, skipBlankLines: true, skipComments: true }],
+      // Intelligent Statistical Architecture Rules
+      'max-lines-per-function': ['error', { max: 100, skipBlankLines: true, skipComments: true }],
+      'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
       'prefer-const': 'error',
       '@typescript-eslint/explicit-function-return-type': 'off',
+
+      // Statistical Complexity Rules (adaptive thresholds)
+      'max-statements': ['warn', { max: 50 }],
+      'max-depth': ['warn', { max: 4 }],
+      complexity: ['warn', { max: 10 }],
+
+      // Purity and Side Effect Rules
+      'no-console': 'off', // Allow console in development
+      'no-var': 'error',
+      'prefer-arrow-callback': 'warn',
     },
   },
 
@@ -97,7 +108,7 @@ export default [
   },
 
   {
-    // Ignore legacy JS transpiled/duplicate sources for now
+    // Ignore legacy JS transpiled/duplicate sources and temporary files
     ignores: [
       'src/**/*.js',
       'src/architecture/**',
@@ -109,11 +120,36 @@ export default [
       'src/webview/ReactiveDemo.svelte',
       'src/webview/reactive-main*.ts',
       'src/webview/context-demo-main.ts',
+      // Temporary and generated files
+      'tmp/**',
+      'tmp-*.js',
+      'tmp-*.mjs',
+      'tmp_*.js',
+      'tmp_*.mjs',
+      'vscode-stub/**',
+      'dist/**',
+      'out-tests/**',
+      'node_modules/**',
+      'test-samples/**',
+      'tests/workflow-improvements.mjs',
     ],
   },
   {
     files: ['**/*.{js,ts,mjs,cjs}'],
-    ignores: ['node_modules/**', 'out-tests/**', 'dist/**', 'media/**'],
+    ignores: [
+      'node_modules/**',
+      'out-tests/**',
+      'dist/**',
+      'media/**',
+      'tmp/**',
+      'tmp-*.js',
+      'tmp-*.mjs',
+      'tmp_*.js',
+      'tmp_*.mjs',
+      'vscode-stub/**',
+      'test-samples/**',
+      'tests/workflow-improvements.mjs',
+    ],
     rules: {
       'no-restricted-syntax': [
         'error',
@@ -138,6 +174,52 @@ export default [
             'Avoid chaining .then() calls. Use FSM actors with fromPromise for better traceability.',
         },
       ],
+    },
+  },
+
+  // TEMPORARY: Legacy files being refactored (REMOVE AFTER EXTRACTION)
+  // These files are being systematically refactored to meet architecture discipline standards
+  {
+    files: [
+      'src/activation.ts',
+      'src/azureClient.ts',
+      'src/bridge/sharedContextBridge.ts',
+      'src/fsm/machines/connectionMachine.ts',
+      'src/fsm/machines/applicationMachine.ts',
+      'src/auth/entraAuthProvider.ts',
+      'src/azureDevOpsUrlParser.ts',
+      'src/cache.ts',
+      'src/fsm/ApplicationFSMManager.ts',
+      'src/fsm/commands/quickDebugCommands.ts',
+      'src/fsm/commands/traceCommands.ts',
+      'src/fsm/functions/activation/connectionNormalization.ts',
+      'src/fsm/functions/authFunctions.ts',
+      'src/fsm/functions/auth/authReminderActions.ts',
+      'src/fsm/functions/auth/buildAuthReminder.ts',
+      'src/fsm/functions/azureClientFunctions.ts',
+      'src/fsm/functions/connection/branchEnrichment.ts',
+      'src/fsm/functions/secrets/patMigration.ts',
+      'src/fsm/functions/setup/connection.ts',
+      'src/fsm/functions/setup/convert.ts',
+      'src/fsm/functions/tabViewModelFunctions.ts',
+      'src/fsm/logging/FSMLogger.ts',
+      'src/fsm/logging/FSMTracer.ts',
+      'src/fsm/services/fsmSetupService.ts',
+      'src/fsm/tools/automatedLogReader.ts',
+      'src/onPremUrlValidator.ts',
+      'src/performance.ts',
+      'src/provider.ts',
+      'src/sessionTelemetry.ts',
+      'src/timer.ts',
+      'src/workItemNormalize.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      'max-lines': 'off', // TODO: Extract into modules < 300 lines each
+      'max-lines-per-function': 'off', // TODO: Extract functions < 100 lines each
+      'max-statements': 'off', // TODO: Reduce complexity
+      complexity: 'off', // TODO: Reduce complexity
+      'max-depth': 'off', // TODO: Reduce nesting
     },
   },
 ];

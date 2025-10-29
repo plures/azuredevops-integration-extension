@@ -66,8 +66,8 @@
   ```tsx
   const machine = setup({
     types: {
-      input: {} as { value: number }
-    }
+      input: {} as { value: number },
+    },
   }).createMachine({});
 
   function App() {
@@ -82,13 +82,13 @@
   ```tsx
   const machine = setup({
     types: {
-      input: {} as { value: number }
-    }
+      input: {} as { value: number },
+    },
   }).createMachine({});
 
   function App() {
     const _ = useMachine(machine, {
-      input: { value: 1 } // Now input is required at compile time!
+      input: { value: 1 }, // Now input is required at compile time!
     });
     return <></>;
   }
@@ -108,12 +108,12 @@
 
   const store = createStore(
     {
-      count: 0
+      count: 0,
     },
     {
       inc: {
-        count: (context) => context.count + 1
-      }
+        count: (context) => context.count + 1,
+      },
     }
   );
 
@@ -229,7 +229,7 @@
   createMachine({
     // lazy context
     context: () => ({
-      ref: spawn(() => {})
-    })
+      ref: spawn(() => {}),
+    }),
   });
   ```

@@ -873,8 +873,6 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "build:all": "npm run compile",
     "compile": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "pretest": "npm run compile",
@@ -882,16 +880,24 @@
     "test:unit": "npm test",
     "test:integration": "node -e \"console.log('Integration tests temporarily disabled');\"",
     "test:ci": "npm run test && node -e \"console.log('Integration tests temporarily disabled');\"",
+    "test:feature": "vitest run tests/features",
+    "test:feature:watch": "vitest watch tests/features",
+    "test:feature:ui": "vitest --ui tests/features",
+    "type-check": "tsc --noEmit",
+    "validate:machines": "tsx scripts/validate-xstate-machines.ts",
+    "validate:all": "npm run type-check && npm run validate:machines",
+    "check:architecture": "tsx scripts/intelligent-architecture-analysis.ts",
+    "check:architecture:detailed": "tsx scripts/intelligent-architecture-analysis.ts --detailed",
     "lint": "npx eslint src --ext ts",
-    "lint:fix": "eslint --fix",
+    "lint:fix": "npx eslint src --ext ts --fix",
+    "lint:file-size": "npx eslint src --ext ts --rule 'max-lines: [error, 500]'",
     "format:staged": "prettier --write",
-    "format": "npx prettier --write \"**/*.{ts,js,json,md,mjs}\"",
+    "format": "npx prettier --write \"**/*.{ts,js,json,md,mjs}\" && npm run lint:fix",
     "check-format": "npx prettier --check \"**/*.{ts,js,json,md,mjs}\"",
     "prepare": "husky install",
     "postinstall": "npm run prepare",
-    "build": "npm run compile",
-    "build:formatted": "npm run format && npm run compile",
-    "prepackage": "npm install && npm run format && npm run lint && npm run build:all && npm run screenshots:loading-gif",
+    "build": "npm run format && npm run compile && npm run validate:all",
+    "prepackage": "npm install && npm run format && npm run lint && npm run build && npm run screenshots:loading-gif",
     "package": "vsce package --no-dependencies",
     "screenshots:setup": "npx playwright install",
     "screenshots:build": "npm run build && npm run screenshots:capture",
@@ -903,21 +909,28 @@
     "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^20.0.0",
     "@esbuild-kit/esm-loader": "^2.6.5",
+    "@eslint/css": "^0.13.0",
+    "@eslint/js": "^9.38.0",
+    "@eslint/json": "^0.13.2",
+    "@eslint/markdown": "^7.5.0",
     "@types/chai": "^5.2.2",
     "@types/mocha": "^10.0.10",
     "@types/nock": "^11.1.0",
-    "@types/node": "24.x",
+    "@types/node": "^24.9.1",
     "@types/vscode": "^1.99.0",
     "@typescript-eslint/eslint-plugin": "^8.46.1",
     "@typescript-eslint/parser": "^8.46.1",
+    "@vitest/ui": "^4.0.4",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.6.2",
     "chai": "^6.2.0",
     "chokidar": "^4.0.3",
     "esbuild": "^0.25.11",
     "esbuild-svelte": "^0.9.3",
-    "eslint": "^9.37.0",
+    "eslint": "^9.38.0",
     "gifenc": "^1.0.3",
+    "glob": "^11.0.3",
+    "globals": "^16.4.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.4",
     "mocha": "^11.7.4",
@@ -927,7 +940,10 @@
     "prettier": "^3.6.2",
     "svelte": "^5.40.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.2",
+    "vitest": "^4.0.4"
   },
   "dependencies": {
     "@azure/msal-node": "^3.8.0",
@@ -943,5 +959,14 @@
   "volta": {
     "node": "24.10.0",
     "npm": "10.9.0"
+  },
+  "lint-staged": {
+    "*.{ts,js,mjs}": [
+      "npm run lint:fix",
+      "npm run format:staged"
+    ],
+    "*.{json,md}": [
+      "npm run format:staged"
+    ]
   }
 }

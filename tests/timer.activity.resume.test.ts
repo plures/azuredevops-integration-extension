@@ -4,7 +4,7 @@ import { WorkItemTimer } from '../src/timer.js';
 describe('WorkItemTimer activity resume', function () {
   it('resumes timer after activity ping when paused due to inactivity', function (done) {
     let state: any = undefined;
-    let infoMessages: string[] = [];
+    const infoMessages: string[] = [];
 
     const timer = new WorkItemTimer({
       inactivityTimeoutSec: 1, // Short timeout for testing
@@ -41,7 +41,7 @@ describe('WorkItemTimer activity resume', function () {
 
   it('does not resume timer after activity ping if paused manually', function (done) {
     let state: any = undefined;
-    let infoMessages: string[] = [];
+    const infoMessages: string[] = [];
 
     const timer = new WorkItemTimer({
       autoResumeOnActivity: true,

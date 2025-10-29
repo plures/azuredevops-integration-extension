@@ -30,7 +30,7 @@ jobs:
         run: npm ci
 
       - name: Build extension and webview
-        run: npm run build:all
+        run: npm run build
 
       - name: Run integration tests with virtual display
         run: xvfb-run -a npm run test:integration
