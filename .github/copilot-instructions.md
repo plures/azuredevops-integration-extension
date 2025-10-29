@@ -1,3 +1,9 @@
+# GitHub Copilot Instructions
+
+This file provides instructions for GitHub Copilot coding agent to work effectively with this repository. It contains repository-specific knowledge, build commands, testing procedures, and architectural guidelines.
+
+## General Development Guidelines
+
 - Prefer functional code style
 - Use memory to track progress, preferences, and lessons learned
 - Commit after each successful build/test cycle, especially immediately after fixing the current cycle error
@@ -134,4 +140,18 @@ Purpose: give an AI agent the exact, repository-specific knowledge it needs to b
 - If you change webview message types, update unit + integration tests that assert message shapes.
 - Document any new settings under `package.json` contributes.configuration and add a brief line in `README.md`.
 
+8. Security considerations
+
+- Never commit secrets or API keys to the repository
+- Use VS Code's SecretStorage API for sensitive data (see `src/activation.ts` for examples)
+- All external API calls should use the rate-limited Azure client in `src/azureClient.ts`
+- Validate all user inputs, especially WIQL queries and work item data
+- Follow secure coding practices for the webview (CSP headers are configured in the extension)
+
 If anything above is vague or you'd like a short example added (test invocation, common message shapes, or an example PR checklist), tell me which section to expand and I will update this document.
+
+## Additional Architecture Guidelines
+
+For detailed architectural principles and guardrails specific to this VS Code extension, refer to:
+
+- `.github/instructions/vscode-extension.instructions.md` - Contains FSM-first architecture patterns, product intent, webview guidelines, and quality gates
