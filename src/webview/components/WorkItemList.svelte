@@ -3,7 +3,7 @@
     context: any;
     sendEvent: (event: any) => void;
   }
-  
+
   const { context, sendEvent }: Props = $props();
 
   const workItems = $derived(context?.workItems || context?.pendingWorkItems?.workItems || []);
@@ -11,24 +11,24 @@
   const connections = $derived(context?.connections || []);
   const activeConnection = $derived(connections.find((c: any) => c.id === activeConnectionId));
   const timerState = $derived(context?.timerState);
-  
+
   // Force reactivity every second to update timer display
   let tick = $state(0);
   setInterval(() => {
     tick = (tick + 1) % 1000;
   }, 1000);
-  
+
   // Compute elapsed time from startTime
   const timerElapsedSeconds = $derived.by(() => {
     // Trigger recomputation on tick
     const _currentTick = tick;
-    
+
     if (!timerState?.startTime) return 0;
-    
+
     const stopTime = timerState.stopTime;
     const now = stopTime || Date.now();
     const elapsed = Math.floor((now - timerState.startTime) / 1000);
-    
+
     return Math.max(0, elapsed);
   });
 
@@ -49,31 +49,35 @@
   ]);
 
   // Filter and sort work items
-  const filteredItems = $derived(workItems
-    .filter((item: any) => {
-      const title = (item.fields?.['System.Title'] || '').toLowerCase();
-      const matchesText = !filterText || title.includes(filterText.toLowerCase());
-      const matchesType = !typeFilter || item.fields?.['System.WorkItemType'] === typeFilter;
-      const itemState = normalizeState(item.fields?.['System.State']);
-      const matchesState = stateFilter === 'all' || itemState === stateFilter;
-      return matchesText && matchesType && matchesState;
-    })
-    .sort((a: any, b: any) => {
-      switch (sortKey) {
-        case 'id-asc':
-          return Number(a.id) - Number(b.id);
-        case 'id-desc':
-          return Number(b.id) - Number(a.id);
-        case 'title-asc':
-          return (a.fields?.['System.Title'] || '').localeCompare(b.fields?.['System.Title'] || '');
-        case 'updated-desc':
-        default:
-          return (
-            new Date(b.fields?.['System.ChangedDate'] || 0).getTime() -
-            new Date(a.fields?.['System.ChangedDate'] || 0).getTime()
-          );
-      }
-    }));
+  const filteredItems = $derived(
+    workItems
+      .filter((item: any) => {
+        const title = (item.fields?.['System.Title'] || '').toLowerCase();
+        const matchesText = !filterText || title.includes(filterText.toLowerCase());
+        const matchesType = !typeFilter || item.fields?.['System.WorkItemType'] === typeFilter;
+        const itemState = normalizeState(item.fields?.['System.State']);
+        const matchesState = stateFilter === 'all' || itemState === stateFilter;
+        return matchesText && matchesType && matchesState;
+      })
+      .sort((a: any, b: any) => {
+        switch (sortKey) {
+          case 'id-asc':
+            return Number(a.id) - Number(b.id);
+          case 'id-desc':
+            return Number(b.id) - Number(a.id);
+          case 'title-asc':
+            return (a.fields?.['System.Title'] || '').localeCompare(
+              b.fields?.['System.Title'] || ''
+            );
+          case 'updated-desc':
+          default:
+            return (
+              new Date(b.fields?.['System.ChangedDate'] || 0).getTime() -
+              new Date(a.fields?.['System.ChangedDate'] || 0).getTime()
+            );
+        }
+      })
+  );
 
   function normalizeState(raw: string): string {
     if (!raw) return 'new';
@@ -111,13 +115,9 @@
     sendEvent({ type: 'REFRESH_DATA' });
   }
 
-  function handleOpenItem(id: number) {
-    sendEvent({ type: 'OPEN_WORK_ITEM', workItemId: id });
-  }
-
   function handleStartTimer(item: any, event: Event) {
-    event.stopPropagation(); // Prevent card click
-    
+    event.stopPropagation();
+
     // Toggle: if timer is running on this item, stop it; otherwise start it
     if (timerState?.workItemId === item.id && timerState?.state !== 'idle') {
       sendEvent({ type: 'STOP_TIMER' });
@@ -231,18 +231,7 @@
     {:else}
       <div class="items-container">
         {#each filteredItems as item (item.id)}
-          <div
-            class="work-item-card"
-            onclick={() => handleOpenItem(item.id)}
-            onkeydown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleOpenItem(item.id);
-              }
-            }}
-            role="button"
-            tabindex="0"
-          >
+          <div class="work-item-card">
             <div class="card-header">
               <span class="type-icon"
                 >{getWorkItemTypeIcon(item.fields?.['System.WorkItemType'])}</span
@@ -295,33 +284,33 @@
                   class="action-btn primary"
                   onclick={(e) => handleStartTimer(item, e)}
                   title={timerState?.workItemId === item.id ? 'Stop Timer' : 'Start Timer'}
+                  aria-label={timerState?.workItemId === item.id ? 'Stop Timer' : 'Start Timer'}
                 >
                   <span class="codicon">{timerState?.workItemId === item.id ? '⏹' : '▶'}</span>
-                  {timerState?.workItemId === item.id ? 'Stop' : 'Timer'}
                 </button>
                 <button
                   class="action-btn"
                   onclick={(e) => handleEditItem(item, e)}
                   title="Edit Work Item"
+                  aria-label="Edit Work Item"
                 >
                   <span class="codicon">✎</span>
-                  Edit
                 </button>
                 <button
                   class="action-btn"
                   onclick={(e) => handleCreateBranch(item, e)}
                   title="Create Branch"
+                  aria-label="Create Branch"
                 >
                   <span class="codicon">⎇</span>
-                  Branch
                 </button>
                 <button
                   class="action-btn"
                   onclick={(e) => handleOpenInBrowser(item, e)}
                   title="Open in Azure DevOps"
+                  aria-label="Open in Azure DevOps"
                 >
                   <span class="codicon">🌐</span>
-                  Open
                 </button>
               </div>
             </div>
