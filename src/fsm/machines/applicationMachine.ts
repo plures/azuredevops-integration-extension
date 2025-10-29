@@ -747,13 +747,6 @@ export const applicationMachine = createMachine(
           await vscode.commands.executeCommand('azureDevOpsInt.createBranch', message.workItemId);
         }
       },
-      syncDataToWebview: ({ context, event }) => {
-        if (event.type !== 'WORK_ITEMS_LOADED') return;
-        context.webviewPanel?.webview.postMessage({
-          type: 'work-items-update',
-          workItems: event.workItems,
-        });
-      },
       storeWorkItemsInContext: assign(({ context, event }) => {
         if (event.type !== 'WORK_ITEMS_LOADED') return {};
 
