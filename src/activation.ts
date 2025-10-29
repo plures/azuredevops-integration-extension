@@ -2481,6 +2481,18 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
       </html>
     `;
 
+    // Set up message handler to receive events from webview
+    webview.onDidReceiveMessage((message) => {
+      if (message.type === 'fsmEvent' && message.event) {
+        // Forward webview events to the FSM
+        console.log('[AzureDevOpsIntViewProvider] Received event from webview:', {
+          eventType: message.event.type,
+          event: message.event,
+        });
+        dispatchApplicationEvent(message.event);
+      }
+    });
+
     // Notify FSM that webview panel is ready
     this.fsm?.send?.({ type: 'UPDATE_WEBVIEW_PANEL', webviewPanel: webviewView });
 
