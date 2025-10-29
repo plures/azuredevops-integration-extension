@@ -141,8 +141,8 @@ jobs:
           # Add changelog to git
           git add CHANGELOG.md package.json package-lock.json
 
-          # Create commit and tag
-          git commit -m "chore(release): $new_version"
+          # Create commit and tag (skip pre-commit hooks for automated releases)
+          git commit --no-verify -m "chore(release): $new_version"
           git tag "v$new_version"
 
           # Push commit and tags with retry logic and verification
