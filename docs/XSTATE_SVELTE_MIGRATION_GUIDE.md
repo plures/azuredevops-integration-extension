@@ -1,4 +1,5 @@
 # XState-Svelte Migration Guide
+
 ## Migrating to Rune-First Helpers with Pub/Sub Broker Pattern
 
 **Version**: 1.0.0  
@@ -40,14 +41,14 @@ This guide documents the migration from the old `@xstate/svelte` store-based hel
 <!-- App.svelte (OLD) -->
 <script lang="ts">
   import { applicationSnapshot } from './fsmSnapshotStore.js';
-  
+
   $: snapshot = $applicationSnapshot;
   const vscode = (window as any).__vscodeApi;
-  
+
   function sendEvent(event) {
     vscode.postMessage({ type: 'fsmEvent', event });
   }
-  
+
   // UI logic derived from machine state
   $: isLoading = snapshot.matches('loading');
 </script>
@@ -58,6 +59,7 @@ This guide documents the migration from the old `@xstate/svelte` store-based hel
 ```
 
 **Issues**:
+
 - ❌ Manual message passing
 - ❌ No retained snapshots
 - ❌ UI logic in component (not deterministic)
@@ -71,10 +73,10 @@ This guide documents the migration from the old `@xstate/svelte` store-based hel
 <script lang="ts">
   import { state as $state, effect as $effect } from 'svelte/runes';
   import { useApplicationMachine } from './useApplicationMachine.runes';
-  
+
   const runes = { state: $state, effect: $effect };
   const { state, send, connected } = useApplicationMachine(runes);
-  
+
   $: snapshot = $state(state);
   $: ui = snapshot?.context?.ui;
 </script>
@@ -88,6 +90,7 @@ This guide documents the migration from the old `@xstate/svelte` store-based hel
 ```
 
 **Benefits**:
+
 - ✅ Automatic pub/sub connection
 - ✅ Retained snapshots auto-replayed
 - ✅ UI state from machine (deterministic)
@@ -154,13 +157,13 @@ This guide documents the migration from the old `@xstate/svelte` store-based hel
 
 ### Key Components
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| **PubSubBroker** | `src/fsm/services/PubSubBroker.ts` | Extension host pub/sub broker |
-| **VSCodePubSubAdapter** | `src/webview/vscode-pubsub-adapter.ts` | Webview-side pub/sub adapter |
-| **useRemoteMachineRunes** | `src/fsm/xstate-svelte/src/useRemoteMachine.runes.ts` | Rune-first FSM helper |
-| **useApplicationMachine** | `src/webview/useApplicationMachine.runes.ts` | Convenience wrapper for app machine |
-| **ApplicationMachine** | `src/fsm/machines/applicationMachine.ts` | Authoritative state machine |
+| Component                 | Location                                              | Purpose                             |
+| ------------------------- | ----------------------------------------------------- | ----------------------------------- |
+| **PubSubBroker**          | `src/fsm/services/PubSubBroker.ts`                    | Extension host pub/sub broker       |
+| **VSCodePubSubAdapter**   | `src/webview/vscode-pubsub-adapter.ts`                | Webview-side pub/sub adapter        |
+| **useRemoteMachineRunes** | `src/fsm/xstate-svelte/src/useRemoteMachine.runes.ts` | Rune-first FSM helper               |
+| **useApplicationMachine** | `src/webview/useApplicationMachine.runes.ts`          | Convenience wrapper for app machine |
+| **ApplicationMachine**    | `src/fsm/machines/applicationMachine.ts`              | Authoritative state machine         |
 
 ---
 
@@ -169,6 +172,7 @@ This guide documents the migration from the old `@xstate/svelte` store-based hel
 ### 1. Created Core Infrastructure
 
 #### PubSubBroker (Extension Host)
+
 - ✅ Topic-based message routing
 - ✅ Retained message storage (for snapshots)
 - ✅ Monotonic pubseq generation
@@ -176,12 +180,14 @@ This guide documents the migration from the old `@xstate/svelte` store-based hel
 - ✅ Event echoing (echoSubseq)
 
 #### VSCodePubSubAdapter (Webview)
+
 - ✅ VS Code message passing integration
 - ✅ Topic subscription management
 - ✅ Monotonic pubseq validation
 - ✅ Automatic retained message replay
 
 #### Rune-First Helpers
+
 - ✅ Svelte 5 rune-native API
 - ✅ Optimistic update support
 - ✅ subseq/pubseq reconciliation
@@ -201,12 +207,12 @@ export type UIState = {
   };
   statusMessage?: { text: string; type: 'info' | 'warning' | 'error' | 'success' };
   loading?: { connections?: boolean; workItems?: boolean; authentication?: boolean };
-  modal?: { type: 'deviceCode' | 'error' | 'settings' | null; /* ... */ };
+  modal?: { type: 'deviceCode' | 'error' | 'settings' | null /* ... */ };
 };
 
 export type ApplicationContext = {
   // ... existing fields ...
-  ui?: UIState;  // Deterministic UI state
+  ui?: UIState; // Deterministic UI state
 };
 ```
 
@@ -251,15 +257,19 @@ appActor.start();
 
 // Publish snapshots on every transition
 appActor.subscribe((state) => {
-  broker.publish('machine:application:snapshot', {
-    snapshot: {
-      value: state.value,
-      context: state.context,
-      matches: computeMatches(state),  // Pre-compute state matches
+  broker.publish(
+    'machine:application:snapshot',
+    {
+      snapshot: {
+        value: state.value,
+        context: state.context,
+        matches: computeMatches(state), // Pre-compute state matches
+      },
+      pubseq: broker.getCurrentPubseq() + 1,
+      echoSubseq: lastProcessedSubseq, // Echo the last subseq processed
     },
-    pubseq: broker.getCurrentPubseq() + 1,
-    echoSubseq: lastProcessedSubseq,  // Echo the last subseq processed
-  }, { retain: true });
+    { retain: true }
+  );
 });
 
 // Listen for events from webview
@@ -267,7 +277,7 @@ broker.on('publish', ({ topic, payload }) => {
   if (topic === 'machine:application:events') {
     const { event, subseq } = payload;
     appActor.send(event);
-    lastProcessedSubseq = subseq;  // Track for echoing
+    lastProcessedSubseq = subseq; // Track for echoing
   }
 });
 ```
@@ -319,7 +329,7 @@ window.__vscodeApi = vscode;
 <script lang="ts">
   import { state as $state, effect as $effect } from 'svelte/runes';
   import { useApplicationMachine, createOptimisticReducer } from './useApplicationMachine.runes';
-  
+
   // Initialize machine connection
   const runes = { state: $state, effect: $effect };
   const { state, send, connected, pendingCount } = useApplicationMachine(runes, {
@@ -328,13 +338,13 @@ window.__vscodeApi = vscode;
       console.log('Connection status:', isConnected);
     },
   });
-  
+
   // Reactive state
   $: snapshot = $state(state);
   $: context = snapshot?.context;
   $: ui = context?.ui;
   $: workItems = context?.pendingWorkItems?.workItems || [];
-  
+
   // Connection indicator
   $: isConnected = $state(connected);
 </script>
@@ -345,7 +355,7 @@ window.__vscodeApi = vscode;
   {:else}
     <!-- Render from deterministic UI state -->
     <div class="toolbar">
-      <button 
+      <button
         onclick={() => send({ type: 'REFRESH_DATA' })}
         disabled={ui?.loading?.workItems || false}
       >
@@ -354,14 +364,14 @@ window.__vscodeApi = vscode;
           <span class="spinner" />
         {/if}
       </button>
-      
+
       {#if $state(pendingCount) > 0}
         <span class="pending-count">
           ({$state(pendingCount)} pending)
         </span>
       {/if}
     </div>
-    
+
     <div class="content">
       {#each workItems as item}
         <div class="work-item">{item.title}</div>
@@ -383,20 +393,20 @@ describe('PubSubBroker', () => {
   it('should publish retained messages', () => {
     const broker = new PubSubBroker();
     broker.publish('test:topic', { data: 'value' }, { retain: true });
-    
+
     const retained = broker.getRetainedMessage('test:topic');
     expect(retained).toBeDefined();
     expect(retained?.payload.data).toBe('value');
   });
-  
+
   it('should generate monotonic pubseq', () => {
     const broker = new PubSubBroker();
     broker.publish('topic1', { data: 1 }, { retain: true });
     const seq1 = broker.getCurrentPubseq();
-    
+
     broker.publish('topic2', { data: 2 }, { retain: true });
     const seq2 = broker.getCurrentPubseq();
-    
+
     expect(seq2).toBeGreaterThan(seq1);
   });
 });
@@ -415,21 +425,21 @@ describe('useRemoteMachineRunes', () => {
       requestSnapshotFn,
       runes
     );
-    
+
     // Send events (generates subseq 1, 2, 3)
     send({ type: 'EVENT_1' });
     send({ type: 'EVENT_2' });
     send({ type: 'EVENT_3' });
-    
+
     expect(pendingCount.current).toBe(3);
-    
+
     // Receive snapshot with echoSubseq = 2
     await receiveSnapshot({
       snapshot: { value: 'updated', context: {} },
       pubseq: 10,
       echoSubseq: 2,
     });
-    
+
     // Should clear events 1 and 2, keep event 3
     expect(pendingCount.current).toBe(1);
   });
@@ -464,15 +474,17 @@ See [RUNE_FIRST_MIGRATION_EXAMPLE.md](./RUNE_FIRST_MIGRATION_EXAMPLE.md#troubles
 ### Quick Checks
 
 1. **Connection Issues**:
+
    ```typescript
    // Check broker is publishing
    console.log('[Broker] pubseq:', broker.getCurrentPubseq());
-   
+
    // Check webview is subscribed
    console.log('[Adapter] Topics:', Object.keys(handlers));
    ```
 
 2. **Events Not Acknowledged**:
+
    ```typescript
    // Ensure echoSubseq is included in snapshots
    broker.publish('machine:app:snapshot', {
@@ -492,11 +504,13 @@ See [RUNE_FIRST_MIGRATION_EXAMPLE.md](./RUNE_FIRST_MIGRATION_EXAMPLE.md#troubles
 ## References
 
 ### Documentation
+
 - [Migration Instructions](../src/fsm/xstate-svelte/migration%20instructions.md) - Original migration spec
 - [Migration Example](./RUNE_FIRST_MIGRATION_EXAMPLE.md) - Detailed examples and patterns
 - [FSM Best Practices](./FSM_BEST_PRACTICES_ANALYSIS.md) - State machine design patterns
 
 ### Implementation Files
+
 - `src/fsm/services/PubSubBroker.ts` - Extension host broker
 - `src/webview/vscode-pubsub-adapter.ts` - Webview adapter
 - `src/fsm/xstate-svelte/src/useRemoteMachine.runes.ts` - Rune-first helper
@@ -504,6 +518,7 @@ See [RUNE_FIRST_MIGRATION_EXAMPLE.md](./RUNE_FIRST_MIGRATION_EXAMPLE.md#troubles
 - `src/fsm/machines/applicationMachine.ts` - Enhanced application machine
 
 ### External Resources
+
 - [XState v5 Documentation](https://statelyai.com/docs/xstate)
 - [Svelte 5 Runes](https://svelte-5-preview.vercel.app/docs/runes)
 - [VS Code Webview API](https://code.visualstudio.com/api/extension-guides/webview)
@@ -524,9 +539,8 @@ See [RUNE_FIRST_MIGRATION_EXAMPLE.md](./RUNE_FIRST_MIGRATION_EXAMPLE.md#troubles
 **Migration Status**: ✅ **Infrastructure Complete**  
 **Next Action**: Integrate PubSubBroker into extension activation  
 **Target Date**: TBD  
-**Maintainer**: Development Team  
+**Maintainer**: Development Team
 
 ---
 
-*Last Updated: 2025-10-26*
-
+_Last Updated: 2025-10-26_

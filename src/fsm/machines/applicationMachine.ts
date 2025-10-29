@@ -1096,7 +1096,7 @@ export const applicationMachine = createMachine(
               activeConnectionId,
               requiresPersistence,
             });
-          } catch (_e) {
+          } catch {
             // Swallow logging errors in test/runtime shims where console may be unavailable
           }
 

@@ -1,10 +1,13 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-//import { randomUUID } from 'crypto';
+import { randomUUID as _randomUUID } from 'crypto';
 import { OpenAI } from 'openai';
 import { AzureDevOpsIntClient } from './azureClient.js';
-//import { parseAzureDevOpsUrl, isAzureDevOpsWorkItemUrl } from './azureDevOpsUrlParser.js';
+import {
+  parseAzureDevOpsUrl as _parseAzureDevOpsUrl,
+  isAzureDevOpsWorkItemUrl as _isAzureDevOpsWorkItemUrl,
+} from './azureDevOpsUrlParser.js';
 import type { WorkItemsProvider } from './provider.js';
 import { WorkItemTimer } from './timer.js';
 import { SessionTelemetryManager } from './sessionTelemetry.js';
@@ -17,7 +20,7 @@ import {
 import { getConnectionLabel } from './fsm/functions/connection/connectionLabel.js';
 import {
   createBranchAwareTransform,
-  createConnectionProvider,
+  createConnectionProvider as _createConnectionProvider,
 } from './fsm/functions/connection/providerFactory.js';
 import { createSharedContextBridge } from './bridge/sharedContextBridge.js';
 import {
@@ -39,16 +42,16 @@ import { migrateGlobalPATToConnections } from './fsm/functions/secrets/patMigrat
 import {
   getApplicationStoreActor,
   sendApplicationStoreEvent,
-  setActiveConnectionHandler,
+  setActiveConnectionHandler as _setActiveConnectionHandler,
   setActiveConnectionIdReader,
   setExtensionContextRef as setExtensionContextRefBridge,
-  setForwardProviderMessage,
+  setForwardProviderMessage as _setForwardProviderMessage,
   setGetSecretPAT,
   setLoadedConnectionsReader,
-  setRegisterAllCommands,
-  setWebviewMessageHandler,
+  setRegisterAllCommands as _setRegisterAllCommands,
+  setWebviewMessageHandler as _setWebviewMessageHandler,
 } from './fsm/services/extensionHostBridge.js';
-import { registerTraceCommands } from './fsm/commands/traceCommands.js';
+import { registerCommands } from './features/commands/index.js';
 import { FSMSetupService } from './fsm/services/fsmSetupService.js';
 import { ConnectionAdapter } from './fsm/adapters/ConnectionAdapter.js';
 import { getConnectionFSMManager } from './fsm/ConnectionFSMManager.js';
@@ -61,7 +64,7 @@ import type {
 } from './fsm/machines/applicationMachine.js';
 import type { WorkItemTimerState, TimeEntry } from './types.js';
 
-type AuthMethod = 'pat' | 'entra';
+type _AuthMethod = 'pat' | 'entra';
 
 // Local lightweight type definitions for internal messaging helpers.
 // These were previously only present in a temporary bundle artifact.
@@ -95,7 +98,7 @@ let sessionTelemetry: SessionTelemetryManager | undefined;
 let client: AzureDevOpsIntClient | undefined;
 let statusBarItem: vscode.StatusBarItem | undefined;
 let authStatusBarItem: vscode.StatusBarItem | undefined;
-const PAT_KEY = 'azureDevOpsInt.pat';
+const _PAT_KEY = 'azureDevOpsInt.pat';
 const OPENAI_SECRET_KEY = 'azureDevOpsInt.openai.apiKey';
 let viewProviderRegistered = false;
 const initialRefreshedConnections = new Set<string>();
@@ -182,26 +185,14 @@ export function handleMessage(message: any): void {
     }
     case 'startTimer': {
       const id = message.workItemId;
-      if (!provider) break;
-
-      // Use FSM timer actor instead of legacy timer
-      const actor = getApplicationActor();
-      const snapshot = actor?.getSnapshot?.();
-      const timerActor = snapshot?.context?.timerActor;
-
-      if (!timerActor || typeof (timerActor as any).send !== 'function') {
-        console.warn('[handleMessage] Timer actor not available');
-        break;
-      }
-
+      if (!timer || typeof timer.start !== 'function' || !provider) break;
       const items = provider.getWorkItems?.() || [];
       const match = items.find((i: any) => i.id === id);
       const title = match?.fields?.['System.Title'] || `Work Item ${id}`;
-
       try {
-        (timerActor as any).send({ type: 'START', workItemId: id, workItemTitle: title });
-      } catch (error) {
-        console.error('[handleMessage] Failed to start timer:', error);
+        timer.start(id, title);
+      } catch {
+        /* ignore */
       }
       break;
     }
@@ -395,128 +386,11 @@ function dispatchApplicationEvent(event: unknown): void {
         // Route to legacy handler with correct message format
         handleMessage({ type: 'startTimer', workItemId: evt.workItemId });
         break;
-      case 'STOP_TIMER':
-        // Stop the FSM timer
-        {
-          const actor = getApplicationActor();
-          const snapshot = actor?.getSnapshot?.();
-          const timerActor = snapshot?.context?.timerActor;
-
-          if (timerActor && typeof (timerActor as any).send === 'function') {
-            (timerActor as any).send({ type: 'STOP' });
-          }
-        }
-        break;
       case 'EDIT_WORK_ITEM':
-        // Show in-VSCode edit dialog with field selection
-        if (evt.workItemId && client && provider) {
-          (async () => {
-            try {
-              const items = provider.getWorkItems?.() || [];
-              const item = items.find((i: any) => i.id === evt.workItemId);
-
-              if (!item) {
-                vscode.window.showWarningMessage(`Work item #${evt.workItemId} not found`);
-                return;
-              }
-
-              // Show quick pick for field selection
-              const fieldOptions = [
-                { label: 'Title', field: 'System.Title', current: item.fields?.['System.Title'] },
-                { label: 'State', field: 'System.State', current: item.fields?.['System.State'] },
-                {
-                  label: 'Assigned To',
-                  field: 'System.AssignedTo',
-                  current:
-                    item.fields?.['System.AssignedTo']?.displayName ||
-                    item.fields?.['System.AssignedTo'],
-                },
-                { label: 'Tags', field: 'System.Tags', current: item.fields?.['System.Tags'] },
-                {
-                  label: 'Description',
-                  field: 'System.Description',
-                  current: item.fields?.['System.Description'],
-                },
-              ];
-
-              const selected = await vscode.window.showQuickPick(
-                fieldOptions.map((f) => ({
-                  label: f.label,
-                  description: f.current
-                    ? `Current: ${String(f.current).substring(0, 50)}`
-                    : 'Not set',
-                  field: f.field,
-                  current: f.current,
-                })),
-                {
-                  placeHolder: `Select field to edit for #${evt.workItemId}`,
-                }
-              );
-
-              if (!selected) return;
-
-              // Get new value based on field type
-              let newValue: any;
-
-              if (selected.field === 'System.State') {
-                // Get available states for this work item type
-                const workItemType = item.fields?.['System.WorkItemType'];
-                if (!workItemType) {
-                  vscode.window.showWarningMessage('Cannot determine work item type');
-                  return;
-                }
-
-                const states = await client.getWorkItemTypeStates?.(workItemType);
-                if (!states || states.length === 0) {
-                  vscode.window.showWarningMessage('No states available for this work item type');
-                  return;
-                }
-
-                const selectedState = await vscode.window.showQuickPick(states, {
-                  placeHolder: `Select new state for #${evt.workItemId}`,
-                });
-
-                if (!selectedState) return;
-                newValue = selectedState;
-              } else if (selected.field === 'System.AssignedTo') {
-                // For now, use simple input box (TODO: could fetch team members)
-                newValue = await vscode.window.showInputBox({
-                  prompt: `Enter assigned to (email or display name) for #${evt.workItemId}`,
-                  value: selected.current || '',
-                });
-              } else {
-                // Text fields: Title, Tags, Description
-                const isMultiline = selected.field === 'System.Description';
-                newValue = await vscode.window.showInputBox({
-                  prompt: `Enter new ${selected.label} for #${evt.workItemId}`,
-                  value: selected.current || '',
-                  placeHolder: isMultiline ? 'Enter description...' : undefined,
-                });
-              }
-
-              if (newValue === undefined) return; // Cancelled
-
-              // Update the work item
-              const patchOp = {
-                op: 'add',
-                path: `/fields/${selected.field}`,
-                value: newValue,
-              };
-
-              await client.updateWorkItem?.(evt.workItemId, [patchOp]);
-              vscode.window.showInformationMessage(
-                `Updated ${selected.label} for work item #${evt.workItemId}`
-              );
-
-              // Refresh work items to show changes
-              provider.refresh(getStoredQueryForConnection(activeConnectionId));
-            } catch (error: any) {
-              vscode.window.showErrorMessage(`Failed to edit work item: ${error.message || error}`);
-              console.error('[EDIT_WORK_ITEM] Error:', error);
-            }
-          })().catch((err) => {
-            console.error('[EDIT_WORK_ITEM] Unhandled error:', err);
-          });
+        // Open work item in browser for editing (legacy behavior)
+        if (evt.workItemId && client) {
+          const url = client.getBrowserUrl(`/_workitems/edit/${evt.workItemId}`);
+          vscode.env.openExternal(vscode.Uri.parse(url));
         }
         break;
       case 'OPEN_IN_BROWSER':
@@ -528,43 +402,25 @@ function dispatchApplicationEvent(event: unknown): void {
         }
         break;
       case 'CREATE_BRANCH':
-        // Show input for branch name then create and link to work item
-        if (evt.workItemId && provider && client) {
-          const items = provider.getWorkItems?.() || [];
-          const item = items.find((i: any) => i.id === evt.workItemId);
-          if (item) {
-            const title = item.fields?.['System.Title'] || '';
-            const branchName = `feature/${evt.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-            vscode.window
-              .showInputBox({
-                prompt: 'Enter branch name',
-                value: branchName,
-              })
-              .then(async (name) => {
-                if (name) {
-                  try {
-                    // Create the branch
-                    await vscode.commands.executeCommand('git.branch', name);
-
-                    // Link branch to work item via comment
-                    const branchComment = `Created branch: ${name}`;
-                    await client.addWorkItemComment?.(evt.workItemId, branchComment);
-
-                    vscode.window.showInformationMessage(
-                      `Branch "${name}" created and linked to work item #${evt.workItemId}`
-                    );
-                  } catch (error: any) {
-                    console.error('[CREATE_BRANCH] Failed to link branch:', error);
-                    vscode.window.showWarningMessage(
-                      `Branch created but failed to link: ${error.message || error}`
-                    );
+        // Show input for branch name then create
+        if (evt.workItemId) {
+          provider?.getWorkItems?.().then((items: any[]) => {
+            const item = items.find((i) => i.id === evt.workItemId);
+            if (item) {
+              const title = item.fields?.['System.Title'] || '';
+              const branchName = `feature/${evt.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+              vscode.window
+                .showInputBox({
+                  prompt: 'Enter branch name',
+                  value: branchName,
+                })
+                .then((name) => {
+                  if (name) {
+                    vscode.commands.executeCommand('git.branch', name);
                   }
-                }
-              })
-              .catch((err) => {
-                console.error('[CREATE_BRANCH] Error:', err);
-              });
-          }
+                });
+            }
+          });
         }
         break;
     }
@@ -2135,34 +1991,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
   if (appActor && typeof (appActor as any).subscribe === 'function') {
     (appActor as any).subscribe((snapshot: any) => {
-      // Persist timer state whenever it changes
-      const timerActor = snapshot.context?.timerActor;
-      if (timerActor && typeof (timerActor as any).getSnapshot === 'function') {
-        try {
-          const timerSnapshot = (timerActor as any).getSnapshot();
-          if (timerSnapshot?.context) {
-            const persistedState = {
-              workItemId: timerSnapshot.context.workItemId,
-              workItemTitle: timerSnapshot.context.workItemTitle,
-              startTime: timerSnapshot.context.startTime,
-              isPaused: timerSnapshot.context.isPaused,
-              state: timerSnapshot.value,
-            };
-            // Only persist if we have a workItemId (timer is active)
-            if (persistedState.workItemId) {
-              context.globalState.update(STATE_TIMER, persistedState).then(
-                () => {},
-                (e: any) => {
-                  console.error('[activation] Failed to persist timer state:', e);
-                }
-              );
-            }
-          }
-        } catch (e) {
-          // Ignore timer persistence errors
-        }
-      }
-
       if (panel && snapshot) {
         // Pre-compute all state matches since snapshot.matches() doesn't survive JSON serialization
         const matches = {
@@ -2264,336 +2092,20 @@ export async function activate(context: vscode.ExtensionContext) {
     });
   }
 
-  // Core commands
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.setup',
-      safeCommandHandler(async () => {
-        const setupService = new FSMSetupService(context);
-        await setupService.startSetup();
-        // After setup, refresh connections from config
-        await loadConnectionsFromConfig(context);
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.signInWithEntra',
-      safeCommandHandler((target?: unknown) => {
-        return signInWithEntra(
-          context,
-          typeof target === 'string' ? target : (target as ProjectConnection | undefined)?.id
-        );
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.signOutEntra',
-      safeCommandHandler((target?: unknown) => {
-        return signOutEntra(
-          context,
-          typeof target === 'string' ? target : (target as ProjectConnection | undefined)?.id
-        );
-      })
-    ),
-    vscode.commands.registerCommand('azureDevOpsInt.openLogs', () => {
-      (async () => {
-        try {
-          let channel = getOutputChannel();
-          if (!channel) {
-            channel = vscode.window.createOutputChannel('Azure DevOps Integration');
-            setOutputChannel(channel);
-            logLine('[logs] Output channel created on demand');
-          }
-          channel.show(true);
-          const currentConfig = getConfig();
-          if (!currentConfig.get<boolean>('debugLogging')) {
-            const pick = await vscode.window.showInformationMessage(
-              'Verbose logging is currently disabled. Enable it to capture more diagnostics?',
-              'Enable',
-              'Skip'
-            );
-            if (pick === 'Enable') {
-              await currentConfig.update('debugLogging', true, vscode.ConfigurationTarget.Global);
-              logLine('[logs] Debug logging enabled');
-            }
-          }
-        } catch (e: any) {
-          vscode.window.showErrorMessage('Failed to open logs: ' + (e?.message || String(e)));
-        }
-      })().catch((err) => console.error('[azureDevOpsInt.openLogs] Error:', err));
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.copyLogsToClipboard', () => {
-      (async () => {
-        try {
-          const version = extensionContextRef ? getExtensionVersion(extensionContextRef) : 'dev';
-          const buffer = getLogBufferSnapshot();
-          const header = `Azure DevOps Integration Logs\nVersion: ${version}\nTimestamp: ${new Date().toISOString()}\nLines: ${buffer.length}\n---\n`;
-          const body = buffer.join('\n');
-          const text = header + body + (body.endsWith('\n') ? '' : '\n');
-          await vscode.env.clipboard.writeText(text);
-          vscode.window.showInformationMessage('Copied extension logs to clipboard.');
-        } catch (e: any) {
-          vscode.window.showErrorMessage(
-            'Failed to copy logs to clipboard: ' + (e?.message || String(e))
-          );
-        }
-      })().catch((err) => console.error('[azureDevOpsInt.copyLogsToClipboard] Error:', err));
-    }),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.diagnoseWorkItems',
-      safeCommandHandler(async () => {
-        try {
-          await diagnoseWorkItemsIssue(context);
-        } catch (e: any) {
-          vscode.window.showErrorMessage('Diagnostic failed: ' + (e?.message || String(e)));
-        }
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.openLogsFolder',
-      safeCommandHandler(async () => {
-        try {
-          await vscode.commands.executeCommand('workbench.action.openLogsFolder');
-        } catch {
-          try {
-            await vscode.env.openExternal((vscode.env as any).logUri ?? vscode.Uri.file(''));
-          } catch (e: any) {
-            vscode.window.showErrorMessage(
-              'Failed to open logs folder: ' + (e?.message || String(e))
-            );
-          }
-        }
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.focusWorkItemsView',
-      safeCommandHandler(() => {
-        vscode.commands.executeCommand('azureDevOpsWorkItems.focus');
-      })
-    ),
+  // Core commands - using extracted commands module
+  const commandContext = {
+    context,
+    panel,
+    provider,
+    timer,
+    sessionTelemetry,
+    client,
+    statusBarItem,
+    authStatusBarItem,
+  };
 
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.setDefaultElapsedLimit',
-      safeCommandHandler(async () => {
-        try {
-          const cfg = getConfig();
-          const prev = cfg.get<number>('defaultElapsedLimitHours') ?? 3.5;
-          const input = await vscode.window.showInputBox({
-            prompt: 'Default elapsed hours to cap long-running timers (e.g. 3.5)',
-            value: String(prev),
-            validateInput: (v) => {
-              const n = Number(v);
-              if (isNaN(n) || !isFinite(n) || n < 0) return 'Enter a non-negative number';
-              return null;
-            },
-          });
-          if (typeof input === 'undefined') return; // cancelled
-          const val = Number(input);
-          await cfg.update('defaultElapsedLimitHours', val, vscode.ConfigurationTarget.Global);
-          vscode.window.showInformationMessage(`Default elapsed cap updated to ${val} hours.`);
-          // Propagate to any running timer
-          if (timer && typeof (timer as any).setDefaultElapsedLimitHours === 'function') {
-            try {
-              (timer as any).setDefaultElapsedLimitHours(val);
-            } catch (e) {
-              console.warn(
-                '[azureDevOpsInt] Failed to propagate defaultElapsedLimitHours to running timer',
-                e
-              );
-            }
-          }
-        } catch (err: any) {
-          console.error('[AzureDevOpsInt] Failed to update default elapsed cap', err);
-          vscode.window.showErrorMessage(
-            'Failed to update default elapsed cap: ' + (err?.message || String(err))
-          );
-        }
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.showWorkItems',
-      safeCommandHandler(() => {
-        vscode.commands.executeCommand('azureDevOpsWorkItems.focus');
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.refreshWorkItems',
-      safeCommandHandler(async () => {
-        // Use connection-specific query instead of global default
-        const connectionSpecificQuery = activeConnectionId
-          ? getStoredQueryForConnection(activeConnectionId)
-          : getDefaultQuery();
-
-        verbose('[command] refreshWorkItems invoked', {
-          hasProvider: !!provider,
-          query: connectionSpecificQuery,
-          activeConnectionId,
-        });
-        if (!provider && extensionContextRef) {
-          verbose('[command] refreshWorkItems no provider; attempting ensureActiveConnection');
-          try {
-            await ensureActiveConnection(extensionContextRef, activeConnectionId, {
-              refresh: false,
-            });
-          } catch (e: any) {
-            verbose('[command] ensureActiveConnection failed in refreshWorkItems', e?.message || e);
-          }
-        }
-        provider?.refresh(connectionSpecificQuery);
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.createWorkItem',
-      safeCommandHandler(() => {
-        dispatchApplicationEvent({ type: 'CREATE_WORK_ITEM' });
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.startTimer',
-      safeCommandHandler(() => {
-        dispatchApplicationEvent({ type: 'START_TIMER_INTERACTIVE' });
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.pauseTimer',
-      safeCommandHandler(() => {
-        timer?.pause();
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.resumeTimer',
-      safeCommandHandler(() => {
-        timer?.resume();
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.stopTimer',
-      safeCommandHandler(async () => {
-        if (!timer) {
-          vscode.window.showInformationMessage('No active timer to stop.');
-          return;
-        }
-        const timerConnectionSnapshot: TimerConnectionInfo = { ...timerConnectionInfo };
-        setTimerConnectionFrom(undefined);
-        const stopped = timer.stop();
-        updateTimerContext(undefined);
-        if (stopped) {
-          dispatchApplicationEvent({
-            type: 'TIMER_STOPPED',
-            payload: {
-              ...stopped,
-              connection: timerConnectionSnapshot,
-            },
-          });
-        }
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.showTimeReport',
-      safeCommandHandler(() => {
-        dispatchApplicationEvent({ type: 'SHOW_TIME_REPORT' });
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.createBranch',
-      safeCommandHandler(() => {
-        dispatchApplicationEvent({ type: 'CREATE_BRANCH_INTERACTIVE' });
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.createPullRequest',
-      safeCommandHandler(() => {
-        dispatchApplicationEvent({ type: 'CREATE_PULL_REQUEST_INTERACTIVE' });
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.showPullRequests',
-      safeCommandHandler(() => {
-        dispatchApplicationEvent({ type: 'SHOW_MY_PULL_REQUESTS' });
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.showBuildStatus',
-      safeCommandHandler(() => {
-        dispatchApplicationEvent({ type: 'SHOW_BUILD_STATUS' });
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.toggleKanbanView',
-      safeCommandHandler(() => {
-        dispatchApplicationEvent({ type: 'TOGGLE_KANBAN_VIEW' });
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.toggleDebugView',
-      safeCommandHandler(() => {
-        dispatchApplicationEvent({ type: 'TOGGLE_DEBUG_VIEW' });
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.selectTeam',
-      safeCommandHandler(() => {
-        dispatchApplicationEvent({ type: 'SELECT_TEAM_INTERACTIVE' });
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.resetPreferredRepositories',
-      safeCommandHandler(() => {
-        dispatchApplicationEvent({ type: 'RESET_PREFERRED_REPOSITORIES' });
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.selfTestWebview',
-      safeCommandHandler(() => {
-        dispatchApplicationEvent({ type: 'SELF_TEST_WEBVIEW' });
-      })
-    ),
-    vscode.commands.registerCommand('azureDevOpsInt.clearPerformanceData', () => {
-      performanceMonitor.clear();
-      vscode.window.showInformationMessage('Performance data cleared successfully');
-    }),
-    vscode.commands.registerCommand('azureDevOpsInt.forceGC', () => {
-      if (global.gc) {
-        global.gc();
-        vscode.window.showInformationMessage('Forced garbage collection.');
-      } else {
-        vscode.window.showWarningMessage(
-          'Garbage collection is not exposed. Run VS Code with --expose-gc flag.'
-        );
-      }
-    }),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.bulkAssign',
-      safeCommandHandler(() => {
-        dispatchApplicationEvent({
-          type: 'WEBVIEW_MESSAGE',
-          message: { type: 'bulkAssign', connectionId: activeConnectionId },
-        });
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.setOpenAIApiKey',
-      safeCommandHandler(() => setOpenAIApiKey(context))
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.generateCopilotPrompt',
-      safeCommandHandler(async () => {
-        if (!openAiClient) {
-          const choice = await vscode.window.showWarningMessage(
-            'OpenAI API key is not set. Please set it to use this feature.',
-            'Set API Key'
-          );
-          if (choice === 'Set API Key') {
-            await setOpenAIApiKey(context);
-          }
-          return;
-        }
-        dispatchApplicationEvent({ type: 'GENERATE_COPILOT_PROMPT' });
-      })
-    ),
-    vscode.commands.registerCommand(
-      'azureDevOpsInt.cycleAuthSignIn',
-      safeCommandHandler(() => cycleAuthSignIn(context))
-    )
-  );
+  const commandDisposables = registerCommands(context, commandContext);
+  context.subscriptions.push(...commandDisposables);
 
   // Set up listeners and handlers
   context.subscriptions.push(
@@ -2608,9 +2120,6 @@ export async function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Initialize connections on startup
-  await loadConnectionsFromConfig(context);
-  // Don't await initial connection - let it happen in background to avoid blocking activation
   // The webview will initialize immediately and show auth UI when ready
   ensureActiveConnection(context, activeConnectionId, { refresh: true }).catch((error) => {
     verbose('[activation] Initial connection failed:', error);
@@ -2649,67 +2158,6 @@ export async function activate(context: vscode.ExtensionContext) {
       5 * 60 * 1000
     ); // every 5 minutes
   }
-
-  // Finalize activation
-  dispatchApplicationEvent({ type: 'EXTENSION_ACTIVATED' });
-  verbose('[activation] complete');
-  return {
-    /**
-     * @internal
-     * This is an internal API for integration testing and is not intended for public use.
-     * It may be removed or changed at any time.
-     */
-    __testing__: {
-      get connections() {
-        return connections;
-      },
-      get activeConnectionId() {
-        return activeConnectionId;
-      },
-      get provider() {
-        return provider;
-      },
-      get client() {
-        return client;
-      },
-      get timer() {
-        return timer;
-      },
-      get panel() {
-        return panel;
-      },
-      get connectionStates() {
-        return connectionStates;
-      },
-      get fsmSetupService() {
-        return fsmSetupService;
-      },
-      get openAiClient() {
-        return openAiClient;
-      },
-      get sessionTelemetry() {
-        return sessionTelemetry;
-      },
-      get sharedContextBridge() {
-        return sharedContextBridge;
-      },
-      get selfTestPending() {
-        return selfTestPending;
-      },
-      set selfTestPending(v) {
-        selfTestPending = v;
-      },
-      ensureActiveConnection,
-      saveConnectionsToConfig,
-      loadConnectionsFromConfig,
-      ensureConnectionsInitialized,
-      signInWithEntra,
-      signOutEntra,
-      setOpenAIApiKey,
-      cycleAuthSignIn,
-      diagnoseWorkItemsIssue,
-    },
-  };
 }
 
 export function deactivate(): Thenable<void> {
@@ -2730,28 +2178,8 @@ export function deactivate(): Thenable<void> {
     gcInterval = undefined;
   }
 
-  // Clean up promise rejection handler
-  if (rejectionHandler) {
-    process.removeListener('unhandledRejection', rejectionHandler);
-    rejectionHandler = undefined;
-  }
-
-  // Stop the timer if it's running
-  timer?.stop();
-
-  // Dispose of status bar items
-  statusBarItem?.dispose();
-  authStatusBarItem?.dispose();
-
-  // Clean up other resources
-  panel = undefined;
-  provider = undefined;
-  client = undefined;
-  timer = undefined;
-  sessionTelemetry = undefined;
-  openAiClient = undefined;
+  // Clear all caches and state
   connectionStates.clear();
-  initialRefreshedConnections.clear();
   activeQueryByConnection.clear();
 
   dispatchApplicationEvent({ type: 'EXTENSION_DEACTIVATED' });
@@ -2771,62 +2199,11 @@ function getSerializableContext(context: any): Record<string, any> {
   if (shouldLogDebug()) {
     console.log('[AzureDevOpsInt][getSerializableContext] Original context:', {
       hasConnections: !!context.connections,
-      connectionsLength: context.connections?.length,
       connectionsType: typeof context.connections,
       connectionsIsArray: Array.isArray(context.connections),
       connectionsValue: context.connections,
       activeConnectionId: context.activeConnectionId,
       isActivated: context.isActivated,
-    });
-  }
-
-  // Get timer state snapshot if timerActor exists
-  let timerState: any = undefined;
-  if (context.timerActor && typeof (context.timerActor as any).getSnapshot === 'function') {
-    try {
-      const timerSnapshot = (context.timerActor as any).getSnapshot();
-
-      console.log('[getSerializableContext] Timer snapshot:', {
-        hasSnapshot: !!timerSnapshot,
-        hasContext: !!timerSnapshot?.context,
-        state: timerSnapshot?.value,
-        workItemId: timerSnapshot?.context?.workItemId,
-        startTime: timerSnapshot?.context?.startTime,
-      });
-
-      if (timerSnapshot?.context) {
-        const timerCtx = timerSnapshot.context;
-
-        // Calculate elapsed time on-demand based on startTime
-        let elapsedSeconds = 0;
-        if (timerCtx.startTime) {
-          const now = Date.now();
-          elapsedSeconds = Math.floor((now - timerCtx.startTime) / 1000);
-
-          // Apply cap if configured
-          const maxHours = timerCtx.defaultElapsedLimitHours || 3.5;
-          const maxSeconds = maxHours * 3600;
-          elapsedSeconds = Math.min(elapsedSeconds, maxSeconds);
-        }
-
-        timerState = {
-          workItemId: timerCtx.workItemId,
-          workItemTitle: timerCtx.workItemTitle,
-          startTime: timerCtx.startTime,
-          stopTime: undefined, // TODO: Add stop time when timer stops
-          isPaused: timerCtx.isPaused,
-          state: timerSnapshot.value,
-        };
-
-        console.log('[getSerializableContext] Created timerState:', timerState);
-      }
-    } catch (e) {
-      console.error('[getSerializableContext] Error getting timer snapshot:', e);
-    }
-  } else {
-    console.log('[getSerializableContext] No timerActor or getSnapshot:', {
-      hasTimerActor: !!context.timerActor,
-      hasGetSnapshot: typeof (context.timerActor as any)?.getSnapshot,
     });
   }
 
@@ -2848,7 +2225,6 @@ function getSerializableContext(context: any): Record<string, any> {
     errorRecoveryAttempts: context.errorRecoveryAttempts,
     viewMode: context.viewMode,
     kanbanColumns: context.kanbanColumns,
-    timerState: timerState,
     deviceCodeSession: context.deviceCodeSession
       ? {
           connectionId: context.deviceCodeSession.connectionId,
@@ -2899,15 +2275,6 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
       enableScripts: true,
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
     };
-
-    const nonce = getNonce();
-    const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'main.js')
-    );
-    // Link to main.css which contains Svelte component styles from esbuild
-    const mainCssUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'main.css')
-    );
 
     // The 'unsafe-eval' is required for Svelte's dev mode.
     // TODO: Remove 'unsafe-eval' in production builds.
@@ -2984,124 +2351,6 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
         });
       }
     }
-
-    webview.onDidReceiveMessage(async (message) => {
-      // Handle messages from the webview
-      switch (message.type) {
-        case 'fsmEvent':
-          // Route FSM events from webview to the application FSM
-          if (message.event) {
-            dispatchApplicationEvent(message.event);
-          }
-          break;
-        case 'webviewReady':
-        case 'ready': {
-          console.log('[AzureDevOpsIntViewProvider] Received ready message from webview');
-          // Webview initialization complete - send current FSM state
-          const actor = getApplicationStoreActor();
-          console.log('[AzureDevOpsIntViewProvider] Getting snapshot for ready message:', {
-            hasActor: !!actor,
-            hasGetSnapshot: typeof (actor as any)?.getSnapshot === 'function',
-          });
-          if (actor && typeof (actor as any).getSnapshot === 'function') {
-            const snap = (actor as any).getSnapshot();
-            console.log('[AzureDevOpsIntViewProvider] Ready handler snapshot:', {
-              hasSnap: !!snap,
-              value: snap?.value,
-            });
-            if (snap) {
-              // Pre-compute state matches
-              const matches = {
-                inactive: snap.matches('inactive'),
-                activating: snap.matches('activating'),
-                activation_failed: snap.matches('activation_failed'),
-                active: snap.matches('active'),
-                error_recovery: snap.matches('error_recovery'),
-                deactivating: snap.matches('deactivating'),
-                'active.setup': snap.matches({ active: 'setup' }),
-                'active.setup.loading_connections': snap.matches({
-                  active: { setup: 'loading_connections' },
-                }),
-                'active.setup.waiting_for_panel': snap.matches({
-                  active: { setup: 'waiting_for_panel' },
-                }),
-                'active.setup.panel_ready': snap.matches({ active: { setup: 'panel_ready' } }),
-                'active.setup.setup_error': snap.matches({ active: { setup: 'setup_error' } }),
-                'active.ready': snap.matches({ active: 'ready' }),
-                'active.ready.idle': snap.matches({ active: { ready: 'idle' } }),
-                'active.ready.loadingData': snap.matches({ active: { ready: 'loadingData' } }),
-                'active.ready.managingConnections': snap.matches({
-                  active: { ready: 'managingConnections' },
-                }),
-                'active.ready.error': snap.matches({ active: { ready: 'error' } }),
-              };
-
-              console.log(
-                '[AzureDevOpsIntViewProvider] Posting syncState in response to ready with matches'
-              );
-              webview.postMessage({
-                type: 'syncState',
-                payload: {
-                  fsmState: snap.value,
-                  context: getSerializableContext(snap.context),
-                  matches,
-                },
-              });
-            }
-          }
-          break;
-        }
-        case 'someMessageType':
-          // Handle specific message type
-          break;
-        case 'openDeviceCodeBrowser': {
-          try {
-            const actor = getApplicationStoreActor();
-            const snap =
-              actor && typeof (actor as any).getSnapshot === 'function'
-                ? (actor as any).getSnapshot()
-                : undefined;
-            const session = snap?.context?.deviceCodeSession;
-            const requestedId = message.payload?.connectionId;
-            if (session && session.connectionId === requestedId) {
-              // Copy code then open verification URI via VS Code API (more reliable than webview window.open)
-              try {
-                await vscode.env.clipboard.writeText(session.userCode);
-              } catch (clipboardError) {
-                // Non-fatal: clipboard may be unavailable in restricted environments
-                console.warn('[AzureDevOpsIntViewProvider] Clipboard write failed', clipboardError);
-              }
-              await vscode.env.openExternal(vscode.Uri.parse(session.verificationUri));
-              vscode.window.showInformationMessage(
-                `Auth code ${session.userCode} copied. Complete sign-in in the browser.`
-              );
-            } else {
-              vscode.window.showWarningMessage(
-                'No active device code session for this connection.'
-              );
-            }
-          } catch (error) {
-            console.error(
-              '[AzureDevOpsIntViewProvider] Failed handling openDeviceCodeBrowser',
-              error
-            );
-          }
-          break;
-        }
-      }
-    });
-  }
-
-  public postMessage(message: unknown) {
-    if (!this.view) {
-      return;
-    }
-
-    try {
-      this.view.webview.postMessage(message);
-    } catch (error) {
-      console.error('[AzureDevOpsIntViewProvider] postMessage error:', error);
-    }
   }
 }
 
@@ -3116,14 +2365,16 @@ async function diagnoseWorkItemsIssue(context: vscode.ExtensionContext) {
   log(`Found ${connections.length} connections.`);
   log(`Active connection ID: ${activeId}`);
 
-  if (connections.length === 0) {
-    log('No connections configured. Aborting.');
+  if (!activeId) {
+    log('No active connection. Aborting.');
+    getOutputChannel()?.show();
     return;
   }
 
   const activeConn = connections.find((c) => c.id === activeId);
   if (!activeConn) {
-    log('Active connection not found in configuration. Aborting.');
+    log('Active connection not found in config. Aborting.');
+    getOutputChannel()?.show();
     return;
   }
 

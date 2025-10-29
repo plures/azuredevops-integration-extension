@@ -342,7 +342,7 @@ export const connectionMachine = createMachine(
     },
     states: {
       disconnected: {
-        entry: 'clearConnectionState',
+        entry: ['clearConnectionState'],
         on: {
           CONNECT: {
             target: 'authenticating',
@@ -463,9 +463,11 @@ export const connectionMachine = createMachine(
                     }),
                   },
                 },
-                entry: assign({
-                  reauthInProgress: true,
-                }),
+                entry: [
+                  assign({
+                    reauthInProgress: true,
+                  }),
+                ],
               },
             },
           },
@@ -520,7 +522,7 @@ export const connectionMachine = createMachine(
       },
 
       connected: {
-        entry: 'notifyConnectionSuccess',
+        entry: ['notifyConnectionSuccess'],
         on: {
           DISCONNECT: 'disconnected',
           CONNECTION_FAILED: 'connection_error',
@@ -530,7 +532,7 @@ export const connectionMachine = createMachine(
       },
 
       auth_failed: {
-        entry: 'notifyAuthFailure',
+        entry: ['notifyAuthFailure'],
         on: {
           RETRY: {
             target: 'authenticating',
@@ -547,7 +549,7 @@ export const connectionMachine = createMachine(
       },
 
       client_failed: {
-        entry: 'notifyClientFailure',
+        entry: ['notifyClientFailure'],
         on: {
           RETRY: {
             target: 'creating_client',
@@ -559,7 +561,7 @@ export const connectionMachine = createMachine(
       },
 
       provider_failed: {
-        entry: 'notifyProviderFailure',
+        entry: ['notifyProviderFailure'],
         on: {
           RETRY: {
             target: 'creating_provider',
@@ -571,7 +573,7 @@ export const connectionMachine = createMachine(
       },
 
       connection_error: {
-        entry: 'notifyConnectionError',
+        entry: ['notifyConnectionError'],
         on: {
           RETRY: {
             target: 'authenticating',

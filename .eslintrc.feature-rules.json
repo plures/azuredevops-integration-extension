@@ -1,0 +1,45 @@
+{
+  "rules": {
+    "max-lines": [
+      "error",
+      {
+        "max": 500,
+        "skipBlankLines": true,
+        "skipComments": true
+      }
+    ],
+    "max-lines-per-function": [
+      "warn",
+      {
+        "max": 100,
+        "skipBlankLines": true,
+        "skipComments": true
+      }
+    ],
+    "complexity": ["error", 15],
+    "max-depth": ["error", 4],
+    "max-params": ["error", 4],
+    "@typescript-eslint/explicit-function-return-type": [
+      "warn",
+      {
+        "allowExpressions": true,
+        "allowTypedFunctionExpressions": true
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/activation.ts", "src/fsm/machines/applicationMachine.ts"],
+      "rules": {
+        "max-lines": ["error", 800]
+      }
+    },
+    {
+      "files": ["*.test.ts", "*.spec.ts"],
+      "rules": {
+        "max-lines": ["error", 300],
+        "max-lines-per-function": "off"
+      }
+    }
+  ]
+}

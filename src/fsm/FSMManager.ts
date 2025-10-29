@@ -1,6 +1,6 @@
 import { createActor, Actor } from 'xstate';
 import { timerMachine } from './machines/timerMachine';
-import { TimerContext, TimerEvent } from './types';
+import { TimerContext, TimerEvent as _TimerEvent } from './types';
 import { setupFSMInspector, FSM_CONFIG } from './config';
 import { createComponentLogger, FSMComponent } from './logging/FSMLogger.js';
 import { fsmTracer } from './logging/FSMTracer.js';

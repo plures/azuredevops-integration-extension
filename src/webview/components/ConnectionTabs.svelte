@@ -81,6 +81,7 @@
   role="tablist"
   aria-label="Project Connections"
   aria-orientation="horizontal"
+  tabindex="0"
   on:keydown={handleKeydown}
 >
   {#each ordered as c, i}

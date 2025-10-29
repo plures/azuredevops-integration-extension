@@ -8,7 +8,11 @@
 
 import * as vscode from 'vscode';
 import { fsmLogger, FSMComponent } from '../logging/FSMLogger.js';
-import { fsmTracer, analyzeCurrentTrace, exportCurrentTrace } from '../logging/FSMTracer.js';
+import {
+  fsmTracer,
+  analyzeCurrentTrace,
+  exportCurrentTrace as _exportCurrentTrace,
+} from '../logging/FSMTracer.js';
 
 export function registerQuickDebugCommands(context: vscode.ExtensionContext): void {
   // INSTANT DEBUG PANEL - Everything you need in one command
