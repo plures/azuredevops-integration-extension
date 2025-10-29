@@ -52,6 +52,8 @@ import {
   setWebviewMessageHandler as _setWebviewMessageHandler,
 } from './fsm/services/extensionHostBridge.js';
 import { registerCommands } from './features/commands/index.js';
+import { registerTraceCommands } from './fsm/commands/traceCommands.js';
+import { registerQuickDebugCommands } from './fsm/commands/quickDebugCommands.js';
 import { FSMSetupService } from './fsm/services/fsmSetupService.js';
 import { ConnectionAdapter } from './fsm/adapters/ConnectionAdapter.js';
 import { getConnectionFSMManager } from './fsm/ConnectionFSMManager.js';
@@ -2093,17 +2095,8 @@ export async function activate(context: vscode.ExtensionContext) {
   registerTraceCommands(context);
 
   // Register quick debug commands for instant troubleshooting
-  import('./fsm/commands/quickDebugCommands.js')
-    .then(({ registerQuickDebugCommands }) => {
-      registerQuickDebugCommands(context);
-      verbose('[ACTIVATION] Quick debug commands registered');
-    })
-    .catch((error) => {
-      console.error(
-        '[AzureDevOpsInt] ❌ [ACTIVATION] Failed to import quick debug commands:',
-        error
-      );
-    });
+  registerQuickDebugCommands(context);
+  verbose('[ACTIVATION] Quick debug commands registered');
 
   // Register output channel reader for programmatic log access
   import('./fsm/commands/outputChannelReader.js')
