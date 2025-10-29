@@ -2392,6 +2392,7 @@ function getSerializableContext(context: any): Record<string, any> {
       ? Object.fromEntries(context.pendingAuthReminders)
       : {},
     pendingWorkItems: context.pendingWorkItems,
+    workItems: context.pendingWorkItems?.workItems || [],
     timerState: context.timerState,
     lastError: context.lastError
       ? { message: context.lastError.message, stack: context.lastError.stack }
@@ -2419,7 +2420,7 @@ function getSerializableContext(context: any): Record<string, any> {
       activeConnectionId: serialized.activeConnectionId,
       hasDeviceCodeSession: !!serialized.deviceCodeSession,
       hasPendingWorkItems: !!serialized.pendingWorkItems,
-      workItemsCount: serialized.pendingWorkItems?.workItems?.length || 0,
+      workItemsCount: serialized.workItems?.length || 0,
       viewMode: serialized.viewMode,
     });
   }
