@@ -6,6 +6,102 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.0.0] - 2025-10-29
+
+### Added
+
+- implement action buttons for work items with reactive state management (#38)
+- Complete Foundation Architecture Discipline and Resolve Build Warnings (#32)
+- wire action buttons to VS Code commands
+- reload connections before triggering temp Entra auth
+- auto-finalize PAT to Entra conversion on auth success
+- safe PAT to Entra with temporary connection approach
+- prompt reload after PAT to Entra conversion
+- safe PAT to Entra conversion with rollback protection
+- auto-trigger device code flow after PAT to Entra conversion
+- add PAT authentication to status bar indicator
+- add full-featured action buttons to work item cards
+- implement Svelte 5 rune-first XState migration with pub/sub broker
+- remove internal toolbar, add query selector, gate debug view
+- device-code auth success dispatch, webview browser delegation, connection tabs UI
+- add Kanban scaffolding and restore setupMachine connection test states
+- Implement secure token storage for Entra ID
+- implement data fetching machine
+- handle auth events from child machines
+- implement Entra ID device code flow
+- integrate authMachine into applicationMachine
+- Refactor connection management logic
+- route auth reminder actions
+- add existing connection testing flow
+- enable auth-aware connection handler
+
+### Fixed
+
+- route action buttons to legacy handleMessage implementations
+- execute VS Code commands in dispatchApplicationEvent
+- add FSM event handlers for work item actions
+- simplify convert flow - save then trigger interactive auth
+- define connectionLabel variable before use
+- correct variable references in convert function
+- auto-select single PAT connection without prompting
+- load connections from workspace config not globalState
+- context-aware setup menu and convert PAT detection
+- remove horizontal scrollbar on card hover
+- load main.css instead of styles.css for component styles
+- work items not returned when query filter matches nothing
+- provider messages not reaching FSM (work items not displaying)
+- query case sensitivity - 'Assigned To Me' → 'Assigned to me'
+- critical PAT retrieval and connection management bugs
+- webview display and add setup button icon
+- remove workspace protocol from xstate-svelte package.json
+- improve FSM state matching in webview UI
+- sanitize FSM context before posting to webview
+- ensure applicationStore initialized before webview provider registration
+- send initial FSM state to webview on panel resolve and ready message
+- resolve VS Code API double acquisition error in webview
+- activate FSM and connect webview panel for state synchronization
+- resolve multiple linting errors
+- migrate missing apiBaseUrl for pre-v1.9.6 connections
+
+### Changed
+
+- fsm-first action buttons with activation execution
+
+### Documentation
+
+- add comprehensive git workflow strategy
+- document action button implementation status and requirements
+- comprehensive session summary for Oct 27, 2025
+- add PAT connection troubleshooting guide
+- record migration backlog
+
+### Developer Experience
+
+- add applicationMachine view mode toggle tests
+- add comprehensive logging to convert PAT to Entra
+- add comprehensive logging for work items message flow
+- add logging to storeWorkItemsInContext action
+- add enhanced debug logging for work items flow
+- checkpoint
+- checkpoint
+- cleanup activation.ts and legacy files
+- checkpoint retry fix
+- disable integration tests
+- silence Svelte source-map warning
+
+### Other
+
+- Fix automated release tag creation by bypassing pre-commit hooks in CI (#45)
+- Upgrade Node.js version from 20 to 24 in CI
+- Configure GitHub Copilot instructions per best practices (#41)
+- Fix Husky hook CRLF line endings and add GitHub Actions permissions (#39)
+- build: force clean rebuild of all assets
+- WIP: Force commit to save progress
+- build: emit extension.cjs bundle
+- Route ensureActiveConnection through FSM adapter
+- Implement FSM-first architecture overhaul
+
+
 ## [1.10.0] - 2025-10-15
 
 ### Added
