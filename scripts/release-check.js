@@ -1,3 +1,26 @@
+#!/usr/bin/env node
+/**
+ * Release Readiness Check Script
+ * 
+ * This script evaluates the project's readiness for release by checking:
+ * - Unit tests (20 points)
+ * - Code coverage (50 points: 20 for lines, 15 for branches, 15 for functions)
+ * - Linting (10 points)
+ * - Type checking (5 points)
+ * - Documentation (5 points)
+ * - Security vulnerabilities (10 points)
+ * 
+ * Total: 100 points
+ * 
+ * Exit codes:
+ * - 0: Score >= 30 (minimum acceptable)
+ * - 2: Score < 30 (below minimum threshold)
+ * 
+ * Recent fixes:
+ * - Fixed script name from 'check-types' to 'type-check' to match package.json
+ * - Removed requirement for non-existent RELEASE_PLAN_1_0.md file
+ * - Added detailed logging and visual feedback for each check
+ */
 import { execSync } from 'child_process';
 import fs from 'fs';
 
