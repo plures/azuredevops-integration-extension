@@ -100,6 +100,14 @@ export type ApplicationContext = {
     connectionId?: string;
     query?: string;
   };
+  timerState?: {
+    state: string;
+    workItemId?: number;
+    workItemTitle?: string;
+    startTime?: number;
+    stopTime?: number;
+    pausedAt?: number;
+  };
   lastError?: Error;
   errorRecoveryAttempts: number;
   viewMode: 'list' | 'kanban';
@@ -171,6 +179,7 @@ export type ApplicationEvent =
   // Work Item Action Events
   | { type: 'START_TIMER_INTERACTIVE'; workItemId?: number; workItemTitle?: string }
   | { type: 'STOP_TIMER' }
+  | { type: 'TIMER_STATE_CHANGED'; timerState: any }
   | { type: 'EDIT_WORK_ITEM'; workItemId: number }
   | { type: 'OPEN_IN_BROWSER'; workItemId: number }
   | { type: 'CREATE_BRANCH'; workItemId: number }
@@ -492,6 +501,9 @@ export const applicationMachine = createMachine(
           DEVICE_CODE_SESSION_STARTED: {
             actions: 'storeDeviceCodeSession',
           },
+          TIMER_STATE_CHANGED: {
+            actions: 'updateTimerState',
+          },
         },
       },
       activation_failed: {
@@ -615,8 +627,23 @@ export const applicationMachine = createMachine(
       markDeactivating: assign({
         isDeactivating: true,
       }),
-      initializeChildActors: assign(({ context }) => {
+      initializeChildActors: assign(({ context, self }) => {
         const timerActor = createActor(timerMachine).start();
+
+        // Subscribe to timer actor to sync timer state to application context
+        timerActor.subscribe((snapshot) => {
+          self.send({
+            type: 'TIMER_STATE_CHANGED',
+            timerState: {
+              state: snapshot.value as string,
+              workItemId: snapshot.context.workItemId,
+              workItemTitle: snapshot.context.workItemTitle,
+              startTime: snapshot.context.startTime,
+              stopTime: snapshot.context.stopTime,
+              pausedAt: snapshot.context.pausedAt,
+            },
+          });
+        });
 
         // Restore persisted timer state on startup
         if (context.extensionContext) {
@@ -835,6 +862,10 @@ export const applicationMachine = createMachine(
             );
         }
       },
+      updateTimerState: assign(({ event }) => {
+        if (event.type !== 'TIMER_STATE_CHANGED') return {};
+        return { timerState: event.timerState };
+      }),
       handleEditWorkItem: ({ event, context }) => {
         if (event.type !== 'EDIT_WORK_ITEM') return;
 
