@@ -114,26 +114,68 @@ jobs:
           range=""
           if [ -n "$last_tag" ]; then
             range="$last_tag..HEAD"
+            echo "📋 Analyzing commits since $last_tag"
+          else
+            echo "📋 No previous tags found, analyzing all commits"
           fi
 
           subjects=$(git log --format=%s $range)
           bodies=$(git log --format=%B $range)
+          
+          # Log the commits being analyzed
+          echo "Commits to analyze:"
+          git log --oneline $range | head -10
 
+          # Default to patch bump for safety
           bump="patch"
-          # Major if breaking change markers present ("!" in type or BREAKING CHANGE in body)
-          if echo "$subjects" | grep -Ei '^[a-z]+(\(.+\))?!:' >/dev/null || echo "$bodies" | grep -Ei 'BREAKING CHANGE' >/dev/null; then
-            bump="major"
-          elif echo "$subjects" | grep -Ei '^feat(\(.+\))?: ' >/dev/null; then
+          
+          # Check for feature commits (minor bump)
+          if echo "$subjects" | grep -Ei '^feat(\(.+\))?: ' >/dev/null; then
             bump="minor"
-          else
-            bump="patch"
+            echo "📦 Feature commits detected - will bump minor version"
           fi
-          echo "Bump type: $bump"
+          
+          # Only bump major if EXPLICITLY marked with BREAKING CHANGE
+          # Major bumps are reserved for comprehensive architectural changes (rare for VS Code extensions)
+          # Check for "BREAKING CHANGE:" in body or "!" before ":" in subject
+          if echo "$bodies" | grep -E '^BREAKING CHANGE:' >/dev/null || echo "$subjects" | grep -E '^[a-z]+(\(.+\))?!:' >/dev/null; then
+            # Additional safeguard: require current version to be >= 1.0.0 for major bump
+            current_major=$(node -p "require('./package.json').version.split('.')[0]")
+            if [ "$current_major" -ge 1 ]; then
+              bump="major"
+              echo "⚠️  BREAKING CHANGE detected - will bump major version (architectural change)"
+            else
+              bump="minor"
+              echo "⚠️  BREAKING CHANGE detected but version < 1.0.0 - will bump minor version instead"
+            fi
+          fi
+          
+          echo "✅ Determined bump type: $bump"
 
           # Get the new version that will be created
           current_version=$(node -p "require('./package.json').version")
           new_version=$(npm version "$bump" --no-git-tag-version)
           new_version=${new_version#v}  # Remove 'v' prefix
+          
+          # VSCode Extension Convention: Even minor versions for releases, odd for pre-releases
+          # Ensure minor version is even for release versions
+          if [ "$bump" = "minor" ]; then
+            current_minor=$(node -p "require('./package.json').version.split('.')[1]")
+            new_minor=$(echo "$new_version" | cut -d. -f2)
+            
+            # If new minor version is odd, bump it to next even number
+            if [ $((new_minor % 2)) -eq 1 ]; then
+              echo "⚡ Adjusting minor version from $new_minor to $((new_minor + 1)) (VSCode even-number convention for releases)"
+              # Manually construct the new version with even minor number
+              major=$(echo "$new_version" | cut -d. -f1)
+              patch=$(echo "$new_version" | cut -d. -f3)
+              new_version="$major.$((new_minor + 1)).$patch"
+              
+              # Update package.json with the corrected version
+              npm version "$new_version" --no-git-tag-version --allow-same-version
+              new_version=$(node -p "require('./package.json').version")
+            fi
+          fi
 
           # Update changelog with new version
           node scripts/update-changelog.js "$new_version"
