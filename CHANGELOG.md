@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [3.0.2] - 2025-11-02
+
+### Fixed
+
+- resolve unit test failures and improve coverage command
+
+
 ## [3.0.1] - 2025-10-31
 
 ### Other
