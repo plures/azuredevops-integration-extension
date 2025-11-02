@@ -168,16 +168,30 @@ export class FSMManager {
       const currentState = this.timerActor.getSnapshot();
       if (!currentState.matches('idle')) {
         const context = currentState.context;
+        const endTime = Date.now();
+
+        // Calculate elapsed seconds from startTime and pausedAt (if paused)
+        let elapsedSeconds = 0;
+        if (context.startTime) {
+          if (context.isPaused && context.pausedAt) {
+            // Timer is paused, calculate elapsed up to pause time
+            elapsedSeconds = Math.floor((context.pausedAt - context.startTime) / 1000);
+          } else {
+            // Timer is running, calculate elapsed up to now
+            elapsedSeconds = Math.floor((endTime - context.startTime) / 1000);
+          }
+        }
+
         this.timerActor.send({ type: 'STOP' });
 
         // Return timer stop result for compatibility
         return {
           workItemId: context.workItemId,
           startTime: context.startTime,
-          endTime: Date.now(),
-          duration: context.elapsedSeconds,
-          hoursDecimal: Number((context.elapsedSeconds / 3600).toFixed(2)),
-          capApplied: context.elapsedSeconds > context.defaultElapsedLimitHours * 3600,
+          endTime: endTime,
+          duration: elapsedSeconds,
+          hoursDecimal: Number((elapsedSeconds / 3600).toFixed(2)),
+          capApplied: elapsedSeconds > context.defaultElapsedLimitHours * 3600,
           capLimitHours: context.defaultElapsedLimitHours,
         };
       } else {
@@ -207,10 +221,22 @@ export class FSMManager {
     const context = currentState.context;
 
     if (context.workItemId) {
+      // Calculate elapsed seconds from startTime and current/paused time
+      let elapsedSeconds = 0;
+      if (context.startTime) {
+        if (context.isPaused && context.pausedAt) {
+          // Timer is paused, calculate elapsed up to pause time
+          elapsedSeconds = Math.floor((context.pausedAt - context.startTime) / 1000);
+        } else {
+          // Timer is running, calculate elapsed up to now
+          elapsedSeconds = Math.floor((Date.now() - context.startTime) / 1000);
+        }
+      }
+
       return {
         workItemId: context.workItemId,
         workItemTitle: context.workItemTitle,
-        elapsedSeconds: context.elapsedSeconds,
+        elapsedSeconds: elapsedSeconds,
         isPaused: context.isPaused,
         startTime: context.startTime,
         pomodoroCount: context.pomodoroCount,

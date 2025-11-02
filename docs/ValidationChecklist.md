@@ -84,6 +84,17 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Small modules easy to understand
 - [x] Clear error messages from validation
 
+### Feature Design Process
+
+- [x] **Feature Design Template created** (`docs/FeatureDesignTemplate.md`)
+- [ ] Feature design template is documented and accessible
+- [ ] All new features have design documents in `docs/features/`
+- [ ] Design documents are reviewed and approved before implementation
+- [ ] Design documents include MoSCoW prioritization
+- [ ] Design documents include testable acceptance criteria (Gherkin)
+- [ ] Design documents link to related issues/PRs
+- [ ] Design documents are kept updated during implementation
+
 ---
 
 ### Project Setup
@@ -479,6 +490,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [ ] Performance targets met
 - [ ] Documentation complete
 - [ ] Code review approved
+- [ ] Feature design document completed and approved (for new features)
 
 ### Should Pass
 

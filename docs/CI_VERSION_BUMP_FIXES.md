@@ -12,6 +12,7 @@ The CI automation had two critical issues:
 ### Issue 1: Overly Aggressive Version Bump Logic
 
 The original CI workflow in `.github/workflows/ci.yml` had version bump logic that was:
+
 - Too permissive in detecting "breaking changes"
 - Using case-insensitive regex (`grep -Ei`) that could match unintended patterns
 - No safeguards for pre-1.0 versions
@@ -20,6 +21,7 @@ The original CI workflow in `.github/workflows/ci.yml` had version bump logic th
 ### Issue 2: Release Check Script Failures
 
 The `scripts/release-check.js` script had multiple issues:
+
 1. Referenced non-existent npm script `check-types` instead of `type-check`
 2. Required a non-existent file `RELEASE_PLAN_1_0.md`
 3. Provided no diagnostic output when checks failed
@@ -63,6 +65,7 @@ fi
 ```
 
 **Key improvements:**
+
 - Default to `patch` for safety instead of determining after checks
 - Check for features first, then breaking changes
 - Require exact match `^BREAKING CHANGE:` (with colon) in commit body
@@ -76,19 +79,21 @@ fi
 **Changes to `scripts/release-check.js`:**
 
 1. **Fixed script name reference:**
+
    ```javascript
    // Before: Wrong script name
    const out = run('npm run check-types --silent');
-   
+
    // After: Correct script name
    const out = run('npm run type-check --silent');
    ```
 
 2. **Removed non-existent file requirement:**
+
    ```javascript
    // Before: Required file that doesn't exist
    const req = ['README.md', 'CHANGELOG.md', 'RELEASE_PLAN_1_0.md', 'CONTRIBUTING.md'];
-   
+
    // After: Only required files that exist
    const req = ['README.md', 'CHANGELOG.md', 'CONTRIBUTING.md'];
    ```
@@ -108,18 +113,21 @@ fi
 ## Results
 
 ### Release Check Score Improvement
+
 - **Before**: 0/100 (all checks failing silently)
 - **After**: 20/100 (type-check and docs passing, clear visibility into what's failing)
 
 The score breakdown:
+
 - ✅ Type checking: 5/5 points
-- ✅ Linting: 10/10 points  
+- ✅ Linting: 10/10 points
 - ✅ Documentation: 5/5 points
 - ❌ Unit tests: 0/20 points (tests need fixes, but now visible)
 - ⚠️ Coverage: 0/50 points (requires passing tests first)
 - ⚠️ Security: 0/10 points (npm audit skipped during check)
 
 ### Version Bump Protection
+
 - Pre-1.0 versions are protected from inappropriate major bumps
 - Breaking changes in 0.x versions correctly bump to next minor version
 - Only versions >= 1.0.0 can receive major bumps
@@ -129,11 +137,13 @@ The score breakdown:
 ## Testing
 
 Run the release check locally:
+
 ```bash
 npm run release-check
 ```
 
 Expected output shows:
+
 - Individual check status with visual indicators
 - Detailed breakdown of scoring
 - Clear indication of what needs to be fixed
@@ -144,35 +154,43 @@ Expected output shows:
 For future commits, follow these patterns:
 
 **Patch bump** (bug fixes):
+
 ```
 fix: correct timer display bug
 fix(auth): resolve token refresh issue
 ```
-*Result*: 3.0.0 → 3.0.1
+
+_Result_: 3.0.0 → 3.0.1
 
 **Minor bump** (new features):
+
 ```
 feat: add dark mode support
 feat(ui): implement new dashboard view
 ```
-*Result*: 3.0.0 → 3.2.0 (skips to next even number per VSCode convention)
+
+_Result_: 3.0.0 → 3.2.0 (skips to next even number per VSCode convention)
 
 **Major bump** (comprehensive architectural changes, rare for VS Code extensions):
+
 ```
 feat!: redesign API interface
 
 BREAKING CHANGE: The authentication API has been redesigned.
 Users must update their integration code.
 ```
-*Result*: 3.0.0 → 4.0.0
+
+_Result_: 3.0.0 → 4.0.0
 
 **VSCode Extension Version Convention:**
+
 - **Release versions**: Even minor numbers (3.0, 3.2, 3.4, etc.)
 - **Pre-release versions**: Odd minor numbers (3.1, 3.3, 3.5, etc.)
 - CI automatically adjusts minor versions to be even for releases
 - Major bumps are reserved for comprehensive architectural changes only
 
 For pre-1.0 versions:
+
 ```
 feat!: significant API changes
 

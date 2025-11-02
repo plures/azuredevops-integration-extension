@@ -12,7 +12,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Fix CI version bump logic and release-check script errors (#48)
 
-
 ## [3.0.0] - 2025-10-29
 
 ### Added
@@ -110,7 +109,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Route ensureActiveConnection through FSM adapter
 - Implement FSM-first architecture overhaul
 
-
 ## [2.0.0] - 2025-10-29
 
 ### Added
@@ -205,7 +203,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - build: emit extension.cjs bundle
 - Route ensureActiveConnection through FSM adapter
 - Implement FSM-first architecture overhaul
-
 
 ## [1.10.0] - 2025-10-15
 

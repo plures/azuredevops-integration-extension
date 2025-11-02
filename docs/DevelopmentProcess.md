@@ -109,12 +109,18 @@ This document defines the development process for the Azure DevOps Integration E
 
 ### 1. Feature Development
 
-1. Create feature branch from `main`
-2. Implement feature following TypeScript strict mode
-3. Add comprehensive tests (unit + integration)
-4. Update documentation
-5. Run full test suite
-6. Submit PR with conventional commits
+1. **Create feature design document** in `docs/features/FEATURE_NAME.md` (see [Feature Design Template](./FeatureDesignTemplate.md))
+   - Complete all sections including MoSCoW prioritization
+   - Define testable acceptance criteria (Gherkin format)
+   - Get design approval before coding
+2. Create feature branch from `main`
+3. Write tests first (TDD - RED phase)
+4. Implement feature to make tests pass (GREEN phase)
+5. Refactor while keeping tests green (REFACTOR phase)
+6. Add comprehensive tests (unit + integration)
+7. Update documentation
+8. Run full test suite
+9. Submit PR with conventional commits (link to design doc)
 
 ### 2. Code Quality Gates
 

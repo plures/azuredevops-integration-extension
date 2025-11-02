@@ -1,4 +1,4 @@
-/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/WorkItemList.esbuild-svelte-fake-css */
+/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/WorkItemList.esbuild-svelte-fake-css */
 .work-item-list.svelte-1uil3z2 {
   display: flex;
   flex-direction: column;
@@ -249,7 +249,7 @@ button.svelte-1uil3z2:hover {
   line-height: 1;
 }
 
-/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/Settings.esbuild-svelte-fake-css */
+/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/Settings.esbuild-svelte-fake-css */
 .settings.svelte-1k6z38r {
   display: flex;
   flex-direction: column;
@@ -335,7 +335,7 @@ button.danger.svelte-1k6z38r:hover {
   border-top: 1px solid var(--vscode-panel-border);
 }
 
-/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/StatusBar.esbuild-svelte-fake-css */
+/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/StatusBar.esbuild-svelte-fake-css */
 .status-bar.svelte-1764dnv {
   display: flex;
   gap: 1rem;
@@ -365,7 +365,7 @@ button.danger.svelte-1k6z38r:hover {
   border-radius: 3px;
 }
 
-/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/KanbanBoard.esbuild-svelte-fake-css */
+/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/KanbanBoard.esbuild-svelte-fake-css */
 .kanban-board.svelte-j9p4i1 {
   display: flex;
   flex-direction: column;
@@ -422,7 +422,7 @@ h3.svelte-j9p4i1 {
   color: var(--vscode-descriptionForeground);
 }
 
-/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/ConnectionTabs.esbuild-svelte-fake-css */
+/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/ConnectionTabs.esbuild-svelte-fake-css */
 .tab-bar.svelte-2w6d2o {
   display: flex;
   gap: 0.25rem;
@@ -488,7 +488,7 @@ h3.svelte-j9p4i1 {
   display: none;
 }
 
-/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/App.esbuild-svelte-fake-css */
+/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/App.esbuild-svelte-fake-css */
 main.svelte-db2r4i {
   padding: 1rem;
   font-family: var(--vscode-font-family, sans-serif);

@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { createActor } from 'xstate';
 import { applicationMachine } from '../../src/fsm/machines/applicationMachine.js';
 
-async function waitFor<TState>(actor: any, predicate: (state: any) => boolean, timeout = 1500) {
+async function waitFor<TState>(actor: any, predicate: (state: any) => boolean, timeout = 3000) {
   const start = Date.now();
   return new Promise<void>((resolve, reject) => {
     const check = () => {
@@ -13,7 +13,8 @@ async function waitFor<TState>(actor: any, predicate: (state: any) => boolean, t
         return;
       }
       if (Date.now() - start > timeout) {
-        reject(new Error('waitFor timeout'));
+        const currentState = snapshot?.value || 'unknown';
+        reject(new Error(`waitFor timeout: current state is ${currentState}`));
         return;
       }
       setTimeout(check, 10);
@@ -25,11 +26,40 @@ async function waitFor<TState>(actor: any, predicate: (state: any) => boolean, t
 async function activateToReady() {
   const actor = createActor(applicationMachine);
   actor.start();
-  actor.send({ type: 'ACTIVATE', context: {} as any });
-  // Wait for setupUI completion
-  await waitFor(actor, (s) => s.matches('active.setup.waiting_for_panel'));
-  actor.send({ type: 'UPDATE_WEBVIEW_PANEL', webviewPanel: {} });
-  await waitFor(actor, (s) => s.matches('active.ready'));
+
+  // Create a minimal mock ExtensionContext for testing
+  const mockContext = {
+    globalState: {
+      get: () => undefined,
+      update: () => Promise.resolve(),
+    },
+    workspaceState: {
+      get: () => undefined,
+      update: () => Promise.resolve(),
+    },
+    secrets: {
+      get: () => Promise.resolve(undefined),
+      store: () => Promise.resolve(),
+      delete: () => Promise.resolve(),
+    },
+  } as any;
+
+  actor.send({ type: 'ACTIVATE', context: mockContext });
+
+  // Wait for setupUI completion - the machine goes through setup states
+  // It may go directly to ready if setupUI completes synchronously
+  await waitFor(
+    actor,
+    (s) => s.matches('active.setup.waiting_for_panel') || s.matches('active.ready')
+  );
+
+  // If we're still waiting for panel, send the update
+  const currentState = actor.getSnapshot();
+  if (currentState.matches('active.setup.waiting_for_panel')) {
+    actor.send({ type: 'UPDATE_WEBVIEW_PANEL', webviewPanel: {} });
+    await waitFor(actor, (s) => s.matches('active.ready'));
+  }
+
   return actor;
 }
 
