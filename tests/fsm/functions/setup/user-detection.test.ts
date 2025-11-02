@@ -2,30 +2,20 @@
  * Tests for user detection utilities
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   detectWindowsUser,
   validateUsernameFormat,
   formatUsername,
 } from '../../../../src/fsm/functions/setup/user-detection.js';
 
-// Mock os module
-vi.mock('os', async () => {
-  const actual = await vi.importActual('os');
-  return {
-    ...actual,
-    userInfo: vi.fn(),
-  };
-});
-
-// Mock process.env
+// Store original values
 const originalPlatform = process.platform;
 const originalEnv = { ...process.env };
 
 describe('User Detection', () => {
   beforeEach(() => {
-    // Reset mocks
-    vi.clearAllMocks();
+    // Reset environment
     process.env = { ...originalEnv };
     Object.defineProperty(process, 'platform', {
       value: originalPlatform,
