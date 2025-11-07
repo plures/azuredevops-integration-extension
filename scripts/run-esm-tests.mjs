@@ -10,6 +10,9 @@ import path from 'path';
 process.env.ESBK_TSCONFIG_PATH =
   process.env.ESBK_TSCONFIG_PATH ?? path.resolve('tsconfig.tests.json');
 
+// Set diagnostic mode BEFORE registering the loader so the loader can see it
+process.env.MOCHA_DIAGNOSTIC_STUB = '1';
+
 const loaderModulePath = path.resolve(process.cwd(), 'scripts', 'ts-esm-loader.mjs');
 const loaderModuleUrl = pathToFileURL(loaderModulePath).href;
 const mochaStubModulePath = path.resolve(process.cwd(), 'scripts', 'mocha-diagnostics-stub.mjs');
@@ -124,31 +127,9 @@ async function __run() {
 
   // Phase 1: dynamically import each test file to surface import-time failures without creating
   // separate Mocha instances (avoids test registration going to the wrong Mocha instance).
-  process.env.MOCHA_DIAGNOSTIC_STUB = '1';
-  const { createRequire } = await import('node:module');
-  const requireForDiag = createRequire(import.meta.url);
-  const mochaResolvePath = requireForDiag.resolve('mocha');
-  const priorMochaCacheEntry = requireForDiag.cache[mochaResolvePath];
-  try {
-    const mochaStubNamespace = await import(mochaStubModuleUrl);
-    const stubExports = {
-      ...mochaStubNamespace,
-      ...(mochaStubNamespace.default || {}),
-    };
-    // Ensure describe/it aliases remain attached when spreads overwrite order
-    if (mochaStubNamespace.describe) stubExports.describe = mochaStubNamespace.describe;
-    if (mochaStubNamespace.it) stubExports.it = mochaStubNamespace.it;
-    requireForDiag.cache[mochaResolvePath] = {
-      id: mochaResolvePath,
-      filename: mochaResolvePath,
-      loaded: true,
-      exports: stubExports,
-      children: [],
-      paths: [],
-    };
-  } catch (err) {
-    console.error('Failed to install Mocha diagnostics stub:', err);
-  }
+  // We don't manipulate the module cache because it can cause issues with ESM/CJS interop.
+  // Instead, we rely on the global Mocha stubs we set up above and the loader intercepts mocha imports.
+  // Note: MOCHA_DIAGNOSTIC_STUB env var is set at the top of this file before loader registration.
   try {
     for (const f of files) {
       try {
@@ -169,16 +150,11 @@ async function __run() {
         for (const n of names) {
           if (!hadGlobals[n]) delete globalThis[n];
         }
-        delete process.env.MOCHA_DIAGNOSTIC_STUB;
-        if (priorMochaCacheEntry) requireForDiag.cache[mochaResolvePath] = priorMochaCacheEntry;
-        else delete requireForDiag.cache[mochaResolvePath];
         process.exit(3);
       }
     }
   } finally {
-    if (priorMochaCacheEntry) requireForDiag.cache[mochaResolvePath] = priorMochaCacheEntry;
-    else delete requireForDiag.cache[mochaResolvePath];
-    delete process.env.MOCHA_DIAGNOSTIC_STUB;
+    // Diagnostic phase complete
   }
 
   // Phase 2: spawn the Mocha CLI under the @esbuild-kit/esm-loader so Mocha sets up its own ESM
