@@ -873,7 +873,7 @@
     }
   },
   "scripts": {
-    "compile": "npm run type-check && npm run validate:machines && npm run validate:machines:runtime && node esbuild.mjs",
+    "compile": "npm run type-check && npm run validate:machines && node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "pretest": "npm run compile",
     "precommit": "npm run validate:all",
