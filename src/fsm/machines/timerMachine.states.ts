@@ -1,11 +1,11 @@
 /**
  * State Name Constants for Timer Machine
- * 
+ *
  * Use these constants instead of string literals to:
  * 1. Get IntelliSense/autocomplete
  * 2. Prevent typos
  * 3. Enable safe refactoring
- * 
+ *
  * Usage:
  * ```typescript
  * START: {
@@ -20,7 +20,7 @@ export const TimerStates = {
   PAUSED: 'paused',
 } as const;
 
-export type TimerState = typeof TimerStates[keyof typeof TimerStates];
+export type TimerState = (typeof TimerStates)[keyof typeof TimerStates];
 
 /**
  * Helper to create relative state transitions
@@ -37,4 +37,3 @@ export function relativeTimerState(state: string): string {
 export function createTimerTransition(target: TimerState) {
   return { target };
 }
-

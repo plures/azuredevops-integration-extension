@@ -1,11 +1,11 @@
 /**
  * State Name Constants for Connection Machine
- * 
+ *
  * Use these constants instead of string literals to:
  * 1. Get IntelliSense/autocomplete
  * 2. Prevent typos
  * 3. Enable safe refactoring
- * 
+ *
  * Usage:
  * ```typescript
  * CONNECT: {
@@ -31,11 +31,12 @@ export const ConnectionStates = {
   'authenticating.determining_method': 'authenticating.determining_method',
   'authenticating.pat_auth': 'authenticating.pat_auth',
   'authenticating.entra_auth': 'authenticating.entra_auth',
-  'authenticating.entra_auth.checking_existing_token': 'authenticating.entra_auth.checking_existing_token',
+  'authenticating.entra_auth.checking_existing_token':
+    'authenticating.entra_auth.checking_existing_token',
   'authenticating.entra_auth.interactive_auth': 'authenticating.entra_auth.interactive_auth',
 } as const;
 
-export type ConnectionState = typeof ConnectionStates[keyof typeof ConnectionStates];
+export type ConnectionState = (typeof ConnectionStates)[keyof typeof ConnectionStates];
 
 /**
  * Helper to create relative state transitions
@@ -52,4 +53,3 @@ export function relativeConnectionState(state: string): string {
 export function createConnectionTransition(target: ConnectionState) {
   return { target };
 }
-

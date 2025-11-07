@@ -464,4 +464,3 @@ Scenario: Recovery Action Success
 | ------------------ | ------------------------------------------ | ------------------- |
 | Forbidden          | "You don't have permission to access this" | "Check Permissions" |
 | Unauthorized Scope | "PAT missing required scopes"              | "Update PAT Scopes" |
-

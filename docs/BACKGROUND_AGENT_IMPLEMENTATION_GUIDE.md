@@ -74,6 +74,7 @@ For each feature branch, create a background task with this format:
 **Objective**: Migrate all FSM machines to use state name constants instead of string literals.
 
 **Context**:
+
 - Reference: `docs/ARCHITECTURE_TYPE_SAFE_FSM_IMMEDIATE_STEPS.md`
 - Existing pattern: `src/fsm/machines/applicationMachine.states.ts`
 - Target machines:
@@ -83,6 +84,7 @@ For each feature branch, create a background task with this format:
   - Any other FSM machines
 
 **Tasks**:
+
 1. Review `applicationMachine.states.ts` structure
 2. Create state constants files for each machine:
    - `connectionMachine.states.ts`
@@ -96,12 +98,14 @@ For each feature branch, create a background task with this format:
 9. Update `docs/ValidationChecklist.md` when complete
 
 **Success Criteria**:
+
 - All state machines use constants instead of string literals
 - TypeScript provides IntelliSense for valid state targets
 - No string literals in transition targets
 - All tests pass
 
 **Files to Modify**:
+
 - `src/fsm/machines/connectionMachine.ts`
 - `src/fsm/machines/timerMachine.ts`
 - `src/fsm/machines/*.ts` (any other machines)
@@ -150,7 +154,7 @@ In Cursor Chat, use this prompt:
 ```
 @docs/ARCHITECTURE_TYPE_SAFE_FSM_IMMEDIATE_STEPS.md @docs/IMPLEMENTATION_BRANCH_PLAN.md
 
-I'm working on the feature/fsm-type-safe-state-constants branch. 
+I'm working on the feature/fsm-type-safe-state-constants branch.
 
 Please implement the state constants migration:
 
@@ -186,10 +190,12 @@ Follow the pattern from applicationMachine.states.ts and the guidance in the att
 **Goal**: Migrate all FSM machines to use typed state constants
 
 **Reference Files**:
+
 - `src/fsm/machines/applicationMachine.states.ts` (pattern to follow)
 - `docs/ARCHITECTURE_TYPE_SAFE_FSM_IMMEDIATE_STEPS.md` (guidance)
 
 **Steps**:
+
 1. Create `connectionMachine.states.ts` with all state constants
 2. Create `timerMachine.states.ts` with all state constants
 3. Update `connectionMachine.ts` to use constants
@@ -199,6 +205,7 @@ Follow the pattern from applicationMachine.states.ts and the guidance in the att
 7. Verify IntelliSense
 
 **Validation**:
+
 - Run: `npm test`
 - Check: No string literals in transition targets
 - Verify: IntelliSense shows state options
@@ -216,10 +223,12 @@ Follow the pattern from applicationMachine.states.ts and the guidance in the att
 **Goal**: Implement error handling feature per design document
 
 **Reference Files**:
+
 - `docs/features/ErrorHandlingAndUserFeedback.md` (complete spec)
 - `docs/REACTIVE_ARCHITECTURE_PHILOSOPHY.md` (architecture context)
 
 **Steps**:
+
 1. Create error detection functions
 2. Create ErrorBanner.svelte component
 3. Create ConnectionStatus.svelte component
@@ -229,6 +238,7 @@ Follow the pattern from applicationMachine.states.ts and the guidance in the att
 7. Write tests (unit, integration, E2E)
 
 **Validation**:
+
 - Run: `npm test`
 - Test: Authentication failure shows error banner
 - Test: Recovery actions work
@@ -246,10 +256,12 @@ Follow the pattern from applicationMachine.states.ts and the guidance in the att
 **Goal**: Remove partial state messages, ensure single syncState
 
 **Reference Files**:
+
 - `docs/REACTIVE_MIGRATION_PLAN.md` (migration steps)
 - `docs/REACTIVE_ARCHITECTURE_PHILOSOPHY.md` (principles)
 
 **Steps**:
+
 1. Remove partial message handlers from `src/webview/main.ts`
 2. Remove partial message sending from `src/activation.ts`
 3. Update `src/provider.ts` to update FSM context
@@ -257,6 +269,7 @@ Follow the pattern from applicationMachine.states.ts and the guidance in the att
 5. Verify only syncState messages sent
 
 **Validation**:
+
 - Run: `npm test`
 - Check: Only syncState messages in webview
 - Verify: All state in FSM context
@@ -404,4 +417,3 @@ After using background agents:
 ---
 
 **Last Updated**: 2025-01-27
-

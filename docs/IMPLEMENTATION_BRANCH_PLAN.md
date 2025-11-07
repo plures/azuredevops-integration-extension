@@ -19,12 +19,14 @@ These branches establish the foundation for type-safe state machines and should 
 **Blocks**: All other FSM type-safe features
 
 **Objectives**:
+
 - Migrate all state machines to use state name constants
 - Replace string literals with typed constants
 - Provide IntelliSense for state transitions
 - Prevent typos in state names
 
 **Implementation Tasks**:
+
 - [ ] Review existing `applicationMachine.states.ts` structure
 - [ ] Create state constants for all machines:
   - [ ] `applicationMachine.states.ts` (may already exist)
@@ -38,11 +40,13 @@ These branches establish the foundation for type-safe state machines and should 
 - [ ] Verify IntelliSense works correctly
 
 **Related Documentation**:
+
 - `docs/ARCHITECTURE_TYPE_SAFE_FSM_IMMEDIATE_STEPS.md`
 - `docs/ARCHITECTURE_TYPE_SAFE_FSM_SUMMARY.md`
 - `docs/ARCHITECTURE_TYPE_SAFE_FSM_PROPOSAL.md`
 
 **Success Criteria**:
+
 - All state machines use constants instead of string literals
 - TypeScript provides IntelliSense for valid state targets
 - No string literals in transition targets
@@ -58,12 +62,14 @@ These branches establish the foundation for type-safe state machines and should 
 **Blocks**: `feature/fsm-type-safe-eslint`
 
 **Objectives**:
+
 - Define machines using schema-first approach
 - Generate types from schemas
 - Enable visual validation tools
 - Create machine structure validation
 
 **Implementation Tasks**:
+
 - [ ] Design schema format for state machines
 - [ ] Create schema-to-machine converter
 - [ ] Generate TypeScript types from schemas
@@ -72,9 +78,11 @@ These branches establish the foundation for type-safe state machines and should 
 - [ ] Document schema format
 
 **Related Documentation**:
+
 - `docs/ARCHITECTURE_TYPE_SAFE_FSM_PROPOSAL.md` (Layer 3)
 
 **Success Criteria**:
+
 - At least one machine defined using schema
 - Types generated from schema
 - Schema validation works
@@ -90,12 +98,14 @@ These branches establish the foundation for type-safe state machines and should 
 **Blocks**: None
 
 **Objectives**:
+
 - Create ESLint rule to enforce state constant usage
 - Validate state transitions at lint time
 - Prevent invalid state references
 - Integrate with existing ESLint configuration
 
 **Implementation Tasks**:
+
 - [ ] Design ESLint rule for state transitions
 - [ ] Implement AST analysis for state validation
 - [ ] Create rule configuration
@@ -104,9 +114,11 @@ These branches establish the foundation for type-safe state machines and should 
 - [ ] Document rule usage
 
 **Related Documentation**:
+
 - `docs/ARCHITECTURE_TYPE_SAFE_FSM_IMMEDIATE_STEPS.md` (Step 3)
 
 **Success Criteria**:
+
 - ESLint rule catches invalid state transitions
 - Rule integrated into pre-commit checks
 - All existing code passes rule
@@ -124,12 +136,14 @@ These branches establish the foundation for type-safe state machines and should 
 **Blocks**: None
 
 **Objectives**:
+
 - Remove partial state messages (`syncTimerState`, `workItemsError`, etc.)
 - Ensure all UI-visible state in FSM context
 - Update provider to update FSM context instead of sending messages
 - Single `syncState` message for all state updates
 
 **Implementation Tasks**:
+
 - [ ] Verify all state in FSM context:
   - [x] `workItemsError` - Already in context
   - [x] `timerState` - Already in context
@@ -146,11 +160,13 @@ These branches establish the foundation for type-safe state machines and should 
 - [ ] Verify only `syncState` messages sent to webview
 
 **Related Documentation**:
+
 - `docs/REACTIVE_MIGRATION_PLAN.md`
 - `docs/REACTIVE_ARCHITECTURE_PHILOSOPHY.md`
 - `docs/ValidationChecklist.md` (Reactive Architecture section)
 
 **Success Criteria**:
+
 - Only `syncState` messages sent to webview
 - All UI-visible state in FSM context
 - Provider updates FSM context (not direct messages)
@@ -170,12 +186,14 @@ These branches establish the foundation for type-safe state machines and should 
 **Blocks**: None
 
 **Objectives**:
+
 - Display authentication errors in UI
 - Show last refresh attempt status
 - Provide one-click recovery actions
 - Indicate connection health
 
 **Implementation Tasks**:
+
 - [ ] Create error detection and type classification
 - [ ] Implement error banner component (`ErrorBanner.svelte`)
 - [ ] Create connection status indicator (`ConnectionStatus.svelte`)
@@ -190,9 +208,11 @@ These branches establish the foundation for type-safe state machines and should 
 - [ ] Write tests (unit, integration, E2E)
 
 **Related Documentation**:
+
 - `docs/features/ErrorHandlingAndUserFeedback.md` (Complete feature design)
 
 **Success Criteria**:
+
 - Error banner displays for authentication failures
 - Status bar shows connection health
 - Recovery actions work correctly
@@ -297,13 +317,13 @@ After each branch is merged, update `docs/ValidationChecklist.md`:
 
 ## Quick Reference
 
-| Branch | Priority | Status | Dependencies |
-|--------|----------|--------|--------------|
-| `feature/fsm-type-safe-state-constants` | CRITICAL | Ready | None |
-| `feature/fsm-type-safe-schema` | HIGH | Ready | state-constants |
-| `feature/fsm-type-safe-eslint` | HIGH | Ready | state-constants, schema |
-| `feature/reactive-architecture-migration` | HIGH | Ready | None |
-| `feature/error-handling-user-feedback` | MEDIUM | Ready | None |
+| Branch                                    | Priority | Status | Dependencies            |
+| ----------------------------------------- | -------- | ------ | ----------------------- |
+| `feature/fsm-type-safe-state-constants`   | CRITICAL | Ready  | None                    |
+| `feature/fsm-type-safe-schema`            | HIGH     | Ready  | state-constants         |
+| `feature/fsm-type-safe-eslint`            | HIGH     | Ready  | state-constants, schema |
+| `feature/reactive-architecture-migration` | HIGH     | Ready  | None                    |
+| `feature/error-handling-user-feedback`    | MEDIUM   | Ready  | None                    |
 
 ---
 
@@ -317,6 +337,7 @@ For efficient parallel implementation, consider using Cursor's background agent 
 - Best practices and troubleshooting
 
 **Recommended**: Start with independent features in parallel:
+
 1. `feature/fsm-type-safe-state-constants` (Agent 1)
 2. `feature/error-handling-user-feedback` (Agent 2)
 3. `feature/reactive-architecture-migration` (Agent 3)
@@ -326,4 +347,3 @@ Then proceed with dependent features sequentially.
 ---
 
 **Last Updated**: 2025-01-27
-

@@ -3,6 +3,7 @@
 ## Problem Statement
 
 **Current Issues:**
+
 1. ❌ State transitions validated at runtime only (extension breaks on activation)
 2. ❌ No IntelliSense for valid state targets
 3. ❌ Typos in state names cause complete extension failure
@@ -10,6 +11,7 @@
 5. ❌ Hard to refactor state machines safely
 
 **Impact:**
+
 - Small typos break entire extension
 - Slow development (no autocomplete)
 - Fear of refactoring
@@ -34,7 +36,7 @@ import type { StateNodeConfig, MachineConfig } from 'xstate';
 export function createTypeSafeMachine<
   TContext,
   TEvent extends { type: string },
-  TStates extends Record<string, StateNodeConfig<TContext, TEvent>>
+  TStates extends Record<string, StateNodeConfig<TContext, TEvent>>,
 >(config: {
   id: string;
   types: { context: TContext; events: TEvent };
@@ -44,7 +46,7 @@ export function createTypeSafeMachine<
 }): MachineConfig<TContext, TEvent> {
   // Runtime validation
   validateMachine(config);
-  
+
   // Return XState machine (will be validated by XState too)
   return xstateCreateMachine(config);
 }
@@ -54,7 +56,7 @@ export function createTypeSafeMachine<
  */
 function validateMachine(config: any): void {
   const stateNames = Object.keys(config.states);
-  
+
   // Validate all transitions reference valid states
   for (const [stateName, stateConfig] of Object.entries(config.states)) {
     if (stateConfig.on) {
@@ -64,7 +66,7 @@ function validateMachine(config: any): void {
           if (target && !target.startsWith('.') && !stateNames.includes(target)) {
             throw new Error(
               `Invalid transition target in state "${stateName}" for event "${eventName}": ` +
-              `"${target}" does not exist. Valid states: ${stateNames.join(', ')}`
+                `"${target}" does not exist. Valid states: ${stateNames.join(', ')}`
             );
           }
         }
@@ -139,19 +141,18 @@ import * as vscodeMock from './mocks/vscode-mock';
 async function validateMachineFile(filePath: string) {
   // Mock VS Code dependencies
   global.vscode = vscodeMock;
-  
+
   try {
     // Dynamically import and create the machine
     const module = await import(filePath);
     const machine = module.applicationMachine; // or detect export
-    
+
     // Actually create an actor - this will validate the machine structure
     const actor = createActor(machine);
     actor.start();
-    
+
     // Test all transitions are valid
     validateAllTransitions(machine);
-    
   } catch (error) {
     if (error.message.includes('does not exist')) {
       throw new Error(`Invalid state transition: ${error.message}`);
@@ -209,24 +210,28 @@ generateTypesFromMachine('src/fsm/machines/applicationMachine.ts', {
 ## Implementation Plan
 
 ### Phase 1: Foundation (Week 1)
+
 1. ✅ Create type-safe machine wrapper
 2. ✅ Add build-time validation that creates machines
 3. ✅ Create VS Code mock for validation
 4. ✅ Update compile script to run validation
 
 ### Phase 2: Schema Definition (Week 2)
+
 1. ✅ Extract state schemas from existing machines
 2. ✅ Create schema-to-machine converter
 3. ✅ Generate types from schemas
 4. ✅ Migrate one machine as proof of concept
 
 ### Phase 3: Developer Experience (Week 3)
+
 1. ✅ Create transition helper functions
 2. ✅ Add IntelliSense support
 3. ✅ Create ESLint rules for state transitions
 4. ✅ Document new patterns
 
 ### Phase 4: Migration (Week 4)
+
 1. ✅ Migrate all machines to type-safe versions
 2. ✅ Remove old patterns
 3. ✅ Update tests
@@ -237,12 +242,14 @@ generateTypesFromMachine('src/fsm/machines/applicationMachine.ts', {
 ## Benefits
 
 ### Immediate
+
 - ✅ **Compile-time errors** instead of runtime failures
 - ✅ **IntelliSense** for valid state transitions
 - ✅ **Refactoring safety** - TypeScript catches broken references
 - ✅ **Faster development** - autocomplete works
 
 ### Long-term
+
 - ✅ **Confidence** - Can't break extension with typos
 - ✅ **Documentation** - Schema serves as living documentation
 - ✅ **Testing** - Can generate test cases from schema
@@ -253,6 +260,7 @@ generateTypesFromMachine('src/fsm/machines/applicationMachine.ts', {
 ## Example: Before vs After
 
 ### Before (Current - Runtime Error)
+
 ```typescript
 SET_QUERY: {
   actions: 'setActiveQuery',
@@ -261,6 +269,7 @@ SET_QUERY: {
 ```
 
 ### After (Proposed - Compile Error)
+
 ```typescript
 SET_QUERY: {
   actions: 'setActiveQuery',
@@ -299,4 +308,3 @@ SET_QUERY: {
 - [XState TypeScript Guide](https://stately.ai/docs/typescript)
 - [Type-Safe State Machines](https://github.com/davidkpiano/xstate/discussions)
 - [Stately Studio](https://stately.ai/studio) - Visual state machine editor
-

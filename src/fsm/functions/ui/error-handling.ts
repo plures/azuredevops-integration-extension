@@ -1,6 +1,6 @@
 /**
  * Error Handling and User Feedback Functions
- * 
+ *
  * Provides error detection, classification, and UI state updates for authentication
  * failures, network errors, and other connection issues.
  */
@@ -24,7 +24,7 @@ export interface DetectedError {
 
 /**
  * Detects the type of error from an error object or message
- * 
+ *
  * @param error Error object or error message string
  * @param statusCode Optional HTTP status code
  * @returns Detected error information
@@ -47,7 +47,7 @@ export function detectErrorType(error: Error | string, statusCode?: number): Det
       return {
         type: 'authorization',
         recoverable: true,
-        message: 'You don\'t have permission to access this resource.',
+        message: "You don't have permission to access this resource.",
         suggestedAction: 'Check Permissions',
       };
     }
@@ -86,7 +86,8 @@ export function detectErrorType(error: Error | string, statusCode?: number): Det
     lowerMessage.includes('personal access token') ||
     lowerMessage.includes('401')
   ) {
-    const isPatExpired = lowerMessage.includes('expired') || lowerMessage.includes('personal access token');
+    const isPatExpired =
+      lowerMessage.includes('expired') || lowerMessage.includes('personal access token');
     return {
       type: 'authentication',
       recoverable: true,
@@ -106,7 +107,7 @@ export function detectErrorType(error: Error | string, statusCode?: number): Det
     return {
       type: 'authorization',
       recoverable: true,
-      message: 'You don\'t have permission to perform this action.',
+      message: "You don't have permission to perform this action.",
       suggestedAction: 'Check Permissions',
     };
   }
@@ -152,7 +153,7 @@ export function detectErrorType(error: Error | string, statusCode?: number): Det
 
 /**
  * Updates UI state with error information
- * 
+ *
  * @param context Current application context
  * @param error Error information
  * @param connectionId Connection ID where error occurred
@@ -194,7 +195,7 @@ export function updateUIStateForError(
 
 /**
  * Updates UI state with refresh status
- * 
+ *
  * @param success Whether the refresh was successful
  * @param error Optional error message if refresh failed
  * @param nextAutoRefresh Optional timestamp for next auto-refresh
@@ -217,7 +218,7 @@ export function updateRefreshStatus(
 
 /**
  * Clears error state from UI
- * 
+ *
  * @returns Partial UIState with cleared error information
  */
 export function clearErrorState(): Partial<UIState> {
@@ -231,4 +232,3 @@ export function clearErrorState(): Partial<UIState> {
     statusMessage: undefined,
   };
 }
-

@@ -1,6 +1,6 @@
 /**
  * Integration Tests for Error Handling Flow
- * 
+ *
  * Tests the complete error handling flow including:
  * - Authentication failure → UI state updates
  * - Refresh failure → Status bar updates
@@ -262,4 +262,3 @@ describe('Error Handling Integration', () => {
     });
   });
 });
-

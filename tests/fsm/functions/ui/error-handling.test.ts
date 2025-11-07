@@ -1,6 +1,6 @@
 /**
  * Unit Tests for Error Handling Functions
- * 
+ *
  * Tests error detection, classification, and UI state updates.
  */
 
@@ -334,4 +334,3 @@ describe('Error Handling Functions', () => {
     });
   });
 });
-

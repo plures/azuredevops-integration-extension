@@ -1,11 +1,11 @@
 /**
  * State Name Constants for Application Machine
- * 
+ *
  * Use these constants instead of string literals to:
  * 1. Get IntelliSense/autocomplete
  * 2. Prevent typos
  * 3. Enable safe refactoring
- * 
+ *
  * Usage:
  * ```typescript
  * SET_QUERY: {
@@ -39,7 +39,7 @@ export const ApplicationStates = {
   'active.ready.error': 'active.ready.error',
 } as const;
 
-export type ApplicationState = typeof ApplicationStates[keyof typeof ApplicationStates];
+export type ApplicationState = (typeof ApplicationStates)[keyof typeof ApplicationStates];
 
 /**
  * Helper to create relative state transitions
@@ -56,4 +56,3 @@ export function relativeState(state: string): string {
 export function createTransition(target: ApplicationState) {
   return { target };
 }
-
