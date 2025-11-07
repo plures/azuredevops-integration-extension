@@ -105,8 +105,8 @@ describe('User Detection', () => {
     });
 
     it('should handle null/undefined', () => {
-      expect(formatUsername(null as any)).toBe(null);
-      expect(formatUsername(undefined as any)).toBe(undefined);
+      expect(formatUsername(null as any)).toBe('');
+      expect(formatUsername(undefined as any)).toBe('');
     });
   });
 });

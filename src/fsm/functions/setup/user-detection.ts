@@ -96,7 +96,7 @@ export function validateUsernameFormat(username: string): boolean {
  */
 export function formatUsername(username: string): string {
   if (!username || typeof username !== 'string') {
-    return username;
+    return '';
   }
 
   const trimmed = username.trim();
