@@ -71,7 +71,7 @@ export function createConnectionFromDefaults(
   overrides: {
     label?: string;
     team?: string;
-    authMethod?: 'pat' | 'entra';
+    authMethod?: RecommendedAuthMethodId;
     patKey?: string;
     tenantId?: string;
     identityName?: string;
