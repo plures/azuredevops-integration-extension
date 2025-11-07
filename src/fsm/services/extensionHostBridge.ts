@@ -1,4 +1,7 @@
 import type * as vscode from 'vscode';
+import { createLogger } from '../../logging/unifiedLogger.js';
+
+const logger = createLogger('extension-host-bridge');
 
 type RegisterAllCommandsFn = (context: vscode.ExtensionContext) => void | Promise<void>;
 type ForwardProviderMessageFn = (connectionId: string, message: unknown) => void;
@@ -107,7 +110,7 @@ export async function invokeWebviewMessageHandler(message: unknown): Promise<voi
   try {
     await webviewMessageHandler(message);
   } catch (error) {
-    console.error('[extensionHostBridge] Webview message handler failed', error);
+    logger.error('Webview message handler failed', { meta: error });
   }
 }
 
@@ -126,7 +129,7 @@ export async function invokeActiveConnectionHandler(
   try {
     return await activeConnectionHandler(connectionId, options);
   } catch (error) {
-    console.error('[extensionHostBridge] Active connection handler failed', error);
+    logger.error('Active connection handler failed', { meta: error });
     return undefined;
   }
 }
@@ -148,9 +151,10 @@ export function getApplicationStoreActor(): unknown {
   return applicationActorAccessor ? applicationActorAccessor() : undefined;
 }
 
-export function sendApplicationStoreEvent(event: unknown): void {
+export function sendApplicationStoreEvent(event: unknown): boolean {
   if (!applicationEventDispatcher) {
-    return;
+    return false; // Bridge not initialized
   }
   applicationEventDispatcher(event);
+  return true; // Event sent via bridge
 }

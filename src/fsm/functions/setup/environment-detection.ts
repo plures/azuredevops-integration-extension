@@ -1,6 +1,6 @@
 /**
  * Environment Detection Utilities
- * 
+ *
  * Determines whether a parsed Azure DevOps URL is for Online (Azure DevOps Services)
  * or OnPremises (Azure DevOps Server) based on URL structure.
  */
@@ -11,13 +11,11 @@ export type EnvironmentType = 'online' | 'onpremises';
 
 /**
  * Determines if a parsed Azure DevOps URL is for Online or OnPremises
- * 
+ *
  * @param parsedUrl - Parsed Azure DevOps URL
  * @returns 'online' for Azure DevOps Services, 'onpremises' for Azure DevOps Server
  */
-export function detectEnvironmentType(
-  parsedUrl: ParsedAzureDevOpsUrl
-): EnvironmentType {
+export function detectEnvironmentType(parsedUrl: ParsedAzureDevOpsUrl): EnvironmentType {
   if (!parsedUrl.isValid || !parsedUrl.baseUrl) {
     // Default to onpremises for invalid URLs (safer fallback)
     return 'onpremises';
@@ -46,7 +44,7 @@ export function detectEnvironmentType(
 
 /**
  * Gets a user-friendly label for the environment type
- * 
+ *
  * @param environment - Environment type
  * @returns Human-readable label
  */
@@ -55,4 +53,3 @@ export function getEnvironmentLabel(environment: EnvironmentType): string {
     ? 'Azure DevOps Services (Online)'
     : 'Azure DevOps Server (OnPremises)';
 }
-

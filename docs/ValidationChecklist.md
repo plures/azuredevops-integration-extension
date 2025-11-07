@@ -4,6 +4,32 @@
 
 This checklist ensures the Azure DevOps Integration Extension meets all quality, security, and performance standards before release. All items must be completed and verified.
 
+## Reactive Architecture Philosophy ✅
+
+### Separation of Concerns
+
+- [x] Svelte controls webview UI rendering and user interactions
+- [x] FSM manages all application state and business logic
+- [x] Svelte informs FSM of user actions (not controls it)
+- [x] FSM updates state/context (not UI directly)
+- [x] UI reacts automatically to state/context changes
+
+### Reactive Paradigm (Not Messaging)
+
+- [x] State/context updates drive UI reactively
+- [x] Single `syncState` message for all state updates
+- [ ] Removed partial state messages (`syncTimerState`, `workItemsError`, `workItemsLoaded`)
+- [ ] All UI-visible state in FSM context
+- [ ] No command messages to control UI
+
+### Implementation Status
+
+- [x] Toggle debug view: Svelte controls locally, notifies FSM
+- [x] User actions: Svelte sends events, FSM processes
+- [x] State sync: FSM sends full context via `syncState`
+- [ ] Provider updates FSM context (not direct messages)
+- [ ] Timer state in FSM context (not separate messages)
+
 ## Foundation Architecture Discipline ✅
 
 ### Validation Infrastructure

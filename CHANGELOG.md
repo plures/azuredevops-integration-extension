@@ -12,7 +12,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - resolve unit test failures and improve coverage command
 
-
 ## [3.0.1] - 2025-10-31
 
 ### Other

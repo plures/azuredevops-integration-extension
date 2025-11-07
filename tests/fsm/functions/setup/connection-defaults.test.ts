@@ -78,9 +78,7 @@ describe('Connection Defaults', () => {
 
   describe('createConnectionFromDefaults', () => {
     it('should create connection with defaults', () => {
-      const defaults = autoDetectConnectionDefaults(
-        makeParsedUrl('https://dev.azure.com/testorg')
-      );
+      const defaults = autoDetectConnectionDefaults(makeParsedUrl('https://dev.azure.com/testorg'));
 
       const connection = createConnectionFromDefaults(defaults, {
         authMethod: 'entra',
@@ -93,9 +91,7 @@ describe('Connection Defaults', () => {
     });
 
     it('should allow overriding label', () => {
-      const defaults = autoDetectConnectionDefaults(
-        makeParsedUrl('https://dev.azure.com/testorg')
-      );
+      const defaults = autoDetectConnectionDefaults(makeParsedUrl('https://dev.azure.com/testorg'));
 
       const connection = createConnectionFromDefaults(defaults, {
         label: 'My Custom Label',
@@ -131,9 +127,7 @@ describe('Connection Defaults', () => {
     });
 
     it('should allow overriding apiBaseUrl', () => {
-      const defaults = autoDetectConnectionDefaults(
-        makeParsedUrl('https://dev.azure.com/testorg')
-      );
+      const defaults = autoDetectConnectionDefaults(makeParsedUrl('https://dev.azure.com/testorg'));
 
       const customApiUrl = 'https://custom.api.url/_apis';
       const connection = createConnectionFromDefaults(defaults, {
@@ -144,4 +138,3 @@ describe('Connection Defaults', () => {
     });
   });
 });
-

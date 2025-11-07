@@ -152,7 +152,8 @@ export function useRemoteMachineRunes<TSnapshot, TEvent>(
 
     // Ensure monotonic pubseq (prevent stale snapshots)
     if (pubseq <= lastPubseq) {
-      console.warn(
+      // Use console.debug since this is a debug utility and logging system may not be available
+      console.debug(
         `[useRemoteMachineRunes] Ignoring stale snapshot. pubseq ${pubseq} <= lastPubseq ${lastPubseq}`
       );
       return;

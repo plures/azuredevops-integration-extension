@@ -211,6 +211,7 @@ type SetupUIResult = {
 };
 
 const webviewRouterLogger = createComponentLogger(FSMComponent.WEBVIEW, 'webview-router');
+const appLogger = createComponentLogger(FSMComponent.APPLICATION, 'applicationMachine');
 
 function isSetupUICompletionEvent(
   event: unknown
@@ -369,12 +370,14 @@ export const applicationMachine = createMachine(
               idle: {
                 on: {
                   REFRESH_DATA: 'loadingData',
+                  CONNECTION_ESTABLISHED: 'loadingData', // Trigger loading when connection is established
                   MANAGE_CONNECTIONS: 'managingConnections',
                 },
               },
               loadingData: {
                 invoke: {
                   src: 'loadData',
+                  input: ({ context }) => context,
                   onDone: {
                     target: 'idle',
                     actions: 'syncDataToWebview',
@@ -464,6 +467,9 @@ export const applicationMachine = createMachine(
               },
               SET_QUERY: {
                 actions: 'setActiveQuery',
+                target: '.loadingData', // Trigger data loading when query changes (relative to ready state)
+                // TODO: Use ApplicationStates constant once we verify it works
+                // target: ApplicationStates['active.ready.loadingData'],
               },
               START_TIMER_INTERACTIVE: {
                 actions: 'handleStartTimer',
@@ -570,7 +576,7 @@ export const applicationMachine = createMachine(
       updateConnectionsInContext: assign({
         connections: ({ event, context }) => {
           if (event.type !== 'CONNECTIONS_LOADED') return context.connections;
-          console.log('[AzureDevOpsInt][updateConnectionsInContext] Updating connections:', {
+          appLogger.debug('Updating connections', {
             connectionsCount: event.connections.length,
             connectionIds: event.connections.map((c: ProjectConnection) => c.id),
           });
@@ -578,16 +584,14 @@ export const applicationMachine = createMachine(
         },
       }),
       storeConnectionsFromSetup: assign(({ context, event }) => {
-        console.log('[AzureDevOpsInt][storeConnectionsFromSetup] Received event:', {
+        appLogger.debug('storeConnectionsFromSetup received event', {
           eventType: (event as { type?: unknown }).type,
           hasOutput: 'output' in event,
           isCompletionEvent: isSetupUICompletionEvent(event),
         });
 
         if (!isSetupUICompletionEvent(event)) {
-          console.warn(
-            '[AzureDevOpsInt][storeConnectionsFromSetup] Event type check failed, not storing connections'
-          );
+          appLogger.warn('Event type check failed, not storing connections');
           return context;
         }
 
@@ -595,7 +599,7 @@ export const applicationMachine = createMachine(
           event as { type: 'done.invoke.setupUI'; output: SetupUIResult }
         ).output;
 
-        console.log('[AzureDevOpsInt][storeConnectionsFromSetup] Storing connections:', {
+        appLogger.debug('Storing connections', {
           connectionsCount: connections.length,
           connectionIds: connections.map((c: ProjectConnection) => c.id),
           activeConnectionId,
@@ -702,9 +706,9 @@ export const applicationMachine = createMachine(
       },
       handleAuthFailure: ({ event }) => {
         if (event.type === 'AUTHENTICATION_FAILED') {
-          console.error(
-            `[AzureDevOpsInt] Authentication failed for ${event.connectionId}: ${event.error}`
-          );
+          appLogger.error(`Authentication failed for ${event.connectionId}`, {
+            error: event.error,
+          });
         }
       },
       handleAuthSnapshot: ({ event, self }) => {
@@ -778,7 +782,7 @@ export const applicationMachine = createMachine(
         if (event.type !== 'WORK_ITEMS_LOADED') return {};
 
         // Debug logging to track work items flow
-        console.log('[AzureDevOpsInt][storeWorkItemsInContext] Storing work items:', {
+        appLogger.debug('Storing work items', {
           eventType: event.type,
           hasWorkItems: !!event.workItems,
           workItemsType: typeof event.workItems,
@@ -809,7 +813,12 @@ export const applicationMachine = createMachine(
       }),
       toggleDebugView: assign(({ context, event }) => {
         if (event.type !== 'TOGGLE_DEBUG_VIEW') return {};
-        return toggleDebugViewFn(context);
+        // If webview sent the new value, use it; otherwise toggle
+        const newValue =
+          (event as any).debugViewVisible !== undefined
+            ? (event as any).debugViewVisible
+            : !context.debugViewVisible;
+        return { debugViewVisible: newValue };
       }),
       setActiveQuery: assign(({ event }) => {
         if (event.type !== 'SET_QUERY') return {};
@@ -823,7 +832,7 @@ export const applicationMachine = createMachine(
         const workItemId = event.workItemId;
 
         if (!workItemId) {
-          console.warn('[FSM] handleStartTimer: No workItemId provided');
+          appLogger.warn('handleStartTimer: No workItemId provided');
           return;
         }
 
@@ -833,7 +842,7 @@ export const applicationMachine = createMachine(
         const title =
           event.workItemTitle || item?.fields?.['System.Title'] || `Work Item ${workItemId}`;
 
-        console.log('[FSM] Starting timer for work item:', { workItemId, title });
+        appLogger.debug('Starting timer for work item', { workItemId, title });
 
         // Send START event to timer actor if available
         if (timerActor && typeof (timerActor as any).send === 'function') {
@@ -845,11 +854,11 @@ export const applicationMachine = createMachine(
         const { timerActor } = context;
 
         if (!timerActor || typeof (timerActor as any).send !== 'function') {
-          console.warn('[FSM] handleStopTimer: No timerActor available');
+          appLogger.warn('handleStopTimer: No timerActor available');
           return;
         }
 
-        console.log('[FSM] Stopping timer');
+        appLogger.debug('Stopping timer');
         (timerActor as any).send({ type: 'STOP' });
 
         // Clear persisted timer state
@@ -858,7 +867,7 @@ export const applicationMachine = createMachine(
             ?.update('azureDevOpsInt.timer.state', undefined)
             .then(
               () => {},
-              (e: any) => console.error('[FSM] Failed to clear persisted timer:', e)
+              (e: any) => appLogger.error('Failed to clear persisted timer', { error: e })
             );
         }
       },
@@ -874,12 +883,12 @@ export const applicationMachine = createMachine(
         const client = connectionState?.client;
 
         if (!client || !event.workItemId) {
-          console.warn('[FSM] handleEditWorkItem: No client or workItemId');
+          appLogger.warn('handleEditWorkItem: No client or workItemId');
           return;
         }
 
         // FSM tracks the request - actual browser open happens in activation.ts
-        console.log('[FSM] Opening work item in browser:', event.workItemId);
+        appLogger.debug('Opening work item in browser', { workItemId: event.workItemId });
         // activation.ts handles via dispatchApplicationEvent
       },
       handleOpenInBrowser: ({ event, context }) => {
@@ -890,11 +899,11 @@ export const applicationMachine = createMachine(
         const client = connectionState?.client;
 
         if (!client || !event.workItemId) {
-          console.warn('[FSM] handleOpenInBrowser: No client or workItemId');
+          appLogger.warn('handleOpenInBrowser: No client or workItemId');
           return;
         }
 
-        console.log('[FSM] Opening work item in browser:', event.workItemId);
+        appLogger.debug('Opening work item in browser', { workItemId: event.workItemId });
         // activation.ts handles via dispatchApplicationEvent
       },
       handleCreateBranch: ({ event, context }) => {
@@ -905,7 +914,9 @@ export const applicationMachine = createMachine(
         const item = workItems.find((wi: any) => wi.id === event.workItemId);
 
         if (!item) {
-          console.warn('[FSM] handleCreateBranch: Work item not found:', event.workItemId);
+          appLogger.warn('handleCreateBranch: Work item not found', {
+            workItemId: event.workItemId,
+          });
           return;
         }
 
@@ -913,7 +924,7 @@ export const applicationMachine = createMachine(
         const title = item.fields?.['System.Title'] || '';
         const branchName = `feature/${event.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
-        console.log('[FSM] Creating branch for work item:', {
+        appLogger.debug('Creating branch for work item', {
           workItemId: event.workItemId,
           suggestedName: branchName,
         });
@@ -927,11 +938,11 @@ export const applicationMachine = createMachine(
         const client = connectionState?.client;
 
         if (!client || !event.workItemId) {
-          console.warn('[FSM] handleOpenWorkItem: No client or workItemId');
+          appLogger.warn('handleOpenWorkItem: No client or workItemId');
           return;
         }
 
-        console.log('[FSM] Opening work item:', event.workItemId);
+        appLogger.debug('Opening work item', { workItemId: event.workItemId });
         // activation.ts handles via dispatchApplicationEvent
       },
       stopTimerOnWorkItemUpdate: ({ context, event }) => {
@@ -954,7 +965,7 @@ export const applicationMachine = createMachine(
           const stillExists = workItems.some((wi: any) => wi.id === timerWorkItemId);
 
           if (!stillExists) {
-            console.log('[FSM] Stopping timer - work item no longer in list:', timerWorkItemId);
+            appLogger.debug('Stopping timer - work item no longer in list', { timerWorkItemId });
             (timerActor as any).send({ type: 'STOP' });
 
             // Clear persisted timer state
@@ -963,19 +974,19 @@ export const applicationMachine = createMachine(
                 ?.update('azureDevOpsInt.timer.state', undefined)
                 .then(
                   () => {},
-                  (e: any) => console.error('[FSM] Failed to clear persisted timer:', e)
+                  (e: any) => appLogger.error('Failed to clear persisted timer', { error: e })
                 );
             }
           }
         } catch (e) {
-          console.error('[FSM] Failed to check timer on work item update:', e);
+          appLogger.error('Failed to check timer on work item update', { error: e });
         }
       },
       storeDeviceCodeSession: assign(({ event }) => {
         if (event.type !== 'DEVICE_CODE_SESSION_STARTED') return {};
         const expiresAt = event.startedAt + event.expiresInSeconds * 1000;
 
-        console.log('[AzureDevOpsInt][FSM][APPLICATION] Storing device code session', {
+        appLogger.debug('Storing device code session', {
           connectionId: event.connectionId,
           userCode: event.userCode,
           expiresInSeconds: event.expiresInSeconds,
@@ -996,14 +1007,11 @@ export const applicationMachine = createMachine(
       clearDeviceCodeSession: assign(({ event, context }) => {
         if (event.type !== 'AUTHENTICATION_SUCCESS') return {};
 
-        console.log(
-          '[AzureDevOpsInt][FSM][APPLICATION] Clearing device code session after authentication success',
-          {
-            connectionId: event.connectionId,
-            hadDeviceCodeSession: !!context.deviceCodeSession,
-            deviceCodeSessionConnectionId: context.deviceCodeSession?.connectionId,
-          }
-        );
+        appLogger.debug('Clearing device code session after authentication success', {
+          connectionId: event.connectionId,
+          hadDeviceCodeSession: !!context.deviceCodeSession,
+          deviceCodeSessionConnectionId: context.deviceCodeSession?.connectionId,
+        });
 
         return { deviceCodeSession: undefined };
       }),
@@ -1044,7 +1052,7 @@ export const applicationMachine = createMachine(
           const rawConnections = (settings as any).get?.('connections') ?? [];
           const debugLoggingEnabled = !!(settings as any).get?.('debugLogging');
 
-          console.log('[AzureDevOpsInt][setupUI] Loading connections from settings:', {
+          appLogger.debug('setupUI: Loading connections from settings', {
             rawConnectionsCount: rawConnections.length,
             hasRawConnections: rawConnections.length > 0,
           });
@@ -1069,7 +1077,7 @@ export const applicationMachine = createMachine(
             summary,
           } = normalizeConnections(rawConnections, legacyFallback);
 
-          console.log('[AzureDevOpsInt][setupUI] Normalized connections:', {
+          appLogger.debug('setupUI: Normalized connections', {
             count: normalized.length,
             ids: normalized.map((c: ProjectConnection) => c.id),
             activeId: normalized.length > 0 ? normalized[0].id : undefined,
@@ -1083,7 +1091,7 @@ export const applicationMachine = createMachine(
                 vscode.ConfigurationTarget.Global
               );
             } catch (error) {
-              console.warn('[AzureDevOpsInt][setupUI] Failed to save migrated connections', error);
+              appLogger.warn('setupUI: Failed to save migrated connections', { error });
             }
           }
 
@@ -1109,13 +1117,13 @@ export const applicationMachine = createMachine(
               try {
                 await extensionContext.globalState.update('activeConnection', activeConnectionId);
               } catch (e) {
-                console.warn('[AzureDevOpsInt][setupUI] Failed to persist activeConnectionId', e);
+                appLogger.warn('setupUI: Failed to persist activeConnectionId', { error: e });
               }
             }
           }
 
           try {
-            console.log('[AzureDevOpsInt][setupUI] Setup complete:', {
+            appLogger.debug('setupUI: Setup complete', {
               connectionsCount: normalized.length,
               activeConnectionId,
               requiresPersistence,
@@ -1136,8 +1144,42 @@ export const applicationMachine = createMachine(
           };
         }
       ),
-      loadData: fromPromise(async () => {
-        /* Placeholder */
+      loadData: fromPromise(async ({ input }: { input: ApplicationContext }) => {
+        try {
+          if (!input.activeConnectionId) {
+            return { workItems: [], connectionId: null };
+          }
+
+          // Get connection actor to access provider
+          const { getConnectionFSMManager } = await import('../ConnectionFSMManager.js');
+          const connectionManager = getConnectionFSMManager();
+          const connectionActor = connectionManager.getConnectionActor(input.activeConnectionId);
+          const connectionSnapshot = connectionActor.getSnapshot();
+
+          if (!connectionSnapshot?.context?.provider) {
+            return { workItems: [], connectionId: input.activeConnectionId };
+          }
+
+          const provider = connectionSnapshot.context.provider;
+
+          // Force refresh by calling provider.refresh()
+          const activeQuery = input.activeQuery || 'My Activity';
+          await provider.refresh(activeQuery);
+
+          // Get refreshed work items
+          const workItems = provider.getWorkItems?.() || [];
+
+          return {
+            workItems,
+            connectionId: input.activeConnectionId,
+            query: activeQuery,
+          };
+        } catch (error) {
+          appLogger.error('Data loading failed', { error });
+          throw new Error(
+            `Data loading failed: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
       }),
       recoverFromError: fromPromise(async () => {
         /* Placeholder */

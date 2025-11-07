@@ -6,6 +6,9 @@
 import * as msal from '@azure/msal-node';
 import { PublicClientApplication as _PublicClientApplication } from '@azure/msal-node';
 import type * as vscode from 'vscode';
+import { createLogger } from '../logging/unifiedLogger.js';
+
+const logger = createLogger('entraAuth');
 // Inline type definitions (previously from deleted types.js)
 interface AuthenticationResult {
   success: boolean;
@@ -100,7 +103,7 @@ export class EntraAuthProvider implements IAuthProvider {
         loggerOptions: {
           loggerCallback: (level, message, containsPii) => {
             if (containsPii) return;
-            console.log(`[AzureDevOpsInt] [MSAL][${level}]`, message);
+            logger.debug(`MSAL ${level}`, { meta: { message } });
           },
           piiLoggingEnabled: false,
           logLevel: msal.LogLevel.Warning,
@@ -118,7 +121,7 @@ export class EntraAuthProvider implements IAuthProvider {
    */
   private getAuthority(): string {
     const tenantId = this.config.tenantId || 'organizations';
-    console.log('[AzureDevOpsInt] [EntraAuthProvider] Using authority tenant:', tenantId);
+    logger.debug('Using authority tenant', { meta: { tenantId } });
     return `https://login.microsoftonline.com/${tenantId}`;
   }
 
@@ -159,7 +162,7 @@ export class EntraAuthProvider implements IAuthProvider {
             context.tokenCache.deserialize(serialized);
           }
         } catch (error) {
-          console.error('[AzureDevOpsInt] [EntraAuthProvider] Failed to load token cache:', error);
+          logger.error('Failed to load token cache', { meta: error });
         }
       },
       afterCacheAccess: async (context: msal.TokenCacheContext) => {
@@ -170,10 +173,7 @@ export class EntraAuthProvider implements IAuthProvider {
           const serialized = context.tokenCache.serialize();
           await this.secretStorage.store(this.tokenCacheKey, serialized);
         } catch (error) {
-          console.error(
-            '[AzureDevOpsInt] [EntraAuthProvider] Failed to persist token cache:',
-            error
-          );
+          logger.error('Failed to persist token cache', { meta: error });
         }
       },
     } satisfies msal.ICachePlugin;
@@ -244,7 +244,7 @@ export class EntraAuthProvider implements IAuthProvider {
         expiresAt: response.expiresOn || undefined,
       };
     } catch (error: any) {
-      console.error('[AzureDevOpsInt] [EntraAuthProvider] Authentication failed:', error);
+      logger.error('Authentication failed', { meta: error });
       return {
         success: false,
         error: error.message || 'Authentication failed',
@@ -263,10 +263,7 @@ export class EntraAuthProvider implements IAuthProvider {
           const accounts = await this.msalClient.getTokenCache().getAllAccounts();
           account = accounts[0];
         } catch (cacheError) {
-          console.error(
-            '[AzureDevOpsInt] [EntraAuthProvider] Failed to read accounts from cache:',
-            cacheError
-          );
+          logger.error('Failed to read accounts from cache', { meta: cacheError });
         }
       }
       if (!account) {
@@ -371,12 +368,11 @@ export class EntraAuthProvider implements IAuthProvider {
         await this.msalClient.getTokenCache().removeAccount(account);
       }
 
-      console.log('[AzureDevOpsInt] [EntraAuthProvider] Token cache completely reset', {
-        connectionId: this.connectionId,
-        clearedAccounts: accounts.length,
+      logger.info('Token cache completely reset', {
+        meta: { connectionId: this.connectionId, clearedAccounts: accounts.length },
       });
     } catch (error) {
-      console.error('[AzureDevOpsInt] [EntraAuthProvider] Failed to clear token cache:', error);
+      logger.error('Failed to clear token cache', { meta: error });
     }
   }
 
@@ -410,7 +406,7 @@ export class EntraAuthProvider implements IAuthProvider {
     try {
       await this.secretStorage.store(this.refreshTokenKey, JSON.stringify(account));
     } catch (error) {
-      console.error('[AzureDevOpsInt] [EntraAuthProvider] Failed to store account:', error);
+      logger.error('Failed to store account', { meta: error });
     }
   }
 
@@ -425,7 +421,7 @@ export class EntraAuthProvider implements IAuthProvider {
       }
       return JSON.parse(accountJson) as msal.AccountInfo;
     } catch (error) {
-      console.error('[AzureDevOpsInt] [EntraAuthProvider] Failed to retrieve account:', error);
+      logger.error('Failed to retrieve account', { meta: error });
       return undefined;
     }
   }

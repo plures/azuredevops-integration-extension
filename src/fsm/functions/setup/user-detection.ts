@@ -1,11 +1,14 @@
 /**
  * User Detection Utilities
- * 
+ *
  * Detects current Windows user and domain information for OnPremises setup.
  * Works on Windows systems only.
  */
 
 import * as os from 'os';
+import { createLogger } from '../../../logging/unifiedLogger.js';
+
+const logger = createLogger('user-detection');
 
 export interface WindowsUserInfo {
   username: string;
@@ -16,7 +19,7 @@ export interface WindowsUserInfo {
 /**
  * Detects current Windows user and domain for OnPremises setup
  * Returns formatted username in DOMAIN\user format
- * 
+ *
  * @returns User info if on Windows and detection successful, null otherwise
  */
 export function detectWindowsUser(): WindowsUserInfo | null {
@@ -55,7 +58,7 @@ export function detectWindowsUser(): WindowsUserInfo | null {
     };
   } catch (error) {
     // Detection failed, return null
-    console.warn('[UserDetection] Failed to detect Windows user:', error);
+    logger.warn('Failed to detect Windows user', { meta: error });
     return null;
   }
 }
@@ -63,7 +66,7 @@ export function detectWindowsUser(): WindowsUserInfo | null {
 /**
  * Validates username format for OnPremises connections
  * Accepts: DOMAIN\user, user@domain.com, or user
- * 
+ *
  * @param username - Username string to validate
  * @returns true if format is valid, false otherwise
  */
@@ -87,7 +90,7 @@ export function validateUsernameFormat(username: string): boolean {
 
 /**
  * Formats username into standard DOMAIN\user format if possible
- * 
+ *
  * @param username - Username in any format
  * @returns Formatted username or original if cannot format
  */
@@ -112,4 +115,3 @@ export function formatUsername(username: string): string {
   // Just username - return as-is (trimmed)
   return trimmed;
 }
-

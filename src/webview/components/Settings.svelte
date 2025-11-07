@@ -29,14 +29,14 @@
 <div class="settings">
   <div class="header">
     <h2>Manage Connections</h2>
-    <button on:click={handleBack}>Back</button>
+    <button onclick={handleBack}>Back</button>
   </div>
 
   <div class="content">
     {#if connections.length === 0}
       <div class="info">
         <p>No connections configured.</p>
-        <button on:click={handleAddConnection}>Add Connection</button>
+        <button onclick={handleAddConnection}>Add Connection</button>
       </div>
     {:else}
       <div class="connections">
@@ -55,17 +55,17 @@
             </div>
             <div class="connection-actions">
               {#if conn.id !== activeConnectionId}
-                <button on:click={() => handleSelectConnection(conn.id)}>Activate</button>
+                <button onclick={() => handleSelectConnection(conn.id)}>Activate</button>
               {/if}
-              <button on:click={() => handleEditConnection(conn.id)}>Edit</button>
-              <button on:click={() => handleDeleteConnection(conn.id)} class="danger">Delete</button
+              <button onclick={() => handleEditConnection(conn.id)}>Edit</button>
+              <button onclick={() => handleDeleteConnection(conn.id)} class="danger">Delete</button
               >
             </div>
           </div>
         {/each}
       </div>
       <div class="footer">
-        <button on:click={handleAddConnection}>Add Connection</button>
+        <button onclick={handleAddConnection}>Add Connection</button>
       </div>
     {/if}
   </div>

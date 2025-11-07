@@ -13,6 +13,9 @@
  */
 
 import { EventEmitter } from 'events';
+import { createLogger } from '../../logging/unifiedLogger.js';
+
+const logger = createLogger('pubsub-broker');
 
 /**
  * Message envelope for pubsub:publish (subscriber -> broker)
@@ -130,7 +133,7 @@ export class PubSubBroker extends EventEmitter {
    */
   addSubscriber(subscriber: Subscriber): void {
     this.subscribers.set(subscriber.id, subscriber);
-    console.log(`[PubSubBroker] Subscriber added: ${subscriber.id}`);
+    logger.debug('Subscriber added', { subscriberId: subscriber.id });
   }
 
   /**
@@ -150,7 +153,7 @@ export class PubSubBroker extends EventEmitter {
 
     // Remove subscriber reference
     this.subscribers.delete(subscriberId);
-    console.log(`[PubSubBroker] Subscriber removed: ${subscriberId}`);
+    logger.debug('Subscriber removed', { subscriberId });
   }
 
   /**
@@ -162,7 +165,7 @@ export class PubSubBroker extends EventEmitter {
    */
   handleMessage(subscriberId: string, message: any): void {
     if (!message || typeof message.type !== 'string') {
-      console.warn('[PubSubBroker] Invalid message received:', message);
+      logger.warn('Invalid message received', { meta: message });
       return;
     }
 
@@ -177,7 +180,7 @@ export class PubSubBroker extends EventEmitter {
         this.handlePublish(subscriberId, message as PublishMessage);
         break;
       default:
-        console.warn(`[PubSubBroker] Unknown message type: ${message.type}`);
+        logger.warn('Unknown message type', { messageType: message.type });
     }
   }
 
@@ -197,7 +200,7 @@ export class PubSubBroker extends EventEmitter {
     }
     this.subscriptions.get(topic)!.add(subscriberId);
 
-    console.log(`[PubSubBroker] Subscriber ${subscriberId} subscribed to topic: ${topic}`);
+    logger.debug('Subscriber subscribed to topic', { subscriberId, topic });
 
     // Replay retained message if available
     const retained = this.retainedMessages.get(topic);
@@ -211,9 +214,7 @@ export class PubSubBroker extends EventEmitter {
           pubseq: retained.pubseq,
         };
         subscriber.postMessage(broadcastMsg);
-        console.log(
-          `[PubSubBroker] Replayed retained message for topic ${topic} to ${subscriberId}`
-        );
+        logger.debug('Replayed retained message', { topic, subscriberId });
       }
     }
   }
@@ -233,7 +234,7 @@ export class PubSubBroker extends EventEmitter {
       if (subs.size === 0) {
         this.subscriptions.delete(topic);
       }
-      console.log(`[PubSubBroker] Subscriber ${subscriberId} unsubscribed from topic: ${topic}`);
+      logger.debug('Subscriber unsubscribed from topic', { subscriberId, topic });
     }
   }
 
@@ -247,7 +248,7 @@ export class PubSubBroker extends EventEmitter {
   private handlePublish(subscriberId: string, message: PublishMessage): void {
     const { topic, payload } = message;
 
-    console.log(`[PubSubBroker] Subscriber ${subscriberId} published to topic: ${topic}`);
+    logger.debug('Subscriber published to topic', { subscriberId, topic });
 
     // Emit event for external listeners (e.g., machine event handlers)
     this.emit('publish', { subscriberId, topic, payload });
@@ -295,13 +296,14 @@ export class PubSubBroker extends EventEmitter {
         }
       }
 
-      console.log(
-        `[PubSubBroker] Published to topic ${topic} (pubseq: ${pubseq}, subscribers: ${subs.size}, retained: ${retain})`
-      );
+      logger.debug('Published to topic', {
+        topic,
+        pubseq,
+        subscriberCount: subs.size,
+        retained: retain,
+      });
     } else {
-      console.log(
-        `[PubSubBroker] Published to topic ${topic} (pubseq: ${pubseq}, no subscribers, retained: ${retain})`
-      );
+      logger.debug('Published to topic (no subscribers)', { topic, pubseq, retained: retain });
     }
   }
 
@@ -332,7 +334,7 @@ export class PubSubBroker extends EventEmitter {
    */
   clearRetainedMessage(topic: string): void {
     this.retainedMessages.delete(topic);
-    console.log(`[PubSubBroker] Cleared retained message for topic: ${topic}`);
+    logger.debug('Cleared retained message for topic', { topic });
   }
 
   /**
@@ -363,7 +365,7 @@ export class PubSubBroker extends EventEmitter {
     this.subscribers.clear();
     this.retainedMessages.clear();
     this.removeAllListeners();
-    console.log('[PubSubBroker] Disposed');
+    logger.debug('Disposed');
   }
 }
 

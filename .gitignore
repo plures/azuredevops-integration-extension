@@ -313,7 +313,8 @@ release-*.ts
 # Temporary validation files
 validate-*.js
 validate-*.mjs
-validate-*.ts
+# Allow validation scripts in scripts/ directory
+!scripts/validate-*.ts
 
 # Temporary migration files
 migrate-*.js

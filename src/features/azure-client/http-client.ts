@@ -1,6 +1,9 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { RateLimiter } from '../../rateLimiter.js';
+import { createLogger } from '../../logging/unifiedLogger.js';
 import type { AuthType, ClientOptions } from './types.js';
+
+const logger = createLogger('http-client');
 
 export class AzureHttpClient {
   private axiosInstance: AxiosInstance;
@@ -105,7 +108,7 @@ export class AzureHttpClient {
           const { status, statusText, data } = err.response;
 
           if (status === 404) {
-            console.error('[azureDevOpsInt][HTTP][404_DETAILS]', {
+            logger.error('HTTP 404 Details', {
               url,
               status,
               statusText,
@@ -114,7 +117,7 @@ export class AzureHttpClient {
           }
 
           if (status === 401 && this.authType === 'bearer') {
-            console.error(`[azureDevOpsInt][HTTP] 401 Unauthorized - authentication required`);
+            logger.error('HTTP 401 Unauthorized - authentication required');
           }
 
           // Handle specific error cases
@@ -125,7 +128,7 @@ export class AzureHttpClient {
             } catch {
               snippet = String(data).substring(0, 200);
             }
-            console.error('[azureDevOpsInt][HTTP][400_DETAILS]', {
+            logger.error('HTTP 400 Details', {
               url,
               status,
               statusText,

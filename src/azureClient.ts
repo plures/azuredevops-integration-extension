@@ -3,6 +3,9 @@ import { WorkItem, WorkItemBuildSummary } from './types.js';
 import { RateLimiter } from './rateLimiter.js';
 import { workItemCache, WorkItemCache } from './cache.js';
 import { measureAsync } from './performance.js';
+import { createLogger } from './logging/unifiedLogger.js';
+
+const logger = createLogger('azureClient');
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -107,10 +110,9 @@ export class AzureDevOpsIntClient {
     this.preferStateCategory = options.wiqlPreferStateCategory ?? true;
     this.identityName = options.identityName?.trim() ? options.identityName.trim() : undefined;
     if (this.identityName) {
-      console.log(
-        '[AzureDevOpsInt] [AzureClient] Configured with fallback identityName for on-prem:',
-        this.identityName
-      );
+      logger.info('Configured with fallback identityName for on-prem', {
+        meta: { identityName: this.identityName },
+      });
     }
     this.encodedOrganization = encodeURIComponent(organization);
     this.encodedProject = encodeURIComponent(project);
@@ -160,9 +162,8 @@ export class AzureDevOpsIntClient {
       this.baseUrl = preferredBase;
       this.apiBaseUrl = manualApi.replace(/\/+$/, '');
 
-      console.log('[AzureDevOpsInt] [AzureClient] Using manual API URL override:', {
-        apiBaseUrl: this.apiBaseUrl,
-        baseUrl: this.baseUrl,
+      logger.info('Using manual API URL override', {
+        meta: { apiBaseUrl: this.apiBaseUrl, baseUrl: this.baseUrl },
       });
     } else if (options.baseUrl) {
       this.baseUrl = normalizeBaseUrl(options.baseUrl);
@@ -211,28 +212,28 @@ export class AzureDevOpsIntClient {
         ? `${authHeader.substring(0, 20)}...${authHeader.substring(authHeader.length - 10)}`
         : 'NO_AUTH_HEADER';
 
-      console.log(
-        '[azureDevOpsInt][HTTP] →',
-        cfg.method?.toUpperCase(),
-        cfg.url,
-        'attempt',
-        (cfg as any).__attempt,
-        'token:',
-        tokenDebug
-      );
+      logger.debug('HTTP request', {
+        meta: {
+          method: cfg.method?.toUpperCase(),
+          url: cfg.url,
+          attempt: (cfg as any).__attempt,
+          token: tokenDebug,
+        },
+      });
       return cfg;
     });
 
     this.axios.interceptors.response.use(
       (resp) => {
         const ms = Date.now() - (resp.config as any).__start;
-        console.log(
-          '[azureDevOpsInt][HTTP] ←',
-          resp.config.method?.toUpperCase(),
-          resp.config.url,
-          resp.status,
-          `${ms}ms`
-        );
+        logger.debug('HTTP response', {
+          meta: {
+            method: resp.config.method?.toUpperCase(),
+            url: resp.config.url,
+            status: resp.status,
+            duration: `${ms}ms`,
+          },
+        });
         return resp;
       },
       async (err) => {
@@ -243,27 +244,30 @@ export class AzureDevOpsIntClient {
 
           // Enhanced error logging for 404s
           if (status === 404) {
-            console.error('[azureDevOpsInt][HTTP][404_DETAILS]', {
-              method: cfg.method?.toUpperCase(),
-              url: cfg.url,
-              fullUrl: cfg.baseURL + cfg.url,
-              status,
-              statusText,
-              responseData: data,
-              authType: this.authType,
-              organization: this.organization,
-              project: this.project,
+            logger.error('HTTP 404 Details', {
+              meta: {
+                method: cfg.method?.toUpperCase(),
+                url: cfg.url,
+                fullUrl: cfg.baseURL + cfg.url,
+                status,
+                statusText,
+                responseData: data,
+                authType: this.authType,
+                organization: this.organization,
+                project: this.project,
+              },
             });
           }
 
-          console.error(
-            '[azureDevOpsInt][HTTP][ERR]',
-            cfg.method?.toUpperCase(),
-            cfg.url,
-            status,
-            statusText,
-            `${ms}ms`
-          );
+          logger.error('HTTP error', {
+            meta: {
+              method: cfg.method?.toUpperCase(),
+              url: cfg.url,
+              status,
+              statusText,
+              duration: `${ms}ms`,
+            },
+          });
           if (data) {
             let snippet: string;
             try {
@@ -272,13 +276,13 @@ export class AzureDevOpsIntClient {
             } catch {
               snippet = '[unserializable response data]';
             }
-            console.error('[azureDevOpsInt][HTTP][ERR] body:', snippet);
+            logger.error('HTTP error body', { meta: { snippet } });
           }
 
           // Handle 401 for bearer token auth - throw error immediately to stop retry loops
           // Note: 404 is handled individually by methods since it can have different meanings
           if (status === 401 && this.authType === 'bearer') {
-            console.error(`[azureDevOpsInt][HTTP] 401 Unauthorized - authentication required`);
+            logger.error('HTTP 401 Unauthorized - authentication required');
             const authError = new Error(
               `Authentication failed: 401 Unauthorized. Please re-authenticate.`
             );
@@ -287,19 +291,41 @@ export class AzureDevOpsIntClient {
             try {
               this.onAuthFailure?.(authError);
             } catch (callbackError) {
-              console.error('[azureDevOpsInt][HTTP] onAuthFailure callback threw', callbackError);
+              logger.error('onAuthFailure callback threw', { meta: callbackError });
             }
             throw authError;
           }
+
+          // Handle 401 for PAT authentication when token is expired
+          // Check error message for "expired" to detect PAT expiration vs other auth issues
+          if (status === 401 && this.authType === 'pat') {
+            const errorMessage = data?.message || (typeof data === 'string' ? data : '') || '';
+            const isPatExpired =
+              errorMessage.toLowerCase().includes('expired') ||
+              errorMessage.toLowerCase().includes('personal access token used has expired');
+
+            if (isPatExpired) {
+              logger.error('HTTP 401 Unauthorized - PAT expired');
+              const authError = new Error(
+                `Personal Access Token has expired. Please update your PAT.`
+              );
+              authError.name = 'AuthenticationError';
+              (authError as any).status = status;
+              (authError as any).isPatExpired = true;
+              try {
+                this.onAuthFailure?.(authError);
+              } catch (callbackError) {
+                logger.error('onAuthFailure callback threw', { meta: callbackError });
+              }
+              throw authError;
+            }
+          }
         } else if (err.code === 'ECONNABORTED') {
-          console.error(
-            '[azureDevOpsInt][HTTP][TIMEOUT]',
-            cfg.method?.toUpperCase(),
-            cfg.url,
-            `${ms}ms`
-          );
+          logger.error('HTTP timeout', {
+            meta: { method: cfg.method?.toUpperCase(), url: cfg.url, duration: `${ms}ms` },
+          });
         } else {
-          console.error('[azureDevOpsInt][HTTP][NETERR]', err.message);
+          logger.error('HTTP network error', { meta: { message: err.message } });
         }
         // Retry logic: 429 or >=500 (excluding 501/505 uncommon) with exponential backoff
         const status = err.response?.status;
@@ -313,16 +339,9 @@ export class AzureDevOpsIntClient {
           const backoffBase = 250 * Math.pow(2, attempt - 1);
           const jitter = Math.random() * backoffBase * 0.3;
           const delay = Math.min(4000, backoffBase + jitter);
-          console.warn(
-            '[azureDevOpsInt][HTTP][RETRY]',
-            cfg.url,
-            'status',
-            status,
-            'retryInMs',
-            Math.round(delay),
-            'attempt',
-            attempt + 1
-          );
+          logger.warn('HTTP retry', {
+            meta: { url: cfg.url, status, retryInMs: Math.round(delay), attempt: attempt + 1 },
+          });
           return new Promise((resolve) => setTimeout(resolve, delay)).then(() => this.axios(cfg));
         }
         return Promise.reject(err);
@@ -357,33 +376,26 @@ export class AzureDevOpsIntClient {
    * Falls back to null on error.
    */
   async getAuthenticatedUserId(): Promise<string | null> {
-    console.log('[AzureDevOpsInt] [AzureClient] 🔍 Testing authentication...');
+    logger.debug('Testing authentication...');
     const identity = await this._getAuthenticatedIdentity();
 
     if (identity?.id) {
-      console.log('[AzureDevOpsInt] [AzureClient] ✅ Authentication successful!');
-      console.log(
-        `[AzureDevOpsInt] [AzureClient] 👤 User: ${identity.displayName || 'Unknown'} (${identity.uniqueName || 'Unknown'})`
-      );
-      console.log(
-        `[AzureDevOpsInt] [AzureClient] 🔑 Authentication method: Personal Access Token (PAT)`
-      );
-      console.log(`[AzureDevOpsInt] [AzureClient] 📋 Your PAT has at least basic read permissions`);
-      console.log(
-        `[AzureDevOpsInt] [AzureClient] 💡 If work item creation works, your PAT also has work item write permissions`
-      );
+      logger.info('Authentication successful', {
+        meta: {
+          displayName: identity.displayName || 'Unknown',
+          uniqueName: identity.uniqueName || 'Unknown',
+        },
+      });
+      logger.debug('Authentication method: Personal Access Token (PAT)');
+      logger.debug('PAT has at least basic read permissions');
+      logger.debug('If work item creation works, PAT also has work item write permissions');
     } else {
-      console.log(
-        '[AzureDevOpsInt] [AzureClient] ❌ Authentication failed - no user identity returned'
-      );
+      logger.warn('Authentication failed - no user identity returned');
     }
 
     // Debug: log the entire identity object for diagnostics (no secrets)
     try {
-      console.log(
-        '[AzureDevOpsInt] [AzureClient][DEBUG] resolved identity object:',
-        JSON.stringify(identity)
-      );
+      logger.debug('Resolved identity object', { meta: identity });
     } catch {
       // ignore stringify errors
     }
@@ -450,7 +462,7 @@ export class AzureDevOpsIntClient {
               true
             );
           } catch (err3) {
-            console.error('[azureDevOpsInt] connectionData attempts:', attempts);
+            logger.error('connectionData attempts failed', { meta: { attempts } });
             throw err1 || err2 || err3;
           }
         }
@@ -496,10 +508,7 @@ export class AzureDevOpsIntClient {
       };
       this.cachedIdentity = identity;
       try {
-        console.log(
-          '[AzureDevOpsInt] [AzureClient][DEBUG] resolved identity object:',
-          JSON.stringify(identity)
-        );
+        logger.debug('Resolved identity object', { meta: identity });
       } catch {
         /* ignore stringify errors */
       }
@@ -507,22 +516,20 @@ export class AzureDevOpsIntClient {
       // If we still don't have a uniqueName and identityName was provided (for on-prem),
       // use identityName as the fallback uniqueName
       if (!this.cachedIdentity.uniqueName && this.identityName) {
-        console.log(
-          '[AzureDevOpsInt] [AzureClient][DEBUG] using provided identityName as fallback:',
-          this.identityName
-        );
+        logger.debug('Using provided identityName as fallback', {
+          meta: { identityName: this.identityName },
+        });
         this.cachedIdentity.uniqueName = this.identityName;
       }
 
       return this.cachedIdentity;
     } catch (e) {
-      console.error('[AzureDevOpsInt] Error fetching authenticated user identity', e);
+      logger.error('Error fetching authenticated user identity', { meta: e });
       // If connectionData fails entirely and we have identityName, use it as a fallback
       if (this.identityName) {
-        console.log(
-          '[AzureDevOpsInt] [AzureClient][DEBUG] connectionData failed, using identityName fallback:',
-          this.identityName
-        );
+        logger.debug('connectionData failed, using identityName fallback', {
+          meta: { identityName: this.identityName },
+        });
         this.cachedIdentity = {
           uniqueName: this.identityName,
         };
@@ -664,10 +671,7 @@ export class AzureDevOpsIntClient {
         const rawItems: any[] = resp.data?.value || [];
         results.push(...this._mapRawWorkItems(rawItems));
       } catch (err: any) {
-        console.warn(
-          '[azureDevOpsInt][GETWI] Failed to expand work item chunk',
-          err?.message || err
-        );
+        logger.warn('Failed to expand work item chunk', { meta: { error: err?.message || err } });
       }
     }
     return results;
@@ -708,10 +712,7 @@ export class AzureDevOpsIntClient {
       const filtered = this._filterItemsForProject(items);
       return this._sortByChangedDateDesc(filtered);
     } catch (err: any) {
-      console.warn(
-        '[azureDevOpsInt][GETWI] Failed to fetch followed work items',
-        err?.message || err
-      );
+      logger.warn('Failed to fetch followed work items', { meta: { error: err?.message || err } });
       return [];
     }
   }
@@ -740,10 +741,7 @@ export class AzureDevOpsIntClient {
     try {
       return await this.runWIQL(query);
     } catch (err: any) {
-      console.warn(
-        '[azureDevOpsInt][GETWI] Failed to fetch mentioned work items',
-        err?.message || err
-      );
+      logger.warn('Failed to fetch mentioned work items', { meta: { error: err?.message || err } });
       return [];
     }
   }
@@ -762,7 +760,7 @@ export class AzureDevOpsIntClient {
 
         const cached = workItemCache.get(cacheKey);
         if (cached) {
-          console.log('[azureDevOpsInt][GETWI] Cache hit for query:', query);
+          logger.debug('Cache hit for query', { meta: { query } });
           return cached;
         }
 
@@ -788,14 +786,12 @@ export class AzureDevOpsIntClient {
             }
           } catch (e) {
             // Fallback to @CurrentIteration-based WIQL already produced
-            console.warn(
-              '[azureDevOpsInt][GETWI] getCurrentIteration failed, using @CurrentIteration',
-              e
-            );
+            logger.warn('getCurrentIteration failed, using @CurrentIteration', { meta: e });
           }
         }
-        console.log('[azureDevOpsInt][GETWI] Fetching work items with query:', wiql);
-        console.log('[azureDevOpsInt][GETWI] API Base URL:', this.axios.defaults.baseURL);
+        logger.debug('Fetching work items with query', {
+          meta: { wiql, apiBaseUrl: this.axios.defaults.baseURL },
+        });
 
         // Prepare the WIQL to send. Some on-prem/TFS servers don't reliably resolve the @Me token
         // so, when possible, replace @Me with an explicit identity string (uniqueName, displayName, or id).
@@ -815,7 +811,7 @@ export class AzureDevOpsIntClient {
           (['Recently Updated', 'All Active', 'Current Sprint'].includes(query) || !isKnownQuery);
 
         if (needsLimit) {
-          console.log('[azureDevOpsInt][GETWI] Applying hard limit of 100 items for query:', query);
+          logger.debug('Applying hard limit of 100 items for query', { meta: { query } });
         }
 
         try {
@@ -826,26 +822,18 @@ export class AzureDevOpsIntClient {
               if (idVal) {
                 const escaped = this._escapeWIQL(String(idVal));
                 wiqlToSend = wiql.replace(/@Me\b/g, `'${escaped}'`);
-                console.log(
-                  '[azureDevOpsInt][GETWI] Replacing @Me with explicit identity for compatibility: ',
-                  idVal
-                );
+                logger.debug('Replacing @Me with explicit identity for compatibility', {
+                  meta: { idVal },
+                });
               } else {
-                console.log(
-                  '[azureDevOpsInt][GETWI] _getAuthenticatedIdentity returned no usable identifier'
-                );
+                logger.debug('_getAuthenticatedIdentity returned no usable identifier');
               }
             } else {
-              console.log(
-                '[azureDevOpsInt][GETWI] Could not resolve authenticated identity to replace @Me'
-              );
+              logger.debug('Could not resolve authenticated identity to replace @Me');
             }
           }
         } catch (identErr) {
-          console.warn(
-            '[azureDevOpsInt][GETWI] Failed resolving identity for @Me replacement',
-            identErr
-          );
+          logger.warn('Failed resolving identity for @Me replacement', { meta: identErr });
         }
 
         // First, try the WIQL query
@@ -856,14 +844,12 @@ export class AzureDevOpsIntClient {
           wiqlResp = await this.axios.post(wiqlEndpoint, { query: wiqlToSend });
         } catch (err: any) {
           if (this._isMissingStateCategoryError(err)) {
-            console.warn(
-              '[azureDevOpsInt][GETWI] StateCategory unsupported in WIQL. Retrying with legacy state filters.'
-            );
+            logger.warn('StateCategory unsupported in WIQL. Retrying with legacy state filters.');
             // Update capability cache so future queries avoid the failing path for this client lifetime
             this.preferStateCategory = false;
             // Rebuild the WIQL with legacy state filters and retry
             const wiqlLegacy = this._buildWIQL(query, false);
-            console.log('[azureDevOpsInt][GETWI] Fallback WIQL:', wiqlLegacy);
+            logger.debug('Fallback WIQL', { meta: { wiqlLegacy } });
             // Apply the same @Me replacement logic to the legacy WIQL as well
             let legacyToSend = wiqlLegacy;
             try {
@@ -876,18 +862,14 @@ export class AzureDevOpsIntClient {
                       /@Me\b/g,
                       `'${this._escapeWIQL(String(idVal2))}'`
                     );
-                    console.log(
-                      '[azureDevOpsInt][GETWI] Replacing @Me in fallback WIQL with explicit identity:',
-                      idVal2
-                    );
+                    logger.debug('Replacing @Me in fallback WIQL with explicit identity', {
+                      meta: { idVal2 },
+                    });
                   }
                 }
               }
             } catch (e) {
-              console.warn(
-                '[azureDevOpsInt][GETWI] Identity resolution failed for fallback WIQL',
-                e
-              );
+              logger.warn('Identity resolution failed for fallback WIQL', { meta: e });
             }
 
             wiqlResp = await this.axios.post(wiqlEndpoint, { query: legacyToSend });
@@ -897,33 +879,26 @@ export class AzureDevOpsIntClient {
             throw err;
           }
         }
-        console.log('[azureDevOpsInt][GETWI] WIQL response status:', wiqlResp.status);
+        logger.debug('WIQL response status', { meta: { status: wiqlResp.status } });
         // Diagnostic: dump a truncated version of the response body to help debug empty results
         try {
           const bodySnippet = JSON.stringify(wiqlResp.data).slice(0, 2000);
-          console.log(
-            '[azureDevOpsInt][GETWI][DEBUG] WIQL response body (truncated):',
-            bodySnippet
-          );
+          logger.debug('WIQL response body (truncated)', { meta: { bodySnippet } });
         } catch {
           /* ignore */
         }
 
         let refs = wiqlResp.data?.workItems || [];
-        console.log(`[azureDevOpsInt][GETWI] WIQL reference count: ${refs.length}`);
+        logger.debug('WIQL reference count', { meta: { count: refs.length } });
 
         // Apply client-side limiting for queries that might return many results
         if (needsLimit && refs.length > 100) {
           refs = refs.slice(0, 100);
-          console.log(
-            `[azureDevOpsInt][GETWI] Applied client-side limit, reduced to ${refs.length} items`
-          );
+          logger.debug('Applied client-side limit', { meta: { reducedTo: refs.length } });
         }
 
         if (refs.length === 0) {
-          console.log(
-            '[azureDevOpsInt][GETWI] No work items matched query. Trying simpler query...'
-          );
+          logger.debug('No work items matched query. Trying simpler query...');
 
           // Try a simpler query to test authentication
           const simpleWiql =
@@ -934,27 +909,20 @@ export class AzureDevOpsIntClient {
           // Diagnostic: log simple query response snippet
           try {
             const simpleSnippet = JSON.stringify(simpleResp.data).slice(0, 1500);
-            console.log(
-              '[azureDevOpsInt][GETWI][DEBUG] simpleWIQL response body (truncated):',
-              simpleSnippet
-            );
+            logger.debug('simpleWIQL response body (truncated)', { meta: { simpleSnippet } });
           } catch {
             /* ignore */
           }
           const simpleRefs = simpleResp.data?.workItems || [];
-          console.log(
-            `[azureDevOpsInt][GETWI] Simple query returned ${simpleRefs.length} work items`
-          );
+          logger.debug('Simple query returned work items', { meta: { count: simpleRefs.length } });
 
           if (simpleRefs.length === 0) {
-            console.log('[azureDevOpsInt][GETWI] No work items in project at all.');
+            logger.debug('No work items in project at all.');
             return [];
           }
 
           // Work items exist - fetch and return them instead of returning empty
-          console.log(
-            '[azureDevOpsInt][GETWI] Original query matched nothing, fetching simple query results...'
-          );
+          logger.debug('Original query matched nothing, fetching simple query results...');
 
           // Use simpleRefs instead of refs to fetch the work items
           const simpleIds = simpleRefs
@@ -962,20 +930,20 @@ export class AzureDevOpsIntClient {
             .filter((id: any) => id != null)
             .join(',');
           if (!simpleIds) {
-            console.log('[azureDevOpsInt][GETWI] No valid IDs in simple query results.');
+            logger.debug('No valid IDs in simple query results.');
             return [];
           }
 
-          console.log('[azureDevOpsInt][GETWI] Expanding simple query IDs:', simpleIds);
+          logger.debug('Expanding simple query IDs', { meta: { simpleIds } });
           const fallbackItemsResp = await this.axios.get(
             `/wit/workitems?ids=${simpleIds}&$expand=all&api-version=7.0`
           );
           const fallbackRawItems: any[] = fallbackItemsResp.data?.value || [];
           const fallbackItems: WorkItem[] = this._mapRawWorkItems(fallbackRawItems);
 
-          console.log(
-            `[azureDevOpsInt][GETWI] Returning ${fallbackItems.length} work items from simple query fallback.`
-          );
+          logger.debug('Returning work items from simple query fallback', {
+            meta: { count: fallbackItems.length },
+          });
 
           // Cache the fallback result
           workItemCache.setWorkItems(cacheKey, fallbackItems);
@@ -983,23 +951,23 @@ export class AzureDevOpsIntClient {
         }
 
         const ids = refs.map((w: any) => w.id).join(',');
-        console.log('[azureDevOpsInt][GETWI] Expanding IDs:', ids);
+        logger.debug('Expanding IDs', { meta: { ids } });
 
         const itemsResp = await this.axios.get(
           `/wit/workitems?ids=${ids}&$expand=all&api-version=7.0`
         );
         const rawItems: any[] = itemsResp.data?.value || [];
-        console.log('[azureDevOpsInt][GETWI] Raw expanded item count:', rawItems.length);
+        logger.debug('Raw expanded item count', { meta: { count: rawItems.length } });
 
         const items: WorkItem[] = this._mapRawWorkItems(rawItems);
 
-        console.log(`[azureDevOpsInt][GETWI] Returning ${items.length} mapped work items.`);
+        logger.debug('Returning mapped work items', { meta: { count: items.length } });
 
         // Cache the result
         workItemCache.setWorkItems(cacheKey, items);
         return items;
       } catch (err: any) {
-        console.error('[azureDevOpsInt][GETWI][ERROR]', err?.message || err);
+        logger.error('GETWI error', { meta: { error: err?.message || err } });
 
         // Build detailed error message for users
         let errorMessage = 'Failed to fetch work items';
@@ -1013,11 +981,13 @@ export class AzureDevOpsIntClient {
             '• You have access to this project';
         } else if (status === 404) {
           // Log 404 details for debugging
-          console.log('[azureDevOpsInt][GETWI] 404 Not Found', {
-            organization: this.organization,
-            project: this.project,
-            authType: this.authType,
-            url: err?.request?.url || err?.config?.url,
+          logger.debug('GETWI 404 Not Found', {
+            meta: {
+              organization: this.organization,
+              project: this.project,
+              authType: this.authType,
+              url: err?.request?.url || err?.config?.url,
+            },
           });
 
           // For both PAT and Entra ID, treat 404 as project/access issue, not auth failure
@@ -1036,7 +1006,7 @@ export class AzureDevOpsIntClient {
             errorMessage = `Invalid query (400). The WIQL query may contain unsupported fields or syntax for this project.\nQuery name: "${query}"`;
           }
           // Log the actual WIQL that failed for debugging
-          console.error('[azureDevOpsInt][GETWI][ERROR] WIQL that failed:', wiqlToSend || wiql);
+          logger.error('WIQL that failed', { meta: { wiql: wiqlToSend || wiql } });
         } else if (status >= 500) {
           errorMessage = `Azure DevOps server error (${status}). The service may be temporarily unavailable.`;
         } else if (err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED') {
@@ -1050,12 +1020,11 @@ export class AzureDevOpsIntClient {
         }
 
         if (err?.response) {
-          console.error('[azureDevOpsInt][GETWI][ERROR] HTTP status:', status);
+          logger.error('GETWI HTTP status', { meta: { status } });
           try {
-            console.error(
-              '[azureDevOpsInt][GETWI][ERROR] Response data:',
-              JSON.stringify(err.response.data).slice(0, 600)
-            );
+            logger.error('GETWI response data', {
+              meta: { data: JSON.stringify(err.response.data).slice(0, 600) },
+            });
           } catch {
             /* ignore */
           }
@@ -1089,7 +1058,7 @@ export class AzureDevOpsIntClient {
       const resp = await this.axios.get(`/wit/workitems/${id}?$expand=all&api-version=7.0`);
       return { id: resp.data.id, fields: resp.data.fields } as WorkItem;
     } catch (err) {
-      console.error('[AzureDevOpsInt] Error fetching work item by id:', err);
+      logger.error('Error fetching work item by id', { meta: err });
       return null;
     }
   }
@@ -1105,7 +1074,7 @@ export class AzureDevOpsIntClient {
       const raw = itemsResp.data.value || [];
       return raw.map((r: any) => ({ id: r.id, fields: r.fields }) as WorkItem);
     } catch (err) {
-      console.error('[AzureDevOpsInt] runWIQL failed:', err);
+      logger.error('runWIQL failed', { meta: err });
       return [];
     }
   }
@@ -1151,10 +1120,7 @@ export class AzureDevOpsIntClient {
     assignedTo?: string,
     extraFields?: Record<string, unknown>
   ): Promise<WorkItem> {
-    console.log('[AzureDevOpsInt] [AzureClient] 🔍 Creating work item:', {
-      type,
-      title: title.substring(0, 50) + '...',
-    });
+    logger.debug('Creating work item', { meta: { type, title: title.substring(0, 50) + '...' } });
 
     const patch: any[] = [{ op: 'add', path: '/fields/System.Title', value: title }];
     if (description)
@@ -1172,29 +1138,18 @@ export class AzureDevOpsIntClient {
         headers: { 'Content-Type': 'application/json-patch+json' },
       });
 
-      console.log('[AzureDevOpsInt] [AzureClient] ✅ Work item created successfully!');
-      console.log(`[AzureDevOpsInt] [AzureClient] 📋 Work Item ID: ${resp.data.id}`);
-      console.log(
-        `[AzureDevOpsInt] [AzureClient] 🔑 This confirms your authentication has work item WRITE permissions`
-      );
-      console.log(
-        `[AzureDevOpsInt] [AzureClient] 🎯 Required permission: vso.work_write (for PAT) or equivalent scope (for OAuth)`
-      );
+      logger.info('Work item created successfully', { meta: { workItemId: resp.data.id } });
+      logger.debug('Authentication has work item WRITE permissions');
+      logger.debug('Required permission: vso.work_write (for PAT) or equivalent scope (for OAuth)');
 
       return { id: resp.data.id, fields: resp.data.fields } as WorkItem;
     } catch (error: any) {
-      console.error(
-        '[AzureDevOpsInt] [AzureClient] ❌ Work item creation failed:',
-        error.response?.status,
-        error.response?.statusText
-      );
+      logger.error('Work item creation failed', {
+        meta: { status: error.response?.status, statusText: error.response?.statusText },
+      });
       if (error.response?.status === 403) {
-        console.error(
-          '[AzureDevOpsInt] [AzureClient] 🚫 Permission denied - your authentication lacks work item write permissions'
-        );
-        console.error(
-          '[AzureDevOpsInt] [AzureClient] 💡 Check your PAT scopes or Azure AD permissions'
-        );
+        logger.error('Permission denied - authentication lacks work item write permissions');
+        logger.error('Check your PAT scopes or Azure AD permissions');
       }
       throw error;
     }
@@ -1228,7 +1183,7 @@ export class AzureDevOpsIntClient {
       const resp = await this.axios.get(`/wit/workitemtypes?api-version=7.0`);
       return resp.data.value || [];
     } catch (e) {
-      console.error('[AzureDevOpsInt] Error fetching work item types:', e);
+      logger.error('Error fetching work item types', { meta: e });
       return [];
     }
   }
@@ -1241,10 +1196,7 @@ export class AzureDevOpsIntClient {
       const states = resp.data.states || [];
       return states.map((state: any) => state.name || state);
     } catch (e) {
-      console.error(
-        `[AzureDevOpsInt] Error fetching states for work item type ${workItemType}:`,
-        e
-      );
+      logger.error(`Error fetching states for work item type ${workItemType}`, { meta: e });
       return [];
     }
   }
@@ -1255,7 +1207,7 @@ export class AzureDevOpsIntClient {
       const resp = await this.axios.get(url);
       return resp.data.value || [];
     } catch (err) {
-      console.error('[AzureDevOpsInt] Error fetching iterations:', err);
+      logger.error('Error fetching iterations', { meta: err });
       return [];
     }
   }
@@ -1284,7 +1236,7 @@ export class AzureDevOpsIntClient {
         workItemCache.setMetadata(cacheKey, result);
         return result;
       } catch (err) {
-        console.error('[AzureDevOpsInt] Error fetching current iteration:', err);
+        logger.error('Error fetching current iteration', { meta: err });
         return null;
       }
     });
@@ -1322,7 +1274,7 @@ export class AzureDevOpsIntClient {
         workItemCache.setMetadata(cacheKey, result);
         return result;
       } catch (e) {
-        console.error('[AzureDevOpsInt] Error fetching teams', e);
+        logger.error('Error fetching teams', { meta: e });
         return [];
       }
     });
@@ -1353,7 +1305,7 @@ export class AzureDevOpsIntClient {
         workItemCache.setMetadata(cacheKey, this._repoCache);
         return this._repoCache;
       } catch (e) {
-        console.error('[AzureDevOpsInt] Error fetching repositories', e);
+        logger.error('Error fetching repositories', { meta: e });
         return [];
       }
     });
@@ -1385,7 +1337,7 @@ export class AzureDevOpsIntClient {
           ),
       }));
     } catch (e) {
-      console.error('[AzureDevOpsInt] Error fetching pull requests', e);
+      logger.error('Error fetching pull requests', { meta: e });
       return [];
     }
   }
@@ -1397,9 +1349,7 @@ export class AzureDevOpsIntClient {
   async getMyPullRequestsAcrossRepos(status: string = 'active') {
     const me = await this.getAuthenticatedUserId();
     if (!me) {
-      console.warn(
-        '[azureDevOpsInt] Could not determine authenticated user id; returning empty PR list'
-      );
+      logger.warn('Could not determine authenticated user id; returning empty PR list');
       return [] as Array<{
         id: number;
         title: string;
@@ -1456,7 +1406,7 @@ export class AzureDevOpsIntClient {
       });
       return mapped;
     } catch (e) {
-      console.error('[AzureDevOpsInt] Error fetching my pull requests across repos', e);
+      logger.error('Error fetching my pull requests across repos', { meta: e });
       return [];
     }
   }
@@ -1477,7 +1427,7 @@ export class AzureDevOpsIntClient {
       );
       return resp.data;
     } catch (e) {
-      console.error('[AzureDevOpsInt] Error creating pull request', e);
+      logger.error('Error creating pull request', { meta: e });
       throw e;
     }
   }
@@ -1522,7 +1472,7 @@ export class AzureDevOpsIntClient {
         webUrl: b._links?.web?.href,
       })) as WorkItemBuildSummary[];
     } catch (e) {
-      console.error('[AzureDevOpsInt] Error fetching builds', e);
+      logger.error('Error fetching builds', { meta: e });
       return [];
     }
   }

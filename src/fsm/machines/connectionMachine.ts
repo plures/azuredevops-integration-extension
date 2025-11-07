@@ -47,7 +47,7 @@
  * =============================================================================
  */
 
-import { createMachine, assign, fromPromise } from 'xstate';
+import { createMachine, assign, fromPromise, fromCallback } from 'xstate';
 import { createComponentLogger, FSMComponent, fsmLogger } from '../logging/FSMLogger.js';
 import { isTokenValid } from '../functions/authFunctions.js';
 import type { ConnectionContext, ConnectionEvent, ProjectConnection } from './connectionTypes.js';
@@ -57,9 +57,14 @@ import {
   forwardProviderMessage as forwardProviderMessageBridge,
   sendApplicationStoreEvent,
 } from '../services/extensionHostBridge.js';
+import { getConnectionFSMManager } from '../ConnectionFSMManager.js';
 
 // Create logger for connection machine
 const logger = createComponentLogger(FSMComponent.CONNECTION, 'connectionMachine');
+
+// Track notification state per connection to prevent duplicate notifications
+const notificationState = new Map<string, { lastShown: number; pending: Promise<any> | null }>();
+const NOTIFICATION_DEBOUNCE_MS = 5000; // Don't show duplicate notifications within 5 seconds
 
 // Core Azure DevOps identifiers used across authentication flows
 export const AZURE_DEVOPS_PUBLIC_CLIENT_ID = '872cd9fa-d31f-45e0-9eab-6e460a02d1f1';
@@ -526,14 +531,179 @@ export const connectionMachine = createMachine(
         on: {
           DISCONNECT: 'disconnected',
           CONNECTION_FAILED: 'connection_error',
-          TOKEN_EXPIRED: 'token_refresh',
+          TOKEN_EXPIRED: [
+            {
+              target: 'authenticating',
+              guard: 'isPATAuth',
+              actions: assign({
+                retryCount: 0,
+              }),
+            },
+            {
+              target: 'token_refresh',
+            },
+          ],
           REFRESH_AUTH: 'token_refresh',
+          AUTH_FAILED: {
+            target: 'auth_failed',
+            actions: assign({
+              lastError: ({ event }) => event.error,
+            }),
+          },
         },
       },
 
       auth_failed: {
-        entry: ['notifyAuthFailure'],
+        entry: [
+          ({ context, self }) => {
+            const connectionContext = {
+              component: FSMComponent.CONNECTION,
+              connectionId: context.connectionId,
+            };
+            logger.info(`[auth_failed entry] Entering auth_failed state`, connectionContext, {
+              lastError: context.lastError,
+              connectionId: context.connectionId,
+            });
+
+            // Log to output channel as reliable fallback notification
+            const errorMessage = context.lastError || 'Authentication failed';
+            const connectionLabel = context.config?.label || context.connectionId;
+            const authMethod = context.authMethod || context.config?.authMethod || 'pat';
+            const authLabel = authMethod === 'entra' ? 'Entra ID' : 'PAT';
+
+            // Import output channel utilities and log immediately
+            import('../../logging.js')
+              .then(({ getOutputChannel }) => {
+                const outputChannel = getOutputChannel();
+                if (outputChannel) {
+                  const isPatExpired =
+                    errorMessage.toLowerCase().includes('expired') ||
+                    errorMessage.toLowerCase().includes('personal access token');
+
+                  if (isPatExpired && authMethod === 'pat') {
+                    outputChannel.appendLine(
+                      `[ERROR] ${authLabel} expired for connection "${connectionLabel}"`
+                    );
+                    outputChannel.appendLine(`[ERROR] ${errorMessage}`);
+                    outputChannel.appendLine(
+                      `[ERROR] Please update your Personal Access Token in settings.`
+                    );
+                    outputChannel.show(true); // Show output channel to user
+                    logger.info(
+                      `[auth_failed entry] Output channel shown for PAT expiration`,
+                      connectionContext
+                    );
+                  } else {
+                    outputChannel.appendLine(
+                      `[ERROR] Authentication failed for connection "${connectionLabel}"`
+                    );
+                    outputChannel.appendLine(`[ERROR] ${errorMessage}`);
+                    outputChannel.show(true); // Show output channel to user
+                    logger.info(
+                      `[auth_failed entry] Output channel shown for auth failure`,
+                      connectionContext
+                    );
+                  }
+                } else {
+                  logger.warn(
+                    `[auth_failed entry] Output channel not available`,
+                    connectionContext
+                  );
+                }
+              })
+              .catch((err) => {
+                logger.warn(
+                  `[auth_failed entry] Failed to import/get output channel`,
+                  connectionContext,
+                  {
+                    error: err instanceof Error ? err.message : String(err),
+                  }
+                );
+              });
+
+            // Status bar update is handled by ConnectionFSMManager subscription
+            // But trigger it here too as backup
+            setImmediate(() => {
+              // Use global reference if available
+              const globalRef = (globalThis as any).__updateAuthStatusBar;
+              if (typeof globalRef === 'function') {
+                globalRef().catch((err: any) => {
+                  logger.warn(
+                    `[auth_failed entry] Failed to update status bar`,
+                    connectionContext,
+                    {
+                      error: err instanceof Error ? err.message : String(err),
+                    }
+                  );
+                });
+              } else {
+                // Fallback to dynamic import
+                import('../../activation.js')
+                  .then(({ updateAuthStatusBar }) => {
+                    updateAuthStatusBar().catch((err) => {
+                      logger.warn(
+                        `[auth_failed entry] Failed to update status bar`,
+                        connectionContext,
+                        {
+                          error: err instanceof Error ? err.message : String(err),
+                        }
+                      );
+                    });
+                  })
+                  .catch((err) => {
+                    logger.warn(
+                      `[auth_failed entry] Failed to import updateAuthStatusBar`,
+                      connectionContext,
+                      {
+                        error: err instanceof Error ? err.message : String(err),
+                      }
+                    );
+                  });
+              }
+            });
+          },
+        ],
+        invoke: {
+          id: 'patExpirationNotificationReactive',
+          src: 'patExpirationNotificationReactive',
+          input: ({ context }) => context,
+        },
         on: {
+          NOTIFICATION_RESULT: {
+            actions: ({ event, context, self }) => {
+              const selection = event.selection;
+              const fsmManager = getConnectionFSMManager();
+              const actor = fsmManager.getConnectionActor(context.connectionId);
+
+              if (selection === 'Update PAT') {
+                logger.info('User selected Update PAT - triggering re-authentication', {
+                  component: FSMComponent.CONNECTION,
+                  connectionId: context.connectionId,
+                });
+                actor.send({ type: 'CONNECT', config: context.config, forceInteractive: true });
+              } else if (selection === 'Open Settings') {
+                logger.info('User selected Open Settings', {
+                  component: FSMComponent.CONNECTION,
+                  connectionId: context.connectionId,
+                });
+                import('vscode').then((vscode) => {
+                  vscode.commands.executeCommand('azureDevOpsInt.setup');
+                });
+              } else if (selection === 'Retry Authentication' || selection === 'Retry') {
+                logger.info('User selected Retry - triggering retry', {
+                  component: FSMComponent.CONNECTION,
+                  connectionId: context.connectionId,
+                });
+                actor.send({ type: 'RETRY' });
+              }
+            },
+          },
+          AUTH_FAILED: {
+            target: 'auth_failed',
+            actions: assign({
+              lastError: ({ event }) => event.error,
+            }),
+          },
           RETRY: {
             target: 'authenticating',
             guard: 'canRetry',
@@ -686,28 +856,6 @@ export const connectionMachine = createMachine(
           }
         } else {
           logger.warn(`No provider available for initial refresh on ${context.connectionId}`);
-        }
-      },
-
-      notifyAuthFailure: ({ context }) => {
-        logger.error(`${context.connectionId} authentication failed: ${context.lastError}`);
-
-        // Check for network errors and provide helpful guidance
-        if (context.lastError?.includes('network_error')) {
-          // Import VS Code to show helpful error message
-          import('vscode').then((vscode) => {
-            vscode.window
-              .showErrorMessage(
-                `Authentication failed due to network error. This might be caused by corporate firewall/proxy. Try: 1) Check internet connection, 2) Contact IT about Microsoft auth endpoints, 3) Try from a different network.`,
-                'Retry Authentication',
-                'View Logs'
-              )
-              .then((selection) => {
-                if (selection === 'View Logs') {
-                  vscode.commands.executeCommand('azureDevOpsInt.showFSMLogs');
-                }
-              });
-          });
         }
       },
 
@@ -932,7 +1080,12 @@ export const connectionMachine = createMachine(
 
       performInteractiveEntraAuth: fromPromise(async ({ input }: { input: ConnectionContext }) => {
         // Implementation: Perform interactive Entra authentication using device code flow
-        logger.info(`Starting interactive Entra authentication for ${input.connectionId}`);
+        const authContext = { component: FSMComponent.AUTH, connectionId: input.connectionId };
+        logger.info('Starting interactive Entra authentication', authContext, {
+          connectionId: input.connectionId,
+          authMethod: input.authMethod,
+          forceInteractive: input.forceInteractive,
+        });
 
         try {
           // Import the Entra auth provider
@@ -1166,71 +1319,65 @@ export const connectionMachine = createMachine(
               const expiresInMinutes = Math.floor(expiresIn / 60);
               const connectionName = input.config?.organization || input.connectionId;
 
-              // Show a quick toast notification and immediately open browser with code copied
-              const action = await vscode.window.showInformationMessage(
-                `Authentication code for ${connectionName}: ${userCode} (expires in ${expiresInMinutes}min)`,
-                'Open Browser & Copy Code'
-              );
+              // Wait for VS Code window to be focused/ready before showing notification
+              // This ensures the notification isn't suppressed during startup
+              // Check if VS Code window is focused (simple check, no event listener needed)
+              const isFocused = vscode.window.state?.focused ?? true;
+              if (!isFocused) {
+                logger.warn(
+                  'VS Code window not focused, showing device code notification anyway (time-sensitive)',
+                  authContext
+                );
+              }
 
-              logger.info('Device code notification shown', authContext, {
-                userCode,
-                verificationUri,
-                connectionName,
-                userAction: action,
-              });
+              // Copy code to clipboard and open browser immediately
+              try {
+                await vscode.env.clipboard.writeText(userCode);
+                logger.info('Device code copied to clipboard', authContext, { userCode });
 
-              if (action === 'Open Browser & Copy Code') {
-                try {
-                  // Copy code to clipboard first
-                  await vscode.env.clipboard.writeText(userCode);
-                  logger.info('Device code copied to clipboard', authContext, { userCode });
+                const uri = vscode.Uri.parse(verificationUri);
+                await vscode.env.openExternal(uri);
+                logger.info('Browser opened', authContext, { verificationUri });
 
-                  // Open browser with detailed logging
-                  const uri = vscode.Uri.parse(verificationUri);
-                  logger.info('Opening external browser', authContext, {
-                    verificationUri,
-                    parsedUri: uri.toString(),
-                    scheme: uri.scheme,
-                    authority: uri.authority,
-                  });
+                // Show notification - use setImmediate to ensure VS Code is ready
+                setImmediate(async () => {
+                  try {
+                    await vscode.window.showInformationMessage(
+                      `Authentication code ${userCode} for ${connectionName} copied to clipboard and browser opened!\n\nPaste the code in the browser to complete sign-in.\n\nCode expires in ${expiresInMinutes} minutes.`
+                    );
+                  } catch (notifError) {
+                    logger.error('Failed to show device code notification', authContext, {
+                      error: notifError instanceof Error ? notifError.message : String(notifError),
+                    });
+                  }
+                });
+              } catch (error) {
+                logger.error('Failed to open browser or copy code', authContext, {
+                  error: error instanceof Error ? error.message : String(error),
+                  verificationUri,
+                  userCode,
+                });
 
-                  const openResult = await vscode.env.openExternal(uri);
-                  logger.info('Browser open result', authContext, {
-                    openResult,
-                    verificationUri,
-                    success: openResult,
-                  });
-
-                  // Show quick confirmation
-                  vscode.window.showInformationMessage(
-                    `Code ${userCode} for ${connectionName} copied to clipboard - paste it in the browser!`,
-                    { modal: false }
-                  );
-
-                  logger.debug('User code copied and browser opened', authContext, {
-                    userCode,
-                    verificationUri,
-                    openResult,
-                  });
-                } catch (error) {
-                  logger.error('Failed to open browser or copy code', authContext, {
-                    error: error instanceof Error ? error.message : String(error),
-                    verificationUri,
-                    userCode,
-                  });
-
-                  // Fallback: show manual instructions
-                  vscode.window
-                    .showErrorMessage(
+                // Fallback: show manual instructions
+                setImmediate(async () => {
+                  try {
+                    const action = await vscode.window.showErrorMessage(
                       `Could not open browser automatically. Please manually go to ${verificationUri} and enter code: ${userCode}`,
                       'Copy Code'
-                    )
-                    .then((fallbackAction) => {
-                      if (fallbackAction === 'Copy Code') {
-                        vscode.env.clipboard.writeText(userCode);
-                      }
+                    );
+
+                    if (action === 'Copy Code') {
+                      await vscode.env.clipboard.writeText(userCode);
+                    }
+                  } catch (fallbackError) {
+                    logger.error('Failed to show fallback notification', authContext, {
+                      error:
+                        fallbackError instanceof Error
+                          ? fallbackError.message
+                          : String(fallbackError),
                     });
-                }
+                  }
+                });
               }
             },
           });
@@ -1357,8 +1504,54 @@ export const connectionMachine = createMachine(
           throw new Error(errorMessage);
         }
 
-        // Step 2: Create client using pure function
-        const clientResult = await createClient(input, validationResult.config!);
+        // Step 2: Set up auth failure callback for PAT expiration
+        // Use ConnectionFSMManager to send events since callback is invoked async
+        const fsmManager = getConnectionFSMManager();
+        const configWithCallback = {
+          ...validationResult.config!,
+          options: {
+            ...validationResult.config!.options,
+            onAuthFailure: (error: any) => {
+              logger.error(
+                `Authentication failure detected for ${input.connectionId}`,
+                connectionContext,
+                {
+                  error: error instanceof Error ? error.message : String(error),
+                  isPatExpired: (error as any).isPatExpired,
+                }
+              );
+
+              try {
+                // For PAT expiration, trigger re-authentication
+                // For Entra tokens, trigger token refresh
+                if (input.authMethod === 'pat' && (error as any).isPatExpired) {
+                  // PAT cannot be refreshed - need to prompt user for new PAT
+                  fsmManager.getConnectionActor(input.connectionId).send({
+                    type: 'AUTH_FAILED',
+                    error: error.message,
+                  });
+                } else if (input.authMethod === 'entra') {
+                  // Entra tokens can be refreshed
+                  fsmManager.getConnectionActor(input.connectionId).send({ type: 'TOKEN_EXPIRED' });
+                } else {
+                  // Other auth failures
+                  fsmManager.getConnectionActor(input.connectionId).send({
+                    type: 'AUTH_FAILED',
+                    error: error.message,
+                  });
+                }
+              } catch (callbackError) {
+                logger.error('Failed to send AUTH_FAILED event from callback', connectionContext, {
+                  error:
+                    callbackError instanceof Error ? callbackError.message : String(callbackError),
+                });
+              }
+            },
+          },
+        };
+
+        // Step 3: Create client using pure function with callback
+        const clientResult = await createClient(input, configWithCallback);
 
         fsmLogger.info(
           FSMComponent.CONNECTION,
@@ -1409,6 +1602,220 @@ export const connectionMachine = createMachine(
           throw error;
         }
       }),
+
+      patExpirationNotificationReactive: fromCallback(
+        ({ input, sendBack }: { input: ConnectionContext; sendBack: (event: any) => void }) => {
+          const errorMessage = input.lastError || 'Authentication failed';
+          const connectionContext = {
+            component: FSMComponent.CONNECTION,
+            connectionId: input.connectionId,
+          };
+
+          logger.info(
+            `[patExpirationNotificationReactive] Starting reactive notification service for ${input.connectionId}`,
+            connectionContext
+          );
+
+          const isPatExpired =
+            errorMessage.toLowerCase().includes('expired') ||
+            errorMessage.toLowerCase().includes('personal access token');
+
+          logger.info(
+            `[patExpirationNotificationReactive] Checking conditions`,
+            connectionContext,
+            {
+              isPatExpired,
+              authMethod: input.authMethod,
+              errorMessage,
+              shouldShow: isPatExpired && input.authMethod === 'pat',
+            }
+          );
+
+          if (!(isPatExpired && input.authMethod === 'pat')) {
+            // Not PAT expiration, no need to show notification
+            logger.info(
+              `[patExpirationNotificationReactive] Not PAT expiration or wrong auth method, skipping`,
+              connectionContext
+            );
+            return () => {}; // Empty cleanup
+          }
+
+          const now = Date.now();
+          const notificationInfo = notificationState.get(input.connectionId);
+          const timeSinceLastNotification = notificationInfo
+            ? now - notificationInfo.lastShown
+            : Infinity;
+
+          logger.info(`[patExpirationNotificationReactive] Checking debounce`, connectionContext, {
+            timeSinceLastNotification,
+            debounceMs: NOTIFICATION_DEBOUNCE_MS,
+            shouldSkip: timeSinceLastNotification < NOTIFICATION_DEBOUNCE_MS,
+          });
+
+          if (timeSinceLastNotification < NOTIFICATION_DEBOUNCE_MS) {
+            logger.info('Skipping duplicate PAT expiration notification', connectionContext);
+            return () => {}; // Empty cleanup
+          }
+
+          const connectionLabel = input.config?.label || input.connectionId;
+          const message = `Your Personal Access Token (PAT) has expired for connection "${connectionLabel}". Please update your PAT to continue.`;
+
+          let notificationShown = false;
+
+          // REACTIVE: Show notification reactively without polling
+          // Uses event-driven retry mechanism instead of setInterval
+          let retryAttempts = 0;
+          const maxRetryAttempts = 50; // Safety limit - should succeed much sooner
+
+          const showNotificationReactive = async (): Promise<void> => {
+            if (notificationShown) {
+              logger.info(
+                `[patExpirationNotificationReactive] Notification already shown, skipping`,
+                connectionContext
+              );
+              return;
+            }
+
+            retryAttempts++;
+            logger.info(
+              `[patExpirationNotificationReactive] Attempt ${retryAttempts}/${maxRetryAttempts} to show notification`,
+              connectionContext
+            );
+
+            try {
+              const vscodeModule = await import('vscode');
+
+              // Check if VS Code window API is available
+              if (
+                !vscodeModule.window ||
+                typeof vscodeModule.window.showWarningMessage !== 'function'
+              ) {
+                logger.warn(
+                  `[patExpirationNotificationReactive] VS Code window API not available, scheduling retry`,
+                  connectionContext
+                );
+                if (retryAttempts < maxRetryAttempts) {
+                  // Exponential backoff: 100ms, 200ms, 400ms, etc.
+                  const delayMs = Math.min(100 * Math.pow(2, retryAttempts - 1), 5000);
+                  setTimeout(() => {
+                    if (!notificationShown) {
+                      showNotificationReactive();
+                    }
+                  }, delayMs);
+                }
+                return;
+              }
+
+              // Try to show notification directly
+              // Error is already shown in status bar and webview, so notification is secondary
+              logger.info(
+                `[patExpirationNotificationReactive] Attempting to show notification...`,
+                connectionContext
+              );
+
+              // VS Code is ready - show notification
+              let notificationError: Error | undefined;
+              const selection = await new Promise<string | undefined>((resolve, reject) => {
+                setImmediate(async () => {
+                  try {
+                    const notificationPromise = vscodeModule.window.showWarningMessage(
+                      message,
+                      'Update PAT',
+                      'Open Settings',
+                      'Dismiss'
+                    );
+
+                    const result = await notificationPromise;
+
+                    logger.info(
+                      `[patExpirationNotificationReactive] Notification result: ${result}`,
+                      connectionContext,
+                      {
+                        selection: result,
+                        selectionType: typeof result,
+                      }
+                    );
+
+                    resolve(result);
+                  } catch (err) {
+                    const error = err instanceof Error ? err : new Error(String(err));
+                    logger.warn(
+                      `[patExpirationNotificationReactive] Error in notification attempt`,
+                      connectionContext,
+                      {
+                        error: error.message,
+                      }
+                    );
+                    reject(error);
+                  }
+                });
+              }).catch((err) => {
+                notificationError = err instanceof Error ? err : new Error(String(err));
+                return undefined;
+              });
+
+              if (notificationError) {
+                throw notificationError;
+              }
+
+              // Notification was shown successfully
+              if (!notificationShown) {
+                notificationShown = true;
+                notificationState.set(input.connectionId, { lastShown: Date.now(), pending: null });
+                sendBack({ type: 'NOTIFICATION_RESULT', selection: selection || 'Dismiss' });
+
+                logger.info(
+                  `[patExpirationNotificationReactive] Notification shown successfully, result sent to FSM`,
+                  connectionContext,
+                  {
+                    selection: selection || 'Dismiss',
+                  }
+                );
+              }
+            } catch (err) {
+              // Error showing notification - retry with exponential backoff (still reactive)
+              logger.warn(
+                `[patExpirationNotificationReactive] Error showing notification (attempt ${retryAttempts}), scheduling reactive retry`,
+                connectionContext,
+                {
+                  error: err instanceof Error ? err.message : String(err),
+                  stack: err instanceof Error ? err.stack : undefined,
+                }
+              );
+
+              // Exponential backoff: 500ms, 1000ms, 2000ms, etc. (still reactive, not polling)
+              const delayMs = Math.min(500 * Math.pow(2, retryAttempts - 1), 10000);
+
+              if (retryAttempts < maxRetryAttempts) {
+                setTimeout(() => {
+                  if (!notificationShown) {
+                    showNotificationReactive();
+                  }
+                }, delayMs);
+              } else {
+                logger.error(
+                  `[patExpirationNotificationReactive] Max retry attempts reached, notification not shown`,
+                  connectionContext
+                );
+                // Still send an event to FSM so it knows notification failed
+                sendBack({ type: 'NOTIFICATION_RESULT', selection: 'Failed' });
+              }
+            }
+          };
+
+          // REACTIVE: Start notification immediately - will wait for VS Code readiness
+          logger.info(
+            `[patExpirationNotificationReactive] Starting reactive notification attempt`,
+            connectionContext
+          );
+          showNotificationReactive();
+
+          // Cleanup function
+          return () => {
+            // No intervals to clean up - fully reactive
+          };
+        }
+      ),
 
       refreshAuthToken: fromPromise(async ({ input }: { input: ConnectionContext }) => {
         // Implementation: Refresh expired auth token

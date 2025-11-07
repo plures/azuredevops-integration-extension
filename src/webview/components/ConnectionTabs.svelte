@@ -82,7 +82,7 @@
   aria-label="Project Connections"
   aria-orientation="horizontal"
   tabindex="0"
-  on:keydown={handleKeydown}
+  onkeydown={handleKeydown}
 >
   {#each ordered as c, i}
     <button
@@ -90,7 +90,7 @@
       aria-selected={c.id === activeConnectionId}
       tabindex={c.id === activeConnectionId ? 0 : -1}
       class={c.id === activeConnectionId ? 'connection-tab tab active' : 'connection-tab tab'}
-      on:click={() => select(c.id)}
+      onclick={() => select(c.id)}
       use:tabRef={i}
     >
       {c.label || c.id}

@@ -1,6 +1,9 @@
 import { workItemCache, WorkItemCache } from '../../cache.js';
 import { measureAsync as _measureAsync } from '../../performance.js';
+import { createLogger } from '../../logging/unifiedLogger.js';
 import type { AzureHttpClient } from './http-client.js';
+
+const logger = createLogger('work-items-service');
 import type {
   WorkItem,
   WorkItemFilter,
@@ -92,7 +95,7 @@ export class WorkItemsService {
           results.push(...mapped);
         }
       } catch (error) {
-        console.error(`[WorkItemsService] Error fetching work items ${chunk.join(',')}:`, error);
+        logger.error(`Error fetching work items ${chunk.join(',')}`, { meta: error });
       }
     }
 
@@ -105,7 +108,7 @@ export class WorkItemsService {
     try {
       const cached = this.cache.get(cacheKey);
       if (cached) {
-        console.log('[WorkItemsService] Cache hit for query:', query);
+        logger.debug('Cache hit for query', { query });
         return cached;
       }
 
@@ -124,7 +127,7 @@ export class WorkItemsService {
       this.cache.set(cacheKey, items, 5 * 60 * 1000); // 5 minutes
       return items;
     } catch (error) {
-      console.error('[WorkItemsService] Error fetching work items by query:', error);
+      logger.error('Error fetching work items by query', { meta: error });
       return [];
     }
   }
@@ -161,11 +164,9 @@ export class WorkItemsService {
         return workItem;
       }
     } catch (error) {
-      console.error('[WorkItemsService] Error creating work item:', error);
+      logger.error('Error creating work item', { meta: error });
       if (error.response?.status === 403) {
-        console.error(
-          '[WorkItemsService] 403 Forbidden - insufficient permissions to create work items'
-        );
+        logger.error('403 Forbidden - insufficient permissions to create work items');
       }
     }
 
@@ -191,11 +192,9 @@ export class WorkItemsService {
         return workItem;
       }
     } catch (error) {
-      console.error('[WorkItemsService] Error updating work item:', error);
+      logger.error('Error updating work item', { meta: error });
       if (error.response?.status === 403) {
-        console.error(
-          '[WorkItemsService] 403 Forbidden - insufficient permissions to update work items'
-        );
+        logger.error('403 Forbidden - insufficient permissions to update work items');
       }
     }
 
@@ -228,11 +227,9 @@ export class WorkItemsService {
         return true;
       }
     } catch (error) {
-      console.error('[WorkItemsService] Error adding comment to work item:', error);
+      logger.error('Error adding comment to work item', { meta: error });
       if (error.response?.status === 403) {
-        console.error(
-          '[WorkItemsService] 403 Forbidden - insufficient permissions to add comments'
-        );
+        logger.error('403 Forbidden - insufficient permissions to add comments');
       }
     }
 
@@ -268,7 +265,7 @@ export class WorkItemsService {
 
       return true;
     } catch (error) {
-      console.error('[WorkItemsService] Error adding time to work item:', error);
+      logger.error('Error adding time to work item', { meta: error });
       return false;
     }
   }
@@ -290,7 +287,7 @@ export class WorkItemsService {
       const ids = response.data.workItems.map((w: any) => w.id);
       return await this.getWorkItemsByIds(ids);
     } catch (error) {
-      console.error('[WorkItemsService] Error searching work items:', error);
+      logger.error('Error searching work items', { meta: error });
       return [];
     }
   }

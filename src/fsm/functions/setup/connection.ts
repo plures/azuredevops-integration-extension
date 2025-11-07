@@ -40,7 +40,7 @@ export async function addOrEditConnection(
   ensureActiveFn: (
     context: vscode.ExtensionContext,
     connectionId?: string,
-    options?: { refresh?: boolean }
+    options?: { refresh?: boolean; interactive?: boolean }
   ) => Promise<any>,
   connectionToEdit?: ProjectConnection
 ): Promise<void> {
@@ -66,7 +66,9 @@ export async function addOrEditConnection(
   // Step 2: Parse URL
   const parsed = parseAzureDevOpsUrl(url);
   if (!parsed.isValid) {
-    vscode.window.showErrorMessage(`Invalid Azure DevOps URL: ${parsed.error || 'Unable to parse URL'}`);
+    vscode.window.showErrorMessage(
+      `Invalid Azure DevOps URL: ${parsed.error || 'Unable to parse URL'}`
+    );
     return;
   }
 
@@ -104,7 +106,9 @@ export async function addOrEditConnection(
     baseUrl: setupResult.connection.baseUrl!,
     apiBaseUrl: setupResult.connection.apiBaseUrl || setupResult.connection.baseUrl!,
     authMethod: setupResult.authMethod,
-    label: setupResult.connection.label || `${setupResult.connection.organization}/${setupResult.connection.project}`,
+    label:
+      setupResult.connection.label ||
+      `${setupResult.connection.organization}/${setupResult.connection.project}`,
     team: setupResult.connection.team,
     tenantId: setupResult.connection.tenantId,
     identityName: setupResult.identityName || setupResult.connection.identityName,

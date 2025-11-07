@@ -12,6 +12,7 @@
 The Enhanced Setup Process provides intelligent, environment-aware connection setup that automatically detects whether a user is connecting to Azure DevOps Services (Online) or Azure DevOps Server (OnPremises), derives values where possible to minimize manual input, and presents appropriate authentication options based on the detected environment. The process defaults to the most secure and convenient authentication method while allowing full manual configuration for edge cases.
 
 ### Impact
+
 - **Reduces setup time** from 5-10 minutes to 1-2 minutes for typical users
 - **Eliminates common setup errors** by auto-detecting and validating values
 - **Improves security** by defaulting to Entra ID for Online environments
@@ -23,6 +24,7 @@ The Enhanced Setup Process provides intelligent, environment-aware connection se
 ## 2. Problem Statement
 
 ### Current State
+
 - Users must manually enter many connection details even when a work item URL is provided
 - Setup doesn't differentiate authentication options between Online and OnPremises
 - OnPremises setup requires manual entry of username/domain without defaults
@@ -31,6 +33,7 @@ The Enhanced Setup Process provides intelligent, environment-aware connection se
 - Users often get errors due to incorrect format or missing fields
 
 ### Pain Points
+
 1. **OnPremises Users**: Must manually type domain\username format without hints
 2. **Online Users**: Not guided toward preferred Entra ID authentication
 3. **Identity Resolution**: OnPremises often requires explicit identityName but it's optional in UI
@@ -38,6 +41,7 @@ The Enhanced Setup Process provides intelligent, environment-aware connection se
 5. **Auth Method Selection**: All methods shown regardless of environment compatibility
 
 ### Desired State
+
 - Single URL input auto-configures 90% of connection details
 - Environment type clearly identified and shown to user
 - Appropriate auth methods presented based on environment
@@ -50,17 +54,17 @@ The Enhanced Setup Process provides intelligent, environment-aware connection se
 
 ## 3. Goals & Success Metrics (MoSCoW)
 
-| Priority | Goal | Metric / KPI | Target | How Measured |
-|----------|------|--------------|--------|--------------|
-| **Must** | Auto-detect Online vs OnPremises from URL | Detection accuracy | 100% | Test with various URL formats |
-| **Must** | Default to Entra ID for Online | Default auth method selection rate | >80% | Telemetry |
-| **Must** | Auto-detect Windows user for OnPremises | Detection success rate | >90% on Windows | Test on Windows systems |
-| **Must** | Support all valid auth methods per environment | Auth method coverage | 100% | Manual testing |
-| **Must** | Minimize required user input | Average setup steps | <5 clicks for standard setup | User testing |
-| **Should** | Provide manual override for all settings | Override availability | 100% of fields | Code review |
-| **Should** | Validate connection before saving | Validation success rate | >95% | Telemetry |
-| **Could** | Save setup preferences | Preference persistence | 50% adoption | Feature usage |
-| **Won't** | Support Kerberos/Integrated auth (future) | N/A | Deferred | Future feature |
+| Priority   | Goal                                           | Metric / KPI                       | Target                       | How Measured                  |
+| ---------- | ---------------------------------------------- | ---------------------------------- | ---------------------------- | ----------------------------- |
+| **Must**   | Auto-detect Online vs OnPremises from URL      | Detection accuracy                 | 100%                         | Test with various URL formats |
+| **Must**   | Default to Entra ID for Online                 | Default auth method selection rate | >80%                         | Telemetry                     |
+| **Must**   | Auto-detect Windows user for OnPremises        | Detection success rate             | >90% on Windows              | Test on Windows systems       |
+| **Must**   | Support all valid auth methods per environment | Auth method coverage               | 100%                         | Manual testing                |
+| **Must**   | Minimize required user input                   | Average setup steps                | <5 clicks for standard setup | User testing                  |
+| **Should** | Provide manual override for all settings       | Override availability              | 100% of fields               | Code review                   |
+| **Should** | Validate connection before saving              | Validation success rate            | >95%                         | Telemetry                     |
+| **Could**  | Save setup preferences                         | Preference persistence             | 50% adoption                 | Feature usage                 |
+| **Won't**  | Support Kerberos/Integrated auth (future)      | N/A                                | Deferred                     | Future feature                |
 
 ---
 
@@ -169,6 +173,7 @@ Feature: Intelligent OnPremises Setup
 ## 5. Assumptions & Constraints
 
 ### Business Assumptions
+
 - Users are either on Windows domain-joined machines (OnPremises) or have internet access (Online)
 - OnPremises servers typically require explicit identityName for @Me queries
 - Entra ID is preferred over PAT for Online environments due to security and convenience
@@ -176,6 +181,7 @@ Feature: Intelligent OnPremises Setup
 - Most users prefer minimal input with ability to customize
 
 ### Technical Constraints
+
 - Node.js `os.userInfo()` provides username but limited domain info on Windows
 - Cross-platform: Windows, macOS, Linux - domain detection only works on Windows
 - VS Code API limitations for system information access
@@ -183,11 +189,13 @@ Feature: Intelligent OnPremises Setup
 - Cannot use NTLM/Kerberos integrated auth directly from Node.js (requires external tools)
 
 ### Platform Constraints
+
 - Windows: Can detect domain via `process.env.USERDOMAIN` or `process.env.USERDOMAIN_ROAMINGPROFILE`
 - macOS/Linux: Domain detection not available (show generic prompt)
 - VS Code Extension Host: Limited system API access for security
 
 ### Dependencies
+
 - **URL Parser**: `parseAzureDevOpsUrl()` - already implemented
 - **Azure DevOps Client**: `AzureDevOpsIntClient` - supports all auth methods
 - **VS Code Secrets**: For secure credential storage
@@ -196,12 +204,14 @@ Feature: Intelligent OnPremises Setup
 ### Azure DevOps Authentication Methods
 
 #### Online (Azure DevOps Services)
+
 - **Microsoft Entra ID (OAuth 2.0)**: ✅ Supported - Device code flow
 - **Personal Access Token (PAT)**: ✅ Supported - Full REST API
 - **NTLM**: ❌ Not supported (Windows-only, not available for Online)
 - **Basic Auth**: ❌ Not supported (deprecated, insecure)
 
 #### OnPremises (Azure DevOps Server)
+
 - **Personal Access Token (PAT)**: ✅ Supported - Recommended method
 - **NTLM Authentication**: ⚠️ Supported by server but requires special client setup (not directly from extension)
 - **Basic Authentication**: ⚠️ Supported by server but insecure (not recommended)
@@ -245,11 +255,9 @@ Save connection and credentials
 /**
  * Determines if a parsed Azure DevOps URL is for Online or OnPremises
  */
-export function detectEnvironmentType(
-  parsedUrl: ParsedAzureDevOpsUrl
-): 'online' | 'onpremises' {
+export function detectEnvironmentType(parsedUrl: ParsedAzureDevOpsUrl): 'online' | 'onpremises' {
   const host = new URL(parsedUrl.baseUrl).hostname.toLowerCase();
-  
+
   if (
     host === 'dev.azure.com' ||
     host.endsWith('.dev.azure.com') ||
@@ -258,7 +266,7 @@ export function detectEnvironmentType(
   ) {
     return 'online';
   }
-  
+
   return 'onpremises';
 }
 ```
@@ -280,10 +288,10 @@ export function detectWindowsUser(): {
   }
 
   const username = os.userInfo().username;
-  const domain = 
-    process.env.USERDOMAIN_ROAMINGPROFILE || 
-    process.env.USERDOMAIN || 
-    process.env.COMPUTERNAME || 
+  const domain =
+    process.env.USERDOMAIN_ROAMINGPROFILE ||
+    process.env.USERDOMAIN ||
+    process.env.COMPUTERNAME ||
     '';
 
   if (!domain) {
@@ -304,9 +312,7 @@ export function detectWindowsUser(): {
 /**
  * Returns available authentication methods for a given environment
  */
-export function getAvailableAuthMethods(
-  environment: 'online' | 'onpremises'
-): Array<{
+export function getAvailableAuthMethods(environment: 'online' | 'onpremises'): Array<{
   id: 'entra' | 'pat' | 'ntlm' | 'basic';
   label: string;
   description: string;
@@ -371,10 +377,10 @@ export async function enhancedAddOrEditConnection(
 
   // Step 3: Detect environment
   const environment = detectEnvironmentType(parsed);
-  
+
   // Step 4: Auto-detect values
   const defaults = await autoDetectConnectionDefaults(parsed, environment);
-  
+
   // Step 5: Show setup UI with defaults
   const config = await showEnhancedSetupWizard({
     parsed,
@@ -382,7 +388,7 @@ export async function enhancedAddOrEditConnection(
     defaults,
     connectionToEdit,
   });
-  
+
   if (!config) return; // User cancelled
 
   // Step 6: Validate connection
@@ -430,7 +436,7 @@ interface EnhancedConnectionConfig extends ProjectConnection {
   // Inherits from ProjectConnection:
   // - id, organization, project, baseUrl, apiBaseUrl
   // - authMethod, patKey, tenantId, etc.
-  
+
   // Additional for OnPremises:
   identityName?: string; // Explicit identity for @Me resolution
 }
@@ -455,21 +461,25 @@ src/utils/
 ## 7. Security Considerations
 
 ### Access Control
+
 - **Credentials**: Stored in VS Code secret store (encrypted)
 - **PAT Storage**: Connection-specific keys, isolated per connection
 - **Entra ID Tokens**: Stored securely, auto-refresh enabled
 
 ### Data Protection
+
 - **Username/Domain**: Stored in plain settings (not sensitive, used for @Me queries)
 - **No Password Storage**: Never store passwords, only tokens
 - **Local Detection**: Windows user detection uses read-only OS APIs (no security risk)
 
 ### Input Validation
+
 - **URL Validation**: Strict URL parsing and validation
 - **Username Format**: Validate DOMAIN\user format for OnPremises
 - **Connection Testing**: Always validate before saving credentials
 
 ### Authentication Security
+
 - **Entra ID Preferred**: More secure than PAT (no token management, auto-refresh)
 - **PAT Scope Validation**: Ensure minimum required scopes
 - **Token Storage**: Encrypted via VS Code secrets API
@@ -480,15 +490,16 @@ src/utils/
 
 ### Testing Layers
 
-| Layer | Scope | Tools | Coverage Goal |
-|-------|-------|-------|---------------|
-| **Unit** | Environment detection, user detection | Vitest | >90% |
-| **Integration** | Setup flow, connection validation | Vitest + Mocks | All paths |
-| **Manual** | End-to-end setup, edge cases | Manual testing | Happy paths + errors |
+| Layer           | Scope                                 | Tools          | Coverage Goal        |
+| --------------- | ------------------------------------- | -------------- | -------------------- |
+| **Unit**        | Environment detection, user detection | Vitest         | >90%                 |
+| **Integration** | Setup flow, connection validation     | Vitest + Mocks | All paths            |
+| **Manual**      | End-to-end setup, edge cases          | Manual testing | Happy paths + errors |
 
 ### Test Cases
 
 #### Unit Tests
+
 - [ ] `detectEnvironmentType()` correctly identifies Online URLs
 - [ ] `detectEnvironmentType()` correctly identifies OnPremises URLs
 - [ ] `detectWindowsUser()` returns correct format on Windows
@@ -497,6 +508,7 @@ src/utils/
 - [ ] Username format validation (DOMAIN\user, user@domain, user)
 
 #### Integration Tests
+
 - [ ] Online setup with Entra ID completes successfully
 - [ ] Online setup with PAT completes successfully
 - [ ] OnPremises setup with auto-detected user completes successfully
@@ -505,6 +517,7 @@ src/utils/
 - [ ] Manual override of auto-detected values works
 
 #### Manual Test Scenarios
+
 1. **Online Quick Setup**: Paste URL → Click Connect → Complete
 2. **Online PAT Setup**: Paste URL → Choose PAT → Enter token → Complete
 3. **OnPremises Auto Setup**: Paste URL → Confirm auto-detected user → Complete
@@ -519,15 +532,16 @@ src/utils/
 
 ### Performance Targets
 
-| Metric | Target | Measurement Method |
-|--------|--------|-------------------|
-| URL parsing | <50ms | Performance.now() |
-| User detection | <10ms | Performance.now() |
-| Environment detection | <1ms | Performance.now() |
-| Connection validation | <2s | Network request timing |
-| Total setup time | <30s (including auth) | User-perceived time |
+| Metric                | Target                | Measurement Method     |
+| --------------------- | --------------------- | ---------------------- |
+| URL parsing           | <50ms                 | Performance.now()      |
+| User detection        | <10ms                 | Performance.now()      |
+| Environment detection | <1ms                  | Performance.now()      |
+| Connection validation | <2s                   | Network request timing |
+| Total setup time      | <30s (including auth) | User-perceived time    |
 
 ### Optimization Strategies
+
 - **Caching**: Cache parsed URL results during setup flow
 - **Lazy Loading**: Only detect Windows user when OnPremises detected
 - **Async Validation**: Don't block UI during connection testing
@@ -603,6 +617,7 @@ interface QuickSetupDialog {
 - Test connection button
 
 ### Accessibility
+
 - [ ] Screen reader announces environment type
 - [ ] Keyboard navigation for all options
 - [ ] Clear focus indicators
@@ -653,12 +668,14 @@ interface QuickSetupDialog {
 ## 12. Documentation Requirements
 
 ### User Documentation
+
 - [ ] Updated README with enhanced setup instructions
 - [ ] Screenshots showing Online vs OnPremises setup flows
 - [ ] Troubleshooting guide for common setup issues
 - [ ] FAQ: "How do I set up OnPremises connection?"
 
 ### Developer Documentation
+
 - [ ] Architecture notes for environment detection
 - [ ] API documentation for new utility functions
 - [ ] Code examples for extending setup flow
@@ -668,18 +685,19 @@ interface QuickSetupDialog {
 ## 13. Open Questions & Risks
 
 ### Open Questions
+
 - [ ] Should we support NTLM/Kerberos via external tools? → **No (future feature)**
 - [ ] Should we allow multiple identity formats for OnPremises? → **Yes (DOMAIN\user, user@domain, user)**
 - [ ] Should we cache Windows user detection? → **No (setup is one-time)**
 
 ### Risks
 
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| Windows user detection fails on some domain configurations | Medium | Medium | Fallback to manual entry, show helpful error |
-| URL parsing fails for edge case OnPremises URL formats | Low | High | Extensive URL format testing, validation |
-| Entra ID flow interrupted (user closes browser) | Medium | Low | Clear instructions, retry option |
-| Auto-detected values incorrect for complex setups | Medium | Medium | Always allow manual override, validate before save |
+| Risk                                                       | Probability | Impact | Mitigation                                         |
+| ---------------------------------------------------------- | ----------- | ------ | -------------------------------------------------- |
+| Windows user detection fails on some domain configurations | Medium      | Medium | Fallback to manual entry, show helpful error       |
+| URL parsing fails for edge case OnPremises URL formats     | Low         | High   | Extensive URL format testing, validation           |
+| Entra ID flow interrupted (user closes browser)            | Medium      | Low    | Clear instructions, retry option                   |
+| Auto-detected values incorrect for complex setups          | Medium      | Medium | Always allow manual override, validate before save |
 
 ---
 
@@ -711,6 +729,7 @@ interface QuickSetupDialog {
 ### Online (Azure DevOps Services)
 
 #### Entra ID (OAuth 2.0)
+
 - **Supported**: ✅ Yes
 - **Method**: Device code flow
 - **Client ID**: `872cd9fa-d31f-45e0-9eab-6e460a02d1f1` (Azure DevOps service principal)
@@ -719,6 +738,7 @@ interface QuickSetupDialog {
 - **Refresh**: Automatic
 
 #### Personal Access Token (PAT)
+
 - **Supported**: ✅ Yes
 - **Method**: Bearer token in Authorization header
 - **Scopes Required**: Work Items (Read & Write), Code (Read & Write), User Profile (Read)
@@ -728,6 +748,7 @@ interface QuickSetupDialog {
 ### OnPremises (Azure DevOps Server)
 
 #### Personal Access Token (PAT)
+
 - **Supported**: ✅ Yes
 - **Method**: Bearer token in Authorization header
 - **Scopes Required**: Same as Online
@@ -735,12 +756,14 @@ interface QuickSetupDialog {
 - **Identity Resolution**: May require explicit `identityName` if @Me doesn't resolve
 
 #### NTLM Authentication
+
 - **Supported**: ⚠️ Limited (server supports, extension limitations)
 - **Method**: NTLM protocol via HTTP client
 - **Requires**: Windows domain credentials, special HTTP client configuration
 - **Recommendation**: Not exposed in UI (use PAT instead)
 
 #### Basic Authentication
+
 - **Supported**: ⚠️ Limited (server supports, insecure)
 - **Method**: Basic auth header
 - **Security**: Insecure (passwords in plain text)

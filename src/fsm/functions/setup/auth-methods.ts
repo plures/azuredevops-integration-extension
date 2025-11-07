@@ -1,6 +1,6 @@
 /**
  * Authentication Method Utilities
- * 
+ *
  * Provides available authentication methods based on environment type.
  */
 
@@ -18,13 +18,11 @@ export interface AuthMethod {
 
 /**
  * Returns available authentication methods for a given environment
- * 
+ *
  * @param environment - Environment type (online or onpremises)
  * @returns Array of available authentication methods
  */
-export function getAvailableAuthMethods(
-  environment: EnvironmentType
-): AuthMethod[] {
+export function getAvailableAuthMethods(environment: EnvironmentType): AuthMethod[] {
   if (environment === 'online') {
     return [
       {
@@ -61,13 +59,11 @@ export function getAvailableAuthMethods(
 
 /**
  * Gets the recommended (default) authentication method for an environment
- * 
+ *
  * @param environment - Environment type
  * @returns Recommended auth method ID, or null if none
  */
-export function getRecommendedAuthMethod(
-  environment: EnvironmentType
-): AuthMethodId | null {
+export function getRecommendedAuthMethod(environment: EnvironmentType): AuthMethodId | null {
   const methods = getAvailableAuthMethods(environment);
   const recommended = methods.find((m) => m.recommended && m.available);
   return recommended ? recommended.id : null;
@@ -75,7 +71,7 @@ export function getRecommendedAuthMethod(
 
 /**
  * Checks if an auth method is available for an environment
- * 
+ *
  * @param authMethodId - Auth method ID to check
  * @param environment - Environment type
  * @returns true if method is available, false otherwise
@@ -87,4 +83,3 @@ export function isAuthMethodAvailable(
   const methods = getAvailableAuthMethods(environment);
   return methods.some((m) => m.id === authMethodId && m.available);
 }
-

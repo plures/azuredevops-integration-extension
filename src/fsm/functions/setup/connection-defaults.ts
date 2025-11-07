@@ -1,13 +1,13 @@
 /**
  * Connection Defaults Utilities
- * 
+ *
  * Auto-detects and provides default values for connection setup based on
  * parsed URL and environment type.
  */
 
 import type { ParsedAzureDevOpsUrl } from '../../../azureDevOpsUrlParser.js';
 import { detectEnvironmentType } from './environment-detection.js';
-import { detectWindowsUser, formatUsername } from './user-detection.js';
+import { detectWindowsUser } from './user-detection.js';
 import { getRecommendedAuthMethod } from './auth-methods.js';
 import type { ProjectConnection } from '../../machines/applicationMachine.js';
 
@@ -29,15 +29,18 @@ export interface ConnectionDefaults {
 
 /**
  * Auto-detects connection defaults from parsed URL
- * 
+ *
  * @param parsedUrl - Parsed Azure DevOps URL
  * @returns Connection defaults with all auto-detected values
  */
-export function autoDetectConnectionDefaults(
-  parsedUrl: ParsedAzureDevOpsUrl
-): ConnectionDefaults {
+export function autoDetectConnectionDefaults(parsedUrl: ParsedAzureDevOpsUrl): ConnectionDefaults {
   const environment = detectEnvironmentType(parsedUrl);
-  const recommendedAuthMethod = getRecommendedAuthMethod(environment);
+  const recommendedAuthMethodRaw = getRecommendedAuthMethod(environment);
+  // Filter to only 'entra' | 'pat' | null (exclude 'ntlm' and 'basic')
+  const recommendedAuthMethod: 'entra' | 'pat' | null =
+    recommendedAuthMethodRaw === 'entra' || recommendedAuthMethodRaw === 'pat'
+      ? recommendedAuthMethodRaw
+      : null;
 
   const defaults: ConnectionDefaults = {
     organization: parsedUrl.organization,
@@ -63,7 +66,7 @@ export function autoDetectConnectionDefaults(
 
 /**
  * Creates a connection object from defaults with optional overrides
- * 
+ *
  * @param defaults - Auto-detected defaults
  * @param overrides - Manual overrides from user
  * @returns ProjectConnection object ready to save
@@ -97,4 +100,3 @@ export function createConnectionFromDefaults(
 
   return connection;
 }
-

@@ -14,14 +14,14 @@ describe('Authentication Methods', () => {
   describe('getAvailableAuthMethods', () => {
     it('should return Entra ID and PAT for online environment', () => {
       const methods = getAvailableAuthMethods('online');
-      
+
       expect(methods).toHaveLength(2);
-      
+
       const entra = methods.find((m) => m.id === 'entra');
       expect(entra).toBeDefined();
       expect(entra?.recommended).toBe(true);
       expect(entra?.available).toBe(true);
-      
+
       const pat = methods.find((m) => m.id === 'pat');
       expect(pat).toBeDefined();
       expect(pat?.recommended).toBe(false);
@@ -30,7 +30,7 @@ describe('Authentication Methods', () => {
 
     it('should return only PAT for onpremises environment', () => {
       const methods = getAvailableAuthMethods('onpremises');
-      
+
       expect(methods).toHaveLength(1);
       expect(methods[0].id).toBe('pat');
       expect(methods[0].recommended).toBe(true);
@@ -40,7 +40,7 @@ describe('Authentication Methods', () => {
     it('should not include NTLM or Basic in online methods', () => {
       const methods = getAvailableAuthMethods('online');
       const ids = methods.map((m) => m.id);
-      
+
       expect(ids).not.toContain('ntlm');
       expect(ids).not.toContain('basic');
     });
@@ -48,7 +48,7 @@ describe('Authentication Methods', () => {
     it('should not include NTLM or Basic in onpremises methods', () => {
       const methods = getAvailableAuthMethods('onpremises');
       const ids = methods.map((m) => m.id);
-      
+
       expect(ids).not.toContain('ntlm');
       expect(ids).not.toContain('basic');
     });
@@ -66,38 +66,37 @@ describe('Authentication Methods', () => {
     });
   });
 
-    describe('isAuthMethodAvailable', () => {
-      it('should return true for entra in online', () => {
-        expect(isAuthMethodAvailable('entra', 'online')).toBe(true);
-      });
-
-      it('should return true for pat in online', () => {
-        expect(isAuthMethodAvailable('pat', 'online')).toBe(true);
-      });
-
-      it('should return false for entra in onpremises', () => {
-        expect(isAuthMethodAvailable('entra', 'onpremises')).toBe(false);
-      });
-
-      it('should return true for pat in onpremises', () => {
-        expect(isAuthMethodAvailable('pat', 'onpremises')).toBe(true);
-      });
-
-      it('should return false for ntlm in online', () => {
-        expect(isAuthMethodAvailable('ntlm', 'online')).toBe(false);
-      });
-
-      it('should return false for ntlm in onpremises', () => {
-        expect(isAuthMethodAvailable('ntlm', 'onpremises')).toBe(false);
-      });
-
-      it('should return false for basic in online', () => {
-        expect(isAuthMethodAvailable('basic', 'online')).toBe(false);
-      });
-
-      it('should return false for basic in onpremises', () => {
-        expect(isAuthMethodAvailable('basic', 'onpremises')).toBe(false);
-      });
+  describe('isAuthMethodAvailable', () => {
+    it('should return true for entra in online', () => {
+      expect(isAuthMethodAvailable('entra', 'online')).toBe(true);
     });
-});
 
+    it('should return true for pat in online', () => {
+      expect(isAuthMethodAvailable('pat', 'online')).toBe(true);
+    });
+
+    it('should return false for entra in onpremises', () => {
+      expect(isAuthMethodAvailable('entra', 'onpremises')).toBe(false);
+    });
+
+    it('should return true for pat in onpremises', () => {
+      expect(isAuthMethodAvailable('pat', 'onpremises')).toBe(true);
+    });
+
+    it('should return false for ntlm in online', () => {
+      expect(isAuthMethodAvailable('ntlm', 'online')).toBe(false);
+    });
+
+    it('should return false for ntlm in onpremises', () => {
+      expect(isAuthMethodAvailable('ntlm', 'onpremises')).toBe(false);
+    });
+
+    it('should return false for basic in online', () => {
+      expect(isAuthMethodAvailable('basic', 'online')).toBe(false);
+    });
+
+    it('should return false for basic in onpremises', () => {
+      expect(isAuthMethodAvailable('basic', 'onpremises')).toBe(false);
+    });
+  });
+});

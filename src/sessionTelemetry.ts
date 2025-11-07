@@ -6,6 +6,9 @@ import * as path from 'node:path';
 import { promisify } from 'util';
 import * as vscode from 'vscode';
 import { TelemetryDatabase } from './telemetryDatabase.js';
+import { createLogger } from './logging/unifiedLogger.js';
+
+const logger = createLogger('sessionTelemetry');
 
 const execFileAsync = promisify(execFile);
 
@@ -73,7 +76,7 @@ async function runGitCommand(repoPath: string, args: string[]): Promise<string |
     });
     return stdout.trim();
   } catch (error) {
-    console.warn('[sessionTelemetry] git command failed', { args, error });
+    logger.warn('git command failed', { meta: { args, error } });
     return undefined;
   }
 }
@@ -114,7 +117,7 @@ export class SessionTelemetryManager {
       this.gitApi = api;
       return api;
     } catch (error) {
-      console.warn('[sessionTelemetry] Failed to acquire git API', error);
+      logger.warn('Failed to acquire git API', { meta: error });
       return undefined;
     }
   }
@@ -298,7 +301,7 @@ export class SessionTelemetryManager {
       }
       await this.context.workspaceState.update(TELEMETRY_STORAGE_KEY, record);
     } catch (error) {
-      console.warn('[sessionTelemetry] Failed to persist session record', error);
+      logger.warn('Failed to persist session record', { meta: error });
       // fallback to workspaceState
       try {
         await this.context.workspaceState.update(TELEMETRY_STORAGE_KEY, record);
@@ -334,10 +337,9 @@ export class SessionTelemetryManager {
         this.telemetryDb = new TelemetryDatabase(this.context, { storageFile: sqliteUri });
         this.telemetryDbUri = sqliteUri;
       } catch (error) {
-        console.warn(
-          '[SessionTelemetry] Failed to create TelemetryDatabase, falling back to workspaceState:',
-          error
-        );
+        logger.warn('Failed to create TelemetryDatabase, falling back to workspaceState', {
+          meta: error,
+        });
         // Auto-fallback to workspaceState mode when SQLite initialization fails
         const config = vscode.workspace.getConfiguration('azureDevOpsIntegration');
         await config.update(
@@ -428,7 +430,7 @@ export class SessionTelemetryManager {
         diffStatStaged,
       };
     } catch (error) {
-      console.warn('[sessionTelemetry] captureGitSnapshot failed', { reason, error });
+      logger.warn('captureGitSnapshot failed', { meta: { reason, error } });
       return {};
     }
   }

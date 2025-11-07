@@ -34,7 +34,7 @@ export class ConnectionFSMManager {
   /**
    * Create or get connection actor for a specific connection
    */
-  private getConnectionActor(connectionId: string): ActorRefFrom<typeof connectionMachine> {
+  getConnectionActor(connectionId: string): ActorRefFrom<typeof connectionMachine> {
     if (!this.connectionActors.has(connectionId)) {
       const actor = createActor(connectionMachine, {
         input: {
@@ -48,12 +48,51 @@ export class ConnectionFSMManager {
         },
       });
 
-      // Subscribe to state changes for debugging
+      // REACTIVE: Subscribe to state changes for debugging and status bar updates
+      // No delays, no polling - pure event-driven reactivity
       actor.subscribe((state) => {
         this.logger.debug(`${connectionId} state: ${String(state.value)}`, {
           state: String(state.value),
           connectionId: connectionId,
         });
+
+        // REACTIVE: Immediately update status bar when state changes
+        // State change triggers immediate reactive update - no delays
+        if (
+          state.matches('auth_failed') ||
+          state.matches('client_failed') ||
+          state.matches('provider_failed') ||
+          state.matches('connection_error') ||
+          state.matches('connected')
+        ) {
+          // Immediate reactive update - state change triggers UI update instantly
+          setImmediate(() => {
+            // Use global reference if available, otherwise try dynamic import
+            const globalRef = (globalThis as any).__updateAuthStatusBar;
+            if (typeof globalRef === 'function') {
+              globalRef().catch((err: any) => {
+                this.logger.warn(
+                  `Failed to update status bar: ${err instanceof Error ? err.message : String(err)}`
+                );
+              });
+            } else {
+              // Fallback to dynamic import
+              import('../../activation.js')
+                .then(({ updateAuthStatusBar }) => {
+                  updateAuthStatusBar().catch((err) => {
+                    this.logger.warn(
+                      `Failed to update status bar: ${err instanceof Error ? err.message : String(err)}`
+                    );
+                  });
+                })
+                .catch((err) => {
+                  this.logger.warn(
+                    `Failed to import updateAuthStatusBar: ${err instanceof Error ? err.message : String(err)}`
+                  );
+                });
+            }
+          });
+        }
       });
 
       // Start the actor
@@ -62,6 +101,17 @@ export class ConnectionFSMManager {
     }
 
     return this.connectionActors.get(connectionId)!;
+  }
+
+  /**
+   * Get the actual state value of a connection machine (e.g., 'connected', 'auth_failed')
+   */
+  getConnectionState(connectionId: string): string | null {
+    const actor = this.connectionActors.get(connectionId);
+    if (!actor) return null;
+    const snapshot = actor.getSnapshot();
+    if (!snapshot) return null;
+    return String(snapshot.value);
   }
 
   /**
@@ -81,10 +131,15 @@ export class ConnectionFSMManager {
       throw new Error('Connection FSM not enabled');
     }
 
-    this.logger.info(`Connecting to ${config.id}...`, { connectionId: config.id });
+    const forceInteractive = options?.interactive === true;
+    this.logger.info(`Connecting to ${config.id}...`, {
+      connectionId: config.id,
+      authMethod: config.authMethod,
+      interactive: options?.interactive,
+      forceInteractive,
+    });
 
     const actor = this.getConnectionActor(config.id);
-    const forceInteractive = options?.interactive === true;
 
     // Send connect event
     actor.send({ type: 'CONNECT', config, forceInteractive });
@@ -187,35 +242,31 @@ export class ConnectionFSMManager {
   }
 
   /**
-   * Get current state of a connection
-   */
-  getConnectionState(connectionId: string): any {
-    const actor = this.connectionActors.get(connectionId);
-    return actor?.getSnapshot();
-  }
-
-  /**
    * Check if a connection is connected
    */
   isConnectionConnected(connectionId: string): boolean {
-    const state = this.getConnectionState(connectionId);
-    return state?.matches('connected') || false;
+    const stateValue = this.getConnectionState(connectionId);
+    return stateValue === 'connected';
   }
 
   /**
    * Get client for a connected connection
    */
   getConnectionClient(connectionId: string): any {
-    const state = this.getConnectionState(connectionId);
-    return state?.context.client;
+    const actor = this.connectionActors.get(connectionId);
+    if (!actor) return null;
+    const snapshot = actor.getSnapshot();
+    return snapshot?.context.client;
   }
 
   /**
    * Get provider for a connected connection
    */
   getConnectionProvider(connectionId: string): any {
-    const state = this.getConnectionState(connectionId);
-    return state?.context.provider;
+    const actor = this.connectionActors.get(connectionId);
+    if (!actor) return null;
+    const snapshot = actor.getSnapshot();
+    return snapshot?.context.provider;
   }
 
   /**

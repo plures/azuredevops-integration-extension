@@ -6,7 +6,7 @@ import { applicationSnapshot } from './fsmSnapshotStore.js';
 // This is a critical step to prevent race conditions where the script runs before the
 // target element (`svelte-root`) is available.
 
-console.log('[AzureDevOpsInt][webview] main.ts initialized');
+console.debug('[AzureDevOpsInt][webview] main.ts initialized');
 
 // -------------------------------------------------------------
 // Minimal Node `process` shim for browser (VS Code webview) context.
@@ -36,7 +36,7 @@ if (typeof (globalThis as any).process === 'undefined') {
   // Ensure identifier binding in module scope
 
   const _process = (globalThis as any).process;
-  console.log('[AzureDevOpsInt][webview] process shim installed');
+  console.debug('[AzureDevOpsInt][webview] process shim installed');
 }
 
 // -------------------------------------------------------------
@@ -47,12 +47,15 @@ if (typeof (globalThis as any).process === 'undefined') {
 // -------------------------------------------------------------
 window.addEventListener('message', (event) => {
   const msg = event?.data;
-  console.log('[AzureDevOpsInt][webview] Received message:', {
+  console.debug('[AzureDevOpsInt][webview] Received message:', {
     type: msg?.type,
     hasPayload: !!msg?.payload,
+    hasError: !!msg?.error,
+    connectionId: msg?.connectionId,
+    fullMessage: msg,
   });
   if (msg?.type === 'syncState' && msg?.payload) {
-    console.log('[AzureDevOpsInt][webview] Processing syncState message:', {
+    console.debug('[AzureDevOpsInt][webview] Processing syncState message:', {
       fsmState: msg.payload.fsmState,
       hasContext: !!msg.payload.context,
       hasMatches: !!msg.payload.matches,
@@ -64,12 +67,12 @@ window.addEventListener('message', (event) => {
         context: msg.payload.context,
         matches: msg.payload.matches || {},
       });
-      console.log('[AzureDevOpsInt][webview] Successfully updated applicationSnapshot store');
+      console.debug('[AzureDevOpsInt][webview] Successfully updated applicationSnapshot store');
     } catch (e) {
-      console.error('[AzureDevOpsInt][webview] Failed to apply FSM snapshot', e);
+      console.debug('[AzureDevOpsInt][webview] Failed to apply FSM snapshot', e);
     }
   } else if (msg?.type === 'syncTimerState' && msg?.payload) {
-    console.log('[AzureDevOpsInt][webview] Processing syncTimerState message:', {
+    console.debug('[AzureDevOpsInt][webview] Processing syncTimerState message:', {
       hasPayload: !!msg.payload,
       hasContext: !!msg.payload.context,
       hasTimerState: !!msg.payload.context?.timerState,
@@ -84,9 +87,45 @@ window.addEventListener('message', (event) => {
           ...msg.payload.context,
         },
       });
-      console.log('[AzureDevOpsInt][webview] Successfully updated timer state in snapshot');
+      console.debug('[AzureDevOpsInt][webview] Successfully updated timer state in snapshot');
     } catch (e) {
-      console.error('[AzureDevOpsInt][webview] Failed to apply timer state update', e);
+      console.debug('[AzureDevOpsInt][webview] Failed to apply timer state update', e);
+    }
+  } else if (msg?.type === 'workItemsError') {
+    // Handle work items error messages from provider
+    console.debug('[AzureDevOpsInt][webview] Processing workItemsError message:', {
+      error: msg.error,
+      connectionId: msg.connectionId,
+    });
+    try {
+      // Update context with error information
+      const current = applicationSnapshot.peek();
+      applicationSnapshot.set({
+        ...current,
+        context: {
+          ...current.context,
+          workItemsError: msg.error || 'Failed to load work items',
+          workItemsErrorConnectionId: msg.connectionId,
+        },
+      });
+      console.debug('[AzureDevOpsInt][webview] Successfully updated context with workItemsError');
+    } catch (e) {
+      console.debug('[AzureDevOpsInt][webview] Failed to apply workItemsError', e);
+    }
+  } else if (msg?.type === 'workItemsLoaded') {
+    // Clear error when work items are successfully loaded
+    try {
+      const current = applicationSnapshot.peek();
+      applicationSnapshot.set({
+        ...current,
+        context: {
+          ...current.context,
+          workItemsError: null,
+          workItemsErrorConnectionId: null,
+        },
+      });
+    } catch (e) {
+      console.debug('[AzureDevOpsInt][webview] Failed to clear workItemsError', e);
     }
   }
 });
@@ -115,12 +154,12 @@ function ensureMountTarget(): HTMLElement {
   } else {
     document.body.appendChild(created);
   }
-  console.log('[AzureDevOpsInt][webview] Created missing mount element #svelte-root');
+  console.debug('[AzureDevOpsInt][webview] Created missing mount element #svelte-root');
   return created;
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  console.log('[AzureDevOpsInt][webview] DOMContentLoaded: ensuring mount target');
+  console.debug('[AzureDevOpsInt][webview] DOMContentLoaded: ensuring mount target');
   const root = ensureMountTarget();
   try {
     // Acquire VS Code API once and make it available globally
@@ -131,7 +170,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     mount(App, { target: root });
-    console.log(
+    console.debug(
       '🟢 [AzureDevOpsInt][webview] Svelte component mounted successfully on #' + root.id
     );
 
@@ -139,7 +178,7 @@ window.addEventListener('DOMContentLoaded', () => {
       vscode.postMessage({ type: 'ready' });
     }
   } catch (e) {
-    console.error('🔴 [AzureDevOpsInt][webview] Failed to mount Svelte component:', e);
+    console.debug('🔴 [AzureDevOpsInt][webview] Failed to mount Svelte component:', e);
   }
 });
 

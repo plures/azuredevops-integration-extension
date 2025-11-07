@@ -6,17 +6,19 @@
   import StatusBar from './components/StatusBar.svelte';
   import KanbanBoard from './components/KanbanBoard.svelte';
   import ConnectionTabs from './components/ConnectionTabs.svelte';
+  import AuthReminder from './components/AuthReminder.svelte';
+  import Dropdown from './components/Dropdown.svelte';
 
-  console.log('[webview] App.svelte initializing');
+  console.debug('[webview] App.svelte initializing');
 
   // Reactive FSM state derived from snapshot store
-  $: snapshot = $applicationSnapshot;
-  $: context = snapshot.context;
-  $: matches = snapshot.matches || {}; // Pre-computed state matches from extension
+  const snapshot = $derived($applicationSnapshot);
+  const context = $derived(snapshot.context);
+  const matches = $derived(snapshot.matches || {}); // Pre-computed state matches from extension
 
   // Debug snapshot reactivity
-  $: {
-    console.log('[AzureDevOpsInt][webview] App reactive - snapshot:', {
+  $effect(() => {
+    console.debug('[AzureDevOpsInt][webview] App reactive - snapshot:', {
       hasSnapshot: !!snapshot,
       value: snapshot.value,
       hasMatches: !!matches,
@@ -26,7 +28,7 @@
       workItemsCount: context?.pendingWorkItems?.workItems?.length || 0,
       viewMode: context?.viewMode,
     });
-  }
+  });
 
   // Get VS Code API instance (already acquired in main.ts)
   const vscode = (window as any).__vscodeApi;
@@ -39,19 +41,13 @@
   }
 
   // Use pre-computed state matches - no need for custom isInState() helper!
-  $: isInactiveOrActivating = matches.inactive || matches.activating;
-  $: isActivationFailed = matches.activation_failed;
-  $: isActiveSetup = matches['active.setup'];
-  $: isActiveReadyManaging = matches['active.ready.managingConnections'];
-  $: isActiveReady = matches['active.ready'];
-  $: isActive = matches.active;
+  const isInactiveOrActivating = $derived(matches.inactive || matches.activating);
+  const isActivationFailed = $derived(matches.activation_failed);
+  const isActiveSetup = $derived(matches['active.setup']);
+  const isActiveReadyManaging = $derived(matches['active.ready.managingConnections']);
+  const isActiveReady = $derived(matches['active.ready']);
+  const isActive = $derived(matches.active);
 
-  // Device code session reactive bindings
-  $: deviceCodeSession = context?.deviceCodeSession;
-  $: deviceCodeRemainingMs = deviceCodeSession
-    ? Math.max(deviceCodeSession.expiresAt - Date.now(), 0)
-    : 0;
-  $: deviceCodeExpiresInMinutes = deviceCodeSession ? Math.ceil(deviceCodeRemainingMs / 60000) : 0;
 
   // Query selector support (replaces internal toolbar controls)
   const predefinedQueries = [
@@ -60,26 +56,21 @@
     'Recently Updated',
     'Created By Me',
   ];
-  $: activeQuery = context?.activeQuery || predefinedQueries[0];
-  function handleQueryChange(e: Event) {
-    const target = e.target as HTMLSelectElement;
-    const next = target.value.trim();
-    if (next && next !== context?.activeQuery) {
-      sendEvent({ type: 'SET_QUERY', query: next });
+  const contextActiveQuery = $derived(context?.activeQuery || predefinedQueries[0]);
+  let localActiveQuery = $state(predefinedQueries[0]);
+  
+  // Sync local query with context when it changes
+  $effect(() => {
+    const nextQuery = contextActiveQuery;
+    if (nextQuery && nextQuery !== localActiveQuery) {
+      localActiveQuery = nextQuery;
     }
-  }
+  });
+  
 
-  function copyAndOpenDeviceCode() {
-    if (!deviceCodeSession) return;
-    // Delegate browser launch + clipboard to extension (webview sandbox limitations)
-    vscode?.postMessage({
-      type: 'openDeviceCodeBrowser',
-      payload: { connectionId: deviceCodeSession.connectionId },
-    });
-  }
 
   // Debug: log state changes
-  $: {
+  $effect(() => {
     const debugInfo = {
       isInactiveOrActivating,
       isActivationFailed,
@@ -89,17 +80,36 @@
       isActive,
       activeMatches: Object.keys(matches).filter((k) => matches[k]),
     };
-    console.log('[AzureDevOpsInt][webview] App state matching:', debugInfo);
-  }
+    console.debug('[AzureDevOpsInt][webview] App state matching:', debugInfo);
+  });
 
   onMount(() => {
-    console.log('[AzureDevOpsInt][webview] App.svelte mounted');
+    console.debug('[AzureDevOpsInt][webview] App.svelte mounted');
     if (vscode) {
       vscode.postMessage({ type: 'webviewReady' });
     }
   });
 
-  // (Removed internal toolbar button handlers per request)
+  // Toggle debug view - handled locally in Svelte, just notify FSM of change
+  let localDebugViewVisible = $state(false);
+  
+  // Sync with context when it changes (FSM is source of truth for initial state)
+  $effect(() => {
+    if (context?.debugViewVisible !== undefined) {
+      localDebugViewVisible = context.debugViewVisible;
+    }
+  });
+  
+  function toggleDebugView() {
+    localDebugViewVisible = !localDebugViewVisible;
+    // Notify FSM of the change (but don't wait for it - Svelte controls display)
+    if (vscode) {
+      vscode.postMessage({ 
+        type: 'TOGGLE_DEBUG_VIEW',
+        debugViewVisible: localDebugViewVisible 
+      });
+    }
+  }
 </script>
 
 <main>
@@ -111,7 +121,7 @@
     <div class="error-container">
       <h2>Activation Failed</h2>
       <p>{context?.lastError?.message || 'Unknown error during activation'}</p>
-      <button on:click={() => sendEvent({ type: 'RETRY' })}>Retry</button>
+      <button onclick={() => sendEvent({ type: 'RETRY' })}>Retry</button>
     </div>
   {:else if isActiveSetup}
     <div class="loading">
@@ -119,24 +129,7 @@
       {#if context?.connections?.length}
         <p>Found {context.connections.length} connection(s)</p>
       {/if}
-      {#if deviceCodeSession}
-        <div class="device-code-session setup">
-          <p><strong>Authentication Required</strong></p>
-          <p>Open the login page and enter the code below to continue.</p>
-          <p>
-            Code: <strong>{deviceCodeSession.userCode}</strong> ({deviceCodeExpiresInMinutes}m left)
-          </p>
-          <div class="actions">
-            <button on:click={copyAndOpenDeviceCode}>Copy & Open Login</button>
-            <button
-              class="secondary"
-              on:click={() =>
-                sendEvent({ type: 'SIGN_OUT_ENTRA', connectionId: deviceCodeSession.connectionId })}
-              >Cancel</button
-            >
-          </div>
-        </div>
-      {/if}
+      <AuthReminder {context} {sendEvent} />
     </div>
   {:else if isActiveReadyManaging}
     <Settings {context} {sendEvent} />
@@ -156,43 +149,24 @@
                 context.activeConnectionId}
             </span>
           {/if}
-          <select
+          <Dropdown
+            value={localActiveQuery}
+            options={predefinedQueries.map((q) => ({ value: q, label: q }))}
+            onChange={(value) => {
+              localActiveQuery = value;
+              if (value && value !== context?.activeQuery) {
+                sendEvent({ type: 'SET_QUERY', query: value });
+              }
+            }}
             class="query-select"
-            bind:value={activeQuery}
-            on:change={handleQueryChange}
-            title="Work Item Query"
-          >
-            {#each predefinedQueries as q}
-              <option value={q}>{q}</option>
-            {/each}
-          </select>
+          />
         </div>
         <!-- Internal actions removed; rely on VS Code view/title menu commands -->
-        <div class="right-group">
-          {#if deviceCodeSession}
-            <div class="device-code-session" data-auth-code>
-              <span
-                title={`Code expires at ${new Date(deviceCodeSession.expiresAt).toLocaleTimeString()}`}
-              >
-                Auth code: <strong>{deviceCodeSession.userCode}</strong>
-                ({deviceCodeExpiresInMinutes}m left)
-              </span>
-              <button class="secondary" on:click={copyAndOpenDeviceCode}>Copy & Open</button>
-              <button
-                class="secondary"
-                on:click={() =>
-                  sendEvent({
-                    type: 'SIGN_OUT_ENTRA',
-                    connectionId: deviceCodeSession.connectionId,
-                  })}>Cancel</button
-              >
-            </div>
-          {/if}
-        </div>
       </div>
       <!-- Removed visible live count to reduce extraneous text; accessible output disabled intentionally -->
     </div>
-    {#if context?.debugLoggingEnabled && context?.debugViewVisible}
+    <AuthReminder {context} {sendEvent} />
+    {#if context?.debugLoggingEnabled && localDebugViewVisible}
       <div class="debug-panel" role="region" aria-label="Debug View">
         <h3>Debug View</h3>
         <pre class="debug-json">{JSON.stringify(
@@ -210,7 +184,7 @@
     {#if context?.viewMode === 'kanban'}
       <KanbanBoard {context} {sendEvent} />
     {:else}
-      <WorkItemList {context} {sendEvent} />
+      <WorkItemList {context} {sendEvent} {matches} />
     {/if}
     <StatusBar {context} {sendEvent} />
   {/if}
@@ -260,8 +234,7 @@
   .primary-row {
     margin-bottom: 0;
   }
-  .left-group,
-  .right-group {
+  .left-group {
     display: flex;
     gap: 0.5rem;
     align-items: center;
@@ -292,23 +265,6 @@
     border: 1px solid var(--vscode-tab-activeBorder, var(--vscode-focusBorder));
     border-radius: 4px;
     color: var(--vscode-tab-activeForeground);
-  }
-  .device-code-session {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: var(--vscode-editorWidget-background);
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.85rem;
-    line-height: 1.2;
-  }
-  .device-code-session strong {
-    font-family: monospace;
-  }
-  button.secondary {
-    background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
-    color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
   }
   .query-select {
     padding: 0.35rem 0.55rem;

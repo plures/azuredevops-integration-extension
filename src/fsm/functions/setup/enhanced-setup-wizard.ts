@@ -1,6 +1,6 @@
 /**
  * Enhanced Setup Wizard
- * 
+ *
  * Provides intelligent, environment-aware connection setup with minimal user input.
  * Auto-detects values where possible and presents appropriate auth methods.
  */
@@ -8,10 +8,13 @@
 import * as vscode from 'vscode';
 import type { ParsedAzureDevOpsUrl } from '../../../azureDevOpsUrlParser.js';
 import type { ProjectConnection } from '../../machines/applicationMachine.js';
-import { detectEnvironmentType, getEnvironmentLabel } from './environment-detection.js';
-import { getAvailableAuthMethods, getRecommendedAuthMethod, type AuthMethod } from './auth-methods.js';
-import { detectWindowsUser, validateUsernameFormat, formatUsername } from './user-detection.js';
-import { autoDetectConnectionDefaults, createConnectionFromDefaults } from './connection-defaults.js';
+import { getEnvironmentLabel } from './environment-detection.js';
+import { getAvailableAuthMethods } from './auth-methods.js';
+import { validateUsernameFormat, formatUsername } from './user-detection.js';
+import {
+  autoDetectConnectionDefaults,
+  createConnectionFromDefaults,
+} from './connection-defaults.js';
 
 export interface EnhancedSetupOptions {
   parsedUrl: ParsedAzureDevOpsUrl;
@@ -27,7 +30,7 @@ export interface EnhancedSetupResult {
 
 /**
  * Shows quick setup dialog with auto-detected values
- * 
+ *
  * @param defaults - Auto-detected connection defaults
  * @returns Setup result or undefined if cancelled
  */
@@ -35,7 +38,6 @@ async function showQuickSetup(
   defaults: ReturnType<typeof autoDetectConnectionDefaults>
 ): Promise<EnhancedSetupResult | undefined> {
   const environmentLabel = getEnvironmentLabel(defaults.environment);
-  const recommendedAuth = getRecommendedAuthMethod(defaults.environment);
 
   // Build detail message showing detected values
   const detailParts: string[] = [
@@ -50,15 +52,12 @@ async function showQuickSetup(
 
   // Get available auth methods
   const availableMethods = getAvailableAuthMethods(defaults.environment);
-  const recommendedMethod = availableMethods.find((m) => m.recommended && m.available);
 
   // Build QuickPick items with recommended method first
   const authItems = availableMethods.map((method) => ({
     label: method.recommended ? `$(star) ${method.label}` : method.label,
     description: method.description,
-    detail: method.recommended
-      ? 'Recommended'
-      : detailParts.join(' • '),
+    detail: method.recommended ? 'Recommended' : detailParts.join(' • '),
     method: method.id,
   }));
 
@@ -132,8 +131,41 @@ async function showQuickSetup(
 }
 
 /**
+ * Prompts for OnPremises identity name
+ */
+async function promptOnPremisesIdentity(
+  defaults: ReturnType<typeof autoDetectConnectionDefaults>
+): Promise<string | undefined> {
+  const suggestedIdentity = defaults.identityName || '';
+  const identityInput = await vscode.window.showInputBox({
+    prompt: 'Identity Name (for @Me queries)',
+    value: suggestedIdentity,
+    placeHolder: 'CORP\\username or user@domain.com',
+    validateInput: (value) => {
+      if (value && !validateUsernameFormat(value)) {
+        return 'Invalid format. Use DOMAIN\\user or user@domain.com';
+      }
+      return null;
+    },
+  });
+
+  return identityInput ? formatUsername(identityInput) : undefined;
+}
+
+/**
+ * Collects PAT from user
+ */
+async function collectPAT(): Promise<string | undefined> {
+  const patInput = await vscode.window.showInputBox({
+    prompt: 'Enter your Personal Access Token',
+    password: true,
+  });
+  return patInput || undefined;
+}
+
+/**
  * Shows advanced setup dialog with all fields editable
- * 
+ *
  * @param defaults - Auto-detected defaults
  * @returns Setup result or undefined if cancelled
  */
@@ -200,25 +232,8 @@ async function showAdvancedSetup(
   const authMethod = selectedAuth.method === 'entra' ? 'entra' : 'pat';
 
   // For OnPremises, always prompt for identityName in advanced mode
-  let identityName: string | undefined;
-  if (defaults.environment === 'onpremises') {
-    const suggestedIdentity = defaults.identityName || '';
-    const identityInput = await vscode.window.showInputBox({
-      prompt: 'Identity Name (for @Me queries)',
-      value: suggestedIdentity,
-      placeHolder: 'CORP\\username or user@domain.com',
-      validateInput: (value) => {
-        if (value && !validateUsernameFormat(value)) {
-          return 'Invalid format. Use DOMAIN\\user or user@domain.com';
-        }
-        return null;
-      },
-    });
-
-    if (identityInput) {
-      identityName = formatUsername(identityInput);
-    }
-  }
+  const identityName =
+    defaults.environment === 'onpremises' ? await promptOnPremisesIdentity(defaults) : undefined;
 
   // Label
   const label = await vscode.window.showInputBox({
@@ -232,15 +247,8 @@ async function showAdvancedSetup(
   });
 
   // Collect PAT if needed
-  let pat: string | undefined;
-  if (authMethod === 'pat') {
-    const patInput = await vscode.window.showInputBox({
-      prompt: 'Enter your Personal Access Token',
-      password: true,
-    });
-    if (!patInput) return undefined;
-    pat = patInput;
-  }
+  const pat = authMethod === 'pat' ? await collectPAT() : undefined;
+  if (authMethod === 'pat' && !pat) return undefined;
 
   const result: EnhancedSetupResult = {
     connection: createConnectionFromDefaults(
@@ -268,14 +276,14 @@ async function showAdvancedSetup(
 
 /**
  * Enhanced setup wizard with environment-aware flow
- * 
+ *
  * @param options - Setup options including parsed URL
  * @returns Setup result or undefined if cancelled
  */
 export async function runEnhancedSetupWizard(
   options: EnhancedSetupOptions
 ): Promise<EnhancedSetupResult | undefined> {
-  const { parsedUrl, connectionToEdit } = options;
+  const { parsedUrl, connectionToEdit: _connectionToEdit } = options;
 
   if (!parsedUrl.isValid) {
     vscode.window.showErrorMessage(`Invalid URL: ${parsedUrl.error || 'Invalid Azure DevOps URL'}`);
@@ -318,4 +326,3 @@ export async function runEnhancedSetupWizard(
     return await showAdvancedSetup(defaults);
   }
 }
-

@@ -3,7 +3,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { detectEnvironmentType, getEnvironmentLabel } from '../../../../src/fsm/functions/setup/environment-detection.js';
+import {
+  detectEnvironmentType,
+  getEnvironmentLabel,
+} from '../../../../src/fsm/functions/setup/environment-detection.js';
 import type { ParsedAzureDevOpsUrl } from '../../../../src/azureDevOpsUrlParser.js';
 
 function makeParsedUrl(
@@ -107,4 +110,3 @@ describe('Environment Detection', () => {
     });
   });
 });
-
