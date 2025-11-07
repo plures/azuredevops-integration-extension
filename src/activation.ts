@@ -896,7 +896,7 @@ export async function updateAuthStatusBar(): Promise<void> {
 
   // Try to get state from connectionStates first, but also check FSM if not available
   const state = connectionStates.get(activeConnectionId);
-  let authMethod: 'pat' | 'entra' = 'pat';
+  let authMethod: 'pat' | 'entra';
   let connectionConfig: ProjectConnection | undefined;
 
   // If state not in connectionStates, try to get from FSM context
