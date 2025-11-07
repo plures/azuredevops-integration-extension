@@ -13,6 +13,7 @@ import { convertConnectionToEntra } from '../functions/setup/convert.js';
 import { signInWithEntra, signOutEntra } from '../functions/setup/auth.js';
 import type { ProjectConnection } from './applicationMachine.js';
 import type * as vscode from 'vscode';
+import { SetupStates } from './setupMachine.states.js';
 
 const fsmLogger = createScopedLogger('setupMachine');
 
@@ -42,7 +43,7 @@ interface SetupMachineContext {
 export const setupMachine = createMachine(
   {
     id: 'setup',
-    initial: 'idle',
+    initial: SetupStates.IDLE,
     // Initialize context from machine input to satisfy tests supplying extensionContext only
     context: ({ input }): SetupMachineContext => ({
       extensionContext: (input as any)?.extensionContext,
@@ -52,17 +53,17 @@ export const setupMachine = createMachine(
       ensureActiveConnection: async () => {},
     }),
     states: {
-      idle: {
+      [SetupStates.IDLE]: {
         on: {
-          SETUP_REQUESTED: 'showingMenu',
+          SETUP_REQUESTED: SetupStates.SHOWING_MENU,
           START: [
-            { target: 'managingExisting', guard: 'skipInitialChoice' },
-            { target: 'showingMenu' },
+            { target: SetupStates.MANAGING_EXISTING, guard: 'skipInitialChoice' },
+            { target: SetupStates.SHOWING_MENU },
           ],
         },
       },
       // Original menu-driven flow (unchanged)
-      showingMenu: {
+      [SetupStates.SHOWING_MENU]: {
         invoke: {
           id: 'showSetupMenu',
           src: 'showSetupMenu',
@@ -71,41 +72,41 @@ export const setupMachine = createMachine(
             activeConnectionId: context.activeConnectionId,
           }),
           onDone: {
-            target: 'handlingAction',
+            target: SetupStates.HANDLING_ACTION,
             actions: assign({
               selectedAction: ({ event }) => event.output,
             }),
           },
           onError: {
-            target: 'idle',
+            target: SetupStates.IDLE,
             actions: 'logError',
           },
         },
       },
-      handlingAction: {
+      [SetupStates.HANDLING_ACTION]: {
         always: [
-          { target: 'idle', guard: 'isAdd', actions: ['navigateToAdd'] },
-          { target: 'idle', guard: 'isManage', actions: ['navigateToManage'] },
-          { target: 'idle', guard: 'isSwitch', actions: ['navigateToSwitch'] },
-          { target: 'idle', guard: 'isEntraSignIn', actions: ['signInWithEntra'] },
-          { target: 'idle', guard: 'isEntraSignOut', actions: ['signOutEntra'] },
-          { target: 'idle', guard: 'isConvertToEntra', actions: ['convertToEntra'] },
-          { target: 'idle' }, // Default
+          { target: SetupStates.IDLE, guard: 'isAdd', actions: ['navigateToAdd'] },
+          { target: SetupStates.IDLE, guard: 'isManage', actions: ['navigateToManage'] },
+          { target: SetupStates.IDLE, guard: 'isSwitch', actions: ['navigateToSwitch'] },
+          { target: SetupStates.IDLE, guard: 'isEntraSignIn', actions: ['signInWithEntra'] },
+          { target: SetupStates.IDLE, guard: 'isEntraSignOut', actions: ['signOutEntra'] },
+          { target: SetupStates.IDLE, guard: 'isConvertToEntra', actions: ['convertToEntra'] },
+          { target: SetupStates.IDLE }, // Default
         ],
       },
       // New state expected by tests when managing existing connections directly
-      managingExisting: {
+      [SetupStates.MANAGING_EXISTING]: {
         on: {
           TEST_EXISTING_CONNECTION: {
-            target: 'testingExistingConnection',
+            target: SetupStates.TESTING_EXISTING_CONNECTION,
             actions: assign({
               testingExistingConnection: ({ event }) => event.connection,
             }),
           },
-          CANCEL: 'idle',
+          CANCEL: SetupStates.IDLE,
         },
       },
-      testingExistingConnection: {
+      [SetupStates.TESTING_EXISTING_CONNECTION]: {
         invoke: {
           id: 'testExistingConnection',
           src: fromPromise(({ input }) => {
@@ -139,13 +140,13 @@ export const setupMachine = createMachine(
             extensionContext: context.extensionContext,
           }),
           onDone: {
-            target: 'testingExistingResult',
+            target: SetupStates.TESTING_EXISTING_RESULT,
             actions: assign({
               lastExistingTestResult: ({ event }) => event.output,
             }),
           },
           onError: {
-            target: 'testingExistingResult',
+            target: SetupStates.TESTING_EXISTING_RESULT,
             actions: assign({
               lastExistingTestResult: ({ event }) => ({
                 success: false,
@@ -155,11 +156,11 @@ export const setupMachine = createMachine(
           },
         },
       },
-      testingExistingResult: {
+      [SetupStates.TESTING_EXISTING_RESULT]: {
         on: {
-          RETRY: 'testingExistingConnection',
+          RETRY: SetupStates.TESTING_EXISTING_CONNECTION,
           CONTINUE_MANAGING: {
-            target: 'managingExisting',
+            target: SetupStates.MANAGING_EXISTING,
             actions: assign({ testingExistingConnection: () => undefined }),
           },
         },

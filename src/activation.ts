@@ -1739,14 +1739,9 @@ function ensureTimer(context: vscode.ExtensionContext) {
       persistTimer(context, data),
     restorePersisted: () => restoreTimer(context),
     onState: (s: any) => {
-      sendToWebview({
-        type: 'timerUpdate',
-        timer: s,
-        connectionId: timerConnectionInfo.id,
-        connectionLabel: timerConnectionInfo.label,
-        connectionOrganization: timerConnectionInfo.organization,
-        connectionProject: timerConnectionInfo.project,
-      });
+      // Reactive Architecture: Timer state is managed by FSM timerActor.
+      // Timer state updates are sent to webview via syncState message (not partial timerUpdate).
+      // This callback only updates VS Code context for command enablement.
       updateTimerContext(s);
     },
     onInfo: (m: any) => verbose('[timer]', m),
@@ -1827,6 +1822,9 @@ type SendWorkItemsSnapshotOptions = Omit<PostWorkItemsSnapshotParams, 'panel' | 
 function sendToWebview(message: any): void {
   const messageType = message?.type;
 
+  // Reactive Architecture: workItemsLoaded and workItemsError are handled via FSM context updates.
+  // These messages dispatch to FSM, which updates context, and syncState sends full state to webview.
+  // We no longer post these partial messages directly to webview.
   if (messageType === 'workItemsLoaded') {
     const items = Array.isArray(message.workItems) ? [...message.workItems] : [];
     verbose('[sendToWebview] Processing workItemsLoaded:', {
@@ -1837,6 +1835,7 @@ function sendToWebview(message: any): void {
       connectionId: message.connectionId,
     });
 
+    // Dispatch to FSM - context will be updated and syncState will send full state to webview
     dispatchApplicationEvent({
       type: 'WORK_ITEMS_LOADED',
       workItems: items,
@@ -1846,35 +1845,34 @@ function sendToWebview(message: any): void {
       types: Array.isArray(message.types) ? [...message.types] : undefined,
     });
 
-    verbose('[sendToWebview] Dispatched WORK_ITEMS_LOADED event to FSM');
+    verbose('[sendToWebview] Dispatched WORK_ITEMS_LOADED event to FSM (not posting to webview)');
+    // Return early - don't post partial message to webview
+    return;
   }
 
-  // Handle workItemsError messages - ensure they're sent to webview
+  // workItemsError is extracted from connection snapshot in getSerializableContext
+  // and included in syncState. No need to post partial error message.
   if (messageType === 'workItemsError') {
-    verbose('[sendToWebview] Processing workItemsError:', {
+    verbose('[sendToWebview] Processing workItemsError (not posting to webview):', {
       messageType,
       error: message.error,
       connectionId: message.connectionId,
-      hasPanel: !!panel,
     });
+    // Error state is already in FSM context via connection snapshot
+    // Return early - don't post partial error message to webview
+    return;
   }
 
   if (!panel) {
     activationLogger.warn('[sendToWebview] Dropping message (no panel)', {
       type: messageType,
-      error: messageType === 'workItemsError' ? message.error : undefined,
     });
     verbose?.('[sendToWebview] dropping message (no panel)', { type: messageType });
     return;
   }
 
+  // Post other message types (e.g., restoreFilters, etc.) that aren't handled by FSM
   try {
-    if (messageType === 'workItemsError') {
-      verbose('[sendToWebview] Posting workItemsError to webview:', {
-        error: message.error,
-        connectionId: message.connectionId,
-      });
-    }
     panel.webview.postMessage(message);
   } catch (error) {
     activationLogger.error('[sendToWebview] Failed to post message', {
@@ -1969,17 +1967,8 @@ function sendWorkItemsSnapshot(options: SendWorkItemsSnapshotOptions): void {
   const branchContext = resolveBranchContextPayload(connectionId, options.branchContext);
   const types = resolveSnapshotTypes(options.provider, options.types, verbose);
 
-  sendToWebview({
-    type: 'workItemsLoaded',
-    connectionId,
-    workItems: items,
-    kanbanView: options.kanbanView,
-    provider: options.provider,
-    types,
-    query: options.query,
-    branchContext,
-  });
-
+  // Reactive Architecture: Dispatch directly to FSM instead of using sendToWebview.
+  // FSM will update context and syncState will send full state to webview.
   const enrichedWorkItems = enrichWorkItems(items, connectionId, branchContext);
   dispatchApplicationEvent({
     type: 'WORK_ITEMS_LOADED',

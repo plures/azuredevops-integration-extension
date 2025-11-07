@@ -57,6 +57,30 @@ Examples:
 
 ### 1. Start New Work
 
+**Option A: Using Worktree (Recommended for Parallel Development)**
+
+```bash
+# Ensure main is up to date
+cd C:/Projects/azuredevops-integration-extension
+git checkout main
+git pull origin main
+
+# Create feature branch worktree
+git worktree add ../worktrees/azuredevops-integration-extension/feat-123-my-feature -b feat/123-my-feature
+
+# Work in the worktree
+cd ../worktrees/azuredevops-integration-extension/feat-123-my-feature
+npm install
+
+# Make changes and commit frequently
+git add .
+git commit -m "feat: add initial structure"
+git commit -m "feat: implement core logic"
+git commit -m "fix: handle edge cases"
+```
+
+**Option B: Traditional Branch (Single Branch Development)**
+
 ```bash
 # Ensure main is up to date
 git checkout main
@@ -162,6 +186,11 @@ gh pr merge --squash --delete-branch
 
 # This creates one clean commit on main:
 # "feat: implement action buttons (#123)"
+
+# If using worktree, clean up after merge:
+cd C:/Projects/azuredevops-integration-extension
+git worktree remove ../worktrees/azuredevops-integration-extension/feat-123-my-feature
+git branch -d feat/123-my-feature  # If not auto-deleted
 ```
 
 ---
@@ -351,10 +380,35 @@ git config pull.rebase true
 # Auto-setup tracking for push
 git config push.autoSetupRemote true
 
+# Worktree configuration
+git config worktree.prune true
+
 # Helpful aliases
 git config alias.lg "log --graph --oneline --decorate --all"
 git config alias.cleanup "!git branch --merged main | grep -v '\\*\\|main\\|develop' | xargs -n 1 git branch -d"
+git config alias.wt "worktree list"
+git config alias.wt-add "worktree add"
+git config alias.wt-remove "worktree remove"
+git config alias.wt-prune "worktree prune"
 ```
+
+### Worktree Setup
+
+This project uses Git worktrees for parallel development. See [Git Worktree Setup Guide](./GIT_WORKTREE_SETUP.md) for detailed configuration.
+
+**Quick Start**:
+```bash
+# List all worktrees
+git worktree list
+
+# Create new worktree for feature branch
+git worktree add ../worktrees/azuredevops-integration-extension/feat-123-my-feature -b feat/123-my-feature
+
+# Remove worktree after PR merge
+git worktree remove ../worktrees/azuredevops-integration-extension/feat-123-my-feature
+```
+
+**Note**: Cursor automatically creates worktrees when switching branches. Manual worktree management is optional.
 
 ---
 

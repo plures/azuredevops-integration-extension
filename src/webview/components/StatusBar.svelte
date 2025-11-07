@@ -1,10 +1,15 @@
 <script lang="ts">
+  import ConnectionStatus from './ConnectionStatus.svelte';
+
   export let context: any;
 
   $: timerState = context?.timerActor?.state || 'idle';
   $: activeConnectionId = context?.activeConnectionId;
   $: connections = context?.connections || [];
   $: activeConnection = connections.find((c: any) => c.id === activeConnectionId);
+  $: uiState = context?.ui;
+  $: connectionHealth = uiState?.connectionHealth;
+  $: refreshStatus = uiState?.refreshStatus;
 
   function formatConnectionLabel(conn: any): string {
     if (!conn) return 'No connection';
@@ -12,14 +17,17 @@
   }
 </script>
 
-{#if timerState !== 'idle'}
-  <div class="status-bar">
+<div class="status-bar">
+  {#if connectionHealth || refreshStatus}
+    <ConnectionStatus {connectionHealth} {refreshStatus} />
+  {/if}
+  {#if timerState !== 'idle'}
     <div class="status-section timer-active">
       <span class="label">Timer:</span>
       <span class="value">{timerState}</span>
     </div>
-  </div>
-{/if}
+  {/if}
+</div>
 
 <style>
   .status-bar {

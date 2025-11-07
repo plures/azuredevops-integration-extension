@@ -16,6 +16,15 @@ Key conventions maintained by this project:
 - Tests:
   - `npm test` runs Mocha tests under `tests/`.
 
+## Git Worktrees
+
+This project uses Git worktrees for parallel development. Cursor automatically creates worktrees when switching branches.
+
+**Quick Reference**:
+- List worktrees: `git worktree list`
+- See [Git Worktree Setup Guide](docs/GIT_WORKTREE_SETUP.md) for detailed configuration
+- See [Git Workflow Strategy](docs/GIT_WORKFLOW_STRATEGY.md) for branch naming and PR process
+
 ## GitHub Copilot Setup
 
 This repository includes comprehensive instructions for GitHub Copilot coding agent:
