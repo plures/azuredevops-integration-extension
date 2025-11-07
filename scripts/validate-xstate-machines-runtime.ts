@@ -133,9 +133,12 @@ async function validateMachineFile(filePath: string) {
         } catch (contextError: any) {
           // If error is about missing context/services, that's expected in validation
           // We only care about structural errors (invalid states, transitions)
-          if (contextError?.message?.includes('serverUrl') || 
-              contextError?.message?.includes('Cannot read properties') ||
-              contextError?.message?.includes('undefined')) {
+          if (
+            contextError?.message?.includes('serverUrl') ||
+            contextError?.message?.includes('Cannot read properties of undefined') ||
+            contextError?.message?.includes('context is undefined') ||
+            contextError?.message?.includes('Cannot read property') // covers older error formats
+          ) {
             // This is a context/service issue, not a structural issue
             // Machine structure is valid, just needs runtime context
             console.log(`⚠️  ${filePath}:${exportName} - Structure valid (requires runtime context)`);
