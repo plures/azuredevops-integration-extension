@@ -20,11 +20,19 @@ Key conventions maintained by this project:
 
 This project uses Git worktrees for parallel development. Cursor automatically creates worktrees when switching branches.
 
+**Automatic Configuration**: Git worktree settings are automatically applied to your local repository during `npm install` via the `prepare` script. The configuration includes:
+
+- Worktree pruning
+- Pull with rebase
+- Push with auto setup remote
+- Useful worktree aliases (e.g., `git wt`, `git wt-add`, `git wt-cleanup`)
+
 **Quick Reference**:
 
-- List worktrees: `git worktree list`
+- List worktrees: `git worktree list` or `git wt`
 - See [Git Worktree Setup Guide](docs/GIT_WORKTREE_SETUP.md) for detailed configuration
 - See [Git Workflow Strategy](docs/GIT_WORKFLOW_STRATEGY.md) for branch naming and PR process
+- To apply settings globally (optional): `cat .gitconfig.worktree >> ~/.gitconfig`
 
 ## GitHub Copilot Setup
 
