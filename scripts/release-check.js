@@ -29,6 +29,11 @@ function run(cmd) {
   try {
     return execSync(cmd, { encoding: 'utf8', stdio: 'pipe' }).trim();
   } catch (e) {
+    // Capture output even if command fails (non-zero exit code)
+    // Tests may fail but we still want to parse the output
+    if (e.stdout || e.stderr) {
+      return ((e.stdout || '') + (e.stderr || '')).trim();
+    }
     return null;
   }
 }
