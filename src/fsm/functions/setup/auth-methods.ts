@@ -78,21 +78,23 @@ export function getAvailableAuthMethods(environment: EnvironmentType): AuthMetho
  * @param environment - Environment type
  * @returns Recommended auth method ID ('entra' or 'pat'), or null if none
  */
-export function getRecommendedAuthMethod(environment: EnvironmentType): RecommendedAuthMethodId | null {
+export function getRecommendedAuthMethod(
+  environment: EnvironmentType
+): RecommendedAuthMethodId | null {
   const methods = getAvailableAuthMethods(environment);
   const recommended = methods.find((m) => m.recommended && m.available);
-  
+
   if (!recommended) {
     return null;
   }
-  
+
   // Defensive check to ensure type safety at runtime. While getAvailableAuthMethods
   // currently only returns 'entra' and 'pat', this guard protects against future
   // changes where someone might add a new auth method without updating this function.
   if (isRecommendedAuthMethod(recommended.id)) {
     return recommended.id;
   }
-  
+
   return null;
 }
 

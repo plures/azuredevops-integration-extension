@@ -5,6 +5,7 @@
 **Issue**: Invalid state transitions in `connectionMachine.ts` were not caught by the type-safe FSM validation system until runtime (extension activation).
 
 **Errors That Slipped Through**:
+
 1. Using full state paths (`'authenticating.determining_method'`) as state keys within nested states
 2. Using relative paths (`.entra_auth`) to reference sibling states instead of direct names
 3. Using full paths in `initial` properties instead of child state names
@@ -14,11 +15,13 @@
 ### 1. **Validation Script Limitations**
 
 The `validate:machines` script (run during `npm run compile`) only performs **static analysis**:
+
 - ✅ Checks that `entry`, `exit`, and `actions` are arrays
 - ❌ Does NOT actually create machines to validate transitions
 - ❌ Does NOT validate nested state structure
 
 **Current compile step**:
+
 ```json
 "compile": "npm run type-check && npm run validate:machines && node esbuild.mjs"
 ```
@@ -30,6 +33,7 @@ The `validate:machines` script (run during `npm run compile`) only performs **st
 The type-safe FSM system has these gaps:
 
 **State Constants File** (`connectionMachine.states.ts`):
+
 ```typescript
 export const ConnectionStates = {
   AUTHENTICATING: 'authenticating',
@@ -40,6 +44,7 @@ export const ConnectionStates = {
 ```
 
 **Problems**:
+
 1. Constants define full paths, but don't distinguish between:
    - **Absolute references** (for transitions from other states)
    - **Child state keys** (for defining nested states)
@@ -52,10 +57,11 @@ export const ConnectionStates = {
    - Sibling references use correct syntax
 
 3. The constants are used inconsistently:
+
    ```typescript
    // ❌ WRONG - Using full path as state key
    [ConnectionStates['authenticating.determining_method']]: { ... }
-   
+
    // ✅ CORRECT - Using child name as state key
    determining_method: { ... }
    ```
@@ -64,14 +70,15 @@ export const ConnectionStates = {
 
 The codebase mixed up XState path syntax:
 
-| Syntax | Meaning | When to Use |
-|--------|---------|-------------|
-| `'stateName'` | Sibling state (same parent) | Transitions between siblings |
-| `'.childState'` | Child state (relative) | Transitions to child of current state |
-| `'parent.child'` | Absolute path | Transitions from distant states |
-| `'#machineId.state'` | Machine-scoped absolute | Cross-machine transitions |
+| Syntax               | Meaning                     | When to Use                           |
+| -------------------- | --------------------------- | ------------------------------------- |
+| `'stateName'`        | Sibling state (same parent) | Transitions between siblings          |
+| `'.childState'`      | Child state (relative)      | Transitions to child of current state |
+| `'parent.child'`     | Absolute path               | Transitions from distant states       |
+| `'#machineId.state'` | Machine-scoped absolute     | Cross-machine transitions             |
 
 **What happened**:
+
 - Used `ConnectionStates['authenticating.determining_method']` as state key → Should be `'determining_method'`
 - Used `.entra_auth` to reference sibling → Should be `'entra_auth'`
 - Used full path in `initial` → Should be child name `'determining_method'`
@@ -89,6 +96,7 @@ The codebase mixed up XState path syntax:
 #### 1. Add Runtime Validation to Compile Step
 
 **Update `package.json`**:
+
 ```json
 {
   "scripts": {
@@ -98,6 +106,7 @@ The codebase mixed up XState path syntax:
 ```
 
 **Benefits**:
+
 - Catches structural errors at build time
 - Prevents broken extensions from being packaged
 - Fails fast during development
@@ -139,6 +148,7 @@ export const ConnectionStatePaths = {
 ```
 
 **Usage**:
+
 ```typescript
 // ✅ State key (child name)
 [AuthenticatingStates.DETERMINING_METHOD]: {
@@ -246,12 +256,14 @@ Add to `docs/ValidationChecklist.md`:
 After implementing fixes, verify:
 
 1. **Build-time validation**:
+
    ```bash
    npm run compile
    # Should fail if machines have structural errors
    ```
 
 2. **Runtime validation**:
+
    ```bash
    npm run validate:machines:runtime
    # Should catch all structural issues
@@ -275,4 +287,3 @@ After implementing fixes, verify:
 - [XState TypeScript Guide](https://stately.ai/docs/xstate/v5/guides/typescript)
 - `docs/ARCHITECTURE_TYPE_SAFE_FSM_PROPOSAL.md` - Original type-safe FSM proposal
 - `scripts/validate-xstate-machines-runtime.ts` - Runtime validation script
-

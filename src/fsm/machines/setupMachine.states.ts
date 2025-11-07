@@ -1,11 +1,11 @@
 /**
  * State Name Constants for Setup Machine
- * 
+ *
  * Use these constants instead of string literals to:
  * 1. Get IntelliSense/autocomplete
  * 2. Prevent typos
  * 3. Enable safe refactoring
- * 
+ *
  * Usage:
  * ```typescript
  * SETUP_REQUESTED: {
@@ -23,7 +23,7 @@ export const SetupStates = {
   TESTING_EXISTING_RESULT: 'testingExistingResult',
 } as const;
 
-export type SetupState = typeof SetupStates[keyof typeof SetupStates];
+export type SetupState = (typeof SetupStates)[keyof typeof SetupStates];
 
 /**
  * Helper to create relative state transitions
@@ -40,4 +40,3 @@ export function relativeSetupState(state: string): string {
 export function createSetupTransition(target: SetupState) {
   return { target };
 }
-

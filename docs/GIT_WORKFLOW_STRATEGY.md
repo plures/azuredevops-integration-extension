@@ -397,6 +397,7 @@ git config alias.wt-prune "worktree prune"
 This project uses Git worktrees for parallel development. See [Git Worktree Setup Guide](./GIT_WORKTREE_SETUP.md) for detailed configuration.
 
 **Quick Start**:
+
 ```bash
 # List all worktrees
 git worktree list

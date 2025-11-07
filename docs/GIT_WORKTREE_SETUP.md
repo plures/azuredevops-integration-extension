@@ -15,11 +15,13 @@ This project uses Git worktrees to enable parallel development across multiple b
 ## Current Worktree Setup
 
 ### Main Repository
+
 - **Location**: `C:/Projects/azuredevops-integration-extension`
 - **Branch**: `main`
 - **Purpose**: Primary development repository
 
 ### Worktree Locations
+
 - **Pattern**: `C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/<worktree-id>`
 - **Purpose**: Isolated workspaces for feature branches
 
@@ -43,6 +45,7 @@ git worktree list
 ```
 
 Output example:
+
 ```
 C:/Projects/azuredevops-integration-extension             ceffd73 [main]
 C:/Users/kayod/.cursor/worktrees/.../2vb5S               ceffd73 [2025-11-07-f938-2vb5S]
@@ -88,6 +91,7 @@ git worktree prune
 ## Cursor Integration
 
 Cursor automatically creates worktrees when you:
+
 1. Checkout a branch in Cursor
 2. Create a new branch from Cursor
 3. Switch between branches
@@ -95,6 +99,7 @@ Cursor automatically creates worktrees when you:
 ### Cursor Worktree Pattern
 
 Cursor creates worktrees in:
+
 ```
 C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/<unique-id>
 ```
@@ -125,6 +130,7 @@ git rev-parse --git-dir
 ### 2. Branch Naming
 
 Follow the project's branch naming convention:
+
 - `feat/<issue>-<description>`
 - `fix/<issue>-<description>`
 - `refactor/<issue>-<description>`
@@ -196,6 +202,7 @@ If using VS Code in worktrees, ensure settings are shared:
 ### Issue: "Worktree is locked"
 
 **Solution**:
+
 ```bash
 # Remove lock file
 rm .git/worktrees/<worktree-id>/locked
@@ -207,6 +214,7 @@ git worktree remove --force <path>
 ### Issue: "Branch already checked out"
 
 **Solution**:
+
 ```bash
 # Find which worktree has the branch
 git worktree list
@@ -220,6 +228,7 @@ git worktree list
 ### Issue: "Worktree path not found"
 
 **Solution**:
+
 ```bash
 # Prune stale worktrees
 git worktree prune
@@ -231,6 +240,7 @@ git worktree list
 ### Issue: "Cannot create worktree: path already exists"
 
 **Solution**:
+
 ```bash
 # Remove existing directory or use different path
 rm -rf <path>
@@ -318,7 +328,7 @@ cd "$(git rev-parse --show-toplevel)"
 git worktree list | while read line; do
   path=$(echo $line | awk '{print $1}')
   branch=$(echo $line | awk '{print $NF}' | tr -d '[]')
-  
+
   if [ -d "$path" ]; then
     echo "Worktree: $path"
     echo "  Branch: $branch"
@@ -348,4 +358,3 @@ done
 
 **Status**: Active configuration  
 **Last Updated**: 2025-01-27
-

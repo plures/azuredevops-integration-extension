@@ -47,13 +47,16 @@ function _getExtensionVersion(_context: vscode.ExtensionContext): string {
 }
 
 // Import functions to dispatch FSM events
-import { sendApplicationStoreEvent, getApplicationStoreActor } from '../../fsm/services/extensionHostBridge.js';
+import {
+  sendApplicationStoreEvent,
+  getApplicationStoreActor,
+} from '../../fsm/services/extensionHostBridge.js';
 
 // Helper function to dispatch events - routes to FSM via bridge or actor directly
 function dispatchApplicationEvent(event: any) {
   // Try bridge first (preferred - uses dispatcher if available)
   const bridgeSent = sendApplicationStoreEvent(event);
-  
+
   // Fallback: if bridge dispatcher isn't set, try to get actor directly
   if (!bridgeSent) {
     const actor = getApplicationStoreActor();

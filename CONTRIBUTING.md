@@ -21,6 +21,7 @@ Key conventions maintained by this project:
 This project uses Git worktrees for parallel development. Cursor automatically creates worktrees when switching branches.
 
 **Quick Reference**:
+
 - List worktrees: `git worktree list`
 - See [Git Worktree Setup Guide](docs/GIT_WORKTREE_SETUP.md) for detailed configuration
 - See [Git Workflow Strategy](docs/GIT_WORKFLOW_STRATEGY.md) for branch naming and PR process

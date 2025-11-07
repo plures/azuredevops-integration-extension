@@ -1,11 +1,11 @@
 /**
  * State Name Constants for Data Machine
- * 
+ *
  * Use these constants instead of string literals to:
  * 1. Get IntelliSense/autocomplete
  * 2. Prevent typos
  * 3. Enable safe refactoring
- * 
+ *
  * Usage:
  * ```typescript
  * FETCH: {
@@ -21,7 +21,7 @@ export const DataStates = {
   ERROR: 'error',
 } as const;
 
-export type DataState = typeof DataStates[keyof typeof DataStates];
+export type DataState = (typeof DataStates)[keyof typeof DataStates];
 
 /**
  * Helper to create relative state transitions
@@ -38,4 +38,3 @@ export function relativeDataState(state: string): string {
 export function createDataTransition(target: DataState) {
   return { target };
 }
-
