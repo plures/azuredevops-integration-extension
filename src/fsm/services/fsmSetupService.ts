@@ -4,6 +4,9 @@
  */
 
 import * as vscode from 'vscode';
+import { createLogger } from '../../logging/unifiedLogger.js';
+
+const logger = createLogger('fsm-setup-service');
 import { createActor } from 'xstate';
 import {
   setupMachine,
@@ -42,7 +45,7 @@ export class FSMSetupService {
       'azureDevOpsInt.activeConnectionId'
     );
 
-    console.log('[FSMSetupService] Starting setup with:', {
+    logger.debug('Starting setup', {
       connectionsCount: existingConnections.length,
       activeConnectionId,
       connectionAuthMethods: existingConnections.map((c) => ({

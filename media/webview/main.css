@@ -1,4 +1,86 @@
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/WorkItemList.esbuild-svelte-fake-css */
+/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/Dropdown.esbuild-svelte-fake-css */
+.custom-dropdown.svelte-y8wbtj {
+  position: relative;
+  display: inline-block;
+}
+.dropdown-button.svelte-y8wbtj {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  background: var(--vscode-input-background) !important;
+  color: var(--vscode-input-foreground) !important;
+  border: 1px solid var(--vscode-input-border) !important;
+  border-radius: 3px;
+  font-size: 0.85rem;
+  font-family: var(--vscode-font-family);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.dropdown-button.svelte-y8wbtj:hover {
+  border-color: var(--vscode-inputOption-hoverBorder, var(--vscode-focusBorder));
+}
+.dropdown-button.svelte-y8wbtj:focus {
+  outline: none;
+  border-color: var(--vscode-focusBorder);
+}
+.dropdown-label.svelte-y8wbtj {
+  flex: 1;
+  text-align: left;
+}
+.dropdown-arrow.svelte-y8wbtj {
+  margin-left: 0.5rem;
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+  color: var(--vscode-descriptionForeground);
+}
+.dropdown-arrow.open.svelte-y8wbtj {
+  transform: rotate(180deg);
+}
+.dropdown-menu.svelte-y8wbtj {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  margin-top: 0.25rem;
+  background: var(--vscode-dropdown-background, var(--vscode-input-background)) !important;
+  border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border)) !important;
+  border-radius: 3px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  max-height: 200px;
+  overflow-y: auto;
+  min-width: 100%;
+}
+.dropdown-option.svelte-y8wbtj {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: var(--vscode-dropdown-background, var(--vscode-input-background)) !important;
+  color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground)) !important;
+  border: none;
+  text-align: left;
+  font-size: 0.85rem;
+  font-family: var(--vscode-font-family);
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+.dropdown-option.svelte-y8wbtj:hover {
+  background: var(--vscode-list-hoverBackground) !important;
+  color: var(--vscode-list-hoverForeground) !important;
+}
+.dropdown-option.selected.svelte-y8wbtj {
+  background: var(--vscode-list-activeSelectionBackground) !important;
+  color: var(--vscode-list-activeSelectionForeground) !important;
+}
+.dropdown-option.svelte-y8wbtj:focus {
+  outline: none;
+  background: var(--vscode-list-focusBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-list-focusForeground, var(--vscode-list-hoverForeground));
+}
+
+/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/WorkItemList.esbuild-svelte-fake-css */
 .work-item-list.svelte-1uil3z2 {
   display: flex;
   flex-direction: column;
@@ -19,14 +101,66 @@
   font-size: 0.85rem;
   opacity: 0.8;
 }
+.empty-state.svelte-1uil3z2 .error-text:where(.svelte-1uil3z2) {
+  color: var(--vscode-errorForeground);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+.empty-state-actions.svelte-1uil3z2 {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.loading-indicator.svelte-1uil3z2 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  gap: 1rem;
+  color: var(--vscode-descriptionForeground);
+}
+.loading-spinner.svelte-1uil3z2 {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--vscode-panel-border);
+  border-top-color: var(--vscode-textLink-foreground);
+  border-radius: 50%;
+  animation: svelte-1uil3z2-spin 1s linear infinite;
+}
+.loading-spinner.small.svelte-1uil3z2 {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+.loading-banner.svelte-1uil3z2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--vscode-inputValidation-infoBackground, var(--vscode-editorWidget-background));
+  border: 1px solid var(--vscode-inputValidation-infoBorder, var(--vscode-panel-border));
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.85rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+@keyframes svelte-1uil3z2-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .filters-bar.svelte-1uil3z2 {
   display: flex;
   gap: 0.5rem;
   padding: 0.5rem 0;
   flex-wrap: wrap;
 }
-.filter-input.svelte-1uil3z2,
-.filter-select.svelte-1uil3z2 {
+.filter-input.svelte-1uil3z2 {
   padding: 0.4rem 0.6rem;
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
@@ -34,15 +168,15 @@
   border-radius: 3px;
   font-size: 0.85rem;
   font-family: var(--vscode-font-family);
-}
-.filter-input.svelte-1uil3z2 {
   flex: 1;
   min-width: 150px;
 }
-.filter-input.svelte-1uil3z2:focus,
-.filter-select.svelte-1uil3z2:focus {
+.filter-input.svelte-1uil3z2:focus {
   outline: none;
   border-color: var(--vscode-focusBorder);
+}
+.filters-bar.svelte-1uil3z2 .custom-dropdown {
+  min-width: 120px;
 }
 button.svelte-1uil3z2 {
   background: var(--vscode-button-background);
@@ -249,7 +383,7 @@ button.svelte-1uil3z2:hover {
   line-height: 1;
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/Settings.esbuild-svelte-fake-css */
+/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/Settings.esbuild-svelte-fake-css */
 .settings.svelte-1k6z38r {
   display: flex;
   flex-direction: column;
@@ -335,7 +469,7 @@ button.danger.svelte-1k6z38r:hover {
   border-top: 1px solid var(--vscode-panel-border);
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/StatusBar.esbuild-svelte-fake-css */
+/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/StatusBar.esbuild-svelte-fake-css */
 .status-bar.svelte-1764dnv {
   display: flex;
   gap: 1rem;
@@ -365,7 +499,7 @@ button.danger.svelte-1k6z38r:hover {
   border-radius: 3px;
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/KanbanBoard.esbuild-svelte-fake-css */
+/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/KanbanBoard.esbuild-svelte-fake-css */
 .kanban-board.svelte-j9p4i1 {
   display: flex;
   flex-direction: column;
@@ -407,13 +541,115 @@ h3.svelte-j9p4i1 {
 }
 .kanban-item.svelte-j9p4i1 {
   background: var(--vscode-list-inactiveSelectionBackground);
-  padding: 0.4rem 0.5rem;
-  border-radius: 3px;
+  border: 1px solid var(--vscode-panel-border);
+  padding: 0.6rem;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  transition: background 0.15s ease;
 }
 .kanban-item.svelte-j9p4i1:hover {
   background: var(--vscode-list-hoverBackground);
+  border-color: var(--vscode-focusBorder);
+}
+.kanban-item-header.svelte-j9p4i1 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+}
+.type-icon.svelte-j9p4i1 {
+  font-family: "codicon";
+  font-size: 0.9rem;
+  color: var(--vscode-icon-foreground);
+}
+.item-id.svelte-j9p4i1 {
+  font-weight: 600;
+  color: var(--vscode-textLink-foreground);
+}
+.priority.svelte-j9p4i1 {
+  margin-left: auto;
+  padding: 0.1rem 0.3rem;
+  border-radius: 2px;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+.priority.priority-1.svelte-j9p4i1 {
+  background: var(--vscode-inputValidation-errorBackground);
+  color: var(--vscode-inputValidation-errorForeground);
+}
+.priority.priority-2.svelte-j9p4i1 {
+  background: var(--vscode-inputValidation-warningBackground);
+  color: var(--vscode-inputValidation-warningForeground);
+}
+.priority.priority-3.svelte-j9p4i1,
+.priority.priority-4.svelte-j9p4i1 {
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+.kanban-item-title.svelte-j9p4i1 {
+  font-weight: 500;
+  color: var(--vscode-foreground);
+  line-height: 1.3;
+  word-wrap: break-word;
+}
+.kanban-item-meta.svelte-j9p4i1 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+}
+.meta-badge.svelte-j9p4i1 {
+  padding: 0.15rem 0.4rem;
+  border-radius: 2px;
+  font-size: 0.7rem;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+.meta-badge.type.svelte-j9p4i1 {
+  background: var(--vscode-textPreformat-background);
+  color: var(--vscode-textPreformat-foreground);
+}
+.meta-badge.assignee.svelte-j9p4i1 {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+}
+.meta-badge.timer-badge.svelte-j9p4i1 {
+  background: var(--vscode-progressBar-background);
+  color: var(--vscode-badge-foreground);
+}
+.kanban-item-actions.svelte-j9p4i1 {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
+}
+.action-btn.svelte-j9p4i1 {
+  background: transparent;
+  border: 1px solid var(--vscode-button-border, transparent);
+  color: var(--vscode-foreground);
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+.action-btn.svelte-j9p4i1:hover {
+  background: var(--vscode-button-hoverBackground, var(--vscode-list-hoverBackground));
+}
+.action-btn.svelte-j9p4i1 .codicon:where(.svelte-j9p4i1) {
+  font-family: "codicon";
+  font-size: 0.85rem;
+}
+.kanban-item-placeholder.svelte-j9p4i1 {
+  opacity: 0.5;
+  font-style: italic;
+  text-align: center;
 }
 .empty.svelte-j9p4i1 {
   text-align: center;
@@ -422,7 +658,7 @@ h3.svelte-j9p4i1 {
   color: var(--vscode-descriptionForeground);
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/ConnectionTabs.esbuild-svelte-fake-css */
+/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/ConnectionTabs.esbuild-svelte-fake-css */
 .tab-bar.svelte-2w6d2o {
   display: flex;
   gap: 0.25rem;
@@ -488,7 +724,59 @@ h3.svelte-j9p4i1 {
   display: none;
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/App.esbuild-svelte-fake-css */
+/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/AuthReminder.esbuild-svelte-fake-css */
+.auth-reminder-banner.svelte-cv3w9g {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  color: var(--vscode-foreground);
+}
+.auth-reminder-banner.error.svelte-cv3w9g {
+  background: var(--vscode-inputValidation-errorBackground);
+  border: 1px solid var(--vscode-inputValidation-errorBorder);
+  color: var(--vscode-errorForeground);
+}
+.auth-reminder-banner.warning.svelte-cv3w9g {
+  background: var(--vscode-inputValidation-warningBackground);
+  border: 1px solid var(--vscode-inputValidation-warningBorder);
+  color: var(--vscode-foreground);
+}
+.auth-icon.svelte-cv3w9g {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+.auth-message.svelte-cv3w9g {
+  flex: 1;
+  font-size: 0.9rem;
+}
+.auth-message.svelte-cv3w9g strong:where(.svelte-cv3w9g) {
+  font-family: monospace;
+  font-weight: 600;
+}
+.auth-action.svelte-cv3w9g {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.auth-action.svelte-cv3w9g:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+.auth-action.secondary.svelte-cv3w9g {
+  background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
+}
+.auth-action.secondary.svelte-cv3w9g:hover {
+  background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-hoverBackground));
+}
+
+/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/App.esbuild-svelte-fake-css */
 main.svelte-db2r4i {
   padding: 1rem;
   font-family: var(--vscode-font-family, sans-serif);
@@ -532,8 +820,7 @@ button.svelte-db2r4i:hover {
 .primary-row.svelte-db2r4i {
   margin-bottom: 0;
 }
-.left-group.svelte-db2r4i,
-.right-group.svelte-db2r4i {
+.left-group.svelte-db2r4i {
   display: flex;
   gap: 0.5rem;
   align-items: center;
@@ -564,33 +851,5 @@ button.svelte-db2r4i:hover {
   border: 1px solid var(--vscode-tab-activeBorder, var(--vscode-focusBorder));
   border-radius: 4px;
   color: var(--vscode-tab-activeForeground);
-}
-.device-code-session.svelte-db2r4i {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--vscode-editorWidget-background);
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  line-height: 1.2;
-}
-.device-code-session.svelte-db2r4i strong:where(.svelte-db2r4i) {
-  font-family: monospace;
-}
-button.secondary.svelte-db2r4i {
-  background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
-  color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
-}
-.query-select.svelte-db2r4i {
-  padding: 0.35rem 0.55rem;
-  font-size: 0.7rem;
-  background: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  border: 1px solid var(--vscode-input-border);
-  border-radius: 3px;
-}
-.query-select.svelte-db2r4i:focus {
-  outline: 1px solid var(--vscode-focusBorder);
 }
 /*# sourceMappingURL=main.css.map */

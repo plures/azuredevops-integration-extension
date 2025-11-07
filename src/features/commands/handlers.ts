@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import { createLogger } from '../../logging/unifiedLogger.js';
+
+const logger = createLogger('commands-handlers');
 import { FSMSetupService } from '../../fsm/services/fsmSetupService.js';
 import {
   getOutputChannel,
@@ -43,8 +46,29 @@ function _getExtensionVersion(_context: vscode.ExtensionContext): string {
   return _context.extension.packageJSON.version || 'dev';
 }
 
-function dispatchApplicationEvent(_event: any) {
-  // Implementation for dispatching application events
+// Import functions to dispatch FSM events
+import { sendApplicationStoreEvent, getApplicationStoreActor } from '../../fsm/services/extensionHostBridge.js';
+
+// Helper function to dispatch events - routes to FSM via bridge or actor directly
+function dispatchApplicationEvent(event: any) {
+  // Try bridge first (preferred - uses dispatcher if available)
+  const bridgeSent = sendApplicationStoreEvent(event);
+  
+  // Fallback: if bridge dispatcher isn't set, try to get actor directly
+  if (!bridgeSent) {
+    const actor = getApplicationStoreActor();
+    if (actor && typeof (actor as any).send === 'function') {
+      try {
+        (actor as any).send(event);
+      } catch (error) {
+        logger.error('Failed to send event to FSM actor', { meta: { event, error } });
+      }
+    } else {
+      logger.warn('Cannot send event: bridge not initialized and actor not available', {
+        meta: { eventType: event?.type },
+      });
+    }
+  }
 }
 
 // Setup Commands
@@ -87,7 +111,7 @@ export const openLogsCommand: CommandHandler = async (_ctx) => {
       }
     }
   } catch (err) {
-    console.error('[azureDevOpsInt.openLogs] Error:', err);
+    logger.error('openLogs error', { meta: err });
   }
 };
 
@@ -101,7 +125,7 @@ export const copyLogsToClipboardCommand: CommandHandler = async (_ctx) => {
     await vscode.env.clipboard.writeText(text);
     vscode.window.showInformationMessage('Copied extension logs to clipboard.');
   } catch (err) {
-    console.error('[azureDevOpsInt.copyLogsToClipboard] Error:', err);
+    logger.error('copyLogsToClipboard error', { meta: err });
   }
 };
 
@@ -210,11 +234,13 @@ export const showBuildStatusCommand: CommandHandler = (_ctx) => {
 
 // View Commands
 export const toggleKanbanViewCommand: CommandHandler = (_ctx) => {
-  dispatchApplicationEvent({ type: 'TOGGLE_KANBAN_VIEW' });
+  // Dispatch TOGGLE_VIEW event - the FSM will toggle between list and kanban
+  sendApplicationStoreEvent({ type: 'TOGGLE_VIEW' });
 };
 
 export const toggleDebugViewCommand: CommandHandler = (_ctx) => {
-  dispatchApplicationEvent({ type: 'TOGGLE_DEBUG_VIEW' });
+  // Dispatch TOGGLE_DEBUG_VIEW event - the FSM will toggle the debug view
+  sendApplicationStoreEvent({ type: 'TOGGLE_DEBUG_VIEW' });
 };
 
 // Team Commands

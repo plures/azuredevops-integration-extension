@@ -58,7 +58,8 @@ export function createScopedLogger(
   const write = (level: string, message: string, meta?: unknown) => {
     const metaText = formatLogMeta(meta);
     const suffix = metaText ? ` ${metaText}` : '';
-    const line = `${new Date().toISOString()} [${scope}] ${level} ${message}${suffix}`;
+    // CRITICAL: Always include [AzureDevOpsInt] prefix for log filtering
+    const line = `${new Date().toISOString()} [AzureDevOpsInt] [${scope}] ${level} ${message}${suffix}`;
     logLine(line);
   };
 

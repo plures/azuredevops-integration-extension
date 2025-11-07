@@ -1,5 +1,77 @@
 # Development Rules
 
+## Reactive Architecture Philosophy
+
+### Core Principles
+
+**Separation of Concerns**
+
+- **Svelte (Webview)**: Controls UI rendering, user interactions, and visual state
+- **FSM (Extension Host)**: Manages all application state, business logic, and side effects
+- **Svelte informs FSM**: Sends user actions and UI state changes (doesn't control FSM)
+- **FSM updates state**: Changes context/state (doesn't control UI)
+- **UI reacts automatically**: Svelte components react to state/context changes
+
+**Reactive Paradigm (Not Messaging)**
+
+- ✅ **State/context updates drive UI**: FSM context changes → UI reacts automatically
+- ✅ **Single `syncState` message**: All state updates via one message type
+- ❌ **No partial state messages**: Don't send `syncTimerState`, `workItemsError`, etc.
+- ❌ **No command messages**: Don't send `showError`, `updateButton`, etc.
+- ✅ **All UI state in FSM context**: If UI displays it, it's in context
+
+**Unidirectional Data Flow**
+
+```
+User Action → Svelte sends event → FSM processes → Context updates → syncState → UI reacts
+```
+
+### Implementation Rules
+
+**FSM Context Updates**
+
+- All UI-visible state must be in FSM context
+- Update context, not UI directly
+- Context changes trigger `syncState` automatically
+- No separate messages for partial updates
+
+**Svelte Component Patterns**
+
+- Read state reactively: `const data = $derived(context?.data)`
+- Send actions: `vscode.postMessage({ type: 'ACTION_NAME' })`
+- Local UI state: Control locally, notify FSM for persistence
+- React to context: UI updates automatically when context changes
+
+**Message Types**
+
+- ✅ Extension → Webview: `syncState` (full state sync)
+- ✅ Webview → Extension: User action events, UI state notifications
+- ❌ Extension → Webview: Partial updates, command messages
+- ❌ Webview → Extension: State updates (send actions instead)
+
+### Anti-Patterns to Avoid
+
+```typescript
+// ❌ DON'T: Send partial state updates
+panel.webview.postMessage({ type: 'workItemsError', error: '...' });
+panel.webview.postMessage({ type: 'syncTimerState', payload: {...} });
+
+// ✅ DO: Update FSM context, syncState handles it
+assign({ workItemsError: '...', timerState: {...} });
+// State subscription automatically sends syncState
+
+// ❌ DON'T: UI controls its own state
+function handleRefresh() {
+  workItems = fetchWorkItems(); // UI managing state
+}
+
+// ✅ DO: UI sends action, FSM updates state
+function handleRefresh() {
+  vscode.postMessage({ type: 'REFRESH_DATA' });
+  // FSM updates context → syncState → UI reacts
+}
+```
+
 ## Code Quality Standards
 
 ### TypeScript Rules

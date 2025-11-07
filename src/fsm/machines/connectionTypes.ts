@@ -63,4 +63,5 @@ export type ConnectionEvent =
   | { type: 'RETRY' }
   | { type: 'RESET' }
   | { type: 'REFRESH_AUTH' }
-  | { type: 'TOKEN_EXPIRED' };
+  | { type: 'TOKEN_EXPIRED' }
+  | { type: 'NOTIFICATION_RESULT'; selection: string };

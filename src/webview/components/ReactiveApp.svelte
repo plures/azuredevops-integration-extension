@@ -28,7 +28,7 @@
     <div class="error-container">
       <h2>An Error Occurred</h2>
       <p>{$state.context.error?.message ?? 'Unknown error'}</p>
-      <button on:click={() => send({ type: 'RETRY' })}>Retry</button>
+      <button onclick={() => send({ type: 'RETRY' })}>Retry</button>
     </div>
   {/if}
 </main>

@@ -1,5 +1,8 @@
 import { AzureHttpClient } from './http-client.js';
 import { WorkItemsService } from './work-items-service.js';
+import { createLogger } from '../../logging/unifiedLogger.js';
+
+const logger = createLogger('azure-client');
 import type {
   ClientOptions,
   WorkItem,
@@ -79,7 +82,7 @@ export class AzureDevOpsIntClient {
         return this.cachedIdentity;
       }
     } catch (error) {
-      console.error('[AzureDevOpsIntClient] Error getting authenticated identity:', error);
+      logger.error('Error getting authenticated identity', { meta: error });
     }
 
     return null;
@@ -114,7 +117,7 @@ export class AzureDevOpsIntClient {
         return repos;
       }
     } catch (error) {
-      console.error('[AzureDevOpsIntClient] Error fetching repositories:', error);
+      logger.error('Error fetching repositories', { meta: error });
     }
 
     return [];
@@ -146,7 +149,7 @@ export class AzureDevOpsIntClient {
         }));
       }
     } catch (error) {
-      console.error('[AzureDevOpsIntClient] Error fetching pull requests:', error);
+      logger.error('Error fetching pull requests', { meta: error });
     }
 
     return [];
@@ -178,7 +181,7 @@ export class AzureDevOpsIntClient {
         }));
       }
     } catch (error) {
-      console.error('[AzureDevOpsIntClient] Error fetching builds:', error);
+      logger.error('Error fetching builds', { meta: error });
     }
 
     return [];

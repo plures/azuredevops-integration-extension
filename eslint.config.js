@@ -23,7 +23,13 @@ export default [
         { varsIgnorePattern: '^_', argsIgnorePattern: '^_', ignoreRestSiblings: true },
       ],
       'no-undef': 'off',
-      'no-console': 'off',
+      // Enforce use of unified logger instead of console.log/error/warn
+      'no-console': [
+        'error',
+        {
+          allow: ['debug'], // Allow console.debug for webview debugging
+        },
+      ],
 
       // Intelligent Statistical Architecture Rules
       'max-lines-per-function': ['error', { max: 100, skipBlankLines: true, skipComments: true }],
@@ -37,7 +43,7 @@ export default [
       complexity: ['warn', { max: 10 }],
 
       // Purity and Side Effect Rules
-      'no-console': 'off', // Allow console in development
+      // Note: no-console is enforced above to require use of unified logger
       'no-var': 'error',
       'prefer-arrow-callback': 'warn',
     },
@@ -107,6 +113,13 @@ export default [
     },
   },
 
+  {
+    // Files that intentionally override console methods
+    files: ['src/fsm/commands/debugConsoleBridge.ts', 'src/logging.ts', 'src/logging/unifiedLogger.ts'],
+    rules: {
+      'no-console': 'off', // These files intentionally override console methods
+    },
+  },
   {
     // Ignore legacy JS transpiled/duplicate sources and temporary files
     ignores: [

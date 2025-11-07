@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import { createLogger } from '../../logging/unifiedLogger.js';
+
+const logger = createLogger('commands-registration');
 import type { CommandContext, CommandRegistration } from './types.js';
 import {
   setupCommand,
@@ -85,12 +88,12 @@ export function registerCommands(
         const result = registration.handler(commandContext, ...args);
         if (result instanceof Promise) {
           result.catch((error) => {
-            console.error(`Error in command ${registration.command}:`, error);
+            logger.error(`Error in command ${registration.command}`, { meta: error });
             vscode.window.showErrorMessage(`Command failed: ${error.message}`);
           });
         }
       } catch (error) {
-        console.error(`Error in command ${registration.command}:`, error);
+        logger.error(`Error in command ${registration.command}`, { meta: error });
         vscode.window.showErrorMessage(`Command failed: ${error.message}`);
       }
     });
@@ -105,7 +108,7 @@ export function safeCommandHandler(handler: (...args: any[]) => Promise<void> | 
     try {
       await handler(...args);
     } catch (error) {
-      console.error('Command handler error:', error);
+      logger.error('Command handler error', { meta: error });
       vscode.window.showErrorMessage(`Command failed: ${error.message}`);
     }
   };

@@ -191,13 +191,7 @@ export class WorkItemsProvider {
       // Show error to user in webview
       this._error(errorMessage);
 
-      // Also log to console for Developer Tools
-      console.error('[AzureDevOpsInt] [WorkItemsProvider] Refresh failed:', {
-        connectionId: this.connectionId,
-        query: normalizedQuery,
-        error: errorMessage,
-        fullError: err,
-      });
+      // Error is logged via unified logger through error callback
     } finally {
       this._refreshInFlight = false;
       this._lastRefreshTs = Date.now();

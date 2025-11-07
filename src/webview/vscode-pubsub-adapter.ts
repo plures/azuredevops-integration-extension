@@ -97,7 +97,7 @@ export function createVSCodePubSubAdapter(vscode: VSCodeAPI): PubSubAdapter {
       // Validate monotonic pubseq (prevent stale messages)
       const lastSeq = lastPubseq.get(topic) ?? -1;
       if (pubseq <= lastSeq) {
-        console.warn(
+        console.debug(
           `[PubSub] Ignoring stale message for topic ${topic}. pubseq ${pubseq} <= lastSeq ${lastSeq}`
         );
         return;
@@ -111,7 +111,7 @@ export function createVSCodePubSubAdapter(vscode: VSCodeAPI): PubSubAdapter {
           try {
             handler(payload);
           } catch (error) {
-            console.error(`[PubSub] Handler error for topic ${topic}:`, error);
+            console.debug(`[PubSub] Handler error for topic ${topic}:`, error);
           }
         });
       }

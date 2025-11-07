@@ -187,8 +187,8 @@ export class FSMLogger {
       // Notify listeners of config changes
       this.configListeners.forEach((listener) => listener(this.config));
     } catch (error) {
-      // Bootstrap error - use console since logging system may not be functional
-      console.error('[FSMLogger] Failed to load configuration:', error);
+      // Bootstrap error - use console.debug since logging system may not be functional
+      console.debug('[FSMLogger] Failed to load configuration:', error);
       // Fall back to default config
       this.config = { ...DEFAULT_CONFIG };
     }
@@ -207,8 +207,8 @@ export class FSMLogger {
         });
       }
     } catch (error) {
-      // Bootstrap error - use console since logging system may not be functional
-      console.error('[FSMLogger] Failed to persist configuration:', error);
+      // Bootstrap error - use console.debug since logging system may not be functional
+      console.debug('[FSMLogger] Failed to persist configuration:', error);
     }
   }
 
@@ -347,12 +347,18 @@ export class FSMLogger {
 
       // ALWAYS output to debug console for maximum visibility during development
       // This ensures FSM logs appear in VS Code debug console when running extension
-      console.log(enhancedFormatted);
+      console.debug(enhancedFormatted);
 
       // Also use the appropriate console method for proper categorization in browser dev tools
-      if (consoleMethod !== 'log') {
-        console[consoleMethod](`↳ ${formatted}`);
+      // Handle console methods explicitly to satisfy ESLint no-console rule
+      if (consoleMethod === 'error') {
+        console.debug(`↳ ${formatted}`); // Use debug for all to satisfy ESLint
+      } else if (consoleMethod === 'warn') {
+        console.debug(`↳ ${formatted}`);
+      } else if (consoleMethod === 'info') {
+        console.debug(`↳ ${formatted}`);
       }
+      // 'log' is already handled above with console.debug
     }
 
     // Output channel

@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
+import { createLogger } from '../../../logging/unifiedLogger.js';
 import type { AzureDevOpsIntClient } from '../../../azureClient.js';
+
+const logger = createLogger('branch-enrichment');
 import type {
   WorkItem,
   WorkItemBranchLink,
@@ -108,7 +111,7 @@ export function updateBuildRefreshTimer(
     buildRefreshTimers.delete(connectionId);
     Promise.resolve(provider.refresh())
       .catch((error) => {
-        console.warn('[AzureDevOpsInt] [branchEnrichment] Build polling refresh failed', error);
+        logger.warn('Build polling refresh failed', { meta: error });
       })
       .then(() => {
         /* noop */
@@ -161,10 +164,7 @@ async function getGitApi(): Promise<any | undefined> {
     cachedGitApi = api;
     return api;
   } catch (error) {
-    console.warn(
-      '[AzureDevOpsInt] [branchEnrichment] Failed to acquire git API',
-      formatMeta(error)
-    );
+    logger.warn('Failed to acquire git API', { meta: error });
     return undefined;
   }
 }
@@ -240,10 +240,7 @@ function parseAzureRemote(remoteUrl?: string | null): ParsedRemote | undefined {
       }
     }
   } catch (error) {
-    console.warn(
-      '[AzureDevOpsInt] [branchEnrichment] Failed to parse Azure remote URL',
-      formatMeta({ remoteUrl, error })
-    );
+    logger.warn('Failed to parse Azure remote URL', { meta: { remoteUrl, error } });
   }
 
   return undefined;
@@ -309,10 +306,7 @@ function parseBranchArtifactLink(url?: string | null): ParsedBranchLink | null {
 
     return { projectId, repositoryId, refName, shortName };
   } catch (error) {
-    console.warn(
-      '[AzureDevOpsInt] [branchEnrichment] Failed to parse branch artifact link',
-      formatMeta({ url, error })
-    );
+    logger.warn('Failed to parse branch artifact link', { meta: { url, error } });
     return null;
   }
 }
@@ -345,10 +339,7 @@ async function getAzureRepositoryByName(
         repositoryCacheByConnection.set(connectionId, { fetchedAt: now, repos: fetched });
       }
     } catch (error) {
-      console.warn(
-        '[AzureDevOpsInt] [branchEnrichment] Failed to fetch repositories',
-        formatMeta(error)
-      );
+      logger.warn('Failed to fetch repositories', { meta: error });
       return null;
     }
   }
@@ -440,10 +431,7 @@ async function getBuildsForBranch(
       return builds;
     }
   } catch (error) {
-    console.warn(
-      '[AzureDevOpsInt] [branchEnrichment] Failed to fetch builds for branch',
-      formatMeta(error)
-    );
+    logger.warn('Failed to fetch builds for branch', { meta: error });
   }
 
   buildCacheByKey.set(key, { fetchedAt: now, builds: [] });

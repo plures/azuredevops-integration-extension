@@ -70,6 +70,14 @@ export class ConnectionAdapter {
         return undefined;
       }
 
+      this.logger.info('Found connection config', {
+        id: connection.id,
+        authMethod: connection.authMethod,
+        organization: connection.organization,
+        project: connection.project,
+        interactive: options.interactive,
+      });
+
       // Use Connection FSM to establish connection
       const result = await this.fsmManager.connectToConnection(connection, options);
 

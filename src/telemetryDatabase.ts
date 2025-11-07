@@ -1,5 +1,8 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { createLogger } from './logging/unifiedLogger.js';
+
+const logger = createLogger('telemetryDatabase');
 
 type TelemetryDatabaseOptions = {
   storageFile?: vscode.Uri;
@@ -100,10 +103,7 @@ export class TelemetryDatabase {
       this.db = this.sqlJs ? new this.sqlJs.Database(bytes ?? undefined) : undefined;
       this.createTables();
     } catch (error) {
-      console.warn(
-        '[TelemetryDatabase] Failed to initialize SQLite, disabling database features:',
-        error
-      );
+      logger.warn('Failed to initialize SQLite, disabling database features', { meta: error });
       // Gracefully degrade - we'll rely on sessionTelemetry's workspaceState fallback
       this.db = undefined;
       this.sqlJs = undefined;
@@ -156,7 +156,7 @@ export class TelemetryDatabase {
       ) {
         return undefined;
       }
-      console.warn('[telemetryDatabase] Failed to read existing database', error);
+      logger.warn('Failed to read existing database', { meta: error });
       return undefined;
     }
   }

@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import { parseAzureDevOpsUrl } from '../../../azureDevOpsUrlParser.js';
 import type { ProjectConnection } from '../../machines/applicationMachine.js';
 import { AzureDevOpsIntClient } from '../../../azureClient.js';
+import { runEnhancedSetupWizard } from './enhanced-setup-wizard.js';
+import { sendApplicationStoreEvent } from '../../services/extensionHostBridge.js';
 
 async function testPATConnection(
   organization: string,
@@ -26,6 +28,10 @@ async function testPATConnection(
   }
 }
 
+/**
+ * Enhanced connection setup using intelligent auto-detection
+ * Supports both Online and OnPremises with minimal user input
+ */
 export async function addOrEditConnection(
   context: vscode.ExtensionContext,
   connections: ProjectConnection[],
@@ -33,16 +39,19 @@ export async function addOrEditConnection(
   ensureActiveFn: (
     context: vscode.ExtensionContext,
     connectionId?: string,
-    options?: { refresh?: boolean }
+    options?: { refresh?: boolean; interactive?: boolean }
   ) => Promise<any>,
   connectionToEdit?: ProjectConnection
 ): Promise<void> {
   const isEditing = !!connectionToEdit;
   const urlValue =
     connectionToEdit && connectionToEdit.organization && connectionToEdit.project
-      ? `https://dev.azure.com/${connectionToEdit.organization}/${connectionToEdit.project}`
+      ? connectionToEdit.baseUrl
+        ? `${connectionToEdit.baseUrl}/${connectionToEdit.organization}/${connectionToEdit.project}/_workitems/edit/1`
+        : `https://dev.azure.com/${connectionToEdit.organization}/${connectionToEdit.project}/_workitems/edit/1`
       : '';
 
+  // Step 1: Get work item URL
   const url = await vscode.window.showInputBox({
     prompt: isEditing
       ? `Editing connection: ${connectionToEdit.label || connectionToEdit.id}`
@@ -53,52 +62,67 @@ export async function addOrEditConnection(
 
   if (!url) return;
 
+  // Step 2: Parse URL
   const parsed = parseAzureDevOpsUrl(url);
-  if (!parsed) {
-    vscode.window.showErrorMessage('Invalid Azure DevOps URL');
+  if (!parsed.isValid) {
+    vscode.window.showErrorMessage(
+      `Invalid Azure DevOps URL: ${parsed.error || 'Unable to parse URL'}`
+    );
     return;
   }
 
-  const { organization, project, baseUrl } = parsed;
+  // Step 3: Run enhanced setup wizard
+  const setupResult = await runEnhancedSetupWizard({
+    parsedUrl: parsed,
+    connectionToEdit,
+  });
 
-  const authMethod = (await vscode.window.showQuickPick(
-    ['Personal Access Token (PAT)', 'Microsoft Entra ID'],
-    {
-      placeHolder: 'Choose authentication method',
-    }
-  )) as 'Personal Access Token (PAT)' | 'Microsoft Entra ID' | undefined;
+  if (!setupResult) return; // User cancelled
 
-  if (!authMethod) return;
+  // Step 4: Validate connection if PAT (Entra ID validation happens later)
+  if (setupResult.authMethod === 'pat' && setupResult.pat) {
+    const testResult = await testPATConnection(
+      setupResult.connection.organization!,
+      setupResult.connection.project!,
+      setupResult.pat,
+      setupResult.connection.baseUrl
+    );
 
-  const newOrUpdatedConnection: ProjectConnection = {
-    id: connectionToEdit?.id || randomUUID(),
-    organization,
-    project,
-    baseUrl,
-    authMethod: authMethod === 'Personal Access Token (PAT)' ? 'pat' : 'entra',
-    label: `${organization}/${project}`,
-  };
-
-  if (newOrUpdatedConnection.authMethod === 'pat') {
-    const pat = await vscode.window.showInputBox({
-      prompt: 'Enter your Personal Access Token',
-      password: true,
-    });
-    if (!pat) return;
-
-    const testResult = await testPATConnection(organization, project, pat, baseUrl);
     if (!testResult.success) {
-      vscode.window.showErrorMessage(`Connection test failed: ${testResult.message}`);
+      vscode.window.showErrorMessage(
+        `Connection test failed: ${testResult.message}\n\nPlease verify your PAT and try again.`
+      );
       return;
     }
-
-    const patKey = `azureDevOpsInt.pat:${newOrUpdatedConnection.id}`;
-    newOrUpdatedConnection.patKey = patKey; // CRITICAL: Add patKey to connection object
-    await context.secrets.store(patKey, pat);
   }
 
+  // Step 5: Create connection object
+  const connectionId = connectionToEdit?.id || randomUUID();
+  const newOrUpdatedConnection: ProjectConnection = {
+    id: connectionId,
+    organization: setupResult.connection.organization!,
+    project: setupResult.connection.project!,
+    baseUrl: setupResult.connection.baseUrl!,
+    apiBaseUrl: setupResult.connection.apiBaseUrl || setupResult.connection.baseUrl!,
+    authMethod: setupResult.authMethod,
+    label:
+      setupResult.connection.label ||
+      `${setupResult.connection.organization}/${setupResult.connection.project}`,
+    team: setupResult.connection.team,
+    tenantId: setupResult.connection.tenantId,
+    identityName: setupResult.identityName || setupResult.connection.identityName,
+  };
+
+  // Step 6: Store credentials
+  if (setupResult.authMethod === 'pat' && setupResult.pat) {
+    const patKey = `azureDevOpsInt.pat:${connectionId}`;
+    newOrUpdatedConnection.patKey = patKey;
+    await context.secrets.store(patKey, setupResult.pat);
+  }
+
+  // Step 7: Save connection
   const newConnections = [...connections];
-  const existingIndex = newConnections.findIndex((c) => c.id === newOrUpdatedConnection.id);
+  const existingIndex = newConnections.findIndex((c) => c.id === connectionId);
 
   if (existingIndex > -1) {
     newConnections[existingIndex] = newOrUpdatedConnection;
@@ -107,9 +131,25 @@ export async function addOrEditConnection(
   }
 
   await saveFn(newConnections);
-  await ensureActiveFn(context, newOrUpdatedConnection.id, { refresh: true });
 
-  vscode.window.showInformationMessage(
-    `Connection ${isEditing ? 'updated' : 'added'} successfully.`
-  );
+  // Step 8: Set as active and ensure connection
+  await ensureActiveFn(context, connectionId, { refresh: true });
+
+  // Step 9: Trigger Entra ID auth if needed
+  if (setupResult.authMethod === 'entra') {
+    // Save connection first, then trigger authentication
+    sendApplicationStoreEvent({
+      type: 'SIGN_IN_ENTRA',
+      connectionId: connectionId,
+      forceInteractive: true,
+    });
+
+    vscode.window.showInformationMessage(
+      `Connection ${isEditing ? 'updated' : 'added'} successfully. Starting Microsoft Entra ID authentication...`
+    );
+  } else {
+    vscode.window.showInformationMessage(
+      `Connection ${isEditing ? 'updated' : 'added'} successfully.`
+    );
+  }
 }

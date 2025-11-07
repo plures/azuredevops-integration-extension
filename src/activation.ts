@@ -48,6 +48,7 @@ import {
   setForwardProviderMessage as _setForwardProviderMessage,
   setGetSecretPAT,
   setLoadedConnectionsReader,
+  getLoadedConnections,
   setRegisterAllCommands as _setRegisterAllCommands,
   setWebviewMessageHandler as _setWebviewMessageHandler,
 } from './fsm/services/extensionHostBridge.js';
@@ -487,7 +488,7 @@ async function showEditDialog(item: any, client: any, provider: any): Promise<vo
       vscode.window.showErrorMessage(`Failed to update ${field.label} for work item #${item.id}`);
     }
   } catch (error) {
-    console.error('Error updating work item:', error);
+    activationLogger.error('Error updating work item', { meta: error });
     vscode.window.showErrorMessage(
       `Error updating work item: ${error instanceof Error ? error.message : String(error)}`
     );
@@ -505,7 +506,7 @@ function dispatchApplicationEvent(event: unknown): void {
         try {
           handleMessage({ type: 'startTimer', workItemId: evt.workItemId });
         } catch (error) {
-          console.error('Error starting timer:', error);
+          activationLogger.error('Error starting timer', { meta: error });
           vscode.window.showErrorMessage(
             `Failed to start timer: ${error instanceof Error ? error.message : String(error)}`
           );
@@ -576,7 +577,7 @@ function dispatchApplicationEvent(event: unknown): void {
                   `Timer stopped. Logged ${hours} hours to work item #${timerState.workItemId}`
                 );
               } catch (error) {
-                console.error('Error adding time entry:', error);
+                activationLogger.error('Error adding time entry', { meta: error });
                 vscode.window.showErrorMessage(
                   `Timer stopped but failed to log time: ${error instanceof Error ? error.message : String(error)}`
                 );
@@ -593,7 +594,7 @@ function dispatchApplicationEvent(event: unknown): void {
               );
             }
           } catch (error) {
-            console.error('Error stopping timer:', error);
+            activationLogger.error('Error stopping timer', { meta: error });
             vscode.window.showErrorMessage(
               `Failed to stop timer: ${error instanceof Error ? error.message : String(error)}`
             );
@@ -615,7 +616,7 @@ function dispatchApplicationEvent(event: unknown): void {
             vscode.window.showErrorMessage('Unable to edit work item: missing client or provider');
           }
         } catch (error) {
-          console.error('Error editing work item:', error);
+          activationLogger.error('Error editing work item', { meta: error });
           vscode.window.showErrorMessage(
             `Failed to edit work item: ${error instanceof Error ? error.message : String(error)}`
           );
@@ -668,7 +669,7 @@ function dispatchApplicationEvent(event: unknown): void {
                       vscode.window.showInformationMessage(`Branch "${name}" created`);
                     }
                   } catch (error) {
-                    console.error('Error creating branch:', error);
+                    activationLogger.error('Error creating branch', { meta: error });
                     vscode.window.showErrorMessage(
                       `Failed to create branch: ${error instanceof Error ? error.message : String(error)}`
                     );
@@ -681,7 +682,7 @@ function dispatchApplicationEvent(event: unknown): void {
               vscode.window.showErrorMessage('No work item ID provided for branch creation');
             }
           } catch (error) {
-            console.error('Error in branch creation:', error);
+            activationLogger.error('Error in branch creation', { meta: error });
             vscode.window.showErrorMessage(
               `Failed to create branch: ${error instanceof Error ? error.message : String(error)}`
             );
@@ -735,7 +736,7 @@ function safeCommandHandler<Args extends unknown[], Result>(
 ): (...args: Args) => void {
   return (...args: Args) => {
     if (isDeactivating) {
-      console.log('[AzureDevOpsInt] [Command] Ignoring command execution during deactivation');
+      verbose('[Command] Ignoring command execution during deactivation');
       return;
     }
 
@@ -747,13 +748,13 @@ function safeCommandHandler<Args extends unknown[], Result>(
       if (maybeThenable?.catch) {
         maybeThenable.catch((error) => {
           if (!isDeactivating) {
-            console.error('[AzureDevOpsInt] [Command] Unhandled command error:', error);
+            activationLogger.error('[Command] Unhandled command error', { meta: error });
           }
         });
       }
     } catch (error) {
       if (!isDeactivating) {
-        console.error('[AzureDevOpsInt] [Command] Synchronous command error:', error);
+        activationLogger.error('[Command] Synchronous command error', { meta: error });
       }
     }
   };
@@ -881,7 +882,10 @@ function describeConnection(connection: ProjectConnection): string {
   return connection.id;
 }
 
-async function updateAuthStatusBar(): Promise<void> {
+// Global reference for reactive status bar updates
+let updateAuthStatusBarRef: (() => Promise<void>) | null = null;
+
+export async function updateAuthStatusBar(): Promise<void> {
   if (!authStatusBarItem) return;
 
   if (!activeConnectionId) {
@@ -890,14 +894,43 @@ async function updateAuthStatusBar(): Promise<void> {
     return;
   }
 
+  // Try to get state from connectionStates first, but also check FSM if not available
   const state = connectionStates.get(activeConnectionId);
-  if (!state) {
-    authStatusBarItem.hide();
-    return;
-  }
+  let authMethod: 'pat' | 'entra';
+  let connectionConfig: ProjectConnection | undefined;
 
-  // Show status bar for BOTH PAT and Entra connections
-  const authMethod = state.authMethod || state.config?.authMethod || 'pat';
+  // If state not in connectionStates, try to get from FSM context
+  if (!state) {
+    try {
+      const actor = getApplicationActor();
+      const snapshot = actor?.getSnapshot?.();
+      const fsmConnectionStates = snapshot?.context?.connectionStates;
+      const fsmConnectionState = fsmConnectionStates?.get(activeConnectionId);
+
+      // Try to get connection config from FSM context or connections list
+      const connections = snapshot?.context?.connections || [];
+      connectionConfig = connections.find((c: ProjectConnection) => c.id === activeConnectionId);
+
+      if (fsmConnectionState) {
+        authMethod =
+          fsmConnectionState.authMethod || fsmConnectionState.config?.authMethod || 'pat';
+      } else if (connectionConfig) {
+        authMethod = connectionConfig.authMethod || 'pat';
+      } else {
+        // No state found - hide status bar
+        authStatusBarItem.hide();
+        return;
+      }
+    } catch (error) {
+      // FSM might not be available yet - hide status bar
+      authStatusBarItem.hide();
+      return;
+    }
+  } else {
+    // State found in connectionStates - use it
+    authMethod = state.authMethod || state.config?.authMethod || 'pat';
+    connectionConfig = state.config;
+  }
 
   authStatusBarItem.command = {
     title: 'Sign in with Microsoft Entra',
@@ -906,7 +939,27 @@ async function updateAuthStatusBar(): Promise<void> {
   };
 
   try {
-    const connectionLabel = describeConnection(state.config);
+    // Use connectionConfig (from state or FSM) for connection label
+    if (!connectionConfig) {
+      // Fallback: try to get from connections list
+      try {
+        const actor = getApplicationActor();
+        const snapshot = actor?.getSnapshot?.();
+        const connections = snapshot?.context?.connections || [];
+        connectionConfig = connections.find((c: ProjectConnection) => c.id === activeConnectionId);
+      } catch {
+        // If we can't get config, hide status bar
+        authStatusBarItem.hide();
+        return;
+      }
+    }
+
+    if (!connectionConfig) {
+      authStatusBarItem.hide();
+      return;
+    }
+
+    const connectionLabel = describeConnection(connectionConfig);
 
     // Get FSM connection state to determine actual auth status
     const actor = getApplicationActor();
@@ -914,19 +967,39 @@ async function updateAuthStatusBar(): Promise<void> {
     const fsmConnectionStates = snapshot?.context?.connectionStates;
     const fsmConnectionState = fsmConnectionStates?.get(activeConnectionId);
 
+    // Get the actual connection machine state (e.g., 'connected', 'auth_failed')
+    let connectionMachineState: string | null = null;
+    try {
+      const { getConnectionFSMManager } = await import('./fsm/ConnectionFSMManager.js');
+      const fsmManager = getConnectionFSMManager();
+      connectionMachineState = fsmManager.getConnectionState(activeConnectionId);
+    } catch (error) {
+      // FSM might not be available yet
+      console.debug('[AzureDevOpsInt] Could not get connection machine state:', error);
+    }
+
     // Check multiple indicators of connection status
-    const isConnected = Boolean(
+    // BUT: Only consider connected if the state machine is actually in 'connected' state
+    const actualStateConnected = connectionMachineState === 'connected';
+    const hasClientAndProvider = Boolean(
       fsmConnectionState?.client ||
         fsmConnectionState?.provider ||
-        (typeof fsmConnectionState?.isConnected === 'boolean' && fsmConnectionState.isConnected) ||
-        // Also check legacy connectionStates map for connected clients/providers
-        (state.client && state.provider)
+        (state?.client && state?.provider)
     );
+    const isConnected = actualStateConnected && hasClientAndProvider;
 
+    // Check for auth failure: state machine in auth_failed OR has lastError
+    const stateMachineAuthFailed =
+      connectionMachineState === 'auth_failed' ||
+      connectionMachineState === 'client_failed' ||
+      connectionMachineState === 'provider_failed' ||
+      connectionMachineState === 'connection_error';
     const hasAuthFailure = Boolean(
-      fsmConnectionState?.reauthInProgress ||
+      stateMachineAuthFailed ||
+        fsmConnectionState?.reauthInProgress ||
         fsmConnectionState?.lastError ||
-        state.reauthInProgress
+        state?.reauthInProgress ||
+        state?.lastError
     );
 
     // Check if there's an active device code session for this connection
@@ -935,23 +1008,53 @@ async function updateAuthStatusBar(): Promise<void> {
         snapshot?.context?.deviceCodeSession?.expiresAt > Date.now()
     );
 
+    // Check if connection is in interactive_auth state (device code flow in progress)
+    const isInteractiveAuth =
+      connectionMachineState === 'interactive_auth' ||
+      connectionMachineState === 'checking_token' ||
+      connectionMachineState === 'authenticating';
+
     // Only log status check if debug logging is enabled to prevent excessive logging
     if (shouldLogDebug()) {
-      console.log('[AzureDevOpsInt][updateAuthStatusBar] Status check', {
+      verbose('[updateAuthStatusBar] Status check', {
         activeConnectionId,
+        connectionMachineState,
+        actualStateConnected,
         isConnected,
         hasAuthFailure,
+        stateMachineAuthFailed,
         hasActiveDeviceCode,
-        hasClient: !!state.client,
-        hasProvider: !!state.provider,
+        hasClient: !!(state?.client || fsmConnectionState?.client),
+        hasProvider: !!(state?.provider || fsmConnectionState?.provider),
         fsmIsConnected: fsmConnectionState?.isConnected,
         fsmClient: !!fsmConnectionState?.client,
         fsmProvider: !!fsmConnectionState?.provider,
       });
     }
 
-    if (isConnected && !hasAuthFailure && !hasActiveDeviceCode) {
-      // Show successful auth status
+    // PRIORITY: Check auth failure FIRST - even if client/provider exist, auth failure takes precedence
+    if (hasAuthFailure) {
+      // Show auth failure status
+      const authLabel = authMethod === 'entra' ? 'Entra' : 'PAT';
+      // Get error message from FSM connection state or legacy state
+      const errorMessage =
+        fsmConnectionState?.lastError ||
+        state?.lastError ||
+        (connectionMachineState === 'auth_failed' ? 'Authentication failed' : 'Connection error');
+      authStatusBarItem.text = `$(error) ${authLabel}: Auth Failed`;
+      authStatusBarItem.tooltip = `${errorMessage}\n\nConnection: ${connectionLabel}\nClick to manage connections.`;
+      authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+      authStatusBarItem.command = 'azureDevOpsInt.setup';
+      authStatusBarItem.show();
+    } else if (hasActiveDeviceCode || (isInteractiveAuth && authMethod === 'entra')) {
+      // Show device code flow in progress (Entra only)
+      authStatusBarItem.text = '$(sync~spin) Entra: Device Code Active';
+      authStatusBarItem.tooltip = `Device code authentication in progress for ${connectionLabel}`;
+      authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+      authStatusBarItem.command = 'azureDevOpsInt.signInWithEntra';
+      authStatusBarItem.show();
+    } else if (isConnected && !hasActiveDeviceCode) {
+      // Show successful auth status (only if no auth failure)
       if (authMethod === 'entra') {
         authStatusBarItem.text = '$(pass) Entra: Connected';
         authStatusBarItem.tooltip = `Microsoft Entra ID authentication active for ${connectionLabel}`;
@@ -962,21 +1065,6 @@ async function updateAuthStatusBar(): Promise<void> {
         authStatusBarItem.command = 'azureDevOpsInt.setup'; // Allow managing connections
       }
       authStatusBarItem.backgroundColor = undefined; // Clear warning background
-      authStatusBarItem.show();
-    } else if (hasAuthFailure) {
-      // Show auth failure status
-      const authLabel = authMethod === 'entra' ? 'Entra' : 'PAT';
-      authStatusBarItem.text = `$(error) ${authLabel}: Auth Failed`;
-      authStatusBarItem.tooltip = `Authentication failed for ${connectionLabel}. Click to manage connections.`;
-      authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
-      authStatusBarItem.command = 'azureDevOpsInt.setup';
-      authStatusBarItem.show();
-    } else if (hasActiveDeviceCode) {
-      // Show device code flow in progress (Entra only)
-      authStatusBarItem.text = '$(sync~spin) Entra: Device Code Active';
-      authStatusBarItem.tooltip = `Device code authentication in progress for ${connectionLabel}`;
-      authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-      authStatusBarItem.command = 'azureDevOpsInt.signInWithEntra';
       authStatusBarItem.show();
     } else {
       // Show sign-in/auth required status
@@ -993,7 +1081,7 @@ async function updateAuthStatusBar(): Promise<void> {
       authStatusBarItem.show();
     }
   } catch (error) {
-    console.error('[AzureDevOpsInt] [updateAuthStatusBar] Error updating auth status:', error);
+    activationLogger.error('[updateAuthStatusBar] Error updating auth status', { meta: error });
     authStatusBarItem.hide();
   }
 }
@@ -1076,19 +1164,17 @@ function triggerAuthReminderSignIn(
         await vscode.commands.executeCommand('azureDevOpsInt.signInWithEntra', connectionId);
       }
     } catch (error) {
-      console.error(
-        '[AzureDevOpsInt] [triggerAuthReminderSignIn] Interactive Entra sign-in failed',
-        error
-      );
+      activationLogger.error('[triggerAuthReminderSignIn] Interactive Entra sign-in failed', {
+        meta: error,
+      });
       ensureAuthReminder(connectionId, reason, detail ? { detail } : {});
     } finally {
       state.reauthInProgress = false;
     }
   })().catch((error) => {
-    console.error(
-      '[AzureDevOpsInt] [triggerAuthReminderSignIn] Unexpected Entra sign-in error',
-      error
-    );
+    activationLogger.error('[triggerAuthReminderSignIn] Unexpected Entra sign-in error', {
+      meta: error,
+    });
     state.reauthInProgress = false;
     ensureAuthReminder(connectionId, reason, detail ? { detail } : {});
   });
@@ -1257,12 +1343,15 @@ async function resolveActiveConnectionTarget(
 ): Promise<{ connection: ProjectConnection; connectionId: string } | undefined> {
   await ensureConnectionsInitialized(context);
 
-  const targetId = connectionId ?? activeConnectionId ?? connections[0]?.id;
+  // Use bridge reader to get connections - this ensures we get the latest state including temp connections
+  const availableConnections = (getLoadedConnections() as ProjectConnection[]) || connections;
+  const targetId = connectionId ?? activeConnectionId ?? availableConnections[0]?.id;
   verbose('[ensureActiveConnection] evaluating target', {
     requested: connectionId,
     activeConnectionId,
     resolved: targetId,
-    connectionCount: connections.length,
+    connectionCount: availableConnections.length,
+    usingBridgeReader: true,
   });
 
   if (!targetId) {
@@ -1283,9 +1372,9 @@ async function resolveActiveConnectionTarget(
     }
   }
 
-  const connection = connections.find((item) => item.id === targetId);
+  const connection = availableConnections.find((item) => item.id === targetId);
   if (!connection) {
-    console.warn('[azureDevOpsInt] Connection not found for id', targetId);
+    activationLogger.warn('Connection not found for id', { meta: { targetId } });
     return undefined;
   }
 
@@ -1415,7 +1504,7 @@ function getClientForConnectionInfo(info?: TimerConnectionInfo): AzureDevOpsIntC
   return client;
 }
 
-async function loadConnectionsFromConfig(
+export async function loadConnectionsFromConfig(
   context: vscode.ExtensionContext
 ): Promise<ProjectConnection[]> {
   const settings = getConfig();
@@ -1451,7 +1540,7 @@ async function loadConnectionsFromConfig(
       );
       verbose('[connections] Saved migrated connections', summary);
     } catch (error) {
-      console.warn('[AzureDevOpsInt] [connections] Failed to save migrated connections', error);
+      activationLogger.warn('[connections] Failed to save migrated connections', { meta: error });
     }
   }
 
@@ -1461,7 +1550,7 @@ async function loadConnectionsFromConfig(
     try {
       await migrateGlobalPATToConnections(context, connections);
     } catch (error) {
-      console.warn('[azureDevOpsInt] migrateGlobalPATToConnections failed', error);
+      activationLogger.warn('migrateGlobalPATToConnections failed', { meta: error });
     }
   }
 
@@ -1582,7 +1671,9 @@ const createDeviceCodeCallback =
       try {
         await vscode.env.clipboard.writeText(userCode);
       } catch (error) {
-        console.warn('[AzureDevOpsInt] [EntraAuth] Failed to copy device code to clipboard', error);
+        activationLogger.warn('[EntraAuth] Failed to copy device code to clipboard', {
+          meta: error,
+        });
       }
       await vscode.env.openExternal(vscode.Uri.parse(verificationUrl));
       vscode.window.showInformationMessage(
@@ -1640,10 +1731,7 @@ function ensureTimer(context: vscode.ExtensionContext) {
         .then(
           () => {},
           (error) => {
-            console.error(
-              '[AzureDevOpsInt] ❌ [TIMER] Failed to show Pomodoro break dialog:',
-              error
-            );
+            activationLogger.error('[TIMER] Failed to show Pomodoro break dialog', { meta: error });
           }
         );
     },
@@ -1662,8 +1750,8 @@ function ensureTimer(context: vscode.ExtensionContext) {
       updateTimerContext(s);
     },
     onInfo: (m: any) => verbose('[timer]', m),
-    onWarn: (m: any) => console.warn('[AzureDevOpsInt] [timer]', m),
-    onError: (m: any) => console.error('[AzureDevOpsInt] [timer]', m),
+    onWarn: (m: any) => activationLogger.warn('[timer]', { meta: m }),
+    onError: (m: any) => activationLogger.error('[timer]', { meta: m }),
   });
   timer.loadFromPersisted();
   return timer;
@@ -1741,7 +1829,7 @@ function sendToWebview(message: any): void {
 
   if (messageType === 'workItemsLoaded') {
     const items = Array.isArray(message.workItems) ? [...message.workItems] : [];
-    console.log('[AzureDevOpsInt][sendToWebview] Processing workItemsLoaded:', {
+    verbose('[sendToWebview] Processing workItemsLoaded:', {
       messageType,
       hasWorkItems: !!message.workItems,
       workItemsIsArray: Array.isArray(message.workItems),
@@ -1758,17 +1846,41 @@ function sendToWebview(message: any): void {
       types: Array.isArray(message.types) ? [...message.types] : undefined,
     });
 
-    console.log('[AzureDevOpsInt][sendToWebview] Dispatched WORK_ITEMS_LOADED event to FSM');
+    verbose('[sendToWebview] Dispatched WORK_ITEMS_LOADED event to FSM');
+  }
+
+  // Handle workItemsError messages - ensure they're sent to webview
+  if (messageType === 'workItemsError') {
+    verbose('[sendToWebview] Processing workItemsError:', {
+      messageType,
+      error: message.error,
+      connectionId: message.connectionId,
+      hasPanel: !!panel,
+    });
   }
 
   if (!panel) {
+    activationLogger.warn('[sendToWebview] Dropping message (no panel)', {
+      type: messageType,
+      error: messageType === 'workItemsError' ? message.error : undefined,
+    });
     verbose?.('[sendToWebview] dropping message (no panel)', { type: messageType });
     return;
   }
 
   try {
+    if (messageType === 'workItemsError') {
+      verbose('[sendToWebview] Posting workItemsError to webview:', {
+        error: message.error,
+        connectionId: message.connectionId,
+      });
+    }
     panel.webview.postMessage(message);
   } catch (error) {
+    activationLogger.error('[sendToWebview] Failed to post message', {
+      type: messageType,
+      error: error instanceof Error ? error.message : error,
+    });
     verbose?.(
       '[sendToWebview] failed to post message',
       error instanceof Error ? error.message : error
@@ -1779,7 +1891,7 @@ function sendToWebview(message: any): void {
 function forwardProviderMessage(connectionId: string, message: unknown) {
   // Forward provider messages directly, not wrapped in envelope
   // This allows sendToWebview to recognize workItemsLoaded and other message types
-  console.log('[AzureDevOpsInt][forwardProviderMessage] Received from provider:', {
+  verbose('[forwardProviderMessage] Received from provider', {
     connectionId,
     messageType: (message as any)?.type,
     hasWorkItems: !!(message as any)?.workItems,
@@ -1965,7 +2077,7 @@ async function migrateLegacyConfigIfNeeded() {
     if (legacyProj && !target.get('project'))
       await target.update('project', legacyProj, vscode.ConfigurationTarget.Global);
   } catch (e) {
-    console.warn('[azureDevOpsInt] migrateLegacyConfigIfNeeded failed', e);
+    activationLogger.warn('migrateLegacyConfigIfNeeded failed', { meta: e });
   }
 }
 
@@ -1990,7 +2102,7 @@ async function applyStartupPatches(context: vscode.ExtensionContext): Promise<vo
       await applyClientIdRemovalPatch();
       appliedPatches.push('1.0.0-clientid-removal');
       await patchState.update(PATCH_VERSION_KEY, appliedPatches);
-      console.log('[azureDevOpsInt] Applied patch: 1.0.0-clientid-removal');
+      verbose('Applied patch: 1.0.0-clientid-removal');
     }
 
     // Future patches can be added here following the same pattern:
@@ -2001,7 +2113,7 @@ async function applyStartupPatches(context: vscode.ExtensionContext): Promise<vo
     //   console.log('[azureDevOpsInt] Applied patch: 1.1.0-some-other-fix');
     // }
   } catch (error) {
-    console.warn('[azureDevOpsInt] Failed to apply startup patches:', error);
+    activationLogger.warn('Failed to apply startup patches', { meta: error });
     // Don't fail activation if patches fail - log and continue
   }
 }
@@ -2033,12 +2145,10 @@ async function applyClientIdRemovalPatch(): Promise<void> {
 
     if (patchedCount > 0) {
       await config.update('connections', patchedConnections, vscode.ConfigurationTarget.Global);
-      console.log(
-        `[azureDevOpsInt] Startup patch: Removed clientId from ${patchedCount} connection(s)`
-      );
+      verbose(`Startup patch: Removed clientId from ${patchedCount} connection(s)`);
     }
   } catch (error) {
-    console.warn('[azureDevOpsInt] Client ID removal patch failed:', error);
+    activationLogger.warn('Client ID removal patch failed', { meta: error });
     throw error; // Re-throw to be caught by applyStartupPatches
   }
 }
@@ -2088,8 +2198,8 @@ export async function activate(context: vscode.ExtensionContext) {
         return;
       }
     }
-    console.error('[azureDevOpsInt] Unhandled Promise Rejection:', reason);
-    console.error('[azureDevOpsInt] Promise:', promise);
+    activationLogger.error('Unhandled Promise Rejection', { meta: reason });
+    activationLogger.error('Promise', { meta: promise });
   };
 
   // Add global unhandled promise rejection handler
@@ -2097,7 +2207,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Add global uncaught exception handler
   process.on('uncaughtException', (error) => {
-    console.error('[azureDevOpsInt] Uncaught Exception:', error);
+    activationLogger.error('Uncaught Exception', { meta: error });
   });
 
   extensionContextRef = context;
@@ -2147,6 +2257,10 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(authStatusBarItem);
   authStatusBarItem.hide(); // Hidden by default, shown only for Entra ID connections
 
+  // Set global reference for reactive status bar updates
+  updateAuthStatusBarRef = updateAuthStatusBar;
+  (globalThis as any).__updateAuthStatusBar = updateAuthStatusBar;
+
   // LEGACY AUTH REMOVED - EntraAuthenticationProvider replaced by FSM authentication
   const authenticationProviderOptions: vscode.AuthenticationProviderOptions & {
     supportsAccountManagement?: boolean;
@@ -2188,10 +2302,9 @@ export async function activate(context: vscode.ExtensionContext) {
       verbose('[ACTIVATION] Output channel reader registered for automated debugging');
     })
     .catch((error) => {
-      console.error(
-        '[AzureDevOpsInt] ❌ [ACTIVATION] Failed to import output channel reader:',
-        error
-      );
+      activationLogger.error('[ACTIVATION] Failed to import output channel reader', {
+        meta: error,
+      });
     });
 
   // AUTO-START FSM TRACING AND SHOW OUTPUT FOR DEBUGGING
@@ -2218,20 +2331,16 @@ export async function activate(context: vscode.ExtensionContext) {
             });
           })
           .catch((error) => {
-            console.error(
-              '[AzureDevOpsInt] ❌ [ACTIVATION] Failed to import FSM logger for activation:',
-              error
-            );
+            activationLogger.error('[ACTIVATION] Failed to import FSM logger for activation', {
+              meta: error,
+            });
           });
       } catch (error) {
-        console.error('[AzureDevOpsInt] ❌ [ACTIVATION] Failed to start FSM tracing:', error);
+        activationLogger.error('[ACTIVATION] Failed to start FSM tracing', { meta: error });
       }
     })
     .catch((error) => {
-      console.error(
-        '[AzureDevOpsInt] ❌ [ACTIVATION] Failed to import FSM tracing modules:',
-        error
-      );
+      activationLogger.error('[ACTIVATION] Failed to import FSM tracing modules', { meta: error });
     });
 
   // FSM and Bridge setup
@@ -2245,8 +2354,37 @@ export async function activate(context: vscode.ExtensionContext) {
     (appActor as any).send({ type: 'ACTIVATE', context });
   }
 
+  // Track previous device code session to detect changes
+  let previousDeviceCodeSession: { connectionId: string; expiresAt: number } | undefined =
+    undefined;
+
   if (appActor && typeof (appActor as any).subscribe === 'function') {
     (appActor as any).subscribe((snapshot: any) => {
+      // Check if device code session changed and update status bar
+      const currentDeviceCodeSession = snapshot?.context?.deviceCodeSession;
+      const deviceCodeSessionChanged =
+        currentDeviceCodeSession?.connectionId !== previousDeviceCodeSession?.connectionId ||
+        currentDeviceCodeSession?.expiresAt !== previousDeviceCodeSession?.expiresAt;
+
+      if (deviceCodeSessionChanged && currentDeviceCodeSession) {
+        // Device code session started or changed - update status bar
+        setImmediate(() => {
+          updateAuthStatusBar().catch((err) => {
+            verbose(
+              '[activation] Failed to update status bar after device code session change:',
+              err
+            );
+          });
+        });
+      }
+
+      previousDeviceCodeSession = currentDeviceCodeSession
+        ? {
+            connectionId: currentDeviceCodeSession.connectionId,
+            expiresAt: currentDeviceCodeSession.expiresAt,
+          }
+        : undefined;
+
       if (panel && snapshot) {
         // Pre-compute all state matches since snapshot.matches() doesn't survive JSON serialization
         const matches = {
@@ -2287,7 +2425,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // Reduce excessive logging - only log state changes if debug logging is enabled
         if (shouldLogDebug()) {
-          console.log('[AzureDevOpsInt][activation] Sending state to webview:', {
+          verbose('[activation] Sending state to webview', {
             value: snapshot.value,
             matchesActive: matches.active,
             matchesActiveReady: matches['active.ready'],
@@ -2377,9 +2515,32 @@ export async function activate(context: vscode.ExtensionContext) {
   );
 
   // The webview will initialize immediately and show auth UI when ready
-  ensureActiveConnection(context, activeConnectionId, { refresh: true }).catch((error) => {
-    verbose('[activation] Initial connection failed:', error);
-  });
+  ensureActiveConnection(context, activeConnectionId, { refresh: true })
+    .then(() => {
+      // Ensure status bar is shown after initial connection
+      // Small delay to allow FSM to process device code session if it exists
+      setTimeout(() => {
+        updateAuthStatusBar().catch((error) => {
+          verbose('[activation] Status bar update failed:', error);
+        });
+      }, 500);
+    })
+    .catch((error) => {
+      verbose('[activation] Initial connection failed:', error);
+      // Still try to update status bar even if connection failed
+      setTimeout(() => {
+        updateAuthStatusBar().catch((err) => {
+          verbose('[activation] Status bar update failed after connection error:', err);
+        });
+      }, 500);
+    });
+
+  // Also update status bar immediately on startup (in case device code session already exists)
+  setTimeout(() => {
+    updateAuthStatusBar().catch((err) => {
+      verbose('[activation] Initial status bar update failed:', err);
+    });
+  }, 1000);
 
   // Start periodic cache cleanup
   startCacheCleanup();
@@ -2453,7 +2614,7 @@ function getSerializableContext(context: any): Record<string, any> {
   // Debug: log what we're serializing
   // Only log context serialization if debug logging is enabled
   if (shouldLogDebug()) {
-    console.log('[AzureDevOpsInt][getSerializableContext] Original context:', {
+    verbose('[getSerializableContext] Original context', {
       hasConnections: !!context.connections,
       connectionsType: typeof context.connections,
       connectionsIsArray: Array.isArray(context.connections),
@@ -2461,6 +2622,39 @@ function getSerializableContext(context: any): Record<string, any> {
       activeConnectionId: context.activeConnectionId,
       isActivated: context.isActivated,
     });
+  }
+
+  // Extract connection error from connection machine if available
+  let workItemsError: string | undefined = undefined;
+  let workItemsErrorConnectionId: string | undefined = undefined;
+
+  if (context.activeConnectionId) {
+    try {
+      // Try to get connection error from ConnectionFSMManager
+      const connectionManager = getConnectionFSMManager();
+      const connectionActor = connectionManager.getConnectionActor(context.activeConnectionId);
+      if (connectionActor && typeof connectionActor.getSnapshot === 'function') {
+        const connectionSnapshot = connectionActor.getSnapshot();
+        if (connectionSnapshot?.context?.lastError) {
+          workItemsError = connectionSnapshot.context.lastError;
+          workItemsErrorConnectionId = context.activeConnectionId;
+          if (shouldLogDebug()) {
+            verbose('[getSerializableContext] Extracted connection error', {
+              error: workItemsError,
+              connectionId: workItemsErrorConnectionId,
+              state: connectionSnapshot.value,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      if (shouldLogDebug()) {
+        activationLogger.warn('[getSerializableContext] Failed to extract connection error', {
+          error: e instanceof Error ? e.message : String(e),
+          connectionId: context.activeConnectionId,
+        });
+      }
+    }
   }
 
   // Extract only serializable properties, excluding VS Code API objects and actors
@@ -2483,6 +2677,10 @@ function getSerializableContext(context: any): Record<string, any> {
     errorRecoveryAttempts: context.errorRecoveryAttempts,
     viewMode: context.viewMode,
     kanbanColumns: context.kanbanColumns,
+    workItemsError,
+    workItemsErrorConnectionId,
+    debugLoggingEnabled: context.debugLoggingEnabled,
+    debugViewVisible: context.debugViewVisible,
     deviceCodeSession: context.deviceCodeSession
       ? {
           connectionId: context.deviceCodeSession.connectionId,
@@ -2498,13 +2696,15 @@ function getSerializableContext(context: any): Record<string, any> {
 
   // Only log serialization if debug logging is enabled to prevent log spam
   if (shouldLogDebug()) {
-    console.log('[AzureDevOpsInt][getSerializableContext] Serialized context:', {
+    verbose('[getSerializableContext] Serialized context', {
       connectionsLength: serialized.connections.length,
       activeConnectionId: serialized.activeConnectionId,
       hasDeviceCodeSession: !!serialized.deviceCodeSession,
       hasPendingWorkItems: !!serialized.pendingWorkItems,
       workItemsCount: serialized.workItems?.length || 0,
       viewMode: serialized.viewMode,
+      workItemsError: serialized.workItemsError,
+      workItemsErrorConnectionId: serialized.workItemsErrorConnectionId,
     });
   }
 
@@ -2567,12 +2767,114 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
     // Set up message handler to receive events from webview
     webview.onDidReceiveMessage((message) => {
       if (message.type === 'fsmEvent' && message.event) {
-        // Forward webview events to the FSM
-        console.log('[AzureDevOpsIntViewProvider] Received event from webview:', {
+        // Forward webview events to the FSM (wrapped format)
+        verbose('[AzureDevOpsIntViewProvider] Received event from webview', {
           eventType: message.event.type,
           event: message.event,
         });
+
+        // Handle special events that need direct VS Code command execution
+        if (message.event.type === 'OPEN_SETTINGS') {
+          verbose('[AzureDevOpsIntViewProvider] Executing azureDevOpsInt.setup command...');
+          vscode.commands
+            .executeCommand('azureDevOpsInt.setup')
+            .then(() => {
+              verbose('[AzureDevOpsIntViewProvider] Setup command executed successfully');
+            })
+            .catch((err) => {
+              activationLogger.error('[AzureDevOpsIntViewProvider] Failed to open settings', {
+                meta: err,
+              });
+            });
+          return; // Don't dispatch to FSM
+        }
+
+        // Forward other events to FSM
         dispatchApplicationEvent(message.event);
+      } else if (message.type && typeof message.type === 'string') {
+        // Handle direct event format (e.g., { type: 'OPEN_SETTINGS' })
+        verbose('[AzureDevOpsIntViewProvider] Received direct event from webview', {
+          eventType: message.type,
+          event: message,
+        });
+
+        // Handle specific events
+        if (message.type === 'OPEN_SETTINGS') {
+          verbose('[AzureDevOpsIntViewProvider] Executing azureDevOpsInt.setup command...');
+          vscode.commands
+            .executeCommand('azureDevOpsInt.setup')
+            .then(() => {
+              verbose('[AzureDevOpsIntViewProvider] Setup command executed successfully');
+            })
+            .catch((err) => {
+              activationLogger.error('[AzureDevOpsIntViewProvider] Failed to open settings', {
+                meta: err,
+              });
+            });
+        } else if (message.type === 'REFRESH_DATA') {
+          verbose('[AzureDevOpsIntViewProvider] Dispatching REFRESH_DATA event...');
+          // Trigger refresh by dispatching REFRESH_DATA event
+          dispatchApplicationEvent({ type: 'REFRESH_DATA' });
+        } else if (message.type === 'TOGGLE_DEBUG_VIEW') {
+          verbose('[AzureDevOpsIntViewProvider] Received TOGGLE_DEBUG_VIEW from webview', {
+            debugViewVisible: message.debugViewVisible,
+          });
+          // Forward TOGGLE_DEBUG_VIEW to FSM (Svelte already toggled locally)
+          dispatchApplicationEvent({
+            type: 'TOGGLE_DEBUG_VIEW',
+            debugViewVisible: message.debugViewVisible,
+          });
+        } else if (message.type === 'openDeviceCodeBrowser') {
+          // Handle device code browser opening from webview
+          verbose('[AzureDevOpsIntViewProvider] Received openDeviceCodeBrowser from webview', {
+            connectionId: message.payload?.connectionId,
+          });
+
+          // Get device code session from FSM context
+          const actor = getApplicationActor();
+          const snapshot = actor?.getSnapshot?.();
+          const deviceCodeSession = snapshot?.context?.deviceCodeSession;
+
+          if (
+            deviceCodeSession &&
+            deviceCodeSession.connectionId === message.payload?.connectionId
+          ) {
+            // Copy code to clipboard and open browser
+            vscode.env.clipboard
+              .writeText(deviceCodeSession.userCode)
+              .then(() => {
+                const uri = vscode.Uri.parse(
+                  deviceCodeSession.verificationUri || 'https://microsoft.com/devicelogin'
+                );
+                vscode.env
+                  .openExternal(uri)
+                  .then(() => {
+                    verbose('[AzureDevOpsIntViewProvider] Device code copied and browser opened');
+                  })
+                  .catch((err) => {
+                    activationLogger.error('[AzureDevOpsIntViewProvider] Failed to open browser', {
+                      meta: err,
+                    });
+                  });
+              })
+              .catch((err) => {
+                activationLogger.error('[AzureDevOpsIntViewProvider] Failed to copy device code', {
+                  meta: err,
+                });
+              });
+          } else {
+            activationLogger.warn(
+              '[AzureDevOpsIntViewProvider] Device code session not found for connection',
+              { meta: { connectionId: message.payload?.connectionId } }
+            );
+          }
+        } else {
+          // Forward other events to FSM
+          verbose('[AzureDevOpsIntViewProvider] Forwarding event to FSM', {
+            meta: { type: message.type },
+          });
+          dispatchApplicationEvent(message);
+        }
       }
     });
 
@@ -2581,13 +2883,13 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
 
     // Send initial FSM state to webview
     const appActor = getApplicationStoreActor();
-    console.log('[AzureDevOpsIntViewProvider] Attempting to send initial state:', {
+    verbose('[AzureDevOpsIntViewProvider] Attempting to send initial state', {
       hasActor: !!appActor,
       hasGetSnapshot: typeof (appActor as any)?.getSnapshot === 'function',
     });
     if (appActor && typeof (appActor as any).getSnapshot === 'function') {
       const snapshot = (appActor as any).getSnapshot();
-      console.log('[AzureDevOpsIntViewProvider] Got snapshot:', {
+      verbose('[AzureDevOpsIntViewProvider] Got snapshot', {
         hasSnapshot: !!snapshot,
         value: snapshot?.value,
       });
@@ -2623,7 +2925,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
           context: getSerializableContext(snapshot.context),
           matches,
         };
-        console.log('[AzureDevOpsIntViewProvider] Posting initial syncState message with matches');
+        verbose('[AzureDevOpsIntViewProvider] Posting initial syncState message with matches');
         webview.postMessage({
           type: 'syncState',
           payload: serializableState,
