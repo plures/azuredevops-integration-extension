@@ -8,7 +8,7 @@
 import type { ParsedAzureDevOpsUrl } from '../../../azureDevOpsUrlParser.js';
 import { detectEnvironmentType } from './environment-detection.js';
 import { detectWindowsUser } from './user-detection.js';
-import { getRecommendedAuthMethod } from './auth-methods.js';
+import { getRecommendedAuthMethod, type RecommendedAuthMethodId } from './auth-methods.js';
 import type { ProjectConnection } from '../../machines/applicationMachine.js';
 
 export interface ConnectionDefaults {
@@ -17,7 +17,7 @@ export interface ConnectionDefaults {
   baseUrl: string;
   apiBaseUrl: string;
   environment: 'online' | 'onpremises';
-  recommendedAuthMethod: 'entra' | 'pat' | null;
+  recommendedAuthMethod: RecommendedAuthMethodId | null;
   // OnPremises-specific
   windowsUser?: {
     username: string;
@@ -35,12 +35,7 @@ export interface ConnectionDefaults {
  */
 export function autoDetectConnectionDefaults(parsedUrl: ParsedAzureDevOpsUrl): ConnectionDefaults {
   const environment = detectEnvironmentType(parsedUrl);
-  const recommendedAuthMethodRaw = getRecommendedAuthMethod(environment);
-  // Filter to only 'entra' | 'pat' | null (exclude 'ntlm' and 'basic')
-  const recommendedAuthMethod: 'entra' | 'pat' | null =
-    recommendedAuthMethodRaw === 'entra' || recommendedAuthMethodRaw === 'pat'
-      ? recommendedAuthMethodRaw
-      : null;
+  const recommendedAuthMethod = getRecommendedAuthMethod(environment);
 
   const defaults: ConnectionDefaults = {
     organization: parsedUrl.organization,
