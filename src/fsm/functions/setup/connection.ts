@@ -5,7 +5,6 @@ import type { ProjectConnection } from '../../machines/applicationMachine.js';
 import { AzureDevOpsIntClient } from '../../../azureClient.js';
 import { runEnhancedSetupWizard } from './enhanced-setup-wizard.js';
 import { sendApplicationStoreEvent } from '../../services/extensionHostBridge.js';
-import { getEnvironmentLabel } from './environment-detection.js';
 
 async function testPATConnection(
   organization: string,

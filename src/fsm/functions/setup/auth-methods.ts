@@ -8,6 +8,21 @@ import type { EnvironmentType } from './environment-detection.js';
 
 export type AuthMethodId = 'entra' | 'pat' | 'ntlm' | 'basic';
 
+/**
+ * Subset of AuthMethodId that can be recommended by getRecommendedAuthMethod.
+ * Only 'entra' and 'pat' are currently supported as recommended methods.
+ * NTLM and Basic auth are defined in AuthMethodId for completeness but are
+ * not exposed in the setup wizard or recommended by the system.
+ */
+export type RecommendedAuthMethodId = 'entra' | 'pat';
+
+/**
+ * Type guard to check if an auth method ID is a recommended auth method
+ */
+export function isRecommendedAuthMethod(id: AuthMethodId): id is RecommendedAuthMethodId {
+  return id === 'entra' || id === 'pat';
+}
+
 export interface AuthMethod {
   id: AuthMethodId;
   label: string;
@@ -61,12 +76,24 @@ export function getAvailableAuthMethods(environment: EnvironmentType): AuthMetho
  * Gets the recommended (default) authentication method for an environment
  *
  * @param environment - Environment type
- * @returns Recommended auth method ID, or null if none
+ * @returns Recommended auth method ID ('entra' or 'pat'), or null if none
  */
-export function getRecommendedAuthMethod(environment: EnvironmentType): AuthMethodId | null {
+export function getRecommendedAuthMethod(environment: EnvironmentType): RecommendedAuthMethodId | null {
   const methods = getAvailableAuthMethods(environment);
   const recommended = methods.find((m) => m.recommended && m.available);
-  return recommended ? recommended.id : null;
+  
+  if (!recommended) {
+    return null;
+  }
+  
+  // Defensive check to ensure type safety at runtime. While getAvailableAuthMethods
+  // currently only returns 'entra' and 'pat', this guard protects against future
+  // changes where someone might add a new auth method without updating this function.
+  if (isRecommendedAuthMethod(recommended.id)) {
+    return recommended.id;
+  }
+  
+  return null;
 }
 
 /**
