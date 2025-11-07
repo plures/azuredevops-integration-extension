@@ -12,20 +12,17 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - resolve test runner ESM/CJS interop preventing test execution (#68)
 
-
 ## [3.0.5] - 2025-11-07
 
 ### Other
 
 - Initial plan (#66)
 
-
 ## [3.0.4] - 2025-11-07
 
 ### Fixed
 
 - resolve FSM state transition errors and update documentation (#59)
-
 
 ## [3.0.3] - 2025-11-07
 
