@@ -19,7 +19,7 @@ export type RecommendedAuthMethodId = 'entra' | 'pat';
 /**
  * Type guard to check if an auth method ID is a recommended auth method
  */
-function isRecommendedAuthMethod(id: AuthMethodId): id is RecommendedAuthMethodId {
+export function isRecommendedAuthMethod(id: AuthMethodId): id is RecommendedAuthMethodId {
   return id === 'entra' || id === 'pat';
 }
 
