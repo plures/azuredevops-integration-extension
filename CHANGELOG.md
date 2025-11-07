@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [3.0.4] - 2025-11-07
+
+### Fixed
+
+- resolve FSM state transition errors and update documentation (#59)
+
+
 ## [3.0.3] - 2025-11-07
 
 ### Changed
