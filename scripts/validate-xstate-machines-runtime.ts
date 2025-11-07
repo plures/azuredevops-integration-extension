@@ -179,7 +179,10 @@ async function validateMachineFile(filePath: string) {
     }
   } catch (error: any) {
     // Import failed - might be due to dependencies
-    if (error.message?.includes('Cannot find module')) {
+    if (
+      error.message?.includes('Cannot find module') ||
+      error.message?.includes('Cannot find package')
+    ) {
       // This is okay - file might have dependencies we can't resolve
       console.warn(`⚠️  Could not import ${filePath}: ${error.message}`);
     } else {
