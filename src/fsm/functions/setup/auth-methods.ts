@@ -86,14 +86,11 @@ export function getRecommendedAuthMethod(environment: EnvironmentType): Recommen
     return null;
   }
   
-  // Runtime check to ensure we only return supported recommended methods
-  // This protects against future changes where a new auth method might be
-  // added with recommended: true but not added to RecommendedAuthMethodId
+  // Runtime check to ensure only supported recommended auth methods are returned
   if (isRecommendedAuthMethod(recommended.id)) {
     return recommended.id;
   }
   
-  // This should never happen with the current implementation
   return null;
 }
 
