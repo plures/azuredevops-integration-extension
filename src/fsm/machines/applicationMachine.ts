@@ -23,7 +23,11 @@ import { saveConnection, deleteConnection } from '../functions/connectionManagem
 import { createComponentLogger, FSMComponent } from '../logging/FSMLogger.js';
 import type { NormalizationSummary } from '../functions/activation/connectionNormalization.js';
 import { normalizeConnections } from '../functions/activation/connectionNormalization.js';
-import { updateUIStateForError, clearErrorState, updateRefreshStatus } from '../functions/ui/error-handling.js';
+import {
+  updateUIStateForError,
+  clearErrorState,
+  updateRefreshStatus,
+} from '../functions/ui/error-handling.js';
 
 // ============================================================================
 // APPLICATION STATE DEFINITIONS
@@ -662,9 +666,10 @@ export const applicationMachine = createMachine(
         };
       }),
       updateRefreshStatusError: assign(({ context, event }) => {
-        const errorMessage = event.type === 'error' && 'error' in event 
-          ? (event.error as Error)?.message || 'Unknown error'
-          : 'Data loading failed';
+        const errorMessage =
+          event.type === 'error' && 'error' in event
+            ? (event.error as Error)?.message || 'Unknown error'
+            : 'Data loading failed';
         const refreshStatus = updateRefreshStatus(false, errorMessage);
         return {
           ui: {
@@ -749,10 +754,10 @@ export const applicationMachine = createMachine(
               },
             }).start();
             dataActor.send({ type: 'FETCH' });
-            
+
             // Clear error state on successful authentication
             const clearedErrorState = clearErrorState();
-            
+
             return {
               dataActor,
               ui: {
@@ -769,14 +774,13 @@ export const applicationMachine = createMachine(
           appLogger.error(`Authentication failed for ${event.connectionId}`, {
             error: event.error,
           });
-          
+
           // Update UI state with error information
           const errorUIState = updateUIStateForError(context, {
             message: event.error,
-            type: 'authentication',
             connectionId: event.connectionId,
           });
-          
+
           return {
             ui: {
               ...context.ui,

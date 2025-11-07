@@ -1,6 +1,3 @@
 {
-  "setup-worktree": [
-    "npm install",
-    "npm run type-check"
-  ]
+  "setup-worktree": ["npm install", "npm run type-check"]
 }

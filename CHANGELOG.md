@@ -33,7 +33,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Feature/enhanced setup process (#50)
 
-
 ## [3.0.2] - 2025-11-02
 
 ### Fixed

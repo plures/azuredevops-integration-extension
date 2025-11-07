@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Runtime XState Machine Validator
- * 
+ *
  * Actually creates machines to catch runtime errors at build time.
  * This catches invalid state transitions, missing states, etc.
  */
@@ -92,16 +92,16 @@ async function validateMachineFile(filePath: string) {
     // Convert file path to file:// URL for ESM compatibility
     const absolutePath = path.resolve(filePath);
     const modulePath = `file://${absolutePath.replace(/\\/g, '/')}`;
-    
+
     // Use dynamic import with tsx/ts-node
     // Note: This requires the file to be TypeScript-compatible
     const module = await import(modulePath);
-    
+
     // Find exported machine (common names: machineName, *Machine)
     const machineExports = Object.keys(module).filter(
       (key) => key.includes('Machine') || key.includes('machine')
     );
-    
+
     if (machineExports.length === 0) {
       console.warn(`⚠️  No machine export found in ${filePath}`);
       return;
@@ -109,7 +109,7 @@ async function validateMachineFile(filePath: string) {
 
     for (const exportName of machineExports) {
       const machine = module[exportName];
-      
+
       if (!machine || typeof machine !== 'object') {
         continue;
       }
@@ -122,7 +122,7 @@ async function validateMachineFile(filePath: string) {
           // Provide minimal context if machine requires it
           input: machine.config?.context || {},
         });
-        
+
         // Try to start - this validates the machine structure
         // If it fails due to missing context/services, that's okay - we're checking structure
         try {
@@ -141,7 +141,9 @@ async function validateMachineFile(filePath: string) {
           ) {
             // This is a context/service issue, not a structural issue
             // Machine structure is valid, just needs runtime context
-            console.log(`⚠️  ${filePath}:${exportName} - Structure valid (requires runtime context)`);
+            console.log(
+              `⚠️  ${filePath}:${exportName} - Structure valid (requires runtime context)`
+            );
           } else {
             throw contextError; // Re-throw if it's a structural error
           }
@@ -151,7 +153,7 @@ async function validateMachineFile(filePath: string) {
         const errorMessage = error?.message || String(error);
         const lineMatch = errorMessage.match(/line (\d+)/i);
         const line = lineMatch ? parseInt(lineMatch[1]) : undefined;
-        
+
         // Check for common XState errors
         if (errorMessage.includes('does not exist')) {
           errors.push({
@@ -200,4 +202,3 @@ validateMachines().catch((error) => {
   console.error('💥 Validation script failed:', error);
   process.exit(1);
 });
-

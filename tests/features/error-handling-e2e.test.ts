@@ -1,6 +1,6 @@
 /**
  * E2E Tests for Error Handling User Recovery Scenarios
- * 
+ *
  * Tests complete user flows for error recovery:
  * - PAT expires → See error → Click fix → Re-authenticate → Work items load
  * - Network error → See error → Click retry → Success
@@ -341,4 +341,3 @@ describe('Error Handling E2E Scenarios', () => {
     });
   });
 });
-
