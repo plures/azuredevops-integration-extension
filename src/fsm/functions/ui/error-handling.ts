@@ -29,6 +29,7 @@ export interface DetectedError {
  * @param statusCode Optional HTTP status code
  * @returns Detected error information
  */
+// eslint-disable-next-line max-lines-per-function, complexity
 export function detectErrorType(error: Error | string, statusCode?: number): DetectedError {
   const errorMessage = error instanceof Error ? error.message : String(error);
   const lowerMessage = errorMessage.toLowerCase();
@@ -163,7 +164,6 @@ export function updateUIStateForError(
   context: ApplicationContext,
   error: {
     message: string;
-    type: string;
     connectionId: string;
   }
 ): Partial<UIState> {

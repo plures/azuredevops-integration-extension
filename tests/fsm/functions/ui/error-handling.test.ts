@@ -217,7 +217,6 @@ describe('Error Handling Functions', () => {
     it('should update UI state with error information', () => {
       const result = updateUIStateForError(mockContext, {
         message: 'Token expired',
-        type: 'authentication',
         connectionId: 'conn-1',
       });
 
@@ -243,7 +242,6 @@ describe('Error Handling Functions', () => {
 
       const result = updateUIStateForError(mockContext, {
         message: 'Network error',
-        type: 'network',
         connectionId: 'conn-1',
       });
 
@@ -261,7 +259,6 @@ describe('Error Handling Functions', () => {
 
       const result = updateUIStateForError(mockContext, {
         message: 'New error',
-        type: 'authentication',
         connectionId: 'conn-1',
       });
 
@@ -271,7 +268,6 @@ describe('Error Handling Functions', () => {
     it('should detect error type from message automatically', () => {
       const result = updateUIStateForError(mockContext, {
         message: '401 Unauthorized',
-        type: 'authentication', // Type is provided but detectErrorType will refine it
         connectionId: 'conn-1',
       });
 

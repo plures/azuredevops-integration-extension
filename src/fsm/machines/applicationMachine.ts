@@ -778,7 +778,6 @@ export const applicationMachine = createMachine(
           // Update UI state with error information
           const errorUIState = updateUIStateForError(context, {
             message: event.error,
-            type: 'authentication',
             connectionId: event.connectionId,
           });
 
