@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [3.0.6] - 2025-11-07
+
+### Fixed
+
+- resolve test runner ESM/CJS interop preventing test execution (#68)
+
+
 ## [3.0.5] - 2025-11-07
 
 ### Other
