@@ -16,6 +16,13 @@ export type AuthMethodId = 'entra' | 'pat' | 'ntlm' | 'basic';
  */
 export type RecommendedAuthMethodId = 'entra' | 'pat';
 
+/**
+ * Type guard to check if an auth method ID is a recommended auth method
+ */
+function isRecommendedAuthMethod(id: AuthMethodId): id is RecommendedAuthMethodId {
+  return id === 'entra' || id === 'pat';
+}
+
 export interface AuthMethod {
   id: AuthMethodId;
   label: string;
@@ -80,11 +87,13 @@ export function getRecommendedAuthMethod(environment: EnvironmentType): Recommen
   }
   
   // Runtime check to ensure we only return supported recommended methods
-  if (recommended.id === 'entra' || recommended.id === 'pat') {
+  // This protects against future changes where a new auth method might be
+  // added with recommended: true but not added to RecommendedAuthMethodId
+  if (isRecommendedAuthMethod(recommended.id)) {
     return recommended.id;
   }
   
-  // This should never happen with the current implementation, but protects against future changes
+  // This should never happen with the current implementation
   return null;
 }
 
