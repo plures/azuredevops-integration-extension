@@ -86,7 +86,9 @@ export function getRecommendedAuthMethod(environment: EnvironmentType): Recommen
     return null;
   }
   
-  // Runtime check to ensure only supported recommended auth methods are returned
+  // Defensive check to ensure type safety at runtime. While getAvailableAuthMethods
+  // currently only returns 'entra' and 'pat', this guard protects against future
+  // changes where someone might add a new auth method without updating this function.
   if (isRecommendedAuthMethod(recommended.id)) {
     return recommended.id;
   }
