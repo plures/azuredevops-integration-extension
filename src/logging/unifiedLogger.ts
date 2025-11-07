@@ -101,15 +101,23 @@ function formatMeta(meta: unknown): string | undefined {
  * @example
  * ```typescript
  * const logger = createLogger('convert');
+ * // Simple message (no meta):
  * logger.info('Starting conversion');
+ * // Message with metadata:
  * logger.error('Conversion failed', { meta: error });
+ * // Processing without metadata:
+ * logger.debug('Processing item');
  * ```
  */
 export function createLogger(scope: string) {
   return {
-    debug: (message: string, meta?: unknown) => log.debug(message, { scope, meta }),
-    info: (message: string, meta?: unknown) => log.info(message, { scope, meta }),
-    warn: (message: string, meta?: unknown) => log.warn(message, { scope, meta }),
-    error: (message: string, meta?: unknown) => log.error(message, { scope, meta }),
+    debug: (message: string, options?: { meta?: unknown }) =>
+      log.debug(message, options ? { scope, ...options } : { scope }),
+    info: (message: string, options?: { meta?: unknown }) =>
+      log.info(message, options ? { scope, ...options } : { scope }),
+    warn: (message: string, options?: { meta?: unknown }) =>
+      log.warn(message, options ? { scope, ...options } : { scope }),
+    error: (message: string, options?: { meta?: unknown }) =>
+      log.error(message, options ? { scope, ...options } : { scope }),
   };
 }
