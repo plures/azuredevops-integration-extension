@@ -115,7 +115,7 @@ export default [
 
   {
     // Files that intentionally override console methods
-    files: ['src/fsm/commands/debugConsoleBridge.ts', 'src/logging.ts'],
+    files: ['src/fsm/commands/debugConsoleBridge.ts', 'src/logging.ts', 'src/logging/unifiedLogger.ts'],
     rules: {
       'no-console': 'off', // These files intentionally override console methods
     },
