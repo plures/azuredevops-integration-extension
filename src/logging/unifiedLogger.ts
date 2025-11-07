@@ -69,16 +69,15 @@ function writeLog(level: LogLevel, message: string, options?: LogOptions): void 
   logLine(logMessage);
 
   // Also write to console for immediate visibility
-  const consoleMethod = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log';
   // Handle console methods explicitly to satisfy ESLint no-console rule
-  if (consoleMethod === 'error') {
-    console.debug(logMessage);
-  } else if (consoleMethod === 'warn') {
-    console.debug(logMessage);
-  } else if (consoleMethod === 'info') {
+  if (level === 'error') {
+    console.error(logMessage);
+  } else if (level === 'warn') {
+    console.warn(logMessage);
+  } else if (level === 'debug') {
     console.debug(logMessage);
   } else {
-    console.debug(logMessage);
+    console.log(logMessage);
   }
 }
 
