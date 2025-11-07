@@ -308,7 +308,8 @@ export class WorkItemsProvider {
   }
 
   private _notifyWorkItemsChanged() {
-    // CRITICAL: Send workItemsLoaded message so FSM can receive the data via forwardProviderMessage
+    // Reactive Architecture: Send workItemsLoaded message to FSM via forwardProviderMessage.
+    // FSM will update context and syncState will send full state to webview reactively.
     this._post({
       type: 'workItemsLoaded',
       workItems: [...this._workItems],

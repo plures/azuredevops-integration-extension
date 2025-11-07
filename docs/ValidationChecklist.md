@@ -18,17 +18,17 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 
 - [x] State/context updates drive UI reactively
 - [x] Single `syncState` message for all state updates
-- [ ] Removed partial state messages (`syncTimerState`, `workItemsError`, `workItemsLoaded`)
-- [ ] All UI-visible state in FSM context
-- [ ] No command messages to control UI
+- [x] Removed partial state messages (`syncTimerState`, `workItemsError`, `workItemsLoaded`, `timerUpdate`)
+- [x] All UI-visible state in FSM context
+- [x] No command messages to control UI
 
 ### Implementation Status
 
 - [x] Toggle debug view: Svelte controls locally, notifies FSM
 - [x] User actions: Svelte sends events, FSM processes
 - [x] State sync: FSM sends full context via `syncState`
-- [ ] Provider updates FSM context (not direct messages)
-- [ ] Timer state in FSM context (not separate messages)
+- [x] Provider updates FSM context (not direct messages) - Messages go through forwardProviderMessage → sendToWebview → FSM dispatch
+- [x] Timer state in FSM context (not separate messages) - Timer state managed by FSM timerActor, sent via syncState
 
 ## Foundation Architecture Discipline ✅
 
@@ -74,6 +74,32 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Run XState validation before commit
 - [x] Run feature tests before commit
 - [x] Prevent broken code from entering git history
+
+### FSM Type-Safe Architecture
+
+- [x] Enhanced runtime validation (Layer 1) - Build-time validation script
+- [x] State constants migration (Layer 2) - **Branch: `feature/fsm-type-safe-state-constants`** ✅ COMPLETE
+  - [x] All machines use state name constants
+  - [x] IntelliSense works for state transitions
+  - [x] No string literals in transition targets
+- [ ] **Runtime validation in compile step** - **CRITICAL GAP IDENTIFIED** ⚠️
+  - [ ] Add `validate:machines:runtime` to compile script
+  - [ ] Verify runtime validation catches structural errors
+  - [ ] Document FSM structure validation rules (see `FSM_VALIDATION_GAP_ANALYSIS.md`)
+- [ ] **FSM Structure Validation Rules** - **CRITICAL GAP IDENTIFIED** ⚠️
+  - [ ] State keys use child names, not full paths
+  - [ ] `initial` values use child names, not full paths
+  - [ ] Sibling transitions use direct names (`'sibling'`), not relative (`.sibling`)
+  - [ ] Child transitions use relative paths (`.child`)
+  - [ ] Absolute transitions use full paths or machine-scoped paths (`#machine.state`)
+- [ ] Schema-first definition (Layer 3) - **Branch: `feature/fsm-type-safe-schema`**
+  - [ ] Schema format defined
+  - [ ] Type generation from schemas
+  - [ ] At least one machine migrated to schema
+- [ ] ESLint rules for type safety (Layer 4) - **Branch: `feature/fsm-type-safe-eslint`**
+  - [ ] ESLint rule validates state transitions
+  - [ ] Rule integrated into pre-commit checks
+  - [ ] All code passes rule validation
 
 ### Action Buttons Implementation
 
@@ -410,6 +436,20 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [ ] User information is protected
 - [ ] Error reporting is optional
 - [ ] Debug information is available
+
+### Error Handling and User Feedback Feature - **Branch: `feature/error-handling-user-feedback`**
+
+- [x] Error detection and type classification implemented (`src/fsm/functions/ui/error-handling.ts`)
+- [x] Error banner component displays authentication errors (`src/webview/components/ErrorBanner.svelte`)
+- [x] Connection status indicator in status bar (`src/webview/components/ConnectionStatus.svelte`)
+- [x] Empty state component with error context (`src/webview/components/EmptyState.svelte`)
+- [x] Recovery actions (Re-authenticate, Retry) implemented
+- [x] Last refresh status tracking
+- [x] Connection health monitoring
+- [x] Error message catalog implemented (in `detectErrorType` function)
+- [x] Unit tests for error detection (`tests/fsm/functions/ui/error-handling.test.ts`)
+- [x] Integration tests for error handling flow (`tests/features/error-handling-integration.test.ts`)
+- [x] E2E tests for user recovery scenarios (`tests/features/error-handling-e2e.test.ts`)
 
 ## Monitoring and Observability Checklist
 

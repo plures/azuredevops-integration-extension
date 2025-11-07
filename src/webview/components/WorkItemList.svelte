@@ -1,5 +1,7 @@
 <script lang="ts">
   import Dropdown from './Dropdown.svelte';
+  import ErrorBanner from './ErrorBanner.svelte';
+  import EmptyState from './EmptyState.svelte';
 
   interface Props {
     context: any;
@@ -17,6 +19,12 @@
   const workItemsError = $derived(context?.workItemsError);
   const workItemsErrorConnectionId = $derived(context?.workItemsErrorConnectionId);
   const showError = $derived(workItemsError && workItemsErrorConnectionId === activeConnectionId);
+  
+  // Get error state from UI state
+  const uiState = $derived(context?.ui);
+  const connectionHealth = $derived(uiState?.connectionHealth);
+  const hasConnectionError = $derived(connectionHealth?.status === 'error' && connectionHealth?.lastError);
+  const connectionError = $derived(connectionHealth?.lastError);
   
   // Check if work items are currently being loaded
   const isLoading = $derived(matches['active.ready.loadingData'] === true);
@@ -266,15 +274,28 @@
         <span>Refreshing work items...</span>
       </div>
     {/if}
-    {#if showError && workItems.length === 0 && !isLoading}
-      <div class="empty-state">
-        <p class="error-text">{workItemsError}</p>
-        <p class="hint">Unable to load work items. Please check your authentication settings.</p>
-        <div class="empty-state-actions">
-          <button onclick={() => sendEvent({ type: 'REFRESH_DATA' })}>Retry</button>
-          <button onclick={() => sendEvent({ type: 'OPEN_SETTINGS' })}>Open Settings</button>
-        </div>
-      </div>
+    {#if hasConnectionError && connectionError}
+      <ErrorBanner
+        error={connectionError}
+        onRetry={() => sendEvent({ type: 'REFRESH_DATA' })}
+        onFixAuth={() => sendEvent({ type: 'AUTHENTICATION_REQUIRED', connectionId: activeConnectionId })}
+        onDismiss={() => {
+          // Dismiss handled by FSM clearing error state
+        }}
+      />
+    {/if}
+    {#if (hasConnectionError || showError) && workItems.length === 0 && !isLoading}
+      <EmptyState
+        hasError={true}
+        error={connectionError || (showError ? {
+          message: workItemsError || 'Unable to load work items',
+          type: 'authentication' as const,
+          recoverable: true,
+          suggestedAction: 'Re-authenticate',
+        } : undefined)}
+        onRetry={() => sendEvent({ type: 'REFRESH_DATA' })}
+        onFixAuth={() => sendEvent({ type: 'AUTHENTICATION_REQUIRED', connectionId: activeConnectionId })}
+      />
     {:else if filteredItems.length === 0 && workItems.length > 0}
       <div class="empty-state">
         <p>No items match your filters.</p>

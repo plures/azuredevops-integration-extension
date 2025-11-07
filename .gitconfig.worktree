@@ -1,0 +1,50 @@
+# Git Configuration for Azure DevOps Integration Extension
+# Add these settings to your global .gitconfig or repository .git/config
+#
+# To apply globally:
+#   cat .gitconfig.worktree >> ~/.gitconfig
+#
+# To apply to repository only:
+#   cat .gitconfig.worktree >> .git/config
+
+[worktree]
+	# Automatically prune stale worktrees
+	prune = true
+
+[core]
+	# Default branch name
+	defaultBranch = main
+	# Prevent accidental commits to wrong branch
+	hooksPath = .git/hooks
+
+[pull]
+	# Use rebase instead of merge when pulling
+	rebase = true
+
+[push]
+	# Automatically set up remote tracking
+	autoSetupRemote = true
+
+[alias]
+	# Enhanced log view
+	lg = log --graph --oneline --decorate --all --date=short
+	
+	# Worktree aliases
+	wt = worktree list
+	wt-add = worktree add
+	wt-remove = worktree remove
+	wt-prune = worktree prune
+	
+	# Branch cleanup
+	cleanup = !git branch --merged main | grep -v '\\*\\|main\\|develop' | xargs -n 1 git branch -d
+	
+	# Worktree cleanup (removes worktrees for merged branches)
+	wt-cleanup = !git worktree prune && git branch --merged main | grep -v '\\*\\|main\\|develop' | while read branch; do git worktree list | grep \"\\[$branch\\]\" | awk '{print $1}' | xargs -I {} git worktree remove {} 2>/dev/null || true; done
+	
+	# Status across all worktrees
+	wt-status = !git worktree list | while read line; do path=$(echo $line | awk '{print $1}'); branch=$(echo $line | awk '{print $NF}' | tr -d '[]'); if [ -d \"$path\" ]; then echo \"=== $branch ===\"; (cd \"$path\" && git status --short); echo \"\"; fi; done
+
+[init]
+	# Default branch name for new repositories
+	defaultBranch = main
+

@@ -71,63 +71,10 @@ window.addEventListener('message', (event) => {
     } catch (e) {
       console.debug('[AzureDevOpsInt][webview] Failed to apply FSM snapshot', e);
     }
-  } else if (msg?.type === 'syncTimerState' && msg?.payload) {
-    console.debug('[AzureDevOpsInt][webview] Processing syncTimerState message:', {
-      hasPayload: !!msg.payload,
-      hasContext: !!msg.payload.context,
-      hasTimerState: !!msg.payload.context?.timerState,
-    });
-    try {
-      // Update just the timer state in the existing snapshot
-      const current = applicationSnapshot.peek();
-      applicationSnapshot.set({
-        ...current,
-        context: {
-          ...current.context,
-          ...msg.payload.context,
-        },
-      });
-      console.debug('[AzureDevOpsInt][webview] Successfully updated timer state in snapshot');
-    } catch (e) {
-      console.debug('[AzureDevOpsInt][webview] Failed to apply timer state update', e);
-    }
-  } else if (msg?.type === 'workItemsError') {
-    // Handle work items error messages from provider
-    console.debug('[AzureDevOpsInt][webview] Processing workItemsError message:', {
-      error: msg.error,
-      connectionId: msg.connectionId,
-    });
-    try {
-      // Update context with error information
-      const current = applicationSnapshot.peek();
-      applicationSnapshot.set({
-        ...current,
-        context: {
-          ...current.context,
-          workItemsError: msg.error || 'Failed to load work items',
-          workItemsErrorConnectionId: msg.connectionId,
-        },
-      });
-      console.debug('[AzureDevOpsInt][webview] Successfully updated context with workItemsError');
-    } catch (e) {
-      console.debug('[AzureDevOpsInt][webview] Failed to apply workItemsError', e);
-    }
-  } else if (msg?.type === 'workItemsLoaded') {
-    // Clear error when work items are successfully loaded
-    try {
-      const current = applicationSnapshot.peek();
-      applicationSnapshot.set({
-        ...current,
-        context: {
-          ...current.context,
-          workItemsError: null,
-          workItemsErrorConnectionId: null,
-        },
-      });
-    } catch (e) {
-      console.debug('[AzureDevOpsInt][webview] Failed to clear workItemsError', e);
-    }
   }
+  // Note: All state updates now come via syncState message (reactive architecture).
+  // Partial message handlers (syncTimerState, workItemsError, workItemsLoaded) have been removed.
+  // All UI-visible state is in FSM context and updates reactively through syncState.
 });
 
 // We prefer a stable dedicated root element but if it's missing (e.g. legacy HTML

@@ -2,6 +2,7 @@ import { createMachine, assign } from 'xstate';
 import { TimerContext, TimerEvent } from '../types';
 import { FSM_CONFIG } from '../config';
 import { createComponentLogger, FSMComponent } from '../logging/FSMLogger';
+import { TimerStates } from './timerMachine.states.js';
 
 // Create logger for timer machine
 const logger = createComponentLogger(FSMComponent.MACHINE, 'timerMachine');
@@ -9,7 +10,7 @@ const logger = createComponentLogger(FSMComponent.MACHINE, 'timerMachine');
 // Create the timer state machine using XState v5 syntax
 export const timerMachine = createMachine({
   id: 'timer',
-  initial: 'idle',
+  initial: TimerStates.IDLE,
 
   types: {} as {
     context: TimerContext;
@@ -30,10 +31,10 @@ export const timerMachine = createMachine({
   },
 
   states: {
-    idle: {
+    [TimerStates.IDLE]: {
       on: {
         START: {
-          target: 'running',
+          target: TimerStates.RUNNING,
           actions: [
             assign(({ event }) => ({
               workItemId: event.workItemId,
@@ -46,7 +47,7 @@ export const timerMachine = createMachine({
         },
         RESTORE: [
           {
-            target: 'paused',
+            target: TimerStates.PAUSED,
             guard: ({ event }) => event.type === 'RESTORE' && event.isPaused,
             actions: [
               assign(({ event }) => ({
@@ -59,7 +60,7 @@ export const timerMachine = createMachine({
             ],
           },
           {
-            target: 'running',
+            target: TimerStates.RUNNING,
             actions: [
               assign(({ event }) => ({
                 workItemId: event.workItemId,
@@ -74,12 +75,12 @@ export const timerMachine = createMachine({
       },
     },
 
-    running: {
+    [TimerStates.RUNNING]: {
       entry: [assign(() => ({ lastActivity: Date.now() }))],
 
       on: {
         PAUSE: {
-          target: 'paused',
+          target: TimerStates.PAUSED,
           actions: [
             assign(() => ({
               isPaused: true,
@@ -89,7 +90,7 @@ export const timerMachine = createMachine({
         },
 
         STOP: {
-          target: 'idle',
+          target: TimerStates.IDLE,
           actions: [
             assign(() => ({
               workItemId: undefined,
@@ -107,7 +108,7 @@ export const timerMachine = createMachine({
         },
 
         INACTIVITY_TIMEOUT: {
-          target: 'paused',
+          target: TimerStates.PAUSED,
           actions: [
             assign(() => ({
               isPaused: true,
@@ -119,11 +120,11 @@ export const timerMachine = createMachine({
       },
     },
 
-    paused: {
+    [TimerStates.PAUSED]: {
       entry: [],
       on: {
         RESUME: {
-          target: 'running',
+          target: TimerStates.RUNNING,
           actions: [
             assign(({ context }) => {
               const now = Date.now();
@@ -140,7 +141,7 @@ export const timerMachine = createMachine({
         },
 
         STOP: {
-          target: 'idle',
+          target: TimerStates.IDLE,
           actions: [
             assign(() => ({
               workItemId: undefined,
@@ -155,7 +156,7 @@ export const timerMachine = createMachine({
 
         ACTIVITY: [
           {
-            target: 'running',
+            target: TimerStates.RUNNING,
             guard: ({ context }) => context.isPaused && context.lastActivity > 0,
             actions: [
               assign(({ context }) => {

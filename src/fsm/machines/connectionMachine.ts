@@ -51,6 +51,7 @@ import { createMachine, assign, fromPromise, fromCallback } from 'xstate';
 import { createComponentLogger, FSMComponent, fsmLogger } from '../logging/FSMLogger.js';
 import { isTokenValid } from '../functions/authFunctions.js';
 import type { ConnectionContext, ConnectionEvent, ProjectConnection } from './connectionTypes.js';
+import { ConnectionStates } from './connectionMachine.states.js';
 import {
   getExtensionContextRef,
   getSecretPAT as getSecretPATFromBridge,
@@ -333,7 +334,7 @@ export const connectionMachine = createMachine(
       context: ConnectionContext;
       events: ConnectionEvent;
     },
-    initial: 'disconnected',
+    initial: ConnectionStates.DISCONNECTED,
     context: {
       connectionId: '',
       config: {} as ProjectConnection,
@@ -346,11 +347,11 @@ export const connectionMachine = createMachine(
       accessTokenExpiresAt: undefined,
     },
     states: {
-      disconnected: {
+      [ConnectionStates.DISCONNECTED]: {
         entry: ['clearConnectionState'],
         on: {
           CONNECT: {
-            target: 'authenticating',
+            target: ConnectionStates.AUTHENTICATING,
             actions: assign({
               config: ({ event }) => event.config,
               connectionId: ({ event }) => event.config.id,
@@ -362,13 +363,13 @@ export const connectionMachine = createMachine(
             }),
           },
           RESET: {
-            target: 'disconnected',
+            target: ConnectionStates.DISCONNECTED,
             actions: 'resetConnection',
           },
         },
       },
 
-      authenticating: {
+      [ConnectionStates.AUTHENTICATING]: {
         initial: 'determining_method',
         states: {
           determining_method: {
@@ -389,14 +390,14 @@ export const connectionMachine = createMachine(
               src: 'authenticateWithPAT',
               input: ({ context }) => context,
               onDone: {
-                target: '#connection.creating_client',
+                target: `#connection.${ConnectionStates.CREATING_CLIENT}`,
                 actions: assign({
                   credential: ({ event }) => event.output.credential,
                   pat: ({ event }) => event.output.credential,
                 }),
               },
               onError: {
-                target: '#connection.auth_failed',
+                target: `#connection.${ConnectionStates.AUTH_FAILED}`,
                 actions: assign({
                   lastError: ({ event }) =>
                     (event.error as Error)?.message || 'PAT authentication failed',
@@ -421,7 +422,7 @@ export const connectionMachine = createMachine(
                   input: ({ context }) => context,
                   onDone: [
                     {
-                      target: '#connection.creating_client',
+                      target: `#connection.${ConnectionStates.CREATING_CLIENT}`,
                       guard: 'hasValidToken',
                       actions: assign({
                         credential: ({ event }) => event.output.token,
@@ -446,7 +447,7 @@ export const connectionMachine = createMachine(
                   src: 'performInteractiveEntraAuth',
                   input: ({ context }) => context,
                   onDone: {
-                    target: '#connection.creating_client',
+                    target: `#connection.${ConnectionStates.CREATING_CLIENT}`,
                     actions: assign({
                       credential: ({ event }) => event.output.token,
                       accessToken: ({ event }) => event.output.token,
@@ -458,7 +459,7 @@ export const connectionMachine = createMachine(
                     }),
                   },
                   onError: {
-                    target: '#connection.auth_failed',
+                    target: `#connection.${ConnectionStates.AUTH_FAILED}`,
                     actions: assign({
                       lastError: ({ event }) =>
                         (event.error as Error)?.message || 'Entra authentication failed',
@@ -479,12 +480,12 @@ export const connectionMachine = createMachine(
         },
       },
 
-      creating_client: {
+      [ConnectionStates.CREATING_CLIENT]: {
         invoke: {
           src: 'createAzureClient',
           input: ({ context }) => context,
           onDone: {
-            target: 'creating_provider',
+            target: ConnectionStates.CREATING_PROVIDER,
             actions: assign({
               client: ({ event }) =>
                 event.output && 'client' in event.output ? event.output.client : event.output,
@@ -495,7 +496,7 @@ export const connectionMachine = createMachine(
             }),
           },
           onError: {
-            target: 'client_failed',
+            target: ConnectionStates.CLIENT_FAILED,
             actions: assign({
               lastError: ({ event }) => (event.error as Error)?.message || 'Client creation failed',
             }),
@@ -503,12 +504,12 @@ export const connectionMachine = createMachine(
         },
       },
 
-      creating_provider: {
+      [ConnectionStates.CREATING_PROVIDER]: {
         invoke: {
           src: 'createWorkItemsProvider',
           input: ({ context }) => context,
           onDone: {
-            target: 'connected',
+            target: ConnectionStates.CONNECTED,
             actions: assign({
               provider: ({ event }) => event.output,
               isConnected: true,
@@ -517,7 +518,7 @@ export const connectionMachine = createMachine(
             }),
           },
           onError: {
-            target: 'provider_failed',
+            target: ConnectionStates.PROVIDER_FAILED,
             actions: assign({
               lastError: ({ event }) =>
                 (event.error as Error)?.message || 'Provider creation failed',
@@ -526,26 +527,26 @@ export const connectionMachine = createMachine(
         },
       },
 
-      connected: {
+      [ConnectionStates.CONNECTED]: {
         entry: ['notifyConnectionSuccess'],
         on: {
-          DISCONNECT: 'disconnected',
-          CONNECTION_FAILED: 'connection_error',
+          DISCONNECT: ConnectionStates.DISCONNECTED,
+          CONNECTION_FAILED: ConnectionStates.CONNECTION_ERROR,
           TOKEN_EXPIRED: [
             {
-              target: 'authenticating',
+              target: ConnectionStates.AUTHENTICATING,
               guard: 'isPATAuth',
               actions: assign({
                 retryCount: 0,
               }),
             },
             {
-              target: 'token_refresh',
+              target: ConnectionStates.TOKEN_REFRESH,
             },
           ],
-          REFRESH_AUTH: 'token_refresh',
+          REFRESH_AUTH: ConnectionStates.TOKEN_REFRESH,
           AUTH_FAILED: {
-            target: 'auth_failed',
+            target: ConnectionStates.AUTH_FAILED,
             actions: assign({
               lastError: ({ event }) => event.error,
             }),
@@ -553,7 +554,7 @@ export const connectionMachine = createMachine(
         },
       },
 
-      auth_failed: {
+      [ConnectionStates.AUTH_FAILED]: {
         entry: [
           ({ context, self }) => {
             const connectionContext = {
@@ -699,67 +700,67 @@ export const connectionMachine = createMachine(
             },
           },
           AUTH_FAILED: {
-            target: 'auth_failed',
+            target: ConnectionStates.AUTH_FAILED,
             actions: assign({
               lastError: ({ event }) => event.error,
             }),
           },
           RETRY: {
-            target: 'authenticating',
+            target: ConnectionStates.AUTHENTICATING,
             guard: 'canRetry',
           },
           CONNECT: {
-            target: 'authenticating',
+            target: ConnectionStates.AUTHENTICATING,
             actions: assign({
               retryCount: 0,
             }),
           },
-          DISCONNECT: 'disconnected',
+          DISCONNECT: ConnectionStates.DISCONNECTED,
         },
       },
 
-      client_failed: {
+      [ConnectionStates.CLIENT_FAILED]: {
         entry: ['notifyClientFailure'],
         on: {
           RETRY: {
-            target: 'creating_client',
+            target: ConnectionStates.CREATING_CLIENT,
             guard: 'canRetry',
           },
-          CONNECT: 'authenticating',
-          DISCONNECT: 'disconnected',
+          CONNECT: ConnectionStates.AUTHENTICATING,
+          DISCONNECT: ConnectionStates.DISCONNECTED,
         },
       },
 
-      provider_failed: {
+      [ConnectionStates.PROVIDER_FAILED]: {
         entry: ['notifyProviderFailure'],
         on: {
           RETRY: {
-            target: 'creating_provider',
+            target: ConnectionStates.CREATING_PROVIDER,
             guard: 'canRetry',
           },
-          CONNECT: 'authenticating',
-          DISCONNECT: 'disconnected',
+          CONNECT: ConnectionStates.AUTHENTICATING,
+          DISCONNECT: ConnectionStates.DISCONNECTED,
         },
       },
 
-      connection_error: {
+      [ConnectionStates.CONNECTION_ERROR]: {
         entry: ['notifyConnectionError'],
         on: {
           RETRY: {
-            target: 'authenticating',
+            target: ConnectionStates.AUTHENTICATING,
             guard: 'canRetry',
           },
-          CONNECT: 'authenticating',
-          DISCONNECT: 'disconnected',
+          CONNECT: ConnectionStates.AUTHENTICATING,
+          DISCONNECT: ConnectionStates.DISCONNECTED,
         },
       },
 
-      token_refresh: {
+      [ConnectionStates.TOKEN_REFRESH]: {
         invoke: {
           src: 'refreshAuthToken',
           input: ({ context }) => context,
           onDone: {
-            target: 'connected',
+            target: ConnectionStates.CONNECTED,
             actions: assign({
               credential: ({ event }) => event.output.token,
               accessToken: ({ event }) => event.output.token,
@@ -769,7 +770,7 @@ export const connectionMachine = createMachine(
             }),
           },
           onError: {
-            target: 'auth_failed',
+            target: ConnectionStates.AUTH_FAILED,
             actions: assign({
               lastError: ({ event }) => (event.error as Error)?.message || 'Token refresh failed',
               refreshFailureCount: ({ context }) => context.refreshFailureCount + 1,

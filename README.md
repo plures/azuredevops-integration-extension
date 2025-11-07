@@ -18,42 +18,37 @@
 ### 📋 **Work Items Management**
 
 - **Smart Queries**: Built-in filters (My Activity, Assigned to Me, Current Sprint, All Active, Recently Updated)
-- **Custom WIQL**: Write your own queries with syntax validation and templates
-- **Bulk Operations**: Multi-select work items for batch assign, state changes, tagging, and deletion
-- **Advanced Filtering**: Save and share filter sets, export/import configurations
+- **Custom WIQL**: Write your own queries with full WIQL syntax support
+- **Dual Views**: Toggle between detailed list and visual Kanban board views
+- **Work Item Actions**: Edit, open in browser, create branches, and start timers directly from work items
 
 ### ⏱️ **Time Tracking**
 
-- **Smart Timer**: Auto-pause on inactivity, resume when you're back
-- **Status Bar Integration**: Always visible timer with one-click controls
-- **Automatic Updates**: Sync tracked time to work item hours
-- **Time Reports**: View daily, weekly, monthly, and all-time tracking data
+- **Smart Timer**: Start/stop timer for work items with real-time elapsed time display
+- **Timer Persistence**: Timer state persists across VS Code restarts
+- **Work Item Association**: Timer automatically links to selected work item
+- **Visual Indicators**: Timer status shown on work item cards
 
 ### 🔀 **Git Integration**
 
-- **Branch Creation**: Generate branches from work items with customizable naming
-- **Pull Request Flow**: Create PRs directly from your current branch
-- **Smart Templates**: Configure branch naming patterns that fit your workflow
+- **Branch Creation**: Generate branches from work items with customizable naming templates
+- **Automatic Linking**: Created branches are automatically linked to work items
+- **Smart Templates**: Configure branch naming patterns (e.g., `feature/{id}-{title}`)
 
 ### 🔐 **Modern Authentication**
 
-- **Microsoft Entra ID**: Secure OAuth 2.0 with automatic token refresh
-- **Personal Access Tokens**: Traditional PAT support with secure storage
+- **Microsoft Entra ID**: Secure OAuth 2.0 device code flow with automatic token refresh
+- **Personal Access Tokens**: Traditional PAT support with secure storage in VS Code secret store
 - **On-Premises Support**: Full compatibility with Azure DevOps Server
-- **Connection Management**: Switch between multiple organizations seamlessly
+- **Connection Management**: Switch between multiple organizations/projects seamlessly
+- **Status Indicators**: Visual authentication status in status bar
 
 ### 🎨 **Rich Interface**
 
 - **Dual Views**: Toggle between detailed list and visual Kanban board
-- **Keyboard Navigation**: Vim-style shortcuts (r, v, /) and multi-select, plus an insert mode toggle to pause shortcuts while typing
-- **Accessibility**: Full ARIA support and screen reader compatibility
-- **Performance Dashboard**: Real-time metrics and optimization tips
-
-### 🧠 **AI Integration**
-
-- **Work Summaries**: Generate updates using Copilot prompts or OpenAI
-- **Smart Drafts**: Per-work-item draft persistence for refining messages
-- **Timer Integration**: Auto-select active work item for summaries
+- **Keyboard Navigation**: Essential shortcuts (r for refresh, v for view toggle, / for search)
+- **Accessibility**: ARIA support and keyboard navigation
+- **Native VS Code Theming**: Automatically adapts to your VS Code theme
 
 ---
 
@@ -126,44 +121,13 @@ The wizard auto-detects your organization, project, and server type!
 
 > **Note:** On-premises Azure DevOps Server only supports PAT authentication. The setup wizard automatically detects this and guides you accordingly.
 
-## � Power User Features
-
-### ⚡ **Bulk Operations**
-
-Select multiple work items (Ctrl/Cmd+Click or checkboxes) for batch operations:
-
-- **Bulk Assign** - Assign multiple items to any user
-- **Bulk Move** - Change state for multiple items
-- **Bulk Tag** - Add tags with smart merge (no duplicates)
-- **Bulk Delete** - Soft delete with confirmation
-
-### 🔍 **Advanced Filtering**
-
-- **Query Builder** - Interactive WIQL with 5 pre-built templates
-- **Saved Filters** - Save, manage, and share filter configurations
-- **Export/Import** - JSON-based filter sharing
-- **Live Validation** - Syntax checking with helpful error messages
-
-### 📊 **Performance Dashboard**
-
-- **Real-time Metrics** - Operation stats, cache hit rates, error tracking
-- **Memory Monitoring** - Usage tracking and optimization tips
-- **Cache Statistics** - View performance improvements and recommendations
-
-### ⌨️ **Keyboard Shortcuts**
-
-- `r` - Refresh • `v` - Toggle Kanban view • `/` - Focus search
-- `Space` - Toggle selection • `Esc` - Clear selection or exit insert mode • `Ctrl+A` - Select all
-- `i` / `I` - Enter insert mode to pause navigation shortcuts (type freely in summary/comments)
-- **Full accessibility** with screen reader support
-
 ## ⌨️ Essential Commands
 
 **Setup & Connection:**
 
 - `Azure DevOps Integration: Setup Wizard (Easy)` - Guided setup with URL parsing
 - `Azure DevOps Integration: Sign In with Microsoft Entra ID` - OAuth authentication
-- `Azure DevOps Integration: Setup Connection` - Manual PAT setup
+- `Azure DevOps Integration: Setup or Manage Connections` - Manage connections
 
 **Daily Workflow:**
 
@@ -171,13 +135,7 @@ Select multiple work items (Ctrl/Cmd+Click or checkboxes) for batch operations:
 - `Azure DevOps Integration: Start/Stop Timer` - Toggle time tracking
 - `Azure DevOps Integration: Create Branch from Work Item` - Git integration
 - `Azure DevOps Integration: Toggle Kanban View` - Switch view modes
-
-**Advanced Features:**
-
-- `Azure DevOps Integration: Query Builder` - Build custom WIQL queries
-- `Azure DevOps Integration: Bulk Assign Work Items` - Multi-item operations
-- `Azure DevOps Integration: Show Performance Dashboard` - View metrics
-- `Azure DevOps Integration: Show Time Report` - Tracking reports
+- `Azure DevOps Integration: Refresh Work Items` - Refresh data
 
 > 💡 **Pro Tip:** Press `Ctrl+Shift+P` and type "Azure DevOps" to see all available commands
 
@@ -187,17 +145,8 @@ Select multiple work items (Ctrl/Cmd+Click or checkboxes) for batch operations:
 
 ```jsonc
 {
-  // Time tracking
-  "azureDevOpsIntegration.defaultElapsedLimitHours": 3.5,
-
-  // AI integration
-  "azureDevOpsIntegration.summaryProvider": "builtin", // or "openai"
-
   // Git templates
   "azureDevOpsIntegration.branchNameTemplate": "feature/{id}-{title}",
-
-  // Performance
-  "azureDevOpsIntegration.workItemsPerPage": 50,
 
   // Debugging
   "azureDevOpsIntegration.debugLogging": false,
@@ -216,8 +165,9 @@ Select multiple work items (Ctrl/Cmd+Click or checkboxes) for batch operations:
 
 2. **Common Solutions:**
    - **Empty work items**: Verify PAT scopes and organization/project settings
-   - **Timer issues**: Confirm a work item is selected and no other timer is active
+   - **Timer issues**: Confirm a work item is selected
    - **Git integration**: Ensure PAT has Code (Read & Write) permissions
+   - **Authentication issues**: Check status bar indicator and use "Sign In" command if needed
 
 3. **Get Help:**
    - Copy logs: `Azure DevOps Integration: Copy Logs to Clipboard`

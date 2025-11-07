@@ -23,6 +23,11 @@ import { saveConnection, deleteConnection } from '../functions/connectionManagem
 import { createComponentLogger, FSMComponent } from '../logging/FSMLogger.js';
 import type { NormalizationSummary } from '../functions/activation/connectionNormalization.js';
 import { normalizeConnections } from '../functions/activation/connectionNormalization.js';
+import {
+  updateUIStateForError,
+  clearErrorState,
+  updateRefreshStatus,
+} from '../functions/ui/error-handling.js';
 
 // ============================================================================
 // APPLICATION STATE DEFINITIONS
@@ -76,6 +81,29 @@ export type UIState = {
     title?: string;
     message?: string;
     actions?: Array<{ label: string; action: string }>;
+  };
+  /**
+   * Connection health and error state
+   */
+  connectionHealth?: {
+    status: 'healthy' | 'error' | 'warning' | 'unknown';
+    lastSuccess?: number; // timestamp
+    lastFailure?: number; // timestamp
+    lastError?: {
+      message: string;
+      type: 'authentication' | 'network' | 'authorization' | 'server';
+      recoverable: boolean;
+      suggestedAction?: string;
+    };
+  };
+  /**
+   * Refresh status
+   */
+  refreshStatus?: {
+    lastAttempt: number; // timestamp
+    success: boolean;
+    error?: string;
+    nextAutoRefresh?: number; // timestamp
   };
 };
 
@@ -380,9 +408,12 @@ export const applicationMachine = createMachine(
                   input: ({ context }) => context,
                   onDone: {
                     target: 'idle',
-                    actions: 'syncDataToWebview',
+                    actions: ['syncDataToWebview', 'updateRefreshStatusSuccess'],
                   },
-                  onError: 'error',
+                  onError: {
+                    target: 'error',
+                    actions: 'updateRefreshStatusError',
+                  },
                 },
               },
               managingConnections: {
@@ -622,6 +653,31 @@ export const applicationMachine = createMachine(
         /* Placeholder */
       },
       clearPendingData: assign({ pendingWorkItems: undefined }),
+      syncDataToWebview: () => {
+        /* Placeholder - data sync handled via syncState message */
+      },
+      updateRefreshStatusSuccess: assign(({ context }) => {
+        const refreshStatus = updateRefreshStatus(true);
+        return {
+          ui: {
+            ...context.ui,
+            ...refreshStatus,
+          },
+        };
+      }),
+      updateRefreshStatusError: assign(({ context, event }) => {
+        const errorMessage =
+          event.type === 'error' && 'error' in event
+            ? (event.error as Error)?.message || 'Unknown error'
+            : 'Data loading failed';
+        const refreshStatus = updateRefreshStatus(false, errorMessage);
+        return {
+          ui: {
+            ...context.ui,
+            ...refreshStatus,
+          },
+        };
+      }),
       recordError: assign({
         lastError: ({ event }) => (event.type === 'ERROR' ? event.error : undefined),
       }),
@@ -687,7 +743,7 @@ export const applicationMachine = createMachine(
           startAuthentication(context, event.connectionId);
         }
       },
-      handleAuthSuccess: ({ context, event }) => {
+      handleAuthSuccess: assign(({ context, event }) => {
         if (event.type === 'AUTHENTICATION_SUCCESS') {
           const connection = context.connections.find((c) => c.id === event.connectionId);
           if (connection && connection.apiBaseUrl) {
@@ -698,19 +754,42 @@ export const applicationMachine = createMachine(
               },
             }).start();
             dataActor.send({ type: 'FETCH' });
-            assign({
+
+            // Clear error state on successful authentication
+            const clearedErrorState = clearErrorState();
+
+            return {
               dataActor,
-            });
+              ui: {
+                ...context.ui,
+                ...clearedErrorState,
+              },
+            };
           }
         }
-      },
-      handleAuthFailure: ({ event }) => {
+        return {};
+      }),
+      handleAuthFailure: assign(({ context, event }) => {
         if (event.type === 'AUTHENTICATION_FAILED') {
           appLogger.error(`Authentication failed for ${event.connectionId}`, {
             error: event.error,
           });
+
+          // Update UI state with error information
+          const errorUIState = updateUIStateForError(context, {
+            message: event.error,
+            connectionId: event.connectionId,
+          });
+
+          return {
+            ui: {
+              ...context.ui,
+              ...errorUIState,
+            },
+          };
         }
-      },
+        return {};
+      }),
       handleAuthSnapshot: ({ event, self }) => {
         if (event.type === 'AUTH_SNAPSHOT' && event.snapshot.value === 'authenticated') {
           const { connection, token } = event.snapshot.context;

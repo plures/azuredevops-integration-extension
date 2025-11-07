@@ -2,6 +2,7 @@ import { createMachine, assign, fromPromise } from 'xstate';
 import type { ProjectConnection } from './connectionTypes.js';
 import { getPat, getEntraIdToken } from '../functions/auth/authentication.js';
 import type { ExtensionContext } from 'vscode';
+import { AuthStates } from './authMachine.states.js';
 
 export type AuthContext = {
   connection: ProjectConnection;
@@ -23,7 +24,7 @@ export const authMachine = createMachine(
       context: AuthContext;
       events: AuthEvent;
     },
-    initial: 'idle',
+    initial: AuthStates.IDLE,
     context: ({
       input,
     }: {
@@ -33,12 +34,12 @@ export const authMachine = createMachine(
       extensionContext: input.extensionContext,
     }),
     states: {
-      idle: {
+      [AuthStates.IDLE]: {
         on: {
-          AUTHENTICATE: 'authenticating',
+          AUTHENTICATE: AuthStates.AUTHENTICATING,
         },
       },
-      authenticating: {
+      [AuthStates.AUTHENTICATING]: {
         invoke: {
           src: 'authenticate',
           input: ({ context }) => ({
@@ -46,23 +47,23 @@ export const authMachine = createMachine(
             extensionContext: context.extensionContext,
           }),
           onDone: {
-            target: 'authenticated',
+            target: AuthStates.AUTHENTICATED,
             actions: assign({
               token: ({ event }) => event.output,
             }),
           },
           onError: {
-            target: 'failed',
+            target: AuthStates.FAILED,
             actions: assign({
               error: ({ event }) => (event.error as Error).message,
             }),
           },
         },
       },
-      authenticated: {
+      [AuthStates.AUTHENTICATED]: {
         on: {
           LOGOUT: {
-            target: 'idle',
+            target: AuthStates.IDLE,
             actions: [
               async ({ context }) => {
                 const { connection, extensionContext } = context;
@@ -79,9 +80,9 @@ export const authMachine = createMachine(
           },
         },
       },
-      failed: {
+      [AuthStates.FAILED]: {
         on: {
-          AUTHENTICATE: 'authenticating',
+          AUTHENTICATE: AuthStates.AUTHENTICATING,
         },
       },
     },

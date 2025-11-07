@@ -899,7 +899,7 @@
     "check-format": "npx prettier --check \"**/*.{ts,js,json,md,mjs}\"",
     "coverage:ci": "npx c8 --reporter=text --reporter=lcov npm test",
     "release-check": "node scripts/release-check.js",
-    "prepare": "husky install",
+    "prepare": "husky install && node scripts/setup-git-config.mjs",
     "postinstall": "npm run prepare",
     "build": "npm run format && npm run compile && npm run validate:all",
     "build:strict": "npm run format && npm run compile && npm run validate:all:strict",

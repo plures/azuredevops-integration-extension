@@ -110,17 +110,18 @@ async function validateMachineFile(filePath: string) {
     // Dynamically import the machine file
     // Remove .ts extension and convert to module path
     const modulePath = filePath.replace(/\.ts$/, '.js').replace(/\\/g, '/');
-    
+
     // Try to require/import the file - this will execute createMachine()
     // Note: This requires the file to be compiled first, so we'll catch it in validate:all
     // For now, we'll skip runtime validation if the file isn't compiled
     // The real fix is to ensure validate:machines runs after compile
-    
   } catch (error: any) {
     // If we can't import (file not compiled), that's okay - we'll catch it later
     // But if we get a machine validation error, that's a real problem
-    if (error?.message?.includes('does not exist') || 
-        error?.message?.includes('Invalid transition')) {
+    if (
+      error?.message?.includes('does not exist') ||
+      error?.message?.includes('Invalid transition')
+    ) {
       errors.push({
         file: filePath,
         line: 0,

@@ -1,6 +1,7 @@
 import { createMachine, assign, fromPromise } from 'xstate';
 import { getWorkItemTrackingApi } from '../functions/azure/azure-devops-client.js';
 import type { WorkItem } from 'azure-devops-node-api/interfaces/WorkItemTrackingInterfaces.js';
+import { DataStates } from './dataMachine.states.js';
 
 export type DataContext = {
   serverUrl: string;
@@ -21,18 +22,18 @@ export const dataMachine = createMachine(
       context: DataContext;
       events: DataEvent;
     },
-    initial: 'idle',
+    initial: DataStates.IDLE,
     context: ({ input }: { input: { serverUrl: string; token: string } }) => ({
       serverUrl: input.serverUrl,
       token: input.token,
     }),
     states: {
-      idle: {
+      [DataStates.IDLE]: {
         on: {
-          FETCH: 'fetching',
+          FETCH: DataStates.FETCHING,
         },
       },
-      fetching: {
+      [DataStates.FETCHING]: {
         invoke: {
           src: 'fetchWorkItems',
           input: ({ context }) => ({
@@ -40,27 +41,27 @@ export const dataMachine = createMachine(
             token: context.token,
           }),
           onDone: {
-            target: 'success',
+            target: DataStates.SUCCESS,
             actions: assign({
               workItems: ({ event }) => event.output,
             }),
           },
           onError: {
-            target: 'error',
+            target: DataStates.ERROR,
             actions: assign({
               error: ({ event }) => (event.error as Error).message,
             }),
           },
         },
       },
-      success: {
+      [DataStates.SUCCESS]: {
         on: {
-          FETCH: 'fetching',
+          FETCH: DataStates.FETCHING,
         },
       },
-      error: {
+      [DataStates.ERROR]: {
         on: {
-          FETCH: 'fetching',
+          FETCH: DataStates.FETCHING,
         },
       },
     },

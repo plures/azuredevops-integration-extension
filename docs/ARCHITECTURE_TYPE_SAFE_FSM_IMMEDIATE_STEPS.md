@@ -3,11 +3,13 @@
 ## Quick Wins (This Week)
 
 ### 1. Enhanced Runtime Validation ✅ (Done)
+
 - Created `validate-xstate-machines-runtime.ts` that actually creates machines
 - Added to compile step
 - Catches invalid transitions at build time
 
 ### 2. State Transition Constants (Next)
+
 Create constants for state names to prevent typos:
 
 ```typescript
@@ -33,11 +35,12 @@ SET_QUERY: {
 ```
 
 ### 3. Transition Type Helper
+
 Create a type that validates transitions:
 
 ```typescript
 // src/fsm/typesafe/transition-types.ts
-type ValidTransition<TState extends string, TTarget extends string> = 
+type ValidTransition<TState extends string, TTarget extends string> =
   TTarget extends `${TState}.${infer _}` | TState ? TTarget : never;
 
 function createTransition<TState extends string, TTarget extends string>(
@@ -54,6 +57,7 @@ SET_QUERY: {
 ```
 
 ### 4. ESLint Rule for State Transitions
+
 Create custom ESLint rule to validate state transitions:
 
 ```typescript
@@ -84,6 +88,7 @@ export default {
 ## Medium-Term (Next 2 Weeks)
 
 ### 1. Schema-First Approach
+
 Define machines using a schema that can be validated:
 
 ```typescript
@@ -101,9 +106,11 @@ export const schema = {
 ```
 
 ### 2. Code Generation
+
 Generate machine code from schema to ensure consistency.
 
 ### 3. Visual Validation
+
 Use Stately Studio to visualize and validate machines.
 
 ---
@@ -111,12 +118,15 @@ Use Stately Studio to visualize and validate machines.
 ## Long-Term (Next Month)
 
 ### 1. Custom TypeScript Transformer
+
 Create a transformer that validates transitions at compile time.
 
 ### 2. Full Type-Safe DSL
+
 Build a complete type-safe wrapper around XState.
 
 ### 3. Migration Tools
+
 Create tools to migrate existing machines safely.
 
 ---
@@ -127,4 +137,3 @@ Create tools to migrate existing machines safely.
 2. **THIS WEEK**: State constants + transition helpers
 3. **NEXT WEEK**: ESLint rule + schema extraction
 4. **NEXT MONTH**: Full type-safe DSL
-

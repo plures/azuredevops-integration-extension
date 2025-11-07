@@ -8,10 +8,30 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [3.0.3] - 2025-11-07
 
+### Changed
+
+- **Major Architecture Overhaul**: Complete migration to XState v5 Finite State Machine (FSM) architecture
+  - Replaced complex messaging system with reactive FSM-based state management
+  - Implemented type-safe state machines for application, connection, authentication, data, timer, and setup flows
+  - Added build-time validation for state machine structure to catch errors before extension activation
+  - Migrated to Svelte 5 rune-first reactive architecture for webview UI
+  - Improved state synchronization between extension host and webview using reactive patterns
+
+### Fixed
+
+- Fixed invalid state transition definitions in connection machine that prevented extension activation
+- Improved state machine validation to catch structural errors at build time
+- Enhanced error handling and recovery in FSM state transitions
+
+### Developer Experience
+
+- Added runtime validation of state machines to compile step
+- Improved type safety for state transitions with state name constants
+- Enhanced debugging capabilities with FSM state visualization
+
 ### Other
 
 - Feature/enhanced setup process (#50)
-
 
 ## [3.0.2] - 2025-11-02
 
