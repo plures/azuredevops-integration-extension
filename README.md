@@ -197,6 +197,8 @@ npm run test           # Run tests
 npm run test:integration # Integration tests (temporarily disabled)
 ```
 
+**Release Process:** Releases are fully automated using GitHub Actions. Use [conventional commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, etc.) and releases happen automatically when merged to main. See [docs/RELEASE_PROCESS.md](./docs/RELEASE_PROCESS.md) for details.
+
 ## 📄 Legal
 
 **License:** MIT License - see [LICENSE](./LICENSE.txt)  
