@@ -947,9 +947,11 @@ export class AzureDevOpsIntClient {
             if (query === 'Recently Updated' && !/\[System\.TeamProject\]\s*=\s*@Project/i.test(bounded)) {
               const whereIdx = bounded.indexOf('WHERE');
               if (whereIdx > -1) {
-                bounded = bounded.slice(0, whereIdx + 5) + 
-                  ` [System.TeamProject] = @Project AND` + 
-                  bounded.slice(whereIdx + 5);
+                // Insert after 'WHERE' and any following space, or add a space if missing
+                const afterWhere = bounded[whereIdx + 5] === ' ' ? whereIdx + 6 : whereIdx + 5;
+                const prefix = bounded.slice(0, afterWhere);
+                const suffix = bounded.slice(afterWhere);
+                bounded = prefix + `[System.TeamProject] = @Project AND ` + suffix;
               }
             }
             
