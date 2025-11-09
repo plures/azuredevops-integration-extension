@@ -285,9 +285,12 @@ async function main() {
         margin: 0;
         padding: ${CAPTURE_PADDING}px;
       }
-      main {
+      #svelte-root, main {
         width: ${CAPTURE_WIDTH}px !important;
         max-width: ${CAPTURE_WIDTH}px !important;
+        height: ${CAPTURE_MAX_HEIGHT}px !important;
+        max-height: ${CAPTURE_MAX_HEIGHT}px !important;
+        overflow: hidden !important;
         margin: 0 auto;
       }
     `,
@@ -384,9 +387,8 @@ async function main() {
 
     // Capture screenshot
     const target =
-      (await page.$('.pane')) ||
-      (await page.$('.kanban-board')) ||
       (await page.$('#svelte-root')) ||
+      (await page.$('main')) ||
       (await page.$('body'));
     
     if (target) {

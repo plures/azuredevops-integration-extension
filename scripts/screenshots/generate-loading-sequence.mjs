@@ -342,6 +342,10 @@ async function main() {
 
   const framesDir = join(PROJECT_ROOT, 'images', 'loading-frames');
   const fs = await import('node:fs/promises');
+  // Clean old frames to avoid any stale artifacts
+  try {
+    await fs.rm(framesDir, { recursive: true, force: true });
+  } catch {}
   await fs.mkdir(framesDir, { recursive: true });
 
   let frameCount = 0;
@@ -349,12 +353,8 @@ async function main() {
 
   // Helper: capture the primary content to avoid large borders
   async function captureTo(path) {
-    const target =
-      (await page.$('.pane')) ||
-      (await page.$('.kanban-board')) ||
-      (await page.$('#svelte-root')) ||
-      page;
-    await target.screenshot({ path, omitBackground: true });
+    // Capture the full viewport to ensure consistent frame dimensions.
+    await page.screenshot({ path, omitBackground: true });
   }
 
   // Frame sequence: 90 frames total
@@ -377,29 +377,14 @@ async function main() {
     frameCount++;
   }
 
-  // List view: 30 frames (with work items)
+  // List view: 30 frames (with work items) - reuse generated PNG for visual parity
   await dispatchSyncState('list', makeSampleWorkItems());
-  // Wait for DOM or fallback to static HTML template
-  try {
-    await page.waitForSelector('.work-item-card, .work-item-list', { timeout: 8000 });
-  } catch {
-    try {
-      const listHtml = await readFile(join(PROJECT_ROOT, 'images', 'work-items-list.html'), 'utf8');
-      const sanitized = listHtml
-        .replace(/<link[^>]+svelte-main\.css[^>]*>/gi, '')
-        .replace(/<script[^>]+svelte-main\.js[^>]*><\/script>/gi, '');
-      await page.evaluate((markup) => {
-        const root = document.getElementById('svelte-root') || document.body;
-        root.innerHTML = markup;
-      }, sanitized);
-    } catch {}
-  }
-  await page.waitForTimeout(600);
-
+  const listPng = join(PROJECT_ROOT, 'images', 'work-items-list.png');
+  await page.waitForTimeout(300);
   for (let i = 0; i < 30; i++) {
     await page.waitForTimeout(FRAME_DELAY);
     const framePath = join(framesDir, `frame-${String(frameCount + 1).padStart(4, '0')}.png`);
-    await captureTo(framePath);
+    await fs.copyFile(listPng, framePath);
     frameCount++;
   }
 
@@ -407,10 +392,12 @@ async function main() {
   await dispatchSyncState('kanban', makeSampleWorkItems(), makeSampleKanbanColumns(makeSampleWorkItems()));
   await page.waitForTimeout(300);
 
+  const kanbanPng = join(PROJECT_ROOT, 'images', 'work-items-kanban.png');
   for (let i = 0; i < 6; i++) {
     await page.waitForTimeout(FRAME_DELAY);
     const framePath = join(framesDir, `frame-${String(frameCount + 1).padStart(4, '0')}.png`);
-    await captureTo(framePath);
+    const src = i < 3 ? listPng : kanbanPng;
+    await fs.copyFile(src, framePath);
     frameCount++;
   }
 
@@ -439,7 +426,7 @@ async function main() {
   for (let i = 0; i < 34; i++) {
     await page.waitForTimeout(FRAME_DELAY);
     const framePath = join(framesDir, `frame-${String(frameCount + 1).padStart(4, '0')}.png`);
-    await captureTo(framePath);
+    await fs.copyFile(kanbanPng, framePath);
     frameCount++;
   }
 
@@ -457,58 +444,49 @@ async function main() {
 }
 
 async function createGifFromFrames(framesDir, outputPath, frameCount) {
-  const frames = [];
-  let width = 0;
-  let height = 0;
-  
-  // Load all frames
+  // Determine target canvas size from the first frame
+  const firstPath = join(framesDir, `frame-${String(1).padStart(4, '0')}.png`);
+  const firstPng = PNG.sync.read(await readFile(firstPath));
+  const targetWidth = firstPng.width;
+  const targetHeight = firstPng.height;
+
+  const encoder = GIFEncoder();
+
   for (let i = 1; i <= frameCount; i++) {
     const framePath = join(framesDir, `frame-${String(i).padStart(4, '0')}.png`);
-    const buffer = await readFile(framePath);
-    const png = PNG.sync.read(buffer);
-    
-    if (i === 1) {
-      width = png.width;
-      height = png.height;
-    }
-    
-    // Convert PNG to RGBA array for gifenc
-    const rgba = new Uint8Array(png.width * png.height * 4);
-    for (let y = 0; y < png.height; y++) {
-      for (let x = 0; x < png.width; x++) {
-        const idx = (y * png.width + x) * 4;
-        const pngIdx = (y * png.width + x) * 4;
-        rgba[idx] = png.data[pngIdx];     // R
-        rgba[idx + 1] = png.data[pngIdx + 1]; // G
-        rgba[idx + 2] = png.data[pngIdx + 2]; // B
-        rgba[idx + 3] = png.data[pngIdx + 3]; // A
+    const srcPng = PNG.sync.read(await readFile(framePath));
+
+    // Normalize each frame to target size by centering on a transparent canvas
+    const canvas = new Uint8Array(targetWidth * targetHeight * 4);
+    const offsetX = Math.max(0, Math.floor((targetWidth - srcPng.width) / 2));
+    const offsetY = Math.max(0, Math.floor((targetHeight - srcPng.height) / 2));
+
+    for (let y = 0; y < srcPng.height; y++) {
+      const destY = y + offsetY;
+      if (destY < 0 || destY >= targetHeight) continue;
+      for (let x = 0; x < srcPng.width; x++) {
+        const destX = x + offsetX;
+        if (destX < 0 || destX >= targetWidth) continue;
+        const srcIdx = (y * srcPng.width + x) * 4;
+        const dstIdx = (destY * targetWidth + destX) * 4;
+        canvas[dstIdx] = srcPng.data[srcIdx];       // R
+        canvas[dstIdx + 1] = srcPng.data[srcIdx+1]; // G
+        canvas[dstIdx + 2] = srcPng.data[srcIdx+2]; // B
+        canvas[dstIdx + 3] = srcPng.data[srcIdx+3]; // A
       }
     }
-    
-    frames.push(rgba);
-  }
 
-  // Create GIF using gifenc
-  const encoder = GIFEncoder();
-  
-  // Process each frame
-  for (let i = 0; i < frames.length; i++) {
-    const rgba = frames[i];
-    
-    // Quantize colors (reduce to 256 color palette)
-    const palette = quantize(rgba, 256);
-    const indexed = applyPalette(rgba, palette);
-    
-    // Add frame to GIF
-    encoder.writeFrame(indexed, width, height, {
-      palette: palette,
+    const palette = quantize(canvas, 256);
+    const indexed = applyPalette(canvas, palette);
+
+    encoder.writeFrame(indexed, targetWidth, targetHeight, {
+      palette,
       delay: FRAME_DELAY,
     });
   }
 
   encoder.finish();
   const gif = encoder.bytes();
-
   await writeFile(outputPath, Buffer.from(gif));
 }
 
@@ -516,3 +494,4 @@ main().catch((error) => {
   console.error('[loading-gif] Error:', error);
   process.exit(1);
 });
+
