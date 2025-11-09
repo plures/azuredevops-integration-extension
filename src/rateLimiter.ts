@@ -1,4 +1,17 @@
 /**
+ * Module: src/rateLimiter.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Simple adaptive rate limiter + retry helper for Azure DevOps API.
  * Token bucket w/ refill + queue. Burst allowed up to `burst` then sustained `ratePerSecond`.
  */

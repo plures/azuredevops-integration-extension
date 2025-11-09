@@ -1,4 +1,17 @@
 /**
+ * Module: src/fsm/functions/setup/environment-detection.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Environment Detection Utilities
  *
  * Determines whether a parsed Azure DevOps URL is for Online (Azure DevOps Services)

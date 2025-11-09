@@ -1,4 +1,17 @@
 /**
+ * Module: src/fsm/machines/applicationMachine.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Application-wide Finite State Machine Architecture
  *
  * This file defines the complete FSM system for the Azure DevOps extension,
@@ -7,7 +20,6 @@
 
 import { createMachine, assign, fromPromise, createActor, Actor } from 'xstate';
 import { computeKanbanColumns } from '../functions/workItems/kanbanColumns.js';
-import { toggleDebugView as toggleDebugViewFn } from '../functions/webview/toggleDebugView.js';
 import * as vscode from 'vscode';
 import type { ExtensionContext } from 'vscode';
 import {
@@ -607,7 +619,7 @@ export const applicationMachine = createMachine(
       updateConnectionsInContext: assign({
         connections: ({ event, context }) => {
           if (event.type !== 'CONNECTIONS_LOADED') return context.connections;
-          appLogger.debug('Updating connections', {
+          appLogger.debug('Updating connections', undefined, {
             connectionsCount: event.connections.length,
             connectionIds: event.connections.map((c: ProjectConnection) => c.id),
           });
@@ -615,7 +627,7 @@ export const applicationMachine = createMachine(
         },
       }),
       storeConnectionsFromSetup: assign(({ context, event }) => {
-        appLogger.debug('storeConnectionsFromSetup received event', {
+        appLogger.debug('storeConnectionsFromSetup received event', undefined, {
           eventType: (event as { type?: unknown }).type,
           hasOutput: 'output' in event,
           isCompletionEvent: isSetupUICompletionEvent(event),
@@ -630,7 +642,7 @@ export const applicationMachine = createMachine(
           event as { type: 'done.invoke.setupUI'; output: SetupUIResult }
         ).output;
 
-        appLogger.debug('Storing connections', {
+        appLogger.debug('Storing connections', undefined, {
           connectionsCount: connections.length,
           connectionIds: connections.map((c: ProjectConnection) => c.id),
           activeConnectionId,
@@ -667,7 +679,7 @@ export const applicationMachine = createMachine(
       }),
       updateRefreshStatusError: assign(({ context, event }) => {
         const errorMessage =
-          event.type === 'error' && 'error' in event
+          event.type === 'ERROR' && 'error' in event
             ? (event.error as Error)?.message || 'Unknown error'
             : 'Data loading failed';
         const refreshStatus = updateRefreshStatus(false, errorMessage);
@@ -707,13 +719,17 @@ export const applicationMachine = createMachine(
 
         // Restore persisted timer state on startup
         if (context.extensionContext) {
-          const persistedState = (context.extensionContext as any).globalState?.get<{
-            workItemId?: number;
-            workItemTitle?: string;
-            startTime?: number;
-            isPaused?: boolean;
-            state?: string;
-          }>('azureDevOpsInt.timer.state');
+          const persistedState = (context.extensionContext as any).globalState?.get(
+            'azureDevOpsInt.timer.state'
+          ) as
+            | {
+                workItemId?: number;
+                workItemTitle?: string;
+                startTime?: number;
+                isPaused?: boolean;
+                state?: string;
+              }
+            | undefined;
 
           if (
             persistedState?.workItemId &&
@@ -771,7 +787,7 @@ export const applicationMachine = createMachine(
       }),
       handleAuthFailure: assign(({ context, event }) => {
         if (event.type === 'AUTHENTICATION_FAILED') {
-          appLogger.error(`Authentication failed for ${event.connectionId}`, {
+          appLogger.error(`Authentication failed for ${event.connectionId}`, undefined, {
             error: event.error,
           });
 
@@ -861,7 +877,7 @@ export const applicationMachine = createMachine(
         if (event.type !== 'WORK_ITEMS_LOADED') return {};
 
         // Debug logging to track work items flow
-        appLogger.debug('Storing work items', {
+        appLogger.debug('Storing work items', undefined, {
           eventType: event.type,
           hasWorkItems: !!event.workItems,
           workItemsType: typeof event.workItems,
@@ -921,7 +937,7 @@ export const applicationMachine = createMachine(
         const title =
           event.workItemTitle || item?.fields?.['System.Title'] || `Work Item ${workItemId}`;
 
-        appLogger.debug('Starting timer for work item', { workItemId, title });
+        appLogger.debug('Starting timer for work item', undefined, { workItemId, title });
 
         // Send START event to timer actor if available
         if (timerActor && typeof (timerActor as any).send === 'function') {
@@ -946,7 +962,8 @@ export const applicationMachine = createMachine(
             ?.update('azureDevOpsInt.timer.state', undefined)
             .then(
               () => {},
-              (e: any) => appLogger.error('Failed to clear persisted timer', { error: e })
+              (e: any) =>
+                appLogger.error('Failed to clear persisted timer', undefined, { error: e })
             );
         }
       },
@@ -967,7 +984,9 @@ export const applicationMachine = createMachine(
         }
 
         // FSM tracks the request - actual browser open happens in activation.ts
-        appLogger.debug('Opening work item in browser', { workItemId: event.workItemId });
+        appLogger.debug('Opening work item in browser', undefined, {
+          workItemId: event.workItemId,
+        });
         // activation.ts handles via dispatchApplicationEvent
       },
       handleOpenInBrowser: ({ event, context }) => {
@@ -982,7 +1001,9 @@ export const applicationMachine = createMachine(
           return;
         }
 
-        appLogger.debug('Opening work item in browser', { workItemId: event.workItemId });
+        appLogger.debug('Opening work item in browser', undefined, {
+          workItemId: event.workItemId,
+        });
         // activation.ts handles via dispatchApplicationEvent
       },
       handleCreateBranch: ({ event, context }) => {
@@ -993,7 +1014,7 @@ export const applicationMachine = createMachine(
         const item = workItems.find((wi: any) => wi.id === event.workItemId);
 
         if (!item) {
-          appLogger.warn('handleCreateBranch: Work item not found', {
+          appLogger.warn('handleCreateBranch: Work item not found', undefined, {
             workItemId: event.workItemId,
           });
           return;
@@ -1003,7 +1024,7 @@ export const applicationMachine = createMachine(
         const title = item.fields?.['System.Title'] || '';
         const branchName = `feature/${event.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
-        appLogger.debug('Creating branch for work item', {
+        appLogger.debug('Creating branch for work item', undefined, {
           workItemId: event.workItemId,
           suggestedName: branchName,
         });
@@ -1021,7 +1042,7 @@ export const applicationMachine = createMachine(
           return;
         }
 
-        appLogger.debug('Opening work item', { workItemId: event.workItemId });
+        appLogger.debug('Opening work item', undefined, { workItemId: event.workItemId });
         // activation.ts handles via dispatchApplicationEvent
       },
       stopTimerOnWorkItemUpdate: ({ context, event }) => {
@@ -1044,7 +1065,9 @@ export const applicationMachine = createMachine(
           const stillExists = workItems.some((wi: any) => wi.id === timerWorkItemId);
 
           if (!stillExists) {
-            appLogger.debug('Stopping timer - work item no longer in list', { timerWorkItemId });
+            appLogger.debug('Stopping timer - work item no longer in list', undefined, {
+              timerWorkItemId,
+            });
             (timerActor as any).send({ type: 'STOP' });
 
             // Clear persisted timer state
@@ -1053,24 +1076,28 @@ export const applicationMachine = createMachine(
                 ?.update('azureDevOpsInt.timer.state', undefined)
                 .then(
                   () => {},
-                  (e: any) => appLogger.error('Failed to clear persisted timer', { error: e })
+                  (e: any) =>
+                    appLogger.error('Failed to clear persisted timer', undefined, { error: e })
                 );
             }
           }
         } catch (e) {
-          appLogger.error('Failed to check timer on work item update', { error: e });
+          appLogger.error('Failed to check timer on work item update', undefined, { error: e });
         }
       },
       storeDeviceCodeSession: assign(({ event }) => {
         if (event.type !== 'DEVICE_CODE_SESSION_STARTED') return {};
         const expiresAt = event.startedAt + event.expiresInSeconds * 1000;
 
-        appLogger.debug('Storing device code session', {
-          connectionId: event.connectionId,
-          userCode: event.userCode,
-          expiresInSeconds: event.expiresInSeconds,
-          expiresAt,
-        });
+        appLogger.debug(
+          'Storing device code session',
+          { connectionId: event.connectionId },
+          {
+            userCode: event.userCode,
+            expiresInSeconds: event.expiresInSeconds,
+            expiresAt,
+          }
+        );
 
         return {
           deviceCodeSession: {
@@ -1086,11 +1113,14 @@ export const applicationMachine = createMachine(
       clearDeviceCodeSession: assign(({ event, context }) => {
         if (event.type !== 'AUTHENTICATION_SUCCESS') return {};
 
-        appLogger.debug('Clearing device code session after authentication success', {
-          connectionId: event.connectionId,
-          hadDeviceCodeSession: !!context.deviceCodeSession,
-          deviceCodeSessionConnectionId: context.deviceCodeSession?.connectionId,
-        });
+        appLogger.debug(
+          'Clearing device code session after authentication success',
+          { connectionId: event.connectionId },
+          {
+            hadDeviceCodeSession: !!context.deviceCodeSession,
+            deviceCodeSessionConnectionId: context.deviceCodeSession?.connectionId,
+          }
+        );
 
         return { deviceCodeSession: undefined };
       }),
@@ -1131,7 +1161,7 @@ export const applicationMachine = createMachine(
           const rawConnections = (settings as any).get?.('connections') ?? [];
           const debugLoggingEnabled = !!(settings as any).get?.('debugLogging');
 
-          appLogger.debug('setupUI: Loading connections from settings', {
+          appLogger.debug('setupUI: Loading connections from settings', undefined, {
             rawConnectionsCount: rawConnections.length,
             hasRawConnections: rawConnections.length > 0,
           });
@@ -1156,7 +1186,7 @@ export const applicationMachine = createMachine(
             summary,
           } = normalizeConnections(rawConnections, legacyFallback);
 
-          appLogger.debug('setupUI: Normalized connections', {
+          appLogger.debug('setupUI: Normalized connections', undefined, {
             count: normalized.length,
             ids: normalized.map((c: ProjectConnection) => c.id),
             activeId: normalized.length > 0 ? normalized[0].id : undefined,
@@ -1170,7 +1200,7 @@ export const applicationMachine = createMachine(
                 vscode.ConfigurationTarget.Global
               );
             } catch (error) {
-              appLogger.warn('setupUI: Failed to save migrated connections', { error });
+              appLogger.warn('setupUI: Failed to save migrated connections', undefined, { error });
             }
           }
 
@@ -1196,13 +1226,15 @@ export const applicationMachine = createMachine(
               try {
                 await extensionContext.globalState.update('activeConnection', activeConnectionId);
               } catch (e) {
-                appLogger.warn('setupUI: Failed to persist activeConnectionId', { error: e });
+                appLogger.warn('setupUI: Failed to persist activeConnectionId', undefined, {
+                  error: e,
+                });
               }
             }
           }
 
           try {
-            appLogger.debug('setupUI: Setup complete', {
+            appLogger.debug('setupUI: Setup complete', undefined, {
               connectionsCount: normalized.length,
               activeConnectionId,
               requiresPersistence,
@@ -1254,7 +1286,7 @@ export const applicationMachine = createMachine(
             query: activeQuery,
           };
         } catch (error) {
-          appLogger.error('Data loading failed', { error });
+          appLogger.error('Data loading failed', undefined, { error });
           throw new Error(
             `Data loading failed: ${error instanceof Error ? error.message : String(error)}`
           );
@@ -1281,8 +1313,24 @@ function activateConnection(context: ApplicationContext, connectionId: string) {
 
 function startAuthentication(context: ApplicationContext, connectionId: string) {
   if (context.isDeactivating) return;
-  const authActor = context.authActors.get(connectionId);
-  if (authActor) {
-    authActor.send({ type: 'AUTHENTICATE' });
+
+  // CRITICAL: Use connection machine CONNECT event with forceInteractive=true
+  // This ensures we trigger re-authentication for the SPECIFIC connection only
+  // and respects the connectionId parameter
+  const connectionActor = context.connectionActors.get(connectionId);
+  if (connectionActor) {
+    // Get the connection config to send with CONNECT event
+    const connection = context.connections.find((c) => c.id === connectionId);
+    if (connection) {
+      connectionActor.send({
+        type: 'CONNECT',
+        config: connection,
+        forceInteractive: true,
+      });
+    } else {
+      appLogger.warn(`Connection not found for authentication: ${connectionId}`);
+    }
+  } else {
+    appLogger.warn(`Connection actor not found for authentication: ${connectionId}`);
   }
 }

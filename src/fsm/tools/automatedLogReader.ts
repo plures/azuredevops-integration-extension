@@ -1,4 +1,17 @@
 /**
+ * Module: src/fsm/tools/automatedLogReader.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * FSM Log Reader Tool for VS Code Extension
  *
  * This tool provides automated access to FSM logs for debugging assistance.

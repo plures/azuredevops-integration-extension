@@ -1,3 +1,17 @@
+/**
+ * Module: Webview Main
+ * Owner: webview
+ * Reads: syncState messages from extension; ApplicationContext (serialized)
+ * Writes: UI-only events; selection via selection writer factory (webview-owned)
+ * Receives: syncState, commands from extension
+ * Emits: fsmEvent wrapper messages to activation (Router handles stamping)
+ * Prohibitions: Do not import extension host modules; Do not define context types
+ * Rationale: Webview bootstrap and message bridge for UI
+ *
+ * LLM-GUARD:
+ * - Use selection writer factory to change selection
+ * - Forward UI events to Router; do not route by connection here
+ */
 import { mount } from 'svelte';
 import App from './App.svelte';
 import { applicationSnapshot } from './fsmSnapshotStore.js';

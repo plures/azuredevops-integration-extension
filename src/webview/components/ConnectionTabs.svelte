@@ -1,3 +1,17 @@
+<!--
+Module: src/webview/components/ConnectionTabs.svelte
+Owner: webview
+Reads: syncState from extension (ApplicationContext serialized)
+Writes: UI-only events; selection via selection writer factory (webview-owned)
+Receives: syncState, host broadcasts
+Emits: fsmEvent envelopes (Router handles stamping)
+Prohibitions: Do not import extension host modules; Do not define context types
+Rationale: Svelte UI component; reacts to ApplicationContext and forwards intents
+
+LLM-GUARD:
+- Use selection writer factory for selection updates
+- Do not route by connection here; let Router decide targets
+-->
 <script lang="ts">
   /**
    * ConnectionTabs.svelte
@@ -35,12 +49,12 @@
     };
   }
 
+  import { createSelectConnection, webviewOwner } from '../selection.writer.internal';
+
   function select(id: string) {
     if (!vscode) return;
-    vscode.postMessage({
-      type: 'fsmEvent',
-      event: { type: 'CONNECTION_SELECTED', connectionId: id },
-    });
+    const evt = createSelectConnection(webviewOwner, id);
+    vscode.postMessage({ type: 'fsmEvent', event: evt });
   }
 
   function focusIndex(i: number) {

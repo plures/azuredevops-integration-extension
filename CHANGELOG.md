@@ -6,39 +6,31 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [3.0.8] - 2025-11-09
-
-### Other
-
-- Upgrade Node.js version from 20 to 24
-
-
-## [3.0.7] - 2025-11-07
+## [2.0.7] - 2025-11-07
 
 ### Other
 
 - Add missing package:vsix script and document release automation (#70)
 
-
-## [3.0.6] - 2025-11-07
+## [2.0.6] - 2025-11-07
 
 ### Fixed
 
 - resolve test runner ESM/CJS interop preventing test execution (#68)
 
-## [3.0.5] - 2025-11-07
+## [2.0.5] - 2025-11-07
 
 ### Other
 
 - Initial plan (#66)
 
-## [3.0.4] - 2025-11-07
+## [2.0.4] - 2025-11-07
 
 ### Fixed
 
 - resolve FSM state transition errors and update documentation (#59)
 
-## [3.0.3] - 2025-11-07
+## [2.0.3] - 2025-11-07
 
 ### Changed
 
@@ -65,19 +57,19 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Feature/enhanced setup process (#50)
 
-## [3.0.2] - 2025-11-02
+## [2.0.2] - 2025-11-02
 
 ### Fixed
 
 - resolve unit test failures and improve coverage command
 
-## [3.0.1] - 2025-10-31
+## [2.0.1] - 2025-10-31
 
 ### Other
 
 - Fix CI version bump logic and release-check script errors (#48)
 
-## [3.0.0] - 2025-10-29
+## [2.0.0] - 2025-10-29
 
 ### Added
 

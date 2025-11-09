@@ -1,4 +1,17 @@
 /**
+ * Module: src/auth/entraAuthProvider.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Microsoft Entra ID (Azure AD) Authentication Provider
  * Implements device code flow for CLI-like authentication experience
  */

@@ -48,6 +48,33 @@ export default [
       'prefer-arrow-callback': 'warn',
     },
   },
+  // Ownership: prevent defining new *Context types outside the single context file
+  {
+    files: ['src/**/*.ts'],
+    ignores: ['src/architecture/ApplicationContext.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'TSInterfaceDeclaration[id.name=/.*Context$/]',
+          message:
+            'Context schemas must be defined only in src/architecture/ApplicationContext.ts (single source of truth).',
+        },
+        {
+          selector: 'TSTypeAliasDeclaration[id.name=/.*Context$/]',
+          message:
+            'Context schemas must be defined only in src/architecture/ApplicationContext.ts (single source of truth).',
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/webview/**'],
+    rules: {
+      // Allow webview to import its internal writer
+      'no-restricted-imports': 'off',
+    },
+  },
 
   // FSM-specific rules
   {
@@ -168,6 +195,23 @@ export default [
       'tests/workflow-improvements.mjs',
     ],
     rules: {
+      // Ownership enforcement: restrict selection writer to webview only
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            // Disallow importing webview-only writer outside webview
+            {
+              group: [
+                'src/webview/selection.writer.internal',
+                './webview/selection.writer.internal',
+              ],
+              message:
+                'Selection writer is webview-owned. Only files under src/webview/** may import it.',
+            },
+          ],
+        },
+      ],
       'no-restricted-syntax': [
         'error',
         {

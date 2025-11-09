@@ -81,10 +81,42 @@ async function buildWebview() {
       },
     });
 
+    // Generate static HTML file for screenshot generation
+    await generateWebviewHtml();
+
     console.log('[esbuild] ✓ Webview built successfully');
   } catch (error) {
     console.error('[esbuild] ✗ Webview build failed:', error);
     throw error;
+  }
+}
+
+async function generateWebviewHtml() {
+  const fs = await import('node:fs/promises');
+  const outputPath = path.join(__dirname, 'media', 'webview', 'svelte.html');
+  const htmlTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' http://127.0.0.1:*; script-src 'unsafe-eval' http://127.0.0.1:*; img-src data: http://127.0.0.1:*; connect-src 'self' http://127.0.0.1:*;">
+  <link href="main.css" rel="stylesheet">
+  <title>Work Items</title>
+</head>
+<body>
+  <div id="svelte-root"></div>
+  <script type="module" src="main.js"></script>
+</body>
+</html>`;
+
+  try {
+    const outputDir = path.dirname(outputPath);
+    await fs.mkdir(outputDir, { recursive: true });
+    await fs.writeFile(outputPath, htmlTemplate, 'utf8');
+    console.log('[esbuild] ✓ Generated svelte.html for screenshots');
+  } catch (error) {
+    console.warn('[esbuild] ⚠ Failed to generate svelte.html:', error.message);
+    // Don't fail the build if HTML generation fails
   }
 }
 

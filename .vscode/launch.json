@@ -1,60 +1,44 @@
 {
-  // Launch configurations for pure ESM extension workflow (no separate webview dev server).
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Extension: Build & Run",
+      "name": "Run Extension",
       "type": "extensionHost",
       "request": "launch",
       "runtimeExecutable": "${execPath}",
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}",
-        // Open devtools to debug Svelte webview
-        "--open-devtools"
+        "--extensionDevelopmentPath=${workspaceFolder}"
       ],
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build Extension",
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
-      }
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.cjs",
+        "${workspaceFolder}/dist/**/*.js"
+      ],
+      "preLaunchTask": "npm: watch",
+      "trace": "verbose"
     },
     {
-      "name": "Extension: Watch (no webview dev)",
+      "name": "Run Extension (No Build)",
       "type": "extensionHost",
       "request": "launch",
       "runtimeExecutable": "${execPath}",
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}",
-        "--open-devtools"
+        "--extensionDevelopmentPath=${workspaceFolder}"
       ],
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Watch Extension",
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
-      }
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.cjs",
+        "${workspaceFolder}/dist/**/*.js"
+      ],
+      "trace": "verbose"
     },
     {
-      "name": "Extension: Quick Run (no build)",
-      "type": "extensionHost",
-      "request": "launch",
-      "runtimeExecutable": "${execPath}",
-      "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}",
-        "--open-devtools"
-      ],
-      "cwd": "${workspaceFolder}",
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
-      }
-    }
-  ],
-  "compounds": [
-    {
-      "name": "Dev: Build → Run with DevTools",
-      "configurations": ["Extension: Build & Run"]
+      "name": "Attach to Extension Host",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "timeout": 10000
     }
   ]
 }
+
+

@@ -21,6 +21,29 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Removed partial state messages (`syncTimerState`, `workItemsError`, `workItemsLoaded`, `timerUpdate`)
 - [x] All UI-visible state in FSM context
 - [x] No command messages to control UI
+- [ ] Single context definition file is the only source of schema
+- [ ] Runtime context is immutable (deep-frozen snapshots in dev)
+- [ ] Context updates happen via typed reducers/patches only (no ad-hoc mutation)
+
+### Status Bar Behavior
+
+- [x] Status bar is created at activation and is always visible while extension is active
+- [x] Shows "$(plug) No connections" when there are zero configured connections
+- [x] Shows "$(plug) Select a connection" when connections exist but none is active
+- [x] Shows "$(sync~spin) … Connecting…" during connecting/retrying states (no premature failure)
+- [x] Shows "Sign In Required" only after all retries are exhausted (final state)
+- [x] Reacts to FSM context changes immediately (no polling/timers)
+- [x] Logging cannot break UI updates (no undefined identifiers in log payloads)
+
+### URL Semantics (ADO Online and On-Prem)
+
+- [x] apiBaseUrl includes project and ends with `/_apis` (canonical REST root)
+- [x] All REST API calls are built from `apiBaseUrl` (never from `baseUrl`)
+- [x] baseUrl is used only for browser links (openExternal, work item URLs)
+- [x] dev.azure.com: `https://dev.azure.com/{org}/{project}/_apis`
+- [x] \*.visualstudio.com: `https://{org}.visualstudio.com/{project}/_apis`
+- [x] On-Prem: `{server}/{collection}/{project}/_apis`
+- [x] Manual `apiBaseUrl` is auto-corrected to include `{project}/_apis` if missing
 
 ### Implementation Status
 
@@ -29,6 +52,14 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] State sync: FSM sends full context via `syncState`
 - [x] Provider updates FSM context (not direct messages) - Messages go through forwardProviderMessage → sendToWebview → FSM dispatch
 - [x] Timer state in FSM context (not separate messages) - Timer state managed by FSM timerActor, sent via syncState
+
+### Context Ownership & Enforcement
+
+- [ ] Context schema defined once (e.g., `src/context/applicationContext.ts`)
+- [ ] Exported as `Readonly`/`ReadonlyDeep` types to all consumers
+- [ ] Write APIs are confined to reducer factories in the same module
+- [ ] Lint rules block additional context type definitions elsewhere
+- [ ] Event factories enforce origin/owner for selection updates (webview-only)
 
 ## Foundation Architecture Discipline ✅
 
@@ -157,6 +188,10 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [ ] Dependencies are correctly specified
 - [ ] TypeScript configuration is strict mode
 - [ ] ESM-first architecture is implemented
+- [ ] `src/context/applicationContext.ts` owns ApplicationContext shape
+- [ ] `createInitialContext()` returns deep-frozen default snapshot in dev
+- [ ] `ContextPatch` reducers exported from context module only
+- [ ] ESLint `no-restricted-imports` enforces single writer for selection factory (webview)
 
 ### Development Environment
 
@@ -202,7 +237,9 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [ ] No hardcoded secrets in code
 - [ ] Least privilege principle is followed
 - [ ] Token rotation is supported
-- [ ] Authentication errors are handled properly
+- [x] Authentication errors are handled properly
+- [x] Entra token expiration triggers interactive re-auth (no legacy refresh path)
+- [x] Status bar shows "Connecting..." during retries (no premature failure)
 
 ### Input Validation
 
@@ -297,7 +334,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 
 - [ ] Installation instructions are clear
 - [ ] Usage examples are provided
-- [ ] Screenshots are included
+- [x] Screenshots are included (automated generation during build)
 - [ ] Troubleshooting guide exists
 - [ ] FAQ is comprehensive
 
@@ -374,6 +411,8 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Each connection stores its own base URL (supports different Azure DevOps instances)
 - [x] Base URL migration works for existing connections
 - [x] New Azure client exposes getWorkItemById (timer/comment operations)
+- [x] Cross-connection UI isolation enforced (provider/webview messages carry connectionId and are filtered)
+- [x] Work item list and kanban strictly show data for the active connection
 
 ### Git Integration
 
@@ -455,7 +494,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 
 ### Logging
 
-- [ ] Structured logging is implemented
+- [x] Structured logging is implemented
 - [ ] Log levels are appropriate
 - [ ] Sensitive data is not logged
 - [ ] Logs are properly formatted

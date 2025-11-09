@@ -2,6 +2,40 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "type": "npm",
+      "script": "watch",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [
+        "$tsc-watch",
+        "$eslint-stylish"
+      ],
+      "isBackground": true
+    },
+    {
+      "type": "npm",
+      "script": "build",
+      "group": "build",
+      "problemMatcher": [
+        "$tsc",
+        "$eslint-stylish"
+      ]
+    },
+    {
+      "type": "npm",
+      "script": "test",
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}
+
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
       "label": "Build Extension",
       "type": "shell",
       "command": "npm run compile",

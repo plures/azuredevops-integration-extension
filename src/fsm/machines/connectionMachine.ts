@@ -1,4 +1,13 @@
 /**
+ * Module: ConnectionMachine
+ * Owner: connection
+ * Reads: ApplicationContext (read-only selectors), event.meta.atConnectionId (if provided)
+ * Writes: none (selection is webview-owned; application context updated via parent reducers)
+ * Receives: connection-shaped events (REFRESH, TOKEN_EXPIRED, REAUTHENTICATE, DELETE_CONNECTION)
+ * Emits: AUTH_FAILED, CONNECTION_FAILED, CONNECTION_REMOVED, CLIENT_READY, PROVIDER_READY
+ * Prohibitions: Do not implement webview logic; Do not emit SELECT_CONNECTION; Do not define context types
+ * Rationale: Single place for connection/auth lifecycle and race resolution using event meta
+ *
  * Connection State Machine
  *
  * Manages individual connection lifecycle, replacing the complex
@@ -541,6 +550,17 @@ export const connectionMachine = createMachine(
               }),
             },
             {
+              // CRITICAL: For Entra auth, trigger interactive authentication instead of token refresh
+              // Token refresh for Entra is handled by the authentication flow, not a separate refresh
+              target: ConnectionStates.AUTHENTICATING,
+              guard: 'isEntraAuth',
+              actions: assign({
+                retryCount: 0,
+                forceInteractive: true, // Force interactive auth for Entra token expiration
+              }),
+            },
+            {
+              // Fallback for other auth methods
               target: ConnectionStates.TOKEN_REFRESH,
             },
           ],
@@ -711,9 +731,12 @@ export const connectionMachine = createMachine(
           },
           CONNECT: {
             target: ConnectionStates.AUTHENTICATING,
-            actions: assign({
+            actions: assign(({ event, context }) => ({
               retryCount: 0,
-            }),
+              config: event.config || context.config,
+              forceInteractive: event.forceInteractive ?? context.forceInteractive ?? false,
+              lastError: undefined, // Clear error when reconnecting
+            })),
           },
           DISCONNECT: ConnectionStates.DISCONNECTED,
         },
@@ -1532,8 +1555,10 @@ export const connectionMachine = createMachine(
                     error: error.message,
                   });
                 } else if (input.authMethod === 'entra') {
-                  // Entra tokens can be refreshed
-                  fsmManager.getConnectionActor(input.connectionId).send({ type: 'TOKEN_EXPIRED' });
+                  // CRITICAL: For Entra auth, trigger interactive authentication via TOKEN_EXPIRED
+                  // CONNECT is not handled in CONNECTED state; TOKEN_EXPIRED transitions to AUTHENTICATING with forceInteractive
+                  const connectionActor = fsmManager.getConnectionActor(input.connectionId);
+                  connectionActor.send({ type: 'TOKEN_EXPIRED' });
                 } else {
                   // Other auth failures
                   fsmManager.getConnectionActor(input.connectionId).send({

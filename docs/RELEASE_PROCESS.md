@@ -19,6 +19,7 @@ The release process is **fully automated** using GitHub Actions workflows. When 
 **Trigger**: Push to `main` branch or Pull Request
 
 **Jobs**:
+
 - **build-and-test**: Runs linting, builds, and tests
 - **release-check**: Validates release readiness (scoring system)
 - **integration-tests**: Runs integration tests
@@ -28,14 +29,15 @@ The release process is **fully automated** using GitHub Actions workflows. When 
 
 The automation follows **Conventional Commits** to determine version bumps:
 
-| Commit Type | Version Bump | Example |
-|------------|--------------|---------|
-| `feat:` or `feat(scope):` | Minor (x.Y.0) | `feat: add new feature` |
-| `fix:` or `fix(scope):` | Patch (x.y.Z) | `fix: resolve bug` |
+| Commit Type                               | Version Bump  | Example                  |
+| ----------------------------------------- | ------------- | ------------------------ |
+| `feat:` or `feat(scope):`                 | Minor (x.Y.0) | `feat: add new feature`  |
+| `fix:` or `fix(scope):`                   | Patch (x.y.Z) | `fix: resolve bug`       |
 | `BREAKING CHANGE:` in body or `!` in type | Major (X.0.0) | `feat!: breaking change` |
-| `docs:`, `chore:`, `style:`, etc. | Patch (x.y.Z) | `docs: update readme` |
+| `docs:`, `chore:`, `style:`, etc.         | Patch (x.y.Z) | `docs: update readme`    |
 
 **Special Rules**:
+
 - **VS Code Convention**: Minor versions are always even numbers for releases
   - If bump would result in odd minor version, it's incremented to next even number
   - Example: `1.3.0` → `1.4.0` instead of `1.3.0`
@@ -46,14 +48,14 @@ The automation follows **Conventional Commits** to determine version bumps:
 
 The `release-check` job validates quality with a 100-point scoring system:
 
-| Category | Points | Requirement |
-|----------|--------|-------------|
-| Unit Tests | 20 | All tests must pass |
-| Code Coverage | 50 | Lines: 85%, Branches: 80%, Functions: 80% |
-| Linting | 10 | No linting errors |
-| Type Checking | 5 | No TypeScript errors |
-| Documentation | 5 | README, CHANGELOG, CONTRIBUTING exist |
-| Security | 10 | No critical/high vulnerabilities |
+| Category      | Points | Requirement                               |
+| ------------- | ------ | ----------------------------------------- |
+| Unit Tests    | 20     | All tests must pass                       |
+| Code Coverage | 50     | Lines: 85%, Branches: 80%, Functions: 80% |
+| Linting       | 10     | No linting errors                         |
+| Type Checking | 5      | No TypeScript errors                      |
+| Documentation | 5      | README, CHANGELOG, CONTRIBUTING exist     |
+| Security      | 10     | No critical/high vulnerabilities          |
 
 **Minimum Score**: 30/100 to proceed with release
 
@@ -62,10 +64,12 @@ The `release-check` job validates quality with a 100-point scoring system:
 **Trigger**: Push of version tags (e.g., `v3.0.6`)
 
 **Jobs**:
+
 - **verify-release**: Ensures tag is on main branch
 - **build-package-and-publish**: Builds, packages, and publishes
 
 **Steps**:
+
 1. Checkout code at tagged commit
 2. Install dependencies (`npm ci`)
 3. Build extension (`npm run build`)
@@ -83,6 +87,7 @@ The `release-check` job validates quality with a 100-point scoring system:
 **Purpose**: Recovery mechanism for when automated tagging fails
 
 **Inputs**:
+
 - `version`: Version tag to create (e.g., `3.0.6`)
 - `commit_sha`: Commit SHA to tag
 
@@ -93,6 +98,7 @@ The `release-check` job validates quality with a 100-point scoring system:
 ### Normal Release (Automated)
 
 1. **Create Feature Branch**:
+
    ```bash
    git checkout -b feature/my-feature
    ```
@@ -100,20 +106,22 @@ The `release-check` job validates quality with a 100-point scoring system:
 2. **Make Changes**: Implement your feature/fix
 
 3. **Commit with Conventional Commits**:
+
    ```bash
    # For new features (minor bump)
    git commit -m "feat: add new time tracking feature"
-   
+
    # For bug fixes (patch bump)
    git commit -m "fix: resolve timer sync issue"
-   
+
    # For breaking changes (major bump, if version >= 1.0.0)
    git commit -m "feat!: redesign API
-   
+
    BREAKING CHANGE: The old API is no longer supported"
    ```
 
 4. **Push and Create PR**:
+
    ```bash
    git push origin feature/my-feature
    ```
@@ -133,6 +141,7 @@ The `release-check` job validates quality with a 100-point scoring system:
 If automated release fails, use the manual recovery workflow:
 
 1. **Identify the Release Commit**:
+
    ```bash
    git log --oneline | grep "chore(release)"
    ```
@@ -150,10 +159,10 @@ If automated release fails, use the manual recovery workflow:
 
 For full automation, configure these GitHub secrets:
 
-| Secret | Required | Purpose |
-|--------|----------|---------|
-| `GITHUB_TOKEN` | Yes (auto-provided) | Creating releases, pushing tags |
-| `VSCE_TOKEN` | No | Publishing to VS Code Marketplace |
+| Secret         | Required            | Purpose                           |
+| -------------- | ------------------- | --------------------------------- |
+| `GITHUB_TOKEN` | Yes (auto-provided) | Creating releases, pushing tags   |
+| `VSCE_TOKEN`   | No                  | Publishing to VS Code Marketplace |
 
 ### Getting VSCE_TOKEN
 
@@ -171,8 +180,8 @@ The workflows require these GitHub permissions (configured in workflow files):
 
 ```yaml
 permissions:
-  contents: write    # For creating tags and releases
-  issues: write      # For creating failure notifications
+  contents: write # For creating tags and releases
+  issues: write # For creating failure notifications
 ```
 
 ## Changelog Management
@@ -180,6 +189,7 @@ permissions:
 CHANGELOG.md is automatically updated by the `update-changelog.js` script:
 
 **Commit Categories**:
+
 - `feat:` → "### Added"
 - `fix:` → "### Fixed"
 - `refactor:`, `style:` → "### Changed"
@@ -188,13 +198,16 @@ CHANGELOG.md is automatically updated by the `update-changelog.js` script:
 - Others → "### Other"
 
 **Format**:
+
 ```markdown
 ## [version] - YYYY-MM-DD
 
 ### Added
+
 - New feature description
 
 ### Fixed
+
 - Bug fix description
 ```
 
@@ -205,12 +218,15 @@ CHANGELOG.md is automatically updated by the `update-changelog.js` script:
 **Symptom**: Commit merged but no release appeared
 
 **Checks**:
+
 1. Check if release commit was created:
+
    ```bash
    git log --oneline | grep "chore(release)"
    ```
 
 2. Check if tag exists:
+
    ```bash
    git tag -l | grep v3.0
    ```
@@ -224,6 +240,7 @@ CHANGELOG.md is automatically updated by the `update-changelog.js` script:
 **Symptom**: Tag exists but GitHub release missing
 
 **Checks**:
+
 1. Check Release workflow logs
 2. Verify tag is on main branch:
    ```bash
@@ -237,11 +254,13 @@ CHANGELOG.md is automatically updated by the `update-changelog.js` script:
 **Symptom**: GitHub release created but not on marketplace
 
 **Checks**:
+
 1. Verify `VSCE_TOKEN` secret exists and is valid
 2. Check Release workflow logs for publish step
 3. Verify publisher name matches in package.json
 
-**Solution**: 
+**Solution**:
+
 - Update VSCE_TOKEN if expired
 - Manually publish: `vsce publish --packagePath <vsix-file> --pat <token>`
 
@@ -256,6 +275,7 @@ Current version: **3.0.6**
 - **PATCH** (0-9): Bug fixes and minor improvements
 
 **Example Progression**:
+
 - `3.0.6` → `3.0.7` (patch: bug fix)
 - `3.0.7` → `3.2.0` (minor: new feature, skipping odd 1)
 - `3.2.0` → `4.0.0` (major: breaking change, only if version >= 1.0.0)
@@ -265,12 +285,14 @@ Current version: **3.0.6**
 To test without triggering a real release:
 
 1. **Test Build Locally**:
+
    ```bash
    npm run build
    npm run package:vsix
    ```
 
 2. **Test Release Check**:
+
    ```bash
    npm run release-check
    ```

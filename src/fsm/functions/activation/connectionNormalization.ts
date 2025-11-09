@@ -1,3 +1,16 @@
+/**
+ * Module: src/fsm/functions/activation/connectionNormalization.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
 import { randomUUID } from 'crypto';
 import type { ProjectConnection } from '../../machines/applicationMachine.js';
 
@@ -188,17 +201,31 @@ function sanitizeConnection(
   }
 
   const record = raw as Record<string, unknown>;
-  const organization = readString(record.organization);
-  const project = readString(record.project);
-  if (!organization || !project) {
+  // Decode any percent-encoded identifiers to ensure we persist raw values
+  const decodeIfEncoded = (value: string): string => {
+    try {
+      const decoded = decodeURIComponent(value);
+      // If decoding changes the string, prefer decoded raw value
+      return decoded;
+    } catch {
+      return value;
+    }
+  };
+
+  const organizationInput = readString(record.organization);
+  const projectInput = readString(record.project);
+  if (!organizationInput || !projectInput) {
     return emptyResult(true);
   }
+  const organization = decodeIfEncoded(organizationInput);
+  const project = decodeIfEncoded(projectInput);
 
   const id = readString(record.id) ?? deps.generateId();
   const generatedId = !readString(record.id);
 
   const label = readOptionalString(record.label);
-  const team = readOptionalString(record.team);
+  const teamRaw = readOptionalString(record.team);
+  const team = teamRaw ? decodeIfEncoded(teamRaw) : undefined;
   const tenantId = readOptionalString(record.tenantId);
   const identityName = readOptionalString(record.identityName);
 

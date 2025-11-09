@@ -1,4 +1,17 @@
 /**
+ * Module: src/architecture/IndependentActorsV5.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Context-Driven Architecture - Independent Actors (XState v5)
  *
  * Simplified version that works with XState v5 patterns.

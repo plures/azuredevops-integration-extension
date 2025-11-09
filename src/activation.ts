@@ -1,3 +1,17 @@
+/**
+ * Module: Activation
+ * Owner: application
+ * Reads: ApplicationContext (selectors), webview events
+ * Writes: none directly to context; delegates via FSM reducers and Router stamping
+ * Receives: UI/system events, provider messages
+ * Emits: syncState to webview; dispatches typed events to ApplicationMachine
+ * Prohibitions: Do not implement webview logic here; Do not define context types; Do not set selection
+ * Rationale: Integration layer wiring VS Code host to FSM + Webview; routing and stamping only
+ *
+ * LLM-GUARD:
+ * - Do not mutate ApplicationContext directly; use FSM events/reducers
+ * - Do not create new *Context types; import from the single context module
+ */
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -201,9 +215,38 @@ export function handleMessage(message: any): void {
     }
     case 'refresh': {
       try {
-        provider?.refresh?.(getStoredQueryForConnection(activeConnectionId));
-      } catch {
-        /* ignore */
+        // CRITICAL: Use provider from active connection's FSM state, not global provider
+        // This ensures refresh uses the correct connection when tabs are switched
+        if (activeConnectionId) {
+          const actor = getApplicationActor();
+          const snapshot = actor?.getSnapshot?.();
+          const connectionStates = snapshot?.context?.connectionStates;
+          const connectionState = connectionStates?.get(activeConnectionId);
+          const activeProvider = connectionState?.provider;
+
+          if (activeProvider && typeof activeProvider.refresh === 'function') {
+            const query = getStoredQueryForConnection(activeConnectionId);
+            activeProvider.refresh(query);
+            verbose('[activation] Refreshed work items for active connection', {
+              connectionId: activeConnectionId,
+              query,
+            });
+          } else if (provider) {
+            // Fallback to global provider if FSM provider not available
+            provider.refresh(getStoredQueryForConnection(activeConnectionId));
+            verbose('[activation] Refreshed work items using fallback provider', {
+              connectionId: activeConnectionId,
+            });
+          } else {
+            verbose('[activation] No provider available for refresh', {
+              connectionId: activeConnectionId,
+              hasActiveProvider: !!activeProvider,
+              hasGlobalProvider: !!provider,
+            });
+          }
+        }
+      } catch (error) {
+        verbose('[activation] Refresh failed', { error, connectionId: activeConnectionId });
       }
       break;
     }
@@ -889,8 +932,35 @@ export async function updateAuthStatusBar(): Promise<void> {
   if (!authStatusBarItem) return;
 
   if (!activeConnectionId) {
-    clearAuthReminder(activeConnectionId);
-    authStatusBarItem.hide();
+    // Always show a status item even without an active selection
+    try {
+      const actor = getApplicationActor();
+      const snapshot = actor?.getSnapshot?.();
+      const numConnections = Array.isArray(snapshot?.context?.connections)
+        ? snapshot!.context.connections.length
+        : 0;
+
+      if (numConnections === 0) {
+        authStatusBarItem.text = '$(plug) No connections';
+        authStatusBarItem.tooltip = 'Click to add an Azure DevOps connection';
+        authStatusBarItem.backgroundColor = undefined;
+        authStatusBarItem.command = 'azureDevOpsInt.setup';
+        authStatusBarItem.show();
+      } else {
+        authStatusBarItem.text = '$(plug) Select a connection';
+        authStatusBarItem.tooltip = 'Select an active connection';
+        authStatusBarItem.backgroundColor = undefined;
+        authStatusBarItem.command = 'azureDevOpsInt.setup';
+        authStatusBarItem.show();
+      }
+    } catch {
+      // Fallback: still show a minimal item
+      authStatusBarItem.text = '$(plug) Azure DevOps';
+      authStatusBarItem.tooltip = 'Azure DevOps Integration';
+      authStatusBarItem.backgroundColor = undefined;
+      authStatusBarItem.command = 'azureDevOpsInt.setup';
+      authStatusBarItem.show();
+    }
     return;
   }
 
@@ -988,19 +1058,15 @@ export async function updateAuthStatusBar(): Promise<void> {
     );
     const isConnected = actualStateConnected && hasClientAndProvider;
 
-    // Check for auth failure: state machine in auth_failed OR has lastError
+    // Check for auth failure: state machine in failed states
     const stateMachineAuthFailed =
       connectionMachineState === 'auth_failed' ||
       connectionMachineState === 'client_failed' ||
       connectionMachineState === 'provider_failed' ||
       connectionMachineState === 'connection_error';
-    const hasAuthFailure = Boolean(
-      stateMachineAuthFailed ||
-        fsmConnectionState?.reauthInProgress ||
-        fsmConnectionState?.lastError ||
-        state?.reauthInProgress ||
-        state?.lastError
-    );
+    // Remaining retries according to connection machine policy (retryCount < 3)
+    const remainingRetries =
+      (typeof fsmConnectionState?.retryCount === 'number' ? fsmConnectionState.retryCount : 0) < 3;
 
     // Check if there's an active device code session for this connection
     const hasActiveDeviceCode = Boolean(
@@ -1014,8 +1080,28 @@ export async function updateAuthStatusBar(): Promise<void> {
       connectionMachineState === 'checking_token' ||
       connectionMachineState === 'authenticating';
 
+    // Check if connection is in a connecting/retrying state (not yet failed)
+    const isConnecting =
+      connectionMachineState === 'authenticating' ||
+      connectionMachineState === 'checking_token' ||
+      connectionMachineState === 'interactive_auth' ||
+      connectionMachineState === 'creating_client' ||
+      connectionMachineState === 'creating_provider' ||
+      fsmConnectionState?.reauthInProgress === true;
+
+    // Treat startup/disconnected and transient auth_failed-with-retries as connecting to prevent flicker
+    const isDisconnected =
+      !connectionMachineState ||
+      connectionMachineState === 'disconnected' ||
+      connectionMachineState === 'idle';
+    const treatAsConnecting =
+      !isConnected &&
+      (isConnecting || (stateMachineAuthFailed && remainingRetries) || isDisconnected);
+
     // Only log status check if debug logging is enabled to prevent excessive logging
     if (shouldLogDebug()) {
+      // Consolidated failure flag for debug output
+      const hasAuthFailure = stateMachineAuthFailed;
       verbose('[updateAuthStatusBar] Status check', {
         activeConnectionId,
         connectionMachineState,
@@ -1024,6 +1110,8 @@ export async function updateAuthStatusBar(): Promise<void> {
         hasAuthFailure,
         stateMachineAuthFailed,
         hasActiveDeviceCode,
+        isConnecting,
+        isInteractiveAuth,
         hasClient: !!(state?.client || fsmConnectionState?.client),
         hasProvider: !!(state?.provider || fsmConnectionState?.provider),
         fsmIsConnected: fsmConnectionState?.isConnected,
@@ -1032,21 +1120,31 @@ export async function updateAuthStatusBar(): Promise<void> {
       });
     }
 
-    // PRIORITY: Check auth failure FIRST - even if client/provider exist, auth failure takes precedence
-    if (hasAuthFailure) {
-      // Show auth failure status
-      const authLabel = authMethod === 'entra' ? 'Entra' : 'PAT';
-      // Get error message from FSM connection state or legacy state
-      const errorMessage =
-        fsmConnectionState?.lastError ||
-        state?.lastError ||
-        (connectionMachineState === 'auth_failed' ? 'Authentication failed' : 'Connection error');
-      authStatusBarItem.text = `$(error) ${authLabel}: Auth Failed`;
-      authStatusBarItem.tooltip = `${errorMessage}\n\nConnection: ${connectionLabel}\nClick to manage connections.`;
-      authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
-      authStatusBarItem.command = 'azureDevOpsInt.setup';
-      authStatusBarItem.show();
-    } else if (hasActiveDeviceCode || (isInteractiveAuth && authMethod === 'entra')) {
+    // PRIORITY 1: Show connecting while connecting/retrying/startup
+    if (treatAsConnecting) {
+      if (authMethod === 'entra') {
+        authStatusBarItem.text = '$(sync~spin) Entra: Connecting...';
+        authStatusBarItem.tooltip = `Connecting to ${connectionLabel}...`;
+        authStatusBarItem.backgroundColor = new vscode.ThemeColor(
+          'statusBarItem.warningBackground'
+        );
+        authStatusBarItem.command = 'azureDevOpsInt.signInWithEntra';
+        authStatusBarItem.show();
+        return; // Connecting takes precedence
+      } else {
+        authStatusBarItem.text = '$(sync~spin) PAT: Connecting...';
+        authStatusBarItem.tooltip = `Connecting to ${connectionLabel}...`;
+        authStatusBarItem.backgroundColor = new vscode.ThemeColor(
+          'statusBarItem.warningBackground'
+        );
+        authStatusBarItem.command = 'azureDevOpsInt.setup';
+        authStatusBarItem.show();
+        return; // Connecting takes precedence
+      }
+    }
+
+    // PRIORITY 2: Device code / interactive flow indicator
+    if (hasActiveDeviceCode || (isInteractiveAuth && authMethod === 'entra')) {
       // Show device code flow in progress (Entra only)
       authStatusBarItem.text = '$(sync~spin) Entra: Device Code Active';
       authStatusBarItem.tooltip = `Device code authentication in progress for ${connectionLabel}`;
@@ -1067,18 +1165,52 @@ export async function updateAuthStatusBar(): Promise<void> {
       authStatusBarItem.backgroundColor = undefined; // Clear warning background
       authStatusBarItem.show();
     } else {
-      // Show sign-in/auth required status
-      if (authMethod === 'entra') {
-        authStatusBarItem.text = '$(warning) Entra: Sign In Required';
-        authStatusBarItem.tooltip = `Sign in required for ${connectionLabel}`;
-        authStatusBarItem.command = 'azureDevOpsInt.signInWithEntra';
+      // FINAL: Show failure or sign-in required only when no retries remain and not connecting
+      if (stateMachineAuthFailed && !remainingRetries) {
+        const authLabel = authMethod === 'entra' ? 'Entra' : 'PAT';
+        const errorMessage =
+          fsmConnectionState?.lastError ||
+          state?.lastError ||
+          (connectionMachineState === 'auth_failed' ? 'Authentication failed' : 'Connection error');
+        if (authMethod === 'entra') {
+          // Entra: present as Sign In Required (final state requiring user action)
+          authStatusBarItem.text = '$(warning) Entra: Sign In Required';
+          authStatusBarItem.tooltip = `${errorMessage}\n\nConnection: ${connectionLabel}\nClick to sign in.`;
+          authStatusBarItem.command = 'azureDevOpsInt.signInWithEntra';
+          authStatusBarItem.backgroundColor = new vscode.ThemeColor(
+            'statusBarItem.warningBackground'
+          );
+          authStatusBarItem.show();
+        } else {
+          // PAT: show Auth Failed with manage link
+          authStatusBarItem.text = `$(error) ${authLabel}: Auth Failed`;
+          authStatusBarItem.tooltip = `${errorMessage}\n\nConnection: ${connectionLabel}\nClick to manage connections.`;
+          authStatusBarItem.backgroundColor = new vscode.ThemeColor(
+            'statusBarItem.errorBackground'
+          );
+          authStatusBarItem.command = 'azureDevOpsInt.setup';
+          authStatusBarItem.show();
+        }
       } else {
-        authStatusBarItem.text = '$(warning) PAT: Auth Required';
-        authStatusBarItem.tooltip = `Personal Access Token required for ${connectionLabel}. Click to manage connections.`;
-        authStatusBarItem.command = 'azureDevOpsInt.setup';
+        // Fallback: show Sign In Required only when idle without activity (e.g., PAT setup)
+        if (authMethod === 'entra') {
+          authStatusBarItem.text = '$(sync~spin) Entra: Connecting...';
+          authStatusBarItem.tooltip = `Connecting to ${connectionLabel}...`;
+          authStatusBarItem.backgroundColor = new vscode.ThemeColor(
+            'statusBarItem.warningBackground'
+          );
+          authStatusBarItem.command = 'azureDevOpsInt.signInWithEntra';
+          authStatusBarItem.show();
+        } else {
+          authStatusBarItem.text = '$(warning) PAT: Auth Required';
+          authStatusBarItem.tooltip = `Personal Access Token required for ${connectionLabel}. Click to manage connections.`;
+          authStatusBarItem.command = 'azureDevOpsInt.setup';
+          authStatusBarItem.backgroundColor = new vscode.ThemeColor(
+            'statusBarItem.warningBackground'
+          );
+          authStatusBarItem.show();
+        }
       }
-      authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-      authStatusBarItem.show();
     }
   } catch (error) {
     activationLogger.error('[updateAuthStatusBar] Error updating auth status', { meta: error });
@@ -1850,16 +1982,35 @@ function sendToWebview(message: any): void {
     return;
   }
 
-  // workItemsError is extracted from connection snapshot in getSerializableContext
-  // and included in syncState. No need to post partial error message.
+  // workItemsError: Dispatch an authentication failure event so UI can react immediately.
+  // We still avoid posting the partial message directly to the webview.
   if (messageType === 'workItemsError') {
     verbose('[sendToWebview] Processing workItemsError (not posting to webview):', {
       messageType,
       error: message.error,
       connectionId: message.connectionId,
     });
-    // Error state is already in FSM context via connection snapshot
-    // Return early - don't post partial error message to webview
+    try {
+      const errorText = String(message.error ?? '');
+      const connectionId =
+        typeof message.connectionId === 'string' ? message.connectionId : activeConnectionId;
+      if (connectionId) {
+        // If this looks like an authentication error (401 or contains 'Authentication failed'),
+        // notify the FSM so UI (status bar/banner) can update deterministically.
+        const looksAuthFailure =
+          /\b401\b/.test(errorText) || /authentication failed/i.test(errorText);
+        if (looksAuthFailure) {
+          dispatchApplicationEvent({
+            type: 'AUTHENTICATION_FAILED',
+            connectionId,
+            error: errorText,
+          });
+        }
+      }
+    } catch {
+      // best-effort; ignore
+    }
+    // Return early - don't post partial message to webview
     return;
   }
 
@@ -2228,23 +2379,22 @@ export async function activate(context: vscode.ExtensionContext) {
     bridgeConsoleToOutputChannel();
   }
   // Status bar (hidden until connected or timer active)
-  statusBarItem = vscode.window.createStatusBarItem(
-    'azureDevOpsInt.timer',
-    vscode.StatusBarAlignment.Left,
-    100
-  );
+  // Use compatibility signature (alignment, priority) to avoid VS Code API version issues
+  statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBarItem.command = 'azureDevOpsInt.stopTimer';
   context.subscriptions.push(statusBarItem);
 
   // Auth status bar item (shows Entra ID token status)
-  authStatusBarItem = vscode.window.createStatusBarItem(
-    'azureDevOpsInt.authStatus',
-    vscode.StatusBarAlignment.Left,
-    99
-  );
+  // Use compatibility signature (alignment, priority) to avoid VS Code API version issues
+  authStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
   authStatusBarItem.command = 'azureDevOpsInt.signInWithEntra';
   context.subscriptions.push(authStatusBarItem);
-  authStatusBarItem.hide(); // Hidden by default, shown only for Entra ID connections
+  // Show a minimal default immediately; updateAuthStatusBar will refine it
+  authStatusBarItem.text = '$(plug) Azure DevOps';
+  authStatusBarItem.tooltip = 'Azure DevOps Integration';
+  authStatusBarItem.backgroundColor = undefined;
+  authStatusBarItem.command = 'azureDevOpsInt.setup';
+  authStatusBarItem.show();
 
   // Set global reference for reactive status bar updates
   updateAuthStatusBarRef = updateAuthStatusBar;
@@ -2349,6 +2499,25 @@ export async function activate(context: vscode.ExtensionContext) {
 
   if (appActor && typeof (appActor as any).subscribe === 'function') {
     (appActor as any).subscribe((snapshot: any) => {
+      // CRITICAL: Update global activeConnectionId when FSM context changes
+      // This ensures status bar and refresh use the correct connection
+      const fsmActiveConnectionId = snapshot?.context?.activeConnectionId;
+      if (fsmActiveConnectionId !== activeConnectionId) {
+        const previousActiveConnectionId = activeConnectionId;
+        activeConnectionId = fsmActiveConnectionId;
+        verbose('[activation] Active connection changed', {
+          previous: previousActiveConnectionId,
+          current: activeConnectionId,
+        });
+
+        // Update status bar immediately when active connection changes
+        setImmediate(() => {
+          updateAuthStatusBar().catch((err) => {
+            verbose('[activation] Failed to update status bar after connection change:', err);
+          });
+        });
+      }
+
       // Check if device code session changed and update status bar
       const currentDeviceCodeSession = snapshot?.context?.deviceCodeSession;
       const deviceCodeSessionChanged =
@@ -2754,13 +2923,49 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
     `;
 
     // Set up message handler to receive events from webview
-    webview.onDidReceiveMessage((message) => {
+    webview.onDidReceiveMessage(async (message) => {
       if (message.type === 'fsmEvent' && message.event) {
         // Forward webview events to the FSM (wrapped format)
         verbose('[AzureDevOpsIntViewProvider] Received event from webview', {
           eventType: message.event.type,
           event: message.event,
         });
+
+        // Router-lite stamping: add atConnectionId/correlationId to connection-shaped events
+        try {
+          const actor = getApplicationActor();
+          const snapshot = actor?.getSnapshot?.();
+          const currentActiveId = snapshot?.context?.activeConnectionId;
+          const evtType = message.event.type as string;
+          // Router stamping helper
+          try {
+            const { stampConnectionMeta } = await import('./fsm/router/stamp.js');
+            message.event = stampConnectionMeta(message.event, currentActiveId);
+          } catch {
+            // Inline fallback (no-op)
+          }
+
+          // Guard: selection must originate from webview when using new factory
+          if (evtType === 'SELECT_CONNECTION') {
+            if (message.event.origin !== 'webview') {
+              activationLogger.warn(
+                '[AzureDevOpsIntViewProvider] Blocking SELECT_CONNECTION without webview origin'
+              );
+              return;
+            }
+            // Translate to existing application event for compatibility
+            const targetId = message.event?.payload?.id ?? null;
+            if (typeof targetId === 'string' || targetId === null) {
+              dispatchApplicationEvent({
+                type: 'CONNECTION_SELECTED',
+                connectionId: targetId,
+              });
+              return;
+            }
+          }
+        } catch {
+          // best-effort stamping; continue dispatch
+        }
 
         // Handle special events that need direct VS Code command execution
         if (message.event.type === 'OPEN_SETTINGS') {

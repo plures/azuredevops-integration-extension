@@ -63,12 +63,12 @@ git push origin v3.0.7
 
 ## Version Bumping Rules
 
-| Commit Type | Version Change | Example |
-|-------------|----------------|---------|
-| `feat:` | 1.0.0 → 1.2.0 (even minor) | New feature |
-| `fix:` | 1.0.0 → 1.0.1 | Bug fix |
-| `feat!:` or `BREAKING CHANGE:` | 1.0.0 → 2.0.0 | Breaking change (if >= 1.0.0) |
-| `docs:`, `chore:`, `style:` | 1.0.0 → 1.0.1 | Patch bump |
+| Commit Type                    | Version Change             | Example                       |
+| ------------------------------ | -------------------------- | ----------------------------- |
+| `feat:`                        | 1.0.0 → 1.2.0 (even minor) | New feature                   |
+| `fix:`                         | 1.0.0 → 1.0.1              | Bug fix                       |
+| `feat!:` or `BREAKING CHANGE:` | 1.0.0 → 2.0.0              | Breaking change (if >= 1.0.0) |
+| `docs:`, `chore:`, `style:`    | 1.0.0 → 1.0.1              | Patch bump                    |
 
 **Note**: Minor versions are always even numbers (VS Code convention)
 
@@ -84,20 +84,24 @@ Configure in GitHub repository settings → Secrets:
 ## Common Issues
 
 ### No release created after merge
+
 **Cause**: Tag push may have failed  
 **Fix**: Check Actions logs, use "Fix Missing Tag" workflow
 
 ### Release created but not on marketplace
+
 **Cause**: Missing or expired VSCE_TOKEN  
 **Fix**: Update VSCE_TOKEN secret
 
 ### Wrong version bump
+
 **Cause**: Incorrect commit message format  
 **Fix**: Version is already bumped, make a follow-up commit with correct type
 
 ## Quality Gates
 
 Minimum requirements for release (30/100 points):
+
 - ✅ Unit tests pass (20 pts)
 - ✅ Code coverage > basic threshold (50 pts)
 - ✅ No linting errors (10 pts)
@@ -150,6 +154,7 @@ git commit -m "docs: update auth documentation"
 ## Monitoring
 
 Watch for automated issue creation:
+
 - Label: `release`, `automation`
 - Auto-created when tagging fails
 - Contains workflow run details and recovery steps

@@ -1,490 +1,412 @@
 #!/usr/bin/env node
-/* eslint-disable no-undef */
-// Generate webview screenshots using Playwright (Chromium)
-// - Loads built webview HTML from media/webview/index.html
-// - Injects fixture via window.__AZDO_FIXTURE__ to bypass VS Code messaging
-// - Captures list, kanban, and timer variants to images
+/**
+ * Generate Static Screenshots
+ * 
+ * Creates static PNG screenshots of the webview in different states:
+ * - List view with work items
+ * - Kanban board view
+ */
 
 import { chromium } from 'playwright';
-import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, dirname } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'url';
 import http from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { ensurePrerequisites } from './check-prerequisites.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirname(__filename);
+const PROJECT_ROOT = join(__dirname, '../..');
 
-const CAPTURE_WIDTH = 1200;
-const CAPTURE_MAX_HEIGHT = 780;
-const CAPTURE_PADDING = 32;
-const CAPTURE_BORDER_RADIUS = 8;
-const CAPTURE_SHADOW = '0 8px 32px rgba(0, 0, 0, 0.4)';
+// Constants
+const CAPTURE_WIDTH = 1600;
+const CAPTURE_PADDING = 64;
+const CAPTURE_MAX_HEIGHT = 716;
 
-// VS Code Dark+ theme colors (most popular theme)
+// VS Code Dark+ Theme Colors
 const VSCODE_THEME = {
   background: '#1e1e1e',
-  sidebarBackground: '#252526',
-  editorBackground: '#1e1e1e',
   foreground: '#cccccc',
-  border: '#3e3e42',
+  widgetBorderStrong: '#6e6e6e',
   inputBackground: '#3c3c3c',
-  inputForeground: '#cccccc',
   buttonBackground: '#0e639c',
-  buttonForeground: '#ffffff',
-  buttonHoverBackground: '#1177bb',
   listActiveBackground: '#094771',
-  listHoverBackground: '#2a2d2e',
-  widgetBorder: '#454545', // Subtle border
-  widgetBorderStrong: '#6e6e6e', // More visible border for screenshots
   focusBorder: '#007acc',
-  descriptionForeground: '#9d9d9d',
+  editorWidgetBackground: '#252526',
+  editorWidgetBorder: '#454545',
 };
 
-async function readJson(p) {
-  const raw = await fs.readFile(p, 'utf8');
-  return JSON.parse(raw);
+// Sample work items aligned to ADO fields expected by the webview
+function makeSampleWorkItems() {
+  const now = new Date();
+  const dt = (days) => new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
+  return [
+    {
+      id: 101,
+      fields: {
+        'System.Title': 'Implement user authentication flow',
+        'System.WorkItemType': 'Task',
+        'System.State': 'Active',
+        'System.AssignedTo': { displayName: 'Alex Johnson' },
+        'Microsoft.VSTS.Common.Priority': 2,
+        'System.ChangedDate': dt(1),
+        'System.CreatedDate': dt(10),
+        'System.Tags': 'auth;feature',
+      },
+    },
+    {
+      id: 102,
+      fields: {
+        'System.Title': 'Fix null pointer crash on settings page',
+        'System.WorkItemType': 'Bug',
+        'System.State': 'To Do',
+        'System.AssignedTo': 'Unassigned',
+        'Microsoft.VSTS.Common.Priority': 1,
+        'System.ChangedDate': dt(2),
+        'System.CreatedDate': dt(8),
+        'System.Tags': 'bug;settings;crash',
+      },
+    },
+    {
+      id: 103,
+      fields: {
+        'System.Title': 'Add team filters to work items view',
+        'System.WorkItemType': 'Feature',
+        'System.State': 'In Progress',
+        'System.AssignedTo': { displayName: 'Sam Patel' },
+        'Microsoft.VSTS.Common.Priority': 3,
+        'System.ChangedDate': dt(0.5),
+        'System.CreatedDate': dt(7),
+        'System.Tags': 'ui;filter',
+      },
+    },
+    {
+      id: 104,
+      fields: {
+        'System.Title': 'Write integration tests for timer module',
+        'System.WorkItemType': 'Task',
+        'System.State': 'Review',
+        'System.AssignedTo': { displayName: 'Chris Lee' },
+        'Microsoft.VSTS.Common.Priority': 2,
+        'System.ChangedDate': dt(3),
+        'System.CreatedDate': dt(12),
+        'System.Tags': 'tests;timer',
+      },
+    },
+    {
+      id: 105,
+      fields: {
+        'System.Title': 'Polish Kanban card layout and styling',
+        'System.WorkItemType': 'Task',
+        'System.State': 'Done',
+        'System.AssignedTo': { displayName: 'Taylor Kim' },
+        'Microsoft.VSTS.Common.Priority': 2,
+        'System.ChangedDate': dt(0.2),
+        'System.CreatedDate': dt(6),
+        'System.Tags': 'kanban;css',
+      },
+    },
+    {
+      id: 106,
+      fields: {
+        'System.Title': 'Implement drag-and-drop for Kanban columns',
+        'System.WorkItemType': 'Feature',
+        'System.State': 'In Progress',
+        'System.AssignedTo': { displayName: 'Jordan Martinez' },
+        'Microsoft.VSTS.Common.Priority': 2,
+        'System.ChangedDate': dt(1.5),
+        'System.CreatedDate': dt(9),
+        'System.Tags': 'kanban;dnd',
+      },
+    },
+    {
+      id: 107,
+      fields: {
+        'System.Title': 'Add support for custom work item fields',
+        'System.WorkItemType': 'Feature',
+        'System.State': 'New',
+        'System.AssignedTo': { displayName: 'Morgan Davis' },
+        'Microsoft.VSTS.Common.Priority': 3,
+        'System.ChangedDate': dt(4),
+        'System.CreatedDate': dt(14),
+        'System.Tags': 'customization;fields',
+      },
+    },
+  ];
 }
 
-async function ensureDir(dir) {
-  await fs.mkdir(dir, { recursive: true });
+function makeSampleKanbanColumns(items) {
+  const byId = new Map(items.map((w) => [w.id, w]));
+  const pick = (predicate) =>
+    items.filter((w) => predicate(String(w.fields?.['System.State'] || '').toLowerCase())).map((w) => w.id);
+  const todo = pick((s) => s.includes('new') || s.includes('to do') || s.includes('todo') || s.includes('proposed'));
+  const inprog = pick((s) => s.includes('in progress') || s.includes('inprogress') || s.includes('doing') || s.includes('active'));
+  const review = pick((s) => s.includes('review') || s.includes('testing'));
+  const done = pick((s) => s.includes('done') || s.includes('resolved') || s.includes('closed') || s.includes('completed'));
+  // Ensure each item is placed at least once
+  const assigned = new Set([...todo, ...inprog, ...review, ...done]);
+  const leftovers = items.filter((w) => !assigned.has(w.id)).map((w) => w.id);
+  if (leftovers.length) inprog.push(...leftovers);
+  return [
+    { id: 'todo', title: 'To Do', itemIds: todo },
+    { id: 'inprogress', title: 'In Progress', itemIds: inprog },
+    { id: 'review', title: 'Review/Testing', itemIds: review },
+    { id: 'done', title: 'Done', itemIds: done },
+  ];
 }
+
+const fixtures = [
+  {
+    name: 'work-items-list',
+    view: 'list',
+    workItems: makeSampleWorkItems(),
+  },
+  {
+    name: 'work-items-kanban',
+    view: 'kanban',
+    workItems: makeSampleWorkItems(),
+  },
+];
 
 async function main() {
-  const repoRoot = path.resolve(__dirname, '..', '..');
-  // Prefer the Svelte entrypoint; fall back to legacy index.html if missing.
-  const svelteEntry = path.resolve(repoRoot, 'media', 'webview', 'svelte.html');
-  const legacyIndex = path.resolve(repoRoot, 'media', 'webview', 'index.html');
-  let builtIndex = svelteEntry;
-  try {
-    await fs.access(svelteEntry);
-  } catch {
-    builtIndex = legacyIndex;
-  }
-  const outDir = path.resolve(repoRoot, 'images');
-  const samplePath = path.resolve(__dirname, 'sample-data.json');
-  const staticRoot = path.resolve(repoRoot, 'media', 'webview');
-
-  // Ensure static webview assets exist
-  try {
-    await fs.access(builtIndex);
-  } catch {
-    console.error('[screenshots] Webview HTML not found at', builtIndex);
-    console.error('Ensure images/ are present (they are committed to the repo).');
-    console.error(
-      'If missing in your checkout, re-install or rebuild the extension: npm run build'
-    );
+  console.log('[screenshots] Checking prerequisites...');
+  const prerequisitesOk = await ensurePrerequisites();
+  if (!prerequisitesOk) {
+    console.error('[screenshots] Prerequisites check failed');
     process.exit(1);
   }
 
-  const sample = await readJson(samplePath);
-  await ensureDir(outDir);
+  console.log('[screenshots] Starting screenshot generation...');
 
-  // Start a tiny static server to avoid file:// CORS issues with module scripts
-  const server = await startStaticServer(staticRoot);
-  const baseUrl = `http://127.0.0.1:${server.port}/${path.basename(builtIndex)}`;
+  // Start a tiny static server to serve media/webview over http so the bundle loads
+  const webviewDir = join(PROJECT_ROOT, 'media', 'webview');
+  const server = http.createServer(async (req, res) => {
+    try {
+      const url = new URL(req.url, 'http://127.0.0.1');
+      let filePath = url.pathname.replace(/^\/+/, '');
+      if (!filePath || filePath === '/') filePath = 'svelte.html';
+      const abspath = join(webviewDir, filePath);
+      const data = await readFile(abspath);
+      const ext = abspath.split('.').pop()?.toLowerCase() || '';
+      const type =
+        ext === 'html'
+          ? 'text/html'
+          : ext === 'css'
+            ? 'text/css'
+            : ext === 'js'
+              ? 'text/javascript'
+              : 'application/octet-stream';
+      res.writeHead(200, { 'Content-Type': type });
+      res.end(data);
+    } catch (e) {
+      res.statusCode = 404;
+      res.end('Not Found');
+    }
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const { port } = server.address();
+  const baseHttpUrl = `http://127.0.0.1:${port}/svelte.html`;
+  console.log('[screenshots] Serving webview from', baseHttpUrl);
 
   const browser = await chromium.launch({ headless: true });
-  // Use a larger viewport with higher DPI for better quality screenshots
   const context = await browser.newContext({
-    viewport: { width: 1600, height: 1000 },
-    deviceScaleFactor: 2, // Retina display quality
+    viewport: {
+      width: CAPTURE_WIDTH + CAPTURE_PADDING * 2,
+      height: CAPTURE_MAX_HEIGHT,
+    },
+    deviceScaleFactor: 2,
   });
+
   const page = await context.newPage();
 
-  // Pipe webview console logs and errors to our stdout for debugging
-  page.on('console', (msg) => {
-    try {
-      console.log(`[webview:${msg.type()}]`, msg.text());
-    } catch {
-      // ignore logging errors
-    }
-  });
-  page.on('pageerror', (err) => {
-    console.error('[webview:error]', err);
-  });
+  // Load the webview HTML
+  await page.goto(baseHttpUrl);
 
-  // Intercept file:// CSS/JS loading by serving with a local file server built into Playwright
-  // Easiest approach: use file URL directly; Chromium supports file URLs for static assets
-  const fileUrl = baseUrl; // now served over http to satisfy module CORS
-
-  // Helper to capture a screenshot with a given fixture
-  async function capture(name, fixture, dumpHtml = false, options = {}) {
-    const { widthPx, maxHeightPx } = options; // optional sizing overrides
-    // Ensure init script is in place before navigation so fixture is applied before any scripts run
-    await page.addInitScript((f) => {
-      // Provide fixture data for the webview bootstrap to pick up
-      window.__AZDO_FIXTURE__ = f;
-      const isSvelte = /svelte\.html$/i.test(location.pathname);
-      // Basic VS Code API stub
-      function makeApi() {
-        return {
-          postMessage: (msg) => {
-            try {
-              // When Svelte entry sends getWorkItems, respond with transformed sample data.
-              if (isSvelte && msg && msg.type === 'getWorkItems') {
-                const raw = (window.__AZDO_FIXTURE__ || {}).workItems || [];
-                const mapped = raw.map((w) => ({
-                  id: w.id,
-                  fields: {
-                    'System.Id': w.id,
-                    'System.Title': w.title,
-                    'System.State': w.state,
-                    'System.WorkItemType': w.type,
-                    'System.AssignedTo':
-                      !w.assignedTo || w.assignedTo === 'Unassigned'
-                        ? undefined
-                        : { displayName: w.assignedTo },
-                    'Microsoft.VSTS.Common.Priority': w.priority,
-                    'System.ChangedDate': new Date().toISOString(),
-                  },
-                }));
-                // First send workItemsLoading to simulate query start
-                setTimeout(() => {
-                  window.postMessage(
-                    {
-                      type: 'workItemsLoading',
-                      query: 'My Activity',
-                      connectionId: (window.__AZDO_FIXTURE__ || {}).activeConnectionId,
-                    },
-                    '*'
-                  );
-                }, 5);
-                // Then send workItemsLoaded with actual data
-                setTimeout(() => {
-                  window.postMessage(
-                    {
-                      type: 'workItemsLoaded',
-                      workItems: mapped,
-                      connectionId: (window.__AZDO_FIXTURE__ || {}).activeConnectionId,
-                      kanbanView: (window.__AZDO_FIXTURE__ || {}).view === 'kanban',
-                    },
-                    '*'
-                  );
-                  // If kanban requested, persisted state already returns kanbanView true via getState().
-                  // No toggle message needed; sending it would flip back to list view.
-                }, 10);
-              }
-              // Handle webviewReady to send connections
-              if (isSvelte && msg && msg.type === 'webviewReady') {
-                const fixture = window.__AZDO_FIXTURE__ || {};
-                console.log('[screenshots] webviewReady received, sending connections', {
-                  hasConnections: !!(fixture.connections && fixture.connections.length > 0),
-                  activeConnectionId: fixture.activeConnectionId,
-                });
-                if (fixture.connections && fixture.connections.length > 0) {
-                  setTimeout(() => {
-                    window.postMessage(
-                      {
-                        type: 'connectionsUpdate',
-                        connections: fixture.connections,
-                        activeConnectionId: fixture.activeConnectionId,
-                      },
-                      '*'
-                    );
-                  }, 5);
-                }
-                // Also send work items after a short delay to ensure connections are processed
-                setTimeout(() => {
-                  const raw = (fixture || {}).workItems || [];
-                  console.log('[screenshots] Auto-sending work items', { count: raw.length });
-                  const mapped = raw.map((w) => ({
-                    id: w.id,
-                    fields: {
-                      'System.Id': w.id,
-                      'System.Title': w.title,
-                      'System.State': w.state,
-                      'System.WorkItemType': w.type,
-                      'System.AssignedTo':
-                        !w.assignedTo || w.assignedTo === 'Unassigned'
-                          ? undefined
-                          : { displayName: w.assignedTo },
-                      'Microsoft.VSTS.Common.Priority': w.priority,
-                      'System.ChangedDate': new Date().toISOString(),
-                    },
-                  }));
-                  window.postMessage(
-                    {
-                      type: 'workItemsLoading',
-                      query: 'My Activity',
-                      connectionId: fixture.activeConnectionId,
-                    },
-                    '*'
-                  );
-                  setTimeout(() => {
-                    window.postMessage(
-                      {
-                        type: 'workItemsLoaded',
-                        workItems: mapped,
-                        connectionId: fixture.activeConnectionId,
-                        kanbanView: fixture.view === 'kanban',
-                      },
-                      '*'
-                    );
-                    // If kanban view requested, send toggle message after work items load
-                    if (fixture.view === 'kanban') {
-                      setTimeout(() => {
-                        console.log('[screenshots] Sending toggleKanbanView message');
-                        window.postMessage({ type: 'toggleKanbanView' }, '*');
-                      }, 100);
-                    }
-                  }, 50);
-                }, 100);
-              }
-            } catch (e) {
-              console.error('[screenshots] stub postMessage error', e);
-            }
-          },
-          setState: () => {},
-          getState: () => ({ kanbanView: (window.__AZDO_FIXTURE__ || {}).view === 'kanban' }),
-        };
-      }
-      if (typeof window.acquireVsCodeApi !== 'function') {
-        window.acquireVsCodeApi = makeApi;
-      }
-      if (!window.vscode) {
-        window.vscode = makeApi();
-      }
-    }, fixture);
-    await page.goto(fileUrl);
-
-    // Load the Svelte component CSS (esbuild generates this but doesn't auto-inject it)
-    const cssPath = fileUrl.replace('svelte.html', 'svelte-main.css');
-    await page.addStyleTag({ url: cssPath });
-
-    // Inject VS Code theme CSS variables immediately after page load
-    await page.addStyleTag({
-      content: `
-        :root {
-          --vscode-font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-          --vscode-font-size: 13px;
-          --vscode-foreground: ${VSCODE_THEME.foreground};
-          --vscode-sideBar-background: ${VSCODE_THEME.sidebarBackground};
-          --vscode-editor-background: ${VSCODE_THEME.editorBackground};
-          --vscode-editor-foreground: ${VSCODE_THEME.foreground};
-          --vscode-widget-border: ${VSCODE_THEME.widgetBorderStrong};
-          --vscode-editorWidget-border: ${VSCODE_THEME.widgetBorderStrong};
-          --vscode-editorWidget-background: ${VSCODE_THEME.inputBackground};
-          --vscode-input-background: ${VSCODE_THEME.inputBackground};
-          --vscode-input-foreground: ${VSCODE_THEME.inputForeground};
-          --vscode-input-border: ${VSCODE_THEME.border};
-          --vscode-input-placeholderForeground: ${VSCODE_THEME.descriptionForeground};
-          --vscode-button-background: ${VSCODE_THEME.buttonBackground};
-          --vscode-button-foreground: ${VSCODE_THEME.buttonForeground};
-          --vscode-button-hoverBackground: ${VSCODE_THEME.buttonHoverBackground};
-          --vscode-button-secondaryBackground: ${VSCODE_THEME.inputBackground};
-          --vscode-button-secondaryForeground: ${VSCODE_THEME.foreground};
-          --vscode-button-secondaryHoverBackground: ${VSCODE_THEME.listHoverBackground};
-          --vscode-button-border: ${VSCODE_THEME.border};
-          --vscode-list-activeSelectionBackground: ${VSCODE_THEME.listActiveBackground};
-          --vscode-list-hoverBackground: ${VSCODE_THEME.listHoverBackground};
-          --vscode-toolbar-hoverBackground: ${VSCODE_THEME.listHoverBackground};
-          --vscode-focusBorder: ${VSCODE_THEME.focusBorder};
-          --vscode-descriptionForeground: ${VSCODE_THEME.descriptionForeground};
-          --vscode-textBlockQuote-background: #2a2a2a;
-          
-          /* Azure DevOps semantic colors for status badges */
-          --primary-color: #0078d4;
-          --success-color: #107c10;
-          --warning-color: #f8961e;
-          --danger-color: #d13438;
-          --info-color: #5c2d91;
-          
-          /* Azure DevOps state colors */
-          --ado-blue: #0078d4;
-          --ado-green: #107c10;
-          --ado-orange: #ff8c00;
-          --ado-red: #d13438;
-          --ado-purple: #5c2d91;
-          --ado-gray: #605e5c;
-          --state-new: #0078d4;
-          --state-active: #ff8c00;
-          --state-inprogress: #ff8c00;
-          --state-resolved: #107c10;
-          --state-done: #107c10;
-          --state-closed: #605e5c;
-        }
-      `,
-    });
-
-    // Wait until bootstrap has fed data and content renders
-    const wantKanban = fixture.view === 'kanban';
-    const hasConnections = fixture.connections && fixture.connections.length > 1;
-
-    // Wait for Svelte root or legacy container
-    try {
-      await page.waitForSelector('#svelte-root, #workItemsContainer', { timeout: 10000 });
-    } catch {
-      // continue; more specific waits below will throw if truly broken
-    }
-
-    // Wait for connection tabs if multiple connections exist
-    if (hasConnections) {
-      try {
-        await page.waitForSelector('.connection-tabs', { timeout: 5000 });
-        console.log('[screenshots] Connection tabs rendered');
-      } catch {
-        console.warn(
-          '[screenshots] Connection tabs not found (expected with multiple connections)'
-        );
-      }
-    }
-
-    // Then, wait for a concrete UI signal of rendering
-    if (wantKanban) {
-      await page.waitForSelector('.kanban-board .kanban-column', { timeout: 30000 });
-    } else {
-      await page.waitForSelector('.work-item-card', { timeout: 30000 });
-    }
-    // Allow layout to settle and animations to complete
-    await page.waitForTimeout(300);
-    // Minimize whitespace: relax fixed heights so the element shrinks to content
-    if (wantKanban) {
-      await page.addStyleTag({
-        content: `.kanban-board{min-height:auto !important;} .pane{height:auto !important;}`,
-      });
-    } else {
-      await page.addStyleTag({
-        content: `#workItemsContainer{max-height:none !important;} .pane{height:auto !important;}`,
-      });
-    }
-
-    if (dumpHtml) {
-      const html = await page.content();
-      await fs.writeFile(path.join(outDir, `${name}.html`), html, 'utf8');
-    }
-
-    // Capture the entire pane to include connection tabs and headers
-    const selector = '.pane';
-
-    // If a target width is requested, apply it before selecting/screenshotting
-    if (typeof widthPx === 'number' && widthPx > 0) {
-      const cssParts = [
-        // Set container sizing and add subtle shadow for screenshot presentation
-        `${selector}{width:${widthPx}px !important; max-width:${widthPx}px !important; margin:0 auto !important; border-radius:${CAPTURE_BORDER_RADIUS}px !important; box-shadow:${CAPTURE_SHADOW} !important; overflow:hidden !important;}`,
-        // Set page background to transparent so screenshots work on light and dark backgrounds
-        `body,html{background:transparent !important; padding:${CAPTURE_PADDING}px !important; margin:0 !important; display:flex !important; justify-content:center !important; align-items:flex-start !important;}`,
-        // Ensure borders are visible in screenshots
-        `.work-item-card{border: 1px solid ${VSCODE_THEME.widgetBorderStrong} !important;}`,
-        `.kanban-column{border: 1px solid ${VSCODE_THEME.widgetBorderStrong} !important;}`,
-      ];
-      await page.addStyleTag({ content: cssParts.join('\n') });
-    }
-
-    if (typeof maxHeightPx === 'number' && maxHeightPx > 0) {
-      const css = `${selector}{max-height:${maxHeightPx}px !important; overflow:hidden !important;}`;
-      await page.addStyleTag({ content: css });
-    }
-
-    // Query the pane element
-    let target = await page.$(selector);
-    if (target) {
-      await target.screenshot({
-        path: path.join(outDir, `${name}.png`),
-        omitBackground: true, // Transparent background for light/dark theme compatibility
-      });
-    } else {
-      // Fallback to viewport screenshot
-      await page.screenshot({
-        path: path.join(outDir, `${name}.png`),
-        omitBackground: true,
-      });
-    }
-    console.log('[screenshots] Wrote', path.join(outDir, `${name}.png`));
+  // Load CSS - use absolute file path
+  const cssPath = join(PROJECT_ROOT, 'media', 'webview', 'main.css');
+  try {
+    // Prefer loading by filesystem path to avoid file:// URL quirks on Windows
+    await page.addStyleTag({ path: cssPath });
+    console.log('[screenshots] CSS loaded successfully');
+  } catch (error) {
+    console.warn('[screenshots] Could not load CSS from', cssPath, '- continuing without it');
   }
 
-  const baseItems = sample.workItems || [];
-  const connections = sample.connections || [];
-  const activeConnectionId = sample.activeConnectionId;
+  // Load the built webview bundle so Svelte renders components
+  const jsPath = join(PROJECT_ROOT, 'media', 'webview', 'main.js');
+  try {
+    // When served over http, the script tag in svelte.html should load automatically.
+    // As a fallback, inject inline.
+    const jsCode = await readFile(jsPath, 'utf8');
+    await page.addScriptTag({ content: jsCode });
+    console.log('[screenshots] JS injected successfully (fallback)');
+  } catch (error) {
+    console.warn('[screenshots] Could not load JS from', jsPath, '- continuing without it');
+  }
 
-  await capture(
-    'work-items-list',
-    {
-      workItems: baseItems,
-      connections: connections,
-      activeConnectionId: activeConnectionId,
-      view: 'list',
-      selectWorkItemId: 101,
-    },
-    true,
-    { widthPx: CAPTURE_WIDTH, maxHeightPx: CAPTURE_MAX_HEIGHT }
-  );
+  // Inject VS Code theme CSS variables (solid dark background to match marketplace/README)
+  await page.addStyleTag({
+    content: `
+      :root {
+        --vscode-foreground: ${VSCODE_THEME.foreground};
+        --vscode-editor-foreground: ${VSCODE_THEME.foreground};
+        --vscode-editor-background: ${VSCODE_THEME.background};
+        --vscode-editorWidget-background: ${VSCODE_THEME.editorWidgetBackground};
+        --vscode-editorWidget-border: ${VSCODE_THEME.widgetBorderStrong};
+        --vscode-input-background: ${VSCODE_THEME.inputBackground};
+        --vscode-input-foreground: ${VSCODE_THEME.foreground};
+        --vscode-input-border: #3e3e42;
+        --vscode-button-background: ${VSCODE_THEME.buttonBackground};
+        --vscode-button-foreground: #ffffff;
+        --vscode-button-hoverBackground: #1177bb;
+        --vscode-list-activeSelectionBackground: ${VSCODE_THEME.listActiveBackground};
+        --vscode-list-inactiveSelectionBackground: #2a2d2e;
+        --vscode-list-hoverBackground: #2a2d2e;
+        --vscode-list-hoverForeground: ${VSCODE_THEME.foreground};
+        --vscode-focusBorder: ${VSCODE_THEME.focusBorder};
+        --vscode-sideBar-background: #252526;
+        --vscode-badge-background: #4d4d4d;
+        --vscode-badge-foreground: #ffffff;
+        --vscode-descriptionForeground: #9d9d9d;
+        --vscode-panel-border: #3e3e42;
+        --vscode-textLink-foreground: #3794ff;
+        --vscode-dropdown-background: var(--vscode-input-background);
+        --vscode-dropdown-foreground: var(--vscode-input-foreground);
+        --vscode-dropdown-border: var(--vscode-input-border);
+        --vscode-inputOption-hoverBorder: var(--vscode-focusBorder);
+        --ado-blue: #0078d4;
+        --ado-green: #107c10;
+        --ado-orange: #ff8c00;
+        --ado-red: #d13438;
+      }
+      body, html {
+        background: #0d1117 !important;
+        color: var(--vscode-foreground) !important;
+        margin: 0;
+        padding: ${CAPTURE_PADDING}px;
+      }
+      main {
+        width: ${CAPTURE_WIDTH}px !important;
+        max-width: ${CAPTURE_WIDTH}px !important;
+        margin: 0 auto;
+      }
+    `,
+  });
 
-  await capture(
-    'work-items-kanban',
-    {
-      workItems: baseItems,
-      connections: connections,
-      activeConnectionId: activeConnectionId,
-      view: 'kanban',
-    },
-    true,
-    { widthPx: CAPTURE_WIDTH, maxHeightPx: CAPTURE_MAX_HEIGHT }
-  );
+  // Wait for Svelte root
+  try {
+    await page.waitForSelector('#svelte-root', { timeout: 10000 });
+    await page.waitForTimeout(500);
+  } catch (error) {
+    console.warn('[screenshots] svelte-root not found, continuing anyway');
+  }
 
-  // Timer-specific screenshot removed; timer visibility is demonstrated inline when active.
+  // Helper: dispatch a syncState snapshot that the current webview understands
+  async function dispatchSyncState(view, items, columns, connectionId = 'demo-conn') {
+    const snapshot = {
+      fsmState: 'active.ready.idle',
+      context: {
+        isActivated: true,
+        connections: [
+          {
+            id: connectionId,
+            organization: 'DemoOrg',
+            project: 'Demo Project',
+            label: 'Demo Project',
+          },
+        ],
+        activeConnectionId: connectionId,
+        pendingWorkItems: items && items.length > 0 ? {
+          workItems: items,
+          connectionId,
+          query: 'Demo',
+        } : undefined,
+        viewMode: view === 'kanban' ? 'kanban' : 'list',
+        ...(view === 'kanban' && Array.isArray(columns) ? { kanbanColumns: columns } : {}),
+      },
+      matches: {
+        'active.ready': true,
+        'active.ready.idle': true,
+      },
+    };
+
+    await page.evaluate((snap) => {
+      window.postMessage({ type: 'syncState', payload: snap }, '*');
+    }, snapshot);
+  }
+
+  const outDir = join(PROJECT_ROOT, 'images');
+  const fs = await import('node:fs/promises');
+  await fs.mkdir(outDir, { recursive: true });
+
+  // Generate screenshots for each fixture
+  for (const fixture of fixtures) {
+    console.log(`[screenshots] Generating ${fixture.name}...`);
+
+    // Send a syncState snapshot so the Svelte app renders the requested view + items
+    const columns = fixture.view === 'kanban' ? makeSampleKanbanColumns(fixture.workItems) : undefined;
+    await dispatchSyncState(fixture.view, fixture.workItems, columns);
+    await page.waitForTimeout(700);
+
+    // Wait for content to render (with fallback to static HTML template if needed)
+    let rendered = false;
+    try {
+      if (fixture.view === 'kanban') {
+        await page.waitForSelector('.kanban-board, .kanban-column', { timeout: 8000 });
+        const hasCards = await page.$('.kanban-card, .kanban-item, .work-item-card');
+        if (!hasCards) {
+          throw new Error('No kanban cards detected');
+        }
+      } else {
+        await page.waitForSelector('.work-item-card, .work-item-list, .work-item-list-item', { timeout: 8000 });
+      }
+      await page.waitForTimeout(500);
+      rendered = true;
+    } catch (error) {
+      // Fallback: inject static HTML template
+      try {
+        const templatePath = join(PROJECT_ROOT, 'images', `${fixture.name}.html`);
+        let html = await readFile(templatePath, 'utf8');
+        // Sanitize stale asset links from previous release exports
+        html = html
+          .replace(/<link[^>]+svelte-main\.css[^>]*>/gi, '')
+          .replace(/<script[^>]+svelte-main\.js[^>]*><\/script>/gi, '');
+        await page.evaluate((markup) => {
+          const root = document.getElementById('svelte-root') || document.body;
+          root.innerHTML = markup;
+        }, html);
+        await page.waitForTimeout(200);
+        rendered = true;
+      } catch {
+        console.warn(`[screenshots] Content not found for ${fixture.name}, continuing anyway`);
+      }
+    }
+
+    // Capture screenshot
+    const target =
+      (await page.$('.pane')) ||
+      (await page.$('.kanban-board')) ||
+      (await page.$('#svelte-root')) ||
+      (await page.$('body'));
+    
+    if (target) {
+      const screenshotPath = join(outDir, `${fixture.name}.png`);
+      await target.screenshot({
+        path: screenshotPath,
+        omitBackground: true,
+      });
+      console.log(`[screenshots] ✓ ${fixture.name} saved: ${screenshotPath}`);
+    } else {
+      console.warn(`[screenshots] No target element found for ${fixture.name}`);
+    }
+  }
 
   await browser.close();
-  await server.stop();
+  await new Promise((r) => server.close(() => r()));
+  console.log('[screenshots] ✓ All screenshots generated');
 }
 
-main().catch((err) => {
-  console.error(err);
+main().catch((error) => {
+  console.error('[screenshots] Error:', error);
   process.exit(1);
 });
-
-// --- helpers ---
-function startStaticServer(rootDir) {
-  return new Promise((resolve, reject) => {
-    const contentTypes = new Map([
-      ['.html', 'text/html; charset=utf-8'],
-      ['.js', 'application/javascript; charset=utf-8'],
-      ['.mjs', 'application/javascript; charset=utf-8'],
-      ['.css', 'text/css; charset=utf-8'],
-      ['.svg', 'image/svg+xml'],
-      ['.png', 'image/png'],
-      ['.jpg', 'image/jpeg'],
-      ['.jpeg', 'image/jpeg'],
-      ['.json', 'application/json; charset=utf-8'],
-      ['.map', 'application/json; charset=utf-8'],
-    ]);
-
-    const server = http.createServer((req, res) => {
-      try {
-        const urlPath = decodeURI((req.url || '/').split('?')[0]);
-        let relPath = urlPath === '/' ? '/index.html' : urlPath;
-        // prevent path traversal
-        const filePath = path.join(rootDir, path.normalize(relPath).replace(/^\\|^\//, ''));
-        if (!filePath.startsWith(rootDir)) {
-          res.statusCode = 403;
-          res.end('Forbidden');
-          return;
-        }
-        if (!fsSync.existsSync(filePath)) {
-          res.statusCode = 404;
-          res.end('Not found');
-          return;
-        }
-        const ext = path.extname(filePath).toLowerCase();
-        const ct = contentTypes.get(ext) || 'application/octet-stream';
-        res.statusCode = 200;
-        res.setHeader('Content-Type', ct);
-        fsSync.createReadStream(filePath).pipe(res);
-      } catch {
-        res.statusCode = 500;
-        res.end('Server error');
-      }
-    });
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (typeof address === 'object' && address && 'port' in address) {
-        resolve({
-          port: address.port,
-          stop: () => new Promise((r) => server.close(() => r())),
-        });
-      } else {
-        reject(new Error('Failed to bind static server'));
-      }
-    });
-  });
-}

@@ -1,3 +1,16 @@
+/**
+ * Module: src/fsm/machines/dataMachine.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
 import { createMachine, assign, fromPromise } from 'xstate';
 import { getWorkItemTrackingApi } from '../functions/azure/azure-devops-client.js';
 import type { WorkItem } from 'azure-devops-node-api/interfaces/WorkItemTrackingInterfaces.js';

@@ -1,3 +1,17 @@
+<!--
+Module: src/webview/components/Settings.svelte
+Owner: webview
+Reads: syncState from extension (ApplicationContext serialized)
+Writes: UI-only events; selection via selection writer factory (webview-owned)
+Receives: syncState, host broadcasts
+Emits: fsmEvent envelopes (Router handles stamping)
+Prohibitions: Do not import extension host modules; Do not define context types
+Rationale: Svelte UI component; reacts to ApplicationContext and forwards intents
+
+LLM-GUARD:
+- Use selection writer factory for selection updates
+- Do not route by connection here; let Router decide targets
+-->
 <script lang="ts">
   export let context: any;
   export let sendEvent: (event: any) => void;
@@ -17,8 +31,11 @@
     sendEvent({ type: 'CONFIRM_DELETE_CONNECTION', connectionId });
   }
 
+  import { createSelectConnection, webviewOwner } from '../selection.writer.internal';
   function handleSelectConnection(connectionId: string) {
-    sendEvent({ type: 'CONNECTION_SELECTED', connectionId });
+    const evt = createSelectConnection(webviewOwner, connectionId);
+    // Maintain compatibility with existing sendEvent wrapper: forward fsmEvent envelope
+    sendEvent && sendEvent({ type: 'fsmEvent', event: evt });
   }
 
   function handleBack() {

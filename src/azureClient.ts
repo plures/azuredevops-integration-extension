@@ -1,3 +1,21 @@
+/**
+ * Module: AzureDevOpsIntClient (HTTP client)
+ * Owner: connection
+ * Reads: Connection configuration from FSM; ApplicationContext via selectors (read-only)
+ * Writes: none (context updates happen via FSM reducers)
+ * Receives: HTTP requests from provider/connection actors
+ * Emits: onAuthFailure callback to FSM; HTTP responses/errors to callers
+ * Prohibitions: Do not implement webview logic; Do not define or mutate ApplicationContext
+ * Rationale: Single HTTP boundary with structured error classification
+ *
+ * LLM-GUARD:
+ * - On 401 bearer: call onAuthFailure and throw; do not handle UI here
+ * - Do not emit SELECT_CONNECTION or any UI events
+ *
+ * URL invariants:
+ * - apiBaseUrl: ALWAYS used for REST API calls. Must include project and end with '/_apis'.
+ * - baseUrl:    ONLY used for browser/UI links. Never used for REST calls.
+ */
 import axios, { AxiosInstance } from 'axios';
 import { WorkItem, WorkItemBuildSummary } from './types.js';
 import { RateLimiter } from './rateLimiter.js';
@@ -78,8 +96,10 @@ export class AzureDevOpsIntClient {
   private preferStateCategory: boolean;
   private cachedIdentity?: { id?: string; displayName?: string; uniqueName?: string };
   private identityName?: string; // Fallback identity name for on-prem servers
-  public baseUrl: string; // Store the base URL for browser URL generation
-  private apiBaseUrl: string; // Store the API base URL (for on-premises support)
+  // baseUrl is for browser/UI links only (e.g., openExternal). Never for REST calls.
+  public baseUrl: string;
+  // apiBaseUrl is the canonical root for REST calls (must include project + '/_apis').
+  private apiBaseUrl: string;
   private static readonly connectionDataApiVersions = [
     '7.1-preview.1',
     '7.0-preview.1',
@@ -132,7 +152,8 @@ export class AzureDevOpsIntClient {
       const withoutApis = trimmed.replace(/\/_apis$/i, '');
 
       if (/visualstudio\.com/i.test(withoutApis)) {
-        return fallback;
+        // Keep visualstudio.com host as-is for browser links
+        return withoutApis;
       }
 
       if (/dev\.azure\.com/i.test(withoutApis)) {
@@ -149,20 +170,19 @@ export class AzureDevOpsIntClient {
     };
 
     if (options.apiBaseUrl) {
-      const manualApi = ensureApiSuffix(options.apiBaseUrl);
-      const derivedBase = stripProjectSegment(
-        manualApi.replace(/\/_apis$/i, ''),
-        this.encodedProject,
-        this.project
-      );
+      // TRUST the provided apiBaseUrl for REST calls; only ensure '/_apis' suffix and trim.
+      const manualApi = ensureApiSuffix(options.apiBaseUrl).replace(/\/+$/, '');
+      // Derive a browser baseUrl from the provided apiBaseUrl by removing the project segment.
+      const baseCandidate = manualApi.replace(/\/_apis$/i, '');
+      const derivedBase = stripProjectSegment(baseCandidate, this.encodedProject, this.project);
       const preferredBase = options.baseUrl
         ? normalizeBaseUrl(options.baseUrl)
         : normalizeBaseUrl(derivedBase);
 
       this.baseUrl = preferredBase;
-      this.apiBaseUrl = manualApi.replace(/\/+$/, '');
+      this.apiBaseUrl = manualApi;
 
-      logger.info('Using manual API URL override', {
+      logger.info('Using apiBaseUrl from settings', {
         meta: { apiBaseUrl: this.apiBaseUrl, baseUrl: this.baseUrl },
       });
     } else if (options.baseUrl) {
@@ -177,6 +197,7 @@ export class AzureDevOpsIntClient {
     this.baseUrl = this.baseUrl.replace(/\/+$/, '');
     this.apiBaseUrl = this.apiBaseUrl.replace(/\/+$/, '');
 
+    // IMPORTANT: axios baseURL must be apiBaseUrl, not baseUrl.
     this.axios = axios.create({
       baseURL: this.apiBaseUrl,
       timeout: 30000, // 30s network timeout for slow Azure DevOps APIs
@@ -357,9 +378,11 @@ export class AzureDevOpsIntClient {
     this.credential = newCredential;
   }
 
+  // Build a REST endpoint URL from apiBaseUrl (for HTTP calls)
   buildFullUrl(path: string) {
     return `${this.apiBaseUrl}${path}`;
   }
+  // Build a browser URL from baseUrl (for openExternal)
   getBrowserUrl(path: string) {
     return `${this.baseUrl}/${this.encodedProject}${path}`;
   }

@@ -1,4 +1,17 @@
 /**
+ * Module: src/stores/applicationStore.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Central Application Store - XState + Svelte Integration
  *
  * This is the single source of truth for application state.
@@ -170,8 +183,21 @@ export const actions = {
   loadConnections: (connections: any[]) =>
     applicationStore.send({ type: 'CONNECTIONS_LOADED', connections }),
 
-  selectConnection: (connectionId: string) =>
-    applicationStore.send({ type: 'CONNECTION_SELECTED', connectionId }),
+  selectConnection: async (connectionId: string) => {
+    // Prefer webview-owned selection via writer factory; fall back to FSM event if not available
+    const vscodeApi = (globalThis as any).__vscodeApi || (globalThis as any).acquireVsCodeApi?.();
+    if (vscodeApi && typeof vscodeApi.postMessage === 'function') {
+      try {
+        const mod = await import('../webview/selection.writer.internal.js');
+        const evt = mod.createSelectConnection(mod.webviewOwner, connectionId);
+        vscodeApi.postMessage({ type: 'fsmEvent', event: evt });
+        return;
+      } catch {
+        // fall through to FSM event
+      }
+    }
+    applicationStore.send({ type: 'CONNECTION_SELECTED', connectionId });
+  },
 
   // Authentication
   requireAuthentication: (connectionId: string) =>

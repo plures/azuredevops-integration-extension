@@ -1,3 +1,16 @@
+/**
+ * Module: src/features/commands/types.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
 import * as vscode from 'vscode';
 import type { WorkItemsProvider } from '../../provider.js';
 import type { ProjectConnection as _ProjectConnection } from '../../fsm/machines/applicationMachine.js';

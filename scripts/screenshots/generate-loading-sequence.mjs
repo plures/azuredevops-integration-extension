@@ -1,499 +1,518 @@
 #!/usr/bin/env node
-/* eslint-disable no-undef */
 /**
- * Generate animated GIF showing loading state transitions:
- * 1. Initializing extension (1 sec)
- * 2. Loading work items (1 sec)
- * 3. Work items displayed (2 sec)
- *
- * Requires: playwright, gifenc (or we can use ffmpeg)
+ * Generate Loading Sequence GIF
+ * 
+ * Creates an animated GIF showing the complete extension workflow:
+ * - Initializing (10 frames)
+ * - Loading (10 frames)
+ * - List view (30 frames)
+ * - Transition to Kanban (6 frames)
+ * - Kanban view (34 frames)
+ * Total: 90 frames, 4.5 seconds at 20 FPS
  */
 
 import { chromium } from 'playwright';
-import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { writeFile, readFile } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'url';
 import http from 'node:http';
+import gifenc from 'gifenc';
+const { GIFEncoder, quantize, applyPalette } = gifenc;
 import { PNG } from 'pngjs';
-import gifencPkg from 'gifenc';
-const { GIFEncoder, quantize, applyPalette } = gifencPkg;
+
+import { ensurePrerequisites } from './check-prerequisites.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirname(__filename);
+const PROJECT_ROOT = join(__dirname, '../..');
 
-const CAPTURE_WIDTH = 1600; // Match viewport width
-const CAPTURE_MAX_HEIGHT = 780;
-const CAPTURE_PADDING = 32;
-const FRAME_DELAY = 50; // milliseconds between frames for smooth playback
-const CAPTURE_BORDER_RADIUS = 8;
-const CAPTURE_SHADOW = '0 8px 32px rgba(0, 0, 0, 0.4)';
+// Constants
+const CAPTURE_WIDTH = 1600;
+const CAPTURE_PADDING = 0;
+const CAPTURE_MAX_HEIGHT = 716;
+const FPS = 20;
+const FRAME_DELAY = 1000 / FPS; // 50ms per frame
 
-// VS Code Dark+ theme colors (most popular theme)
+// VS Code Dark+ Theme Colors
 const VSCODE_THEME = {
   background: '#1e1e1e',
-  sidebarBackground: '#252526',
-  editorBackground: '#1e1e1e',
   foreground: '#cccccc',
-  border: '#3e3e42',
+  widgetBorderStrong: '#6e6e6e',
   inputBackground: '#3c3c3c',
-  inputForeground: '#cccccc',
   buttonBackground: '#0e639c',
-  buttonForeground: '#ffffff',
-  buttonHoverBackground: '#1177bb',
   listActiveBackground: '#094771',
-  listHoverBackground: '#2a2d2e',
-  widgetBorder: '#454545',
-  widgetBorderStrong: '#6e6e6e', // More visible border for screenshots
   focusBorder: '#007acc',
-  descriptionForeground: '#9d9d9d',
+  editorWidgetBackground: '#252526',
+  editorWidgetBorder: '#454545',
 };
 
-async function readJson(p) {
-  const raw = await fs.readFile(p, 'utf8');
-  return JSON.parse(raw);
+// Sample work items aligned to ADO fields expected by the webview
+function makeSampleWorkItems() {
+  const now = new Date();
+  const dt = (days) => new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
+  return [
+    {
+      id: 101,
+      fields: {
+        'System.Title': 'Implement user authentication flow',
+        'System.WorkItemType': 'Task',
+        'System.State': 'Active',
+        'System.AssignedTo': { displayName: 'Alex Johnson' },
+        'Microsoft.VSTS.Common.Priority': 2,
+        'System.ChangedDate': dt(1),
+        'System.CreatedDate': dt(10),
+        'System.Tags': 'auth;feature',
+      },
+    },
+    {
+      id: 102,
+      fields: {
+        'System.Title': 'Fix null pointer crash on settings page',
+        'System.WorkItemType': 'Bug',
+        'System.State': 'To Do',
+        'System.AssignedTo': 'Unassigned',
+        'Microsoft.VSTS.Common.Priority': 1,
+        'System.ChangedDate': dt(2),
+        'System.CreatedDate': dt(8),
+        'System.Tags': 'bug;settings;crash',
+      },
+    },
+    {
+      id: 103,
+      fields: {
+        'System.Title': 'Add team filters to work items view',
+        'System.WorkItemType': 'Feature',
+        'System.State': 'In Progress',
+        'System.AssignedTo': { displayName: 'Sam Patel' },
+        'Microsoft.VSTS.Common.Priority': 3,
+        'System.ChangedDate': dt(0.5),
+        'System.CreatedDate': dt(7),
+        'System.Tags': 'ui;filter',
+      },
+    },
+    {
+      id: 104,
+      fields: {
+        'System.Title': 'Write integration tests for timer module',
+        'System.WorkItemType': 'Task',
+        'System.State': 'Review',
+        'System.AssignedTo': { displayName: 'Chris Lee' },
+        'Microsoft.VSTS.Common.Priority': 2,
+        'System.ChangedDate': dt(3),
+        'System.CreatedDate': dt(12),
+        'System.Tags': 'tests;timer',
+      },
+    },
+    {
+      id: 105,
+      fields: {
+        'System.Title': 'Polish Kanban card layout and styling',
+        'System.WorkItemType': 'Task',
+        'System.State': 'Done',
+        'System.AssignedTo': { displayName: 'Taylor Kim' },
+        'Microsoft.VSTS.Common.Priority': 2,
+        'System.ChangedDate': dt(0.2),
+        'System.CreatedDate': dt(6),
+        'System.Tags': 'kanban;css',
+      },
+    },
+    {
+      id: 106,
+      fields: {
+        'System.Title': 'Implement drag-and-drop for Kanban columns',
+        'System.WorkItemType': 'Feature',
+        'System.State': 'In Progress',
+        'System.AssignedTo': { displayName: 'Jordan Martinez' },
+        'Microsoft.VSTS.Common.Priority': 2,
+        'System.ChangedDate': dt(1.5),
+        'System.CreatedDate': dt(9),
+        'System.Tags': 'kanban;dnd',
+      },
+    },
+    {
+      id: 107,
+      fields: {
+        'System.Title': 'Add support for custom work item fields',
+        'System.WorkItemType': 'Feature',
+        'System.State': 'New',
+        'System.AssignedTo': { displayName: 'Morgan Davis' },
+        'Microsoft.VSTS.Common.Priority': 3,
+        'System.ChangedDate': dt(4),
+        'System.CreatedDate': dt(14),
+        'System.Tags': 'customization;fields',
+      },
+    },
+  ];
 }
 
-async function ensureDir(dir) {
-  await fs.mkdir(dir, { recursive: true });
-}
-
-async function startStaticServer(rootDir) {
-  return new Promise((resolve, reject) => {
-    const contentTypes = new Map([
-      ['.html', 'text/html; charset=utf-8'],
-      ['.js', 'application/javascript; charset=utf-8'],
-      ['.mjs', 'application/javascript; charset=utf-8'],
-      ['.css', 'text/css; charset=utf-8'],
-      ['.svg', 'image/svg+xml'],
-      ['.png', 'image/png'],
-    ]);
-
-    const server = http.createServer((req, res) => {
-      try {
-        const urlPath = decodeURI((req.url || '/').split('?')[0]);
-        let relPath = urlPath === '/' ? '/svelte.html' : urlPath;
-        const filePath = path.join(rootDir, path.normalize(relPath).replace(/^\\|^\//, ''));
-        if (!filePath.startsWith(rootDir)) {
-          res.statusCode = 403;
-          res.end('Forbidden');
-          return;
-        }
-        if (!fsSync.existsSync(filePath)) {
-          res.statusCode = 404;
-          res.end('Not found');
-          return;
-        }
-        const ext = path.extname(filePath).toLowerCase();
-        const ct = contentTypes.get(ext) || 'application/octet-stream';
-        res.statusCode = 200;
-        res.setHeader('Content-Type', ct);
-        fsSync.createReadStream(filePath).pipe(res);
-      } catch {
-        res.statusCode = 500;
-        res.end('Server error');
-      }
-    });
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (typeof address === 'object' && address && 'port' in address) {
-        resolve({
-          port: address.port,
-          stop: () => new Promise((r) => server.close(() => r())),
-        });
-      } else {
-        reject(new Error('Failed to bind static server'));
-      }
-    });
-  });
-}
-
-/**
- * Convert PNG sequence to GIF using pure JavaScript (gifenc + pngjs)
- */
-async function createGifFromFrames(framesDir, outputPath, fps = 20) {
-  console.log('[gif] Reading PNG frames...');
-
-  // Get all frame files
-  const files = await fs.readdir(framesDir);
-  const frameFiles = files.filter((f) => f.startsWith('frame-') && f.endsWith('.png')).sort();
-
-  if (frameFiles.length === 0) {
-    throw new Error('No frames found');
-  }
-
-  console.log(`[gif] Found ${frameFiles.length} frames`);
-
-  // Read first frame to get dimensions
-  const firstFramePath = path.join(framesDir, frameFiles[0]);
-  const firstFrameBuffer = await fs.readFile(firstFramePath);
-  const firstPng = PNG.sync.read(firstFrameBuffer);
-  const { width, height } = firstPng;
-
-  console.log(`[gif] Frame size: ${width}x${height}`);
-
-  // Create GIF encoder
-  const gif = GIFEncoder();
-  const delay = Math.round(1000 / fps); // delay in milliseconds
-
-  // Process each frame
-  for (let i = 0; i < frameFiles.length; i++) {
-    const framePath = path.join(framesDir, frameFiles[i]);
-    const frameBuffer = await fs.readFile(framePath);
-    const png = PNG.sync.read(frameBuffer);
-
-    // Convert RGBA to RGB (gifenc expects RGB)
-    const rgb = new Uint8Array(width * height * 4);
-    for (let j = 0; j < png.data.length; j += 4) {
-      rgb[j] = png.data[j]; // R
-      rgb[j + 1] = png.data[j + 1]; // G
-      rgb[j + 2] = png.data[j + 2]; // B
-      rgb[j + 3] = png.data[j + 3]; // A
-    }
-
-    // Quantize colors to 256 color palette
-    const palette = quantize(rgb, 256);
-    const index = applyPalette(rgb, palette);
-
-    // Add frame to GIF
-    gif.writeFrame(index, width, height, {
-      palette,
-      delay,
-      transparent: false,
-    });
-
-    if ((i + 1) % 10 === 0 || i === frameFiles.length - 1) {
-      console.log(`[gif] Processed ${i + 1}/${frameFiles.length} frames`);
-    }
-  }
-
-  // Finalize and write GIF
-  gif.finish();
-  const buffer = gif.bytes();
-  await fs.writeFile(outputPath, buffer);
-
-  console.log('[gif] ✅ Created:', outputPath);
-  console.log(`[gif] Size: ${(buffer.length / 1024).toFixed(2)} KB`);
+function makeSampleKanbanColumns(items) {
+  const pick = (predicate) =>
+    items.filter((w) => predicate(String(w.fields?.['System.State'] || '').toLowerCase())).map((w) => w.id);
+  const todo = pick((s) => s.includes('new') || s.includes('to do') || s.includes('todo') || s.includes('proposed'));
+  const inprog = pick((s) => s.includes('in progress') || s.includes('inprogress') || s.includes('doing') || s.includes('active'));
+  const review = pick((s) => s.includes('review') || s.includes('testing'));
+  const done = pick((s) => s.includes('done') || s.includes('resolved') || s.includes('closed') || s.includes('completed'));
+  const assigned = new Set([...todo, ...inprog, ...review, ...done]);
+  const leftovers = items.filter((w) => !assigned.has(w.id)).map((w) => w.id);
+  if (leftovers.length) inprog.push(...leftovers);
+  return [
+    { id: 'todo', title: 'To Do', itemIds: todo },
+    { id: 'inprogress', title: 'In Progress', itemIds: inprog },
+    { id: 'review', title: 'Review/Testing', itemIds: review },
+    { id: 'done', title: 'Done', itemIds: done },
+  ];
 }
 
 async function main() {
-  const repoRoot = path.resolve(__dirname, '..', '..');
-  const svelteEntry = path.resolve(repoRoot, 'media', 'webview', 'svelte.html');
-  const outDir = path.resolve(repoRoot, 'images');
-  const framesDir = path.resolve(outDir, 'loading-frames');
-  const samplePath = path.resolve(__dirname, 'sample-data.json');
-  const staticRoot = path.resolve(repoRoot, 'media', 'webview');
-
-  try {
-    await fs.access(svelteEntry);
-  } catch {
-    console.error('[loading-gif] Webview HTML not found at', svelteEntry);
-    console.error('Run: npm run build');
+  console.log('[loading-gif] Checking prerequisites...');
+  const prerequisitesOk = await ensurePrerequisites();
+  if (!prerequisitesOk) {
+    console.error('[loading-gif] Prerequisites check failed');
     process.exit(1);
   }
 
-  const sample = await readJson(samplePath);
-  await ensureDir(outDir);
-  await ensureDir(framesDir);
+  console.log('[loading-gif] Starting screenshot generation...');
 
-  // Clean up old frames
-  try {
-    const files = await fs.readdir(framesDir);
-    for (const file of files) {
-      if (file.startsWith('frame-') && file.endsWith('.png')) {
-        await fs.unlink(path.join(framesDir, file));
-      }
+  // Start a tiny static server to serve media/webview over http so the bundle loads
+  const webviewDir = join(PROJECT_ROOT, 'media', 'webview');
+  const server = http.createServer(async (req, res) => {
+    try {
+      const url = new URL(req.url, 'http://127.0.0.1');
+      let filePath = url.pathname.replace(/^\/+/, '');
+      if (!filePath || filePath === '/') filePath = 'svelte.html';
+      const abspath = join(webviewDir, filePath);
+      const data = await readFile(abspath);
+      const ext = abspath.split('.').pop()?.toLowerCase() || '';
+      const type =
+        ext === 'html'
+          ? 'text/html'
+          : ext === 'css'
+            ? 'text/css'
+            : ext === 'js'
+              ? 'text/javascript'
+              : 'application/octet-stream';
+      res.writeHead(200, { 'Content-Type': type });
+      res.end(data);
+    } catch (e) {
+      res.statusCode = 404;
+      res.end('Not Found');
     }
-  } catch {
-    // ignore
-  }
-
-  const server = await startStaticServer(staticRoot);
-  const baseUrl = `http://127.0.0.1:${server.port}/svelte.html`;
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const { port } = server.address();
+  const baseHttpUrl = `http://127.0.0.1:${port}/svelte.html`;
+  console.log('[loading-gif] Serving webview from', baseHttpUrl);
 
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: {
-      width: (CAPTURE_WIDTH + CAPTURE_PADDING * 2) * 2, // Add padding to viewport so pane can be full width
+      width: ((CAPTURE_WIDTH + CAPTURE_PADDING * 2) * 2),
       height: CAPTURE_MAX_HEIGHT,
     },
     deviceScaleFactor: 2,
   });
+
   const page = await context.newPage();
 
-  // Inject mock vscode API that responds to webview messages
-  await page.addInitScript((fixture) => {
-    window.__AZDO_FIXTURE__ = fixture;
-
-    function makeApi() {
-      let kanbanView = false;
-
-      return {
-        postMessage: (msg) => {
-          // Respond to webviewReady with connections
-          if (msg && msg.type === 'webviewReady') {
-            setTimeout(() => {
-              window.postMessage(
-                {
-                  type: 'connectionsUpdate',
-                  connections: fixture.connections || [],
-                  activeConnectionId: fixture.activeConnectionId,
-                },
-                '*'
-              );
-            }, 10);
-          }
-          // Handle kanban view toggle
-          if (msg && msg.type === 'toggleKanbanView') {
-            kanbanView = !kanbanView;
-          }
-        },
-        setState: (state) => {
-          if (state && typeof state.kanbanView === 'boolean') {
-            kanbanView = state.kanbanView;
-          }
-        },
-        getState: () => ({ kanbanView }),
-      };
+  // Load the webview HTML
+  const htmlPath = join(PROJECT_ROOT, 'media', 'webview', 'svelte.html');
+  const baseUrl = pathToFileURL(htmlPath).toString();
+  await page.goto(baseHttpUrl);
+  // Remove restrictive CSP to allow script/style injection in Playwright
+  await page.evaluate(() => {
+    const csp = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    if (csp) csp.remove();
+  });
+  // Ensure mount target exists even if bundle fails to create it
+  await page.evaluate(() => {
+    if (!document.getElementById('svelte-root')) {
+      const el = document.createElement('div');
+      el.id = 'svelte-root';
+      document.body.appendChild(el);
     }
+  });
 
-    if (typeof window.acquireVsCodeApi !== 'function') {
-      window.acquireVsCodeApi = makeApi;
-    }
-    if (!window.vscode) {
-      window.vscode = makeApi();
-    }
+  // Load CSS - use absolute file path
+  const cssPath = join(PROJECT_ROOT, 'media', 'webview', 'main.css');
+  try {
+    await page.addStyleTag({ path: cssPath });
+    console.log('[loading-gif] CSS loaded successfully');
+  } catch (error) {
+    console.warn('[loading-gif] Could not load CSS from', cssPath, '- continuing without it');
+  }
 
-    // Expose state control for screenshots
-    window.__setLoadingState__ = (state) => {
-      if (state === 'loading') {
-        window.postMessage(
-          {
-            type: 'workItemsLoading',
-            query: 'My Activity',
-            connectionId: fixture.activeConnectionId,
-          },
-          '*'
-        );
-      } else if (state === 'loaded') {
-        const items = fixture.workItems.map((w) => ({
-          id: w.id,
-          fields: {
-            'System.Id': w.id,
-            'System.Title': w.title,
-            'System.WorkItemType': w.type,
-            'System.State': w.state,
-            'System.AssignedTo':
-              !w.assignedTo || w.assignedTo === 'Unassigned'
-                ? undefined
-                : { displayName: w.assignedTo },
-            'Microsoft.VSTS.Common.Priority': w.priority,
-            'System.ChangedDate': new Date().toISOString(),
-          },
-        }));
-
-        window.postMessage(
-          {
-            type: 'workItemsLoaded',
-            workItems: items,
-            connectionId: fixture.activeConnectionId,
-            kanbanView: false,
-          },
-          '*'
-        );
-      }
-    };
-  }, sample);
-
-  await page.goto(baseUrl);
-
-  // Load the Svelte component CSS (esbuild generates this but doesn't auto-inject it)
-  const cssPath = baseUrl.replace('svelte.html', 'svelte-main.css');
-  await page.addStyleTag({ url: cssPath });
+  // Load the built webview bundle so Svelte renders components
+  const jsPath = join(PROJECT_ROOT, 'media', 'webview', 'main.js');
+  try {
+    // When served over http, the script tag in svelte.html should load automatically.
+    // As a fallback, inject inline.
+    const jsCode = await readFile(jsPath, 'utf8');
+    await page.addScriptTag({ content: jsCode });
+    console.log('[loading-gif] JS injected successfully (fallback)');
+  } catch (error) {
+    console.warn('[loading-gif] Could not load JS from', jsPath, '- continuing without it');
+  }
 
   // Inject VS Code theme CSS variables
   await page.addStyleTag({
     content: `
       :root {
-        --vscode-font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-        --vscode-font-size: 13px;
         --vscode-foreground: ${VSCODE_THEME.foreground};
-        --vscode-sideBar-background: ${VSCODE_THEME.sidebarBackground};
-        --vscode-editor-background: ${VSCODE_THEME.editorBackground};
         --vscode-editor-foreground: ${VSCODE_THEME.foreground};
-        --vscode-widget-border: ${VSCODE_THEME.widgetBorderStrong};
+        --vscode-editor-background: ${VSCODE_THEME.background};
+        --vscode-editorWidget-background: ${VSCODE_THEME.editorWidgetBackground};
         --vscode-editorWidget-border: ${VSCODE_THEME.widgetBorderStrong};
-        --vscode-editorWidget-background: ${VSCODE_THEME.inputBackground};
         --vscode-input-background: ${VSCODE_THEME.inputBackground};
-        --vscode-input-foreground: ${VSCODE_THEME.inputForeground};
-        --vscode-input-border: ${VSCODE_THEME.border};
-        --vscode-input-placeholderForeground: ${VSCODE_THEME.descriptionForeground};
+        --vscode-input-foreground: ${VSCODE_THEME.foreground};
+        --vscode-input-border: #3e3e42;
         --vscode-button-background: ${VSCODE_THEME.buttonBackground};
-        --vscode-button-foreground: ${VSCODE_THEME.buttonForeground};
-        --vscode-button-hoverBackground: ${VSCODE_THEME.buttonHoverBackground};
-        --vscode-button-secondaryBackground: ${VSCODE_THEME.inputBackground};
-        --vscode-button-secondaryForeground: ${VSCODE_THEME.foreground};
-        --vscode-button-secondaryHoverBackground: ${VSCODE_THEME.listHoverBackground};
-        --vscode-button-border: ${VSCODE_THEME.border};
+        --vscode-button-foreground: #ffffff;
+        --vscode-button-hoverBackground: #1177bb;
         --vscode-list-activeSelectionBackground: ${VSCODE_THEME.listActiveBackground};
-        --vscode-list-hoverBackground: ${VSCODE_THEME.listHoverBackground};
-        --vscode-toolbar-hoverBackground: ${VSCODE_THEME.listHoverBackground};
+        --vscode-list-hoverBackground: #2a2d2e;
+        --vscode-list-hoverForeground: ${VSCODE_THEME.foreground};
         --vscode-focusBorder: ${VSCODE_THEME.focusBorder};
-        --vscode-descriptionForeground: ${VSCODE_THEME.descriptionForeground};
-        --vscode-textBlockQuote-background: #2a2a2a;
-        
-        /* Azure DevOps semantic colors */
-        --primary-color: #0078d4;
-        --success-color: #107c10;
-        --warning-color: #f8961e;
-        --danger-color: #d13438;
-        --info-color: #5c2d91;
-        
-        /* Azure DevOps state colors */
+        --vscode-descriptionForeground: #9d9d9d;
+        --vscode-panel-border: #3e3e42;
+        --vscode-textLink-foreground: #3794ff;
+        --vscode-dropdown-background: var(--vscode-input-background);
+        --vscode-dropdown-foreground: var(--vscode-input-foreground);
+        --vscode-dropdown-border: var(--vscode-input-border);
+        --vscode-inputOption-hoverBorder: var(--vscode-focusBorder);
         --ado-blue: #0078d4;
         --ado-green: #107c10;
         --ado-orange: #ff8c00;
         --ado-red: #d13438;
-        --ado-purple: #5c2d91;
-        --ado-gray: #605e5c;
-        --state-new: #0078d4;
-        --state-active: #ff8c00;
-        --state-inprogress: #ff8c00;
-        --state-resolved: #107c10;
-        --state-done: #107c10;
-        --state-closed: #605e5c;
       }
-    `,
-  });
-
-  // Add styling for clean screenshots with solid background
-  await page.addStyleTag({
-    content: `
-      body, html { 
-        background: #0d1117 !important; 
-        margin: 0 !important; 
-        padding: ${CAPTURE_PADDING}px !important;
-        display: flex !important;
-        justify-content: center !important;
-        align-items: flex-start !important;
-        min-height: 100vh !important;
-      }
-      .pane {
-        width: 1600px !important;
-        max-width: 1600px !important;
-        height: ${CAPTURE_MAX_HEIGHT - CAPTURE_PADDING * 2}px !important;
-        max-height: ${CAPTURE_MAX_HEIGHT - CAPTURE_PADDING * 2}px !important;
-        margin: 0 auto !important;
-        border-radius: ${CAPTURE_BORDER_RADIUS}px !important;
-        box-shadow: ${CAPTURE_SHADOW} !important;
-        overflow: hidden !important;
+      body, html {
         background: #0d1117 !important;
-        padding: 0 !important;
+        color: var(--vscode-foreground) !important;
+        margin: 0;
+        padding: ${CAPTURE_PADDING}px;
       }
-      /* Make content fill the pane width */
-      .pane > * {
-        width: 100% !important;
-        max-width: 100% !important;
-      }
-      /* Ensure borders are visible */
-      .work-item-card {
-        border: 1px solid ${VSCODE_THEME.widgetBorderStrong} !important;
-      }
-      /* Let kanban board use full width */
-      .kanban-board {
-        width: 100% !important;
-        max-width: none !important;
+      main {
+        width: ${CAPTURE_WIDTH}px !important;
+        max-width: ${CAPTURE_WIDTH}px !important;
+        margin: 0 auto;
       }
     `,
   });
 
-  const captureFrame = async (frameNumber, description) => {
-    await page.waitForTimeout(200); // Let UI settle
-    const framePath = path.join(framesDir, `frame-${String(frameNumber).padStart(4, '0')}.png`);
-    const pane = await page.$('.pane');
-    if (pane) {
-      await pane.screenshot({
-        path: framePath,
-        // No omitBackground - use solid background color instead
-      });
-      console.log(`[loading-gif] Captured frame ${frameNumber}: ${description}`);
-    } else {
-      await page.screenshot({
-        path: framePath,
-      });
-      console.log(`[loading-gif] Captured frame ${frameNumber} (fallback): ${description}`);
-    }
-  };
+  // Helper: dispatch a syncState snapshot the webview expects (reactive architecture)
+  async function dispatchSyncState(view, items, matches = {}, connectionId = 'demo-conn') {
+    const snapshot = {
+      fsmState: 'active.ready.idle',
+      context: {
+        isActivated: true,
+        connections: [
+          {
+            id: connectionId,
+            organization: 'DemoOrg',
+            project: 'Demo Project',
+            label: 'Demo Project',
+          },
+        ],
+        activeConnectionId: connectionId,
+        pendingWorkItems: items && items.length > 0 ? {
+          workItems: items,
+          connectionId,
+          query: 'Demo',
+        } : undefined,
+        viewMode: view === 'kanban' ? 'kanban' : 'list',
+      },
+      matches: {
+        'active.ready': true,
+        'active.ready.idle': true,
+        ...matches,
+      },
+    };
 
-  let frameNum = 1;
-
-  // State 1: Initializing (0.5 seconds = 10 frames at 20fps)
-  console.log('[loading-gif] Capturing initializing state...');
-  await page.waitForSelector('#svelte-root', { timeout: 5000 });
-  for (let i = 0; i < 10; i++) {
-    await captureFrame(frameNum++, 'initializing');
-    await page.waitForTimeout(FRAME_DELAY);
+    await page.evaluate((snap) => {
+      window.postMessage({ type: 'syncState', payload: snap }, '*');
+    }, snapshot);
   }
 
-  // State 2: Loading (0.5 seconds = 10 frames at 20fps)
-  console.log('[loading-gif] Capturing loading state...');
-  await page.evaluate(() => window.__setLoadingState__('loading'));
-  await page.waitForSelector('.loading', { timeout: 5000 });
-  for (let i = 0; i < 10; i++) {
-    await captureFrame(frameNum++, 'loading');
-    await page.waitForTimeout(FRAME_DELAY);
+  // Wait for Svelte root
+  try {
+    await page.waitForSelector('#svelte-root', { timeout: 10000 });
+    await page.waitForTimeout(500);
+  } catch (error) {
+    console.warn('[loading-gif] svelte-root not found, continuing anyway');
   }
 
-  // State 3: List view with items (1.5 seconds = 30 frames at 20fps)
-  console.log('[loading-gif] Capturing list view...');
-  await page.evaluate(() => window.__setLoadingState__('loaded'));
-  await page.waitForSelector('.work-item-card', { timeout: 5000 });
+  const framesDir = join(PROJECT_ROOT, 'images', 'loading-frames');
+  const fs = await import('node:fs/promises');
+  await fs.mkdir(framesDir, { recursive: true });
+
+  let frameCount = 0;
+  let kanbanView = false;
+
+  // Helper: capture the primary content to avoid large borders
+  async function captureTo(path) {
+    const target =
+      (await page.$('.pane')) ||
+      (await page.$('.kanban-board')) ||
+      (await page.$('#svelte-root')) ||
+      page;
+    await target.screenshot({ path, omitBackground: true });
+  }
+
+  // Frame sequence: 90 frames total
+  // Initializing: 10 frames
+  for (let i = 0; i < 10; i++) {
+    await page.waitForTimeout(FRAME_DELAY);
+    const framePath = join(framesDir, `frame-${String(frameCount + 1).padStart(4, '0')}.png`);
+    await captureTo(framePath);
+    frameCount++;
+  }
+
+  // Loading: 10 frames (no items yet, list view) using syncState
+  await dispatchSyncState('list', [], { 'active.ready.loadingData': true });
+  await page.waitForTimeout(500);
+
+  for (let i = 0; i < 10; i++) {
+    await page.waitForTimeout(FRAME_DELAY);
+    const framePath = join(framesDir, `frame-${String(frameCount + 1).padStart(4, '0')}.png`);
+    await captureTo(framePath);
+    frameCount++;
+  }
+
+  // List view: 30 frames (with work items)
+  await dispatchSyncState('list', makeSampleWorkItems());
+  // Wait for DOM or fallback to static HTML template
+  try {
+    await page.waitForSelector('.work-item-card, .work-item-list', { timeout: 8000 });
+  } catch {
+    try {
+      const listHtml = await readFile(join(PROJECT_ROOT, 'images', 'work-items-list.html'), 'utf8');
+      const sanitized = listHtml
+        .replace(/<link[^>]+svelte-main\.css[^>]*>/gi, '')
+        .replace(/<script[^>]+svelte-main\.js[^>]*><\/script>/gi, '');
+      await page.evaluate((markup) => {
+        const root = document.getElementById('svelte-root') || document.body;
+        root.innerHTML = markup;
+      }, sanitized);
+    } catch {}
+  }
+  await page.waitForTimeout(600);
+
   for (let i = 0; i < 30; i++) {
-    await captureFrame(frameNum++, 'list-view');
     await page.waitForTimeout(FRAME_DELAY);
+    const framePath = join(framesDir, `frame-${String(frameCount + 1).padStart(4, '0')}.png`);
+    await captureTo(framePath);
+    frameCount++;
   }
 
-  // State 4: Transition to Kanban view (0.3 seconds = 6 frames for smooth transition)
-  console.log('[loading-gif] Capturing transition to kanban...');
+  // Transition to Kanban: 6 frames via syncState
+  await dispatchSyncState('kanban', makeSampleWorkItems(), makeSampleKanbanColumns(makeSampleWorkItems()));
+  await page.waitForTimeout(300);
 
-  await page.evaluate(() => {
-    window.postMessage({ type: 'toggleKanbanView' }, '*');
-  });
-  await page.waitForTimeout(100); // Let transition start
   for (let i = 0; i < 6; i++) {
-    await captureFrame(frameNum++, 'transition');
     await page.waitForTimeout(FRAME_DELAY);
+    const framePath = join(framesDir, `frame-${String(frameCount + 1).padStart(4, '0')}.png`);
+    await captureTo(framePath);
+    frameCount++;
   }
 
-  // State 5: Kanban view (1.7 seconds = 34 frames at 20fps)
-  console.log('[loading-gif] Capturing kanban view...');
-  await page.waitForSelector('.kanban-board', { timeout: 5000 });
+  // Kanban view: 34 frames
+  // Ensure kanban DOM or fallback
+  try {
+    await page.waitForSelector('.kanban-board, .kanban-column', { timeout: 8000 });
+    // Ensure there are visible cards; otherwise fallback to static template
+    const hasCards = await page.$('.kanban-card, .kanban-item, .work-item-card');
+    if (!hasCards) {
+      throw new Error('No kanban cards detected');
+    }
+  } catch {
+    try {
+      const kanbanHtml = await readFile(join(PROJECT_ROOT, 'images', 'work-items-kanban.html'), 'utf8');
+      const sanitizedK = kanbanHtml
+        .replace(/<link[^>]+svelte-main\.css[^>]*>/gi, '')
+        .replace(/<script[^>]+svelte-main\.js[^>]*><\/script>/gi, '');
+      await page.evaluate((markup) => {
+        const root = document.getElementById('svelte-root') || document.body;
+        root.innerHTML = markup;
+      }, sanitizedK);
+      await page.waitForTimeout(200);
+    } catch {}
+  }
   for (let i = 0; i < 34; i++) {
-    await captureFrame(frameNum++, 'kanban-view');
     await page.waitForTimeout(FRAME_DELAY);
+    const framePath = join(framesDir, `frame-${String(frameCount + 1).padStart(4, '0')}.png`);
+    await captureTo(framePath);
+    frameCount++;
   }
 
   await browser.close();
-  await server.stop();
+  await new Promise((r) => server.close(() => r()));
 
-  // Convert frames to GIF
-  console.log('[loading-gif] Converting frames to GIF...');
-  const gifPath = path.resolve(outDir, 'loading-sequence.gif');
+  console.log(`[loading-gif] Captured ${frameCount} frames`);
 
-  try {
-    await createGifFromFrames(framesDir, gifPath, 20);
-    console.log('[loading-gif] ✅ Created animated GIF:', gifPath);
+  // Create GIF from frames
+  console.log('[loading-gif] Creating GIF...');
+  const gifPath = join(PROJECT_ROOT, 'images', 'loading-sequence.gif');
+  await createGifFromFrames(framesDir, gifPath, frameCount);
 
-    // Optionally clean up frames
-    // await fs.rm(framesDir, { recursive: true });
-  } catch (err) {
-    console.error('[loading-gif] Failed to create GIF:', err.message);
-    console.log('[loading-gif] Frames saved in:', framesDir);
-    console.log('[loading-gif] You can manually create a GIF from these frames');
-  }
+  console.log(`[loading-gif] ✓ GIF created: ${gifPath}`);
 }
 
-main().catch((err) => {
-  console.error(err);
+async function createGifFromFrames(framesDir, outputPath, frameCount) {
+  const frames = [];
+  let width = 0;
+  let height = 0;
+  
+  // Load all frames
+  for (let i = 1; i <= frameCount; i++) {
+    const framePath = join(framesDir, `frame-${String(i).padStart(4, '0')}.png`);
+    const buffer = await readFile(framePath);
+    const png = PNG.sync.read(buffer);
+    
+    if (i === 1) {
+      width = png.width;
+      height = png.height;
+    }
+    
+    // Convert PNG to RGBA array for gifenc
+    const rgba = new Uint8Array(png.width * png.height * 4);
+    for (let y = 0; y < png.height; y++) {
+      for (let x = 0; x < png.width; x++) {
+        const idx = (y * png.width + x) * 4;
+        const pngIdx = (y * png.width + x) * 4;
+        rgba[idx] = png.data[pngIdx];     // R
+        rgba[idx + 1] = png.data[pngIdx + 1]; // G
+        rgba[idx + 2] = png.data[pngIdx + 2]; // B
+        rgba[idx + 3] = png.data[pngIdx + 3]; // A
+      }
+    }
+    
+    frames.push(rgba);
+  }
+
+  // Create GIF using gifenc
+  const encoder = GIFEncoder();
+  
+  // Process each frame
+  for (let i = 0; i < frames.length; i++) {
+    const rgba = frames[i];
+    
+    // Quantize colors (reduce to 256 color palette)
+    const palette = quantize(rgba, 256);
+    const indexed = applyPalette(rgba, palette);
+    
+    // Add frame to GIF
+    encoder.writeFrame(indexed, width, height, {
+      palette: palette,
+      delay: FRAME_DELAY,
+    });
+  }
+
+  encoder.finish();
+  const gif = encoder.bytes();
+
+  await writeFile(outputPath, Buffer.from(gif));
+}
+
+main().catch((error) => {
+  console.error('[loading-gif] Error:', error);
   process.exit(1);
 });

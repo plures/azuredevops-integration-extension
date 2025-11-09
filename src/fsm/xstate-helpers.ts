@@ -1,4 +1,17 @@
 /**
+ * Module: src/fsm/xstate-helpers.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * XState v5 Type Safety Helpers
  *
  * These helpers enforce XState v5 conventions at compile time:

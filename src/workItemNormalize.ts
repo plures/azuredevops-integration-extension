@@ -1,3 +1,16 @@
+/**
+ * Module: src/workItemNormalize.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
 // Shared normalization utilities for work items
 // Supports both raw Azure DevOps shape: { id, fields: { 'System.Title': ... } }
 // and previously flattened shape: { id, title, state, type, assignedTo, ... }

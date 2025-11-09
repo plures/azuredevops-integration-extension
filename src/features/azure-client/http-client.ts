@@ -1,3 +1,20 @@
+/**
+ * Module: src/features/azure-client/http-client.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ *
+ * URL invariants:
+ * - apiBaseUrl: ALWAYS used for REST API calls. Must include project and end with '/_apis'.
+ * - baseUrl:    ONLY used for browser/UI links. Never used for REST calls.
+ */
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { RateLimiter } from '../../rateLimiter.js';
 import { createLogger } from '../../logging/unifiedLogger.js';
@@ -37,6 +54,7 @@ export class AzureHttpClient {
     this.rateLimiter = new RateLimiter(options.ratePerSecond || 10, options.burst || 20);
 
     // Set up base URLs
+    // baseUrl (browser/UI) is derived from apiBaseUrl host; apiBaseUrl must include '/_apis'
     this.baseUrl = this._determineBaseUrl(options.apiBaseUrl);
     this.apiBaseUrl = this._ensureApiSuffix(this.baseUrl);
 
@@ -146,10 +164,12 @@ export class AzureHttpClient {
     this.credential = newCredential;
   }
 
+  // Build a REST endpoint URL from apiBaseUrl (for HTTP calls)
   buildFullUrl(path: string): string {
     return `${this.apiBaseUrl}${path}`;
   }
 
+  // Build a browser URL from baseUrl (for openExternal)
   getBrowserUrl(path: string): string {
     return `${this.baseUrl}/${this.encodedProject}${path}`;
   }

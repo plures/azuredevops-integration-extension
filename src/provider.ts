@@ -1,3 +1,17 @@
+/**
+ * Module: WorkItemsProvider
+ * Owner: connection
+ * Reads: ApplicationContext via messages/selectors (read-only); connection configuration from FSM
+ * Writes: none (posts provider messages; FSM reduces into context)
+ * Receives: refresh/run query requests from connection machine
+ * Emits: workItemsLoaded/workItemsError (tagged with connectionId by activation/bridge)
+ * Prohibitions: Do not implement webview logic; Do not mutate ApplicationContext
+ * Rationale: Connection-scoped provider for work item data flow
+ *
+ * LLM-GUARD:
+ * - Include connectionId when posting provider messages
+ * - Do not emit SELECT_CONNECTION or UI-specific events
+ */
 import { AzureDevOpsIntClient } from './azureClient.js';
 import type { WorkItem } from './types.js';
 

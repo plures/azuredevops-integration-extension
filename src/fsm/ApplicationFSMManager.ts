@@ -1,4 +1,13 @@
 /**
+ * Module: ApplicationFSMManager
+ * Owner: application
+ * Reads: Extension context, Application FSM state
+ * Writes: none directly to ApplicationContext (delegates to FSM)
+ * Receives: lifecycle start/stop, debug tracing setup
+ * Emits: appActor reference and tracing hooks
+ * Prohibitions: Do not define ApplicationContext; Do not implement UI logic
+ * Rationale: Bootstrap and manage the application FSM and tracing
+ *
  * Application FSM Manager
  *
  * This manager coordinates the entire application FSM system, replacing

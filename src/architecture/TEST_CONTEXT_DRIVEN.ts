@@ -1,4 +1,17 @@
 /**
+ * Module: src/architecture/TEST_CONTEXT_DRIVEN.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Context-Driven Architecture Test
  *
  * This demonstrates how the architecture works and can be tested

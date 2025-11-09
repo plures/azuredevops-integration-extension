@@ -1,4 +1,17 @@
 /**
+ * Module: src/fsm/ConnectionFSMManager.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Connection FSM Manager
  *
  * Manages connection state machines and integrates them with the existing
@@ -56,8 +69,8 @@ export class ConnectionFSMManager {
           connectionId: connectionId,
         });
 
-        // REACTIVE: Immediately update status bar when state changes
-        // State change triggers immediate reactive update - no delays
+        // REACTIVE: Immediately update status bar when reaching terminal/visible states,
+        // to restore prior behavior and avoid excessive updates.
         if (
           state.matches('auth_failed') ||
           state.matches('client_failed') ||
@@ -65,9 +78,7 @@ export class ConnectionFSMManager {
           state.matches('connection_error') ||
           state.matches('connected')
         ) {
-          // Immediate reactive update - state change triggers UI update instantly
           setImmediate(() => {
-            // Use global reference if available, otherwise try dynamic import
             const globalRef = (globalThis as any).__updateAuthStatusBar;
             if (typeof globalRef === 'function') {
               globalRef().catch((err: any) => {
@@ -76,7 +87,6 @@ export class ConnectionFSMManager {
                 );
               });
             } else {
-              // Fallback to dynamic import
               import('../../activation.js')
                 .then(({ updateAuthStatusBar }) => {
                   updateAuthStatusBar().catch((err) => {

@@ -1,8 +1,12 @@
 /**
- * VS Code PubSub Adapter for Webview Communication
- *
- * Implements the PubSubAdapter interface for webview <-> extension host messaging.
- * Conforms to the pub/sub broker pattern described in migration instructions.
+ * Module: VS Code PubSub Adapter (Webview)
+ * Owner: webview
+ * Reads: webview VS Code API state; receives host broadcast messages
+ * Writes: UI-originated pubsub publish/subscribe/unsubscribe envelopes
+ * Receives: Host broadcasts mapped to the adapter
+ * Emits: postMessage envelopes via VS Code API
+ * Prohibitions: Do not import extension host modules; Do not mutate ApplicationContext
+ * Rationale: Isolated message adapter for webview-side pub/sub
  *
  * Message Envelope Format (matches migration instructions):
  * - Webview -> Host (publish): { type: 'pubsub:publish', topic, payload, retain? }

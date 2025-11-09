@@ -1,4 +1,17 @@
 /**
+ * Module: src/fsm/adapters/ConnectionAdapter.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Connection Adapter
  *
  * Provides backward compatibility between the new Connection FSM

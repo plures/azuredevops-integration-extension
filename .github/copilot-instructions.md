@@ -92,7 +92,7 @@ Purpose: give an AI agent the exact, repository-specific knowledge it needs to b
 - **NO FUNCTION CHAINS**: Never create function chains that bypass FSM - everything goes through state machines
 - **STRUCTURED LOGGING**: Use `fsmLogger` with FSM context, never manual console.log - traceability is critical
 - ESM-first project: `package.json` sets `type: "module"`. Scripts, configs and test runners may need ESM-aware invocation (see tests above).
-  // No Vite build required on CI; Node 20.x remains the baseline runtime for esbuild and tests.
+  // No Vite build required on CI; Node 24.x remains the baseline runtime for esbuild and tests.
 - Commitlint is ESM: `commitlint.config.mjs` is used; commit-msg husky hook calls it with `--config ./commitlint.config.mjs`.
 - Webview ↔ Extension message contract is authoritative — update tests when changing shapes.
 - Timer is intentionally capped by `azureDevOpsIntegration.defaultElapsedLimitHours` (default 3.5 hrs) — the cap is enforced in `src/timer.ts` and is persisted with timer state.

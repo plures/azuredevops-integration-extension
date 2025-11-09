@@ -2,6 +2,10 @@
 
 This directory contains scripts for generating screenshots and animated demos of the extension.
 
+## Prerequisites
+
+The screenshot scripts automatically check for and install prerequisites (like Playwright browsers) if they're missing. No manual setup required!
+
 ## Static Screenshots
 
 Generate PNG screenshots of list and kanban views:
@@ -9,6 +13,8 @@ Generate PNG screenshots of list and kanban views:
 ```bash
 npm run screenshots:capture
 ```
+
+**Note:** Playwright browsers will be automatically installed if missing.
 
 Output: `images/work-items-list.png`, `images/work-items-kanban.png`
 
@@ -43,6 +49,7 @@ If `ffmpeg` is not available, the script will save individual frames to `images/
 
 - `generate-screenshots.mjs` - Static screenshot generator for list/kanban views
 - `generate-loading-sequence.mjs` - Animated GIF generator for loading states
+- `check-prerequisites.mjs` - Prerequisites checker and auto-installer
 - `generate-sample-data.mjs` - Sample work item data generator
 - `sample-data.json` - Fixture data for screenshots
 

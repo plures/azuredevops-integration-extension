@@ -1,3 +1,16 @@
+/**
+ * Module: src/fsm/xstate-svelte/src/useRemoteMachinePubSub.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
 import { useRemoteMachine, type RemoteMachineAPI, type RemoteSnapshot } from './useRemoteMachine';
 
 /**

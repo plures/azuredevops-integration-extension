@@ -1,4 +1,17 @@
 /**
+ * Module: src/webview/useApplicationMachine.runes.ts
+ * Owner: webview
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Svelte 5 Rune-First Wrapper for Application Machine
  *
  * Provides a convenient way to connect to the application machine from webview components.

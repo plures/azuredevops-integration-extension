@@ -1,4 +1,17 @@
 /**
+ * Module: src/architecture/ReactiveStores.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Context-Driven Architecture - Reactive Stores
  *
  * Svelte stores that expose the shared application context reactively.

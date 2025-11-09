@@ -1,4 +1,17 @@
 /**
+ * Module: src/architecture/ApplicationContext.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Context-Driven Architecture - Application Context
  *
  * Single source of truth that all actors observe and update.
@@ -258,3 +271,42 @@ export const createInitialContext = (): ApplicationContext => ({
   },
   isInitialized: false,
 });
+
+/**
+ * Dev-time immutability guard
+ * Deep-freeze plain objects/arrays to prevent accidental mutation of context snapshots in development.
+ * Note: Maps/Sets are frozen shallowly (method calls can still mutate); context updates must use actions.
+ */
+function deepFreezeDev<T>(value: T): T {
+  if (process.env.NODE_ENV === 'production') return value;
+  try {
+    const seen = new WeakSet();
+    const freeze = (v: any) => {
+      if (v === null) return v;
+      const t = typeof v;
+      if (t !== 'object') return v;
+      if (seen.has(v)) return v;
+      seen.add(v);
+      if (Array.isArray(v)) {
+        v.forEach(freeze);
+      } else if (v && v.constructor === Object) {
+        Object.getOwnPropertyNames(v).forEach((key) => freeze(v[key]));
+      }
+      // Freeze container itself (objects/arrays/maps/sets)
+      try {
+        Object.freeze(v);
+      } catch {
+        // ignore non-freezable
+      }
+      return v;
+    };
+    return freeze(value);
+  } catch {
+    return value;
+  }
+}
+
+// Wrap the exported creator to return an immutable snapshot in development
+const _createInitialContext = createInitialContext;
+export const createInitialContextFrozen = (): ApplicationContext =>
+  deepFreezeDev(_createInitialContext());

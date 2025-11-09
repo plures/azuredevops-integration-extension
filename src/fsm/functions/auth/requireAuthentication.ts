@@ -1,3 +1,16 @@
+/**
+ * Module: src/fsm/functions/auth/requireAuthentication.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
 import type { ApplicationContext, AuthReminderReason } from '../../machines/applicationMachine.js';
 
 export type RequireAuthenticationMessage = {

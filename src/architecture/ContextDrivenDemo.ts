@@ -1,11 +1,28 @@
 /**
+ * Module: src/architecture/ContextDrivenDemo.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Context-Driven Architecture - Working Demo
  *
  * This demonstrates the key concepts without complex XState setup.
  * Focus on the patterns and flow rather than the implementation details.
  */
 
-import { ApplicationContext, contextActions, createInitialContext } from './ApplicationContext';
+import {
+  ApplicationContext,
+  contextActions,
+  createInitialContextFrozen,
+} from './ApplicationContext';
 
 /**
  * Simple Actor Pattern - Focus on the concept
@@ -184,7 +201,7 @@ export class ContextManager {
   private actors: Array<{ onContextChange: (context: ApplicationContext) => void }> = [];
 
   constructor() {
-    this.context = createInitialContext();
+    this.context = createInitialContextFrozen();
     console.log('[ContextManager] Initialized with context:', this.context);
   }
 

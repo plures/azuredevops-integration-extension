@@ -1,4 +1,17 @@
 /**
+ * Module: src/logging/unifiedLogger.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Unified Logger - Always includes [AzureDevOpsInt] prefix
  *
  * This logger ensures all logs are properly prefixed so they can be filtered.

@@ -1,3 +1,17 @@
+<!--
+Module: src/webview/components/AuthReminder.svelte
+Owner: webview
+Reads: syncState from extension (ApplicationContext serialized)
+Writes: UI-only events; selection via selection writer factory (webview-owned)
+Receives: syncState, host broadcasts
+Emits: fsmEvent envelopes (Router handles stamping)
+Prohibitions: Do not import extension host modules; Do not define context types
+Rationale: Svelte UI component; reacts to ApplicationContext and forwards intents
+
+LLM-GUARD:
+- Use selection writer factory for selection updates
+- Do not route by connection here; let Router decide targets
+-->
 <script lang="ts">
   interface Props {
     context: any;
@@ -25,18 +39,42 @@
   const workItems = $derived(context?.workItems || context?.pendingWorkItems?.workItems || []);
   const hasWorkItems = $derived(workItems.length > 0);
 
-  // Check if PAT error should be shown (only if it's for the active connection)
-  const showPatError = $derived(
-    workItemsError && workItemsErrorConnectionId === activeConnectionId
+  // Get connection health error from UI state
+  const uiState = $derived(context?.ui);
+  const connectionHealth = $derived(uiState?.connectionHealth);
+  const connectionHealthError = $derived(connectionHealth?.lastError);
+  const hasConnectionHealthError = $derived(
+    connectionHealth?.status === 'error' &&
+    connectionHealthError &&
+    connectionHealthError.type === 'authentication'
   );
 
-  // Check if device code should be shown (only if session exists, not expired, for active connection, and work items NOT loaded)
-  const showDeviceCode = $derived(
+  // Get active connection to check auth method
+  const connections = $derived(context?.connections || []);
+  const activeConnection = $derived(connections.find((c: any) => c.id === activeConnectionId));
+  const isEntraAuth = $derived(activeConnection?.authMethod === 'entra');
+
+  // Check if PAT error should be shown (only if it's for the active connection)
+  const showPatError = $derived(
+    workItemsError && 
+    workItemsErrorConnectionId === activeConnectionId &&
+    !isEntraAuth // Don't show PAT error for Entra connections
+  );
+
+  // Base flags (avoid circular derivations)
+  const canShowDeviceCodeBase = $derived(
     deviceCodeSession &&
       !deviceCodeExpired &&
       deviceCodeSession.connectionId === activeConnectionId &&
       !hasWorkItems
   );
+  const entraAuthErrorEligible = $derived(
+    hasConnectionHealthError && !!activeConnectionId && isEntraAuth
+  );
+
+  // Final visibility flags without cross-referencing each other
+  const showDeviceCode = $derived(Boolean(canShowDeviceCodeBase && !entraAuthErrorEligible));
+  const showEntraAuthError = $derived(Boolean(entraAuthErrorEligible && !canShowDeviceCodeBase));
 
   // Get VS Code API instance
   const vscode = (window as any).__vscodeApi;
@@ -66,15 +104,48 @@
       });
     }
   }
+
+  function handleRetryEntraAuth() {
+    if (activeConnectionId) {
+      // Trigger re-authentication for the active connection
+      // This will trigger the connection machine to start interactive auth
+      sendEvent({ 
+        type: 'AUTHENTICATION_REQUIRED', 
+        connectionId: activeConnectionId 
+      });
+    }
+  }
 </script>
 
-{#if showPatError}
+{#if showEntraAuthError}
+  <!-- Entra Auth Failure Banner -->
+  <div class="auth-reminder-banner error">
+    <span class="auth-icon">⚠️</span>
+    <div class="auth-message">
+      <strong>Authentication Failed</strong>
+      <span class="error-detail">
+        {connectionHealthError?.message || 'Entra ID authentication failed. Device code flow completed but re-authentication failed.'}
+      </span>
+      {#if connectionHealthError?.suggestedAction}
+        <span class="error-hint">Suggested: {connectionHealthError.suggestedAction}</span>
+      {/if}
+    </div>
+    <div class="auth-actions">
+      <button class="auth-action" onclick={handleRetryEntraAuth}>
+        {connectionHealthError?.suggestedAction || 'Re-authenticate'}
+      </button>
+      <button class="auth-action secondary" onclick={handleOpenSettings}>Settings</button>
+    </div>
+  </div>
+{:else if showPatError}
   <!-- PAT Reauth Banner -->
   <div class="auth-reminder-banner error">
     <span class="auth-icon">⚠</span>
     <span class="auth-message">{workItemsError}</span>
-    <button class="auth-action" onclick={handleRetry}>Retry</button>
-    <button class="auth-action secondary" onclick={handleOpenSettings}>Settings</button>
+    <div class="auth-actions">
+      <button class="auth-action" onclick={handleRetry}>Retry</button>
+      <button class="auth-action secondary" onclick={handleOpenSettings}>Settings</button>
+    </div>
   </div>
 {:else if showDeviceCode}
   <!-- Entra Device Code Banner -->
@@ -84,8 +155,10 @@
       Authentication Required: Enter code <strong>{deviceCodeSession.userCode}</strong> in your
       browser ({deviceCodeExpiresInMinutes}m left)
     </span>
-    <button class="auth-action" onclick={copyAndOpenDeviceCode}>Copy & Open</button>
-    <button class="auth-action secondary" onclick={handleCancelDeviceCode}>Cancel</button>
+    <div class="auth-actions">
+      <button class="auth-action" onclick={copyAndOpenDeviceCode}>Copy & Open</button>
+      <button class="auth-action secondary" onclick={handleCancelDeviceCode}>Cancel</button>
+    </div>
   </div>
 {/if}
 
@@ -120,11 +193,32 @@
   .auth-message {
     flex: 1;
     font-size: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
   }
 
   .auth-message strong {
-    font-family: monospace;
     font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .error-detail {
+    font-size: 0.85rem;
+    opacity: 0.9;
+  }
+
+  .error-hint {
+    font-size: 0.8rem;
+    font-style: italic;
+    opacity: 0.8;
+    margin-top: 0.25rem;
+  }
+
+  .auth-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
   }
 
   .auth-action {

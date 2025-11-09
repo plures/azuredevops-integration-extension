@@ -1,4 +1,17 @@
 /**
+ * Module: src/fsm/machines/dataMachine.states.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * State Name Constants for Data Machine
  *
  * Use these constants instead of string literals to:

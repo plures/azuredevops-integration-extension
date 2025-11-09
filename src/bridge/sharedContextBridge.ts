@@ -1,3 +1,17 @@
+/**
+ * Module: SharedContextBridge
+ * Owner: application
+ * Reads: Application FSM state; transforms to webview-ready payloads
+ * Writes: none to ApplicationContext (broadcasts to webview only)
+ * Receives: webview messages (forwarded to FSM); actor reference
+ * Emits: syncState messages to webview
+ * Prohibitions: Do not implement webview logic; Do not mutate ApplicationContext
+ * Rationale: Single bridge for serializing FSM context to webview payloads
+ *
+ * LLM-GUARD:
+ * - Post only syncState (or typed) messages; do not send partial context mutations
+ * - Do not define new context types here
+ */
 import type { Disposable, Webview } from 'vscode';
 import type { ActorRefFrom, StateFrom } from 'xstate';
 import type { ApplicationContext, ProjectConnection } from '../fsm/machines/applicationMachine.js';

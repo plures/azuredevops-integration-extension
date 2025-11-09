@@ -1,4 +1,17 @@
 /**
+ * Module: src/fsm/functions/setup/enhanced-setup-wizard.ts
+ * Owner: application
+ * Reads: (document)
+ * Writes: (document)
+ * Receives: (document)
+ * Emits: (document)
+ * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
+ * Rationale: (document)
+ *
+ * LLM-GUARD:
+ * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ */
+/**
  * Enhanced Setup Wizard
  *
  * Provides intelligent, environment-aware connection setup with minimal user input.

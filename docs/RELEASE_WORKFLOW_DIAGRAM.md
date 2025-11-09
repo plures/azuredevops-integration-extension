@@ -176,7 +176,7 @@ Scenario: Release commit created but tag push failed
                                       │1.2.3    │ │0.5.3    │
                                       │→ 2.0.0  │ │→ 0.6.0  │
                                       └─────────┘ └─────────┘
-                                      
+
   *Major bumps only applied if version >= 1.0.0 AND explicit BREAKING CHANGE marker
 ```
 
@@ -199,7 +199,7 @@ Scenario: Release commit created but tag push failed
 
 ✅ MAJOR BUMP (Breaking Change) - Version >= 1.0.0
    feat!: redesign authentication API
-   
+
    BREAKING CHANGE: Authentication now requires email verification.
    The old phone-based auth is removed.
 
@@ -309,7 +309,7 @@ T+0:17    GitHub Release created
 T+0:18    VSIX attached to release
 T+0:20    Published to VS Code Marketplace ✓
 T+0:25    Extension available to users
-          
+
 Total Time: ~25 minutes (fully automated)
 ```
 

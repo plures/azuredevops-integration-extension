@@ -1,3 +1,17 @@
+<!--
+Module: src/webview/components/KanbanBoard.svelte
+Owner: webview
+Reads: syncState from extension (ApplicationContext serialized)
+Writes: UI-only events; selection via selection writer factory (webview-owned)
+Receives: syncState, host broadcasts
+Emits: fsmEvent envelopes (Router handles stamping)
+Prohibitions: Do not import extension host modules; Do not define context types
+Rationale: Svelte UI component; reacts to ApplicationContext and forwards intents
+
+LLM-GUARD:
+- Use selection writer factory for selection updates
+- Do not route by connection here; let Router decide targets
+-->
 <script lang="ts">
   interface Props {
     context: any;
@@ -6,8 +20,26 @@
 
   const { context, sendEvent }: Props = $props();
 
-  // Get work items from context
-  const workItems = $derived(context?.workItems || context?.pendingWorkItems?.workItems || []);
+  // CRITICAL: Filter work items to only show those for the active connection
+  // This ensures work items from one connection are never shown when another connection's tab is selected
+  const activeConnectionId = $derived(context?.activeConnectionId);
+  const allWorkItems = $derived(context?.workItems || context?.pendingWorkItems?.workItems || []);
+  const pendingWorkItemsConnectionId = $derived(context?.pendingWorkItems?.connectionId);
+  const workItems = $derived.by(() => {
+    // If pendingWorkItems has a connectionId, filter by it
+    if (pendingWorkItemsConnectionId) {
+      // Only show work items if they belong to the active connection
+      if (pendingWorkItemsConnectionId === activeConnectionId) {
+        return allWorkItems;
+      }
+      // If pendingWorkItems is for a different connection, return empty array
+      return [];
+    }
+    // Fallback: if no connectionId in pendingWorkItems, only show if activeConnectionId matches
+    // This is a safety check - ideally all work items should have connectionId
+    return activeConnectionId ? allWorkItems : [];
+  });
+  
   const columns = $derived(context?.kanbanColumns || []);
   const timerState = $derived(context?.timerState);
 
