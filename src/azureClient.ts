@@ -630,6 +630,15 @@ export class AzureDevOpsIntClient {
                         AND [System.State] <> 'Removed'
                         ${sprintClause}
                         ORDER BY [System.ChangedDate] DESC`;
+      case 'Created By Me':
+      case 'Created by Me':
+      case 'Created by me':
+        return `SELECT ${fields} FROM WorkItems 
+                        WHERE [System.TeamProject] = @Project
+                        AND [System.CreatedBy] = @Me 
+                        ${activeFilter}
+                        ${sprintClause}
+                        ORDER BY [System.ChangedDate] DESC`;
       default:
         return queryNameOrText;
     }
@@ -641,6 +650,19 @@ export class AzureDevOpsIntClient {
     }
     // Legacy fallback: exclude common terminal states across Basic/Agile/Scrum
     return `AND [System.State] NOT IN ('Closed','Done','Resolved','Removed')`;
+  }
+
+  private _isTooManyResultsError(err: any): boolean {
+    const status = err?.response?.status;
+    if (status !== 400) return false;
+    const message = String(
+      err?.response?.data?.message || err?.response?.data?.value?.Message || err?.message || ''
+    );
+    return (
+      /exceeds the size limit/i.test(message) ||
+      /WorkItemTrackingQueryResultSizeLimitExceededException/i.test(message) ||
+      /VS402337/i.test(message)
+    );
   }
 
   private _mapRawWorkItems(rawItems: any[]): WorkItem[] {
@@ -898,6 +920,32 @@ export class AzureDevOpsIntClient {
             wiqlResp = await this.axios.post(wiqlEndpoint, { query: legacyToSend });
             // Also update wiql for subsequent logs/context
             wiql = wiqlLegacy;
+          } else if (this._isTooManyResultsError(err)) {
+            // Server indicates the result set is too large (e.g., >20k). Retry with a ChangedDate bound.
+            const DAYS = 90;
+            const idx = wiqlToSend.lastIndexOf('ORDER BY');
+            const head = idx > -1 ? wiqlToSend.slice(0, idx).trimEnd() : wiqlToSend;
+            const tail = idx > -1 ? wiqlToSend.slice(idx) : 'ORDER BY [System.ChangedDate] DESC';
+            let bounded = `${head}\nAND [System.ChangedDate] >= @Today - ${DAYS}\n${tail}`;
+            // Apply @Me replacement again if present
+            try {
+              if (/@Me\b/i.test(bounded)) {
+                const resolved3 = await this._getAuthenticatedIdentity();
+                if (resolved3) {
+                  const idVal3 = resolved3.uniqueName || resolved3.displayName || resolved3.id;
+                  if (idVal3) {
+                    bounded = bounded.replace(/@Me\b/g, `'${this._escapeWIQL(String(idVal3))}'`);
+                  }
+                }
+              }
+            } catch {
+              /* ignore */
+            }
+            logger.warn('Result too large; retrying WIQL with ChangedDate bound', {
+              meta: { days: DAYS },
+            });
+            wiqlResp = await this.axios.post(wiqlEndpoint, { query: bounded });
+            wiql = bounded;
           } else {
             throw err;
           }
@@ -923,9 +971,13 @@ export class AzureDevOpsIntClient {
         if (refs.length === 0) {
           logger.debug('No work items matched query. Trying simpler query...');
 
-          // Try a simpler query to test authentication
-          const simpleWiql =
-            'SELECT [System.Id], [System.Title] FROM WorkItems ORDER BY [System.Id] DESC';
+          // Try a safer, bounded simple query to test authentication and data access
+          // Bound by project, recent activity window, and exclude completed states to avoid server-side 20k limits
+          const simpleWiql = `SELECT [System.Id], [System.Title] FROM WorkItems 
+            WHERE [System.TeamProject] = @Project
+            AND [System.ChangedDate] >= @Today - 90
+            AND [System.State] NOT IN ('Closed','Done','Resolved','Removed')
+            ORDER BY [System.ChangedDate] DESC`;
           const simpleResp = await this.axios.post('/wit/wiql?api-version=7.0', {
             query: simpleWiql,
           });
@@ -947,22 +999,25 @@ export class AzureDevOpsIntClient {
           // Work items exist - fetch and return them instead of returning empty
           logger.debug('Original query matched nothing, fetching simple query results...');
 
-          // Use simpleRefs instead of refs to fetch the work items
-          const simpleIds = simpleRefs
-            .map((w: any) => w.id)
-            .filter((id: any) => id != null)
-            .join(',');
-          if (!simpleIds) {
+          // Use simpleRefs instead of refs to fetch the work items (chunked)
+          let simpleIdsArr = simpleRefs
+            .map((w: any) => Number(w.id))
+            .filter((id: any) => Number.isFinite(id)) as number[];
+          if (simpleIdsArr.length === 0) {
             logger.debug('No valid IDs in simple query results.');
             return [];
           }
 
-          logger.debug('Expanding simple query IDs', { meta: { simpleIds } });
-          const fallbackItemsResp = await this.axios.get(
-            `/wit/workitems?ids=${simpleIds}&$expand=all&api-version=7.0`
-          );
-          const fallbackRawItems: any[] = fallbackItemsResp.data?.value || [];
-          const fallbackItems: WorkItem[] = this._mapRawWorkItems(fallbackRawItems);
+          if (simpleIdsArr.length > 200) {
+            simpleIdsArr = simpleIdsArr.slice(0, 200);
+            logger.debug('Applied limit to simple query IDs', {
+              meta: { reducedTo: simpleIdsArr.length },
+            });
+          }
+          logger.debug('Expanding simple query IDs (chunked)', {
+            meta: { count: simpleIdsArr.length },
+          });
+          const fallbackItems: WorkItem[] = await this._fetchWorkItemsByIds(simpleIdsArr);
 
           logger.debug('Returning work items from simple query fallback', {
             meta: { count: fallbackItems.length },
@@ -973,16 +1028,17 @@ export class AzureDevOpsIntClient {
           return fallbackItems;
         }
 
-        const ids = refs.map((w: any) => w.id).join(',');
-        logger.debug('Expanding IDs', { meta: { ids } });
-
-        const itemsResp = await this.axios.get(
-          `/wit/workitems?ids=${ids}&$expand=all&api-version=7.0`
-        );
-        const rawItems: any[] = itemsResp.data?.value || [];
-        logger.debug('Raw expanded item count', { meta: { count: rawItems.length } });
-
-        const items: WorkItem[] = this._mapRawWorkItems(rawItems);
+        // Apply a global hard cap to protect expansion and UI even for user-scoped queries
+        if (refs.length > 500) {
+          refs = refs.slice(0, 500);
+          logger.debug('Applied global client-side limit', { meta: { reducedTo: refs.length } });
+        }
+        // Expand IDs using chunked requests to avoid very long URLs (HTTP 414)
+        const idsArray = refs
+          .map((w: any) => Number(w.id))
+          .filter((id: any) => Number.isFinite(id)) as number[];
+        logger.debug('Expanding IDs (chunked)', { meta: { count: idsArray.length } });
+        const items: WorkItem[] = await this._fetchWorkItemsByIds(idsArray);
 
         logger.debug('Returning mapped work items', { meta: { count: items.length } });
 
@@ -1090,12 +1146,11 @@ export class AzureDevOpsIntClient {
     try {
       const wiqlResp = await this.axios.post('/wit/wiql?api-version=7.0', { query: wiql });
       if (!wiqlResp.data.workItems || wiqlResp.data.workItems.length === 0) return [];
-      const ids = wiqlResp.data.workItems.map((w: any) => w.id).join(',');
-      const itemsResp = await this.axios.get(
-        `/wit/workitems?ids=${ids}&$expand=all&api-version=7.0`
-      );
-      const raw = itemsResp.data.value || [];
-      return raw.map((r: any) => ({ id: r.id, fields: r.fields }) as WorkItem);
+      const idsArray = wiqlResp.data.workItems
+        .map((w: any) => Number(w.id))
+        .filter((id: any) => Number.isFinite(id)) as number[];
+      const limited = idsArray.length > 500 ? idsArray.slice(0, 500) : idsArray;
+      return await this._fetchWorkItemsByIds(limited);
     } catch (err) {
       logger.error('runWIQL failed', { meta: err });
       return [];

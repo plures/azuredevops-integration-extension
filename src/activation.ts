@@ -408,6 +408,7 @@ let timerConnectionInfo: TimerConnectionInfo = {};
 
 const DEFAULT_QUERY = 'My Activity';
 const activeQueryByConnection = new Map<string, string>();
+const ACTIVE_QUERY_STATE_KEY = 'azureDevOpsInt.activeQueryByConnection';
 
 let nextAuthConnectionIndex = 0;
 const INTERACTIVE_REAUTH_THROTTLE_MS = 5 * 60 * 1000;
@@ -1347,6 +1348,20 @@ function getStoredQueryForConnection(connectionId?: string | null, fallback?: st
   if (stored && stored.trim().length > 0) {
     return stored;
   }
+  // Attempt to load from persisted globalState if not hydrated yet
+  try {
+    const ctx = extensionContextRef;
+    const persisted = ctx?.globalState.get<Record<string, string>>(ACTIVE_QUERY_STATE_KEY) || {};
+    const persistedForConn =
+      typeof persisted[connectionId] === 'string' ? persisted[connectionId] : undefined;
+    const normalized = normalizeQuery(persistedForConn);
+    if (normalized) {
+      activeQueryByConnection.set(connectionId, normalized);
+      return normalized;
+    }
+  } catch {
+    // ignore persistence errors
+  }
   activeQueryByConnection.set(connectionId, base);
   return base;
 }
@@ -1355,6 +1370,17 @@ function setStoredQueryForConnection(connectionId: string, query?: string): stri
   const resolvedDefault = getDefaultQuery(getConfig());
   const normalized = normalizeQuery(query) ?? resolvedDefault ?? DEFAULT_QUERY;
   activeQueryByConnection.set(connectionId, normalized);
+  // Persist to globalState for cross-session retention (best-effort, non-blocking)
+  try {
+    const ctx = extensionContextRef;
+    if (ctx) {
+      const current = ctx.globalState.get<Record<string, string>>(ACTIVE_QUERY_STATE_KEY) || {};
+      const next = { ...current, [connectionId]: normalized };
+      void ctx.globalState.update(ACTIVE_QUERY_STATE_KEY, next);
+    }
+  } catch {
+    // ignore persistence errors
+  }
   return normalized;
 }
 
@@ -2353,6 +2379,19 @@ export async function activate(context: vscode.ExtensionContext) {
   extensionContextRef = context;
   setExtensionContextRefBridge(context);
 
+  // Hydrate persisted per-connection query selections (if present)
+  try {
+    const persistedQueries =
+      context.globalState.get<Record<string, string>>(ACTIVE_QUERY_STATE_KEY) || {};
+    for (const [connId, q] of Object.entries(persistedQueries)) {
+      if (typeof connId === 'string' && typeof q === 'string' && q.trim().length > 0) {
+        activeQueryByConnection.set(connId, q.trim());
+      }
+    }
+  } catch {
+    // Non-fatal: persistence is best-effort
+  }
+
   // Apply startup patches to fix user settings and configuration issues
   await applyStartupPatches(context);
 
@@ -2516,6 +2555,29 @@ export async function activate(context: vscode.ExtensionContext) {
             verbose('[activation] Failed to update status bar after connection change:', err);
           });
         });
+
+        // If the newly active connection is not connected, proactively ensure and, if needed, prompt
+        try {
+          if (extensionContextRef && activeConnectionId) {
+            const adapter = getConnectionAdapterInstance();
+            const stateValue = adapter.getConnectionState?.(activeConnectionId);
+            const targetState = connectionStates.get(activeConnectionId);
+            const hasProvider = !!targetState?.provider;
+            const isConnected =
+              stateValue === 'connected' || (targetState && targetState.isConnected === true);
+            if (!hasProvider || !isConnected) {
+              // Attempt to establish connection; allow interactive auth so user is prompted if required
+              ensureActiveConnection(extensionContextRef, activeConnectionId, {
+                refresh: true,
+                interactive: true,
+              }).catch((err) => {
+                verbose('[activation] ensureActiveConnection failed after active switch', err);
+              });
+            }
+          }
+        } catch (err) {
+          verbose('[activation] Failed proactive ensure after active connection change', err);
+        }
       }
 
       // Check if device code session changed and update status bar
@@ -2596,7 +2658,7 @@ export async function activate(context: vscode.ExtensionContext) {
           payload: serializableState,
         });
 
-        // If activeQuery changed, persist and trigger provider refresh
+        // If activeQuery changed, persist and trigger provider refresh (for the correct connection)
         try {
           const snapCtx = snapshot.context;
           const newQuery: string | undefined = snapCtx?.activeQuery;
@@ -2607,16 +2669,22 @@ export async function activate(context: vscode.ExtensionContext) {
             if (changed) {
               // Persist query in per-connection store
               setStoredQueryForConnection(newConn, newQuery);
-              // Ensure provider exists before refresh
-              if (!provider && extensionContextRef) {
-                ensureActiveConnection(extensionContextRef, newConn, { refresh: false }).catch(
-                  () => {}
+              // Ensure provider for the TARGET connection, not the global provider
+              const targetState = connectionStates.get(newConn);
+              const targetProvider = targetState?.provider;
+              if (targetProvider && typeof targetProvider.refresh === 'function') {
+                try {
+                  targetProvider.refresh(newQuery);
+                } catch (e) {
+                  verbose('[activation] targetProvider.refresh failed after query change', e);
+                }
+              } else if (extensionContextRef) {
+                // No provider yet - ensure connection (may trigger interactive auth if required)
+                ensureActiveConnection(extensionContextRef, newConn, { refresh: true }).catch(
+                  (err) => {
+                    verbose('[activation] ensureActiveConnection failed on query change', err);
+                  }
                 );
-              }
-              try {
-                provider?.refresh(newQuery);
-              } catch (e) {
-                verbose('[activation] provider.refresh failed after query change', e);
               }
               lastQueriedActiveConnectionId = newConn;
               lastQueriedQuery = newQuery;

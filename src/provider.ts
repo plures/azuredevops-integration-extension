@@ -58,6 +58,8 @@ export class WorkItemsProvider {
   private _workItemTypes: string[] = [];
   private _currentQuery: string = DEFAULT_QUERY;
   private transformWorkItemsFn: WorkItemTransform | undefined;
+  private _pendingRefreshTimer: NodeJS.Timeout | undefined;
+  private _pendingRefreshQuery: string | undefined;
 
   constructor(
     connectionOrClient: string | AzureDevOpsIntClient,
@@ -120,22 +122,37 @@ export class WorkItemsProvider {
       return;
     }
     const now = Date.now();
-    // Debounce: skip if a refresh completed less than 2000ms ago
-    if (now - this._lastRefreshTs < this.debounceMs) {
-      return;
-    }
-    if (this._refreshInFlight) {
-      // Skip overlapping refresh attempts
-      return;
-    }
-    this._refreshInFlight = true;
-
-    // Define normalizedQuery outside try block so it's accessible in catch
+    // Compute normalized query first so we can queue a refresh if needed
     const normalizedQuery =
       typeof query === 'string' && query.trim().length > 0
         ? query.trim()
         : this._currentQuery || DEFAULT_QUERY;
     this._currentQuery = normalizedQuery;
+
+    // If we recently refreshed or one is in-flight, schedule a deferred refresh instead of dropping it
+    const elapsed = now - this._lastRefreshTs;
+    if (elapsed < this.debounceMs || this._refreshInFlight) {
+      const delay = Math.max(this.debounceMs - elapsed, 0) || this.debounceMs;
+      this._pendingRefreshQuery = normalizedQuery;
+      if (this._pendingRefreshTimer) {
+        clearTimeout(this._pendingRefreshTimer);
+      }
+      this._pendingRefreshTimer = setTimeout(() => {
+        this._pendingRefreshTimer = undefined;
+        const pending = this._pendingRefreshQuery;
+        this._pendingRefreshQuery = undefined;
+        // Fire and forget; internal debounce will handle if another refresh just completed
+        void this.refresh(pending);
+      }, delay);
+      return;
+    }
+    this._refreshInFlight = true;
+    // Clear any queued refresh, we're executing now
+    if (this._pendingRefreshTimer) {
+      clearTimeout(this._pendingRefreshTimer);
+      this._pendingRefreshTimer = undefined;
+      this._pendingRefreshQuery = undefined;
+    }
 
     // Notify webview that query is starting so it can show loading state
     this._post({

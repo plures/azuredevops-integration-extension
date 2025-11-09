@@ -487,6 +487,11 @@ export const applicationMachine = createMachine(
               CONNECTION_SELECTED: {
                 actions: ['setActiveConnectionInContext', 'delegateConnectionActivation'],
               },
+              // Ensure we also handle authentication success while in ready state,
+              // so any active device code session is cleared and status bar updates.
+              AUTHENTICATION_SUCCESS: {
+                actions: ['handleAuthSuccess', 'clearDeviceCodeSession'],
+              },
               AUTH_SNAPSHOT: {
                 actions: 'handleAuthSnapshot',
               },

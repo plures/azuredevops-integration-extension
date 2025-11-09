@@ -388,6 +388,12 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Query selector provides easy access to all default queries
 - [x] Query selector includes descriptive text for each query option
 - [x] Query selection is persisted per connection
+- [x] Query selection persists across sessions (per-connection via globalState)
+- [x] Work items reload on query change (debounce queues a deferred refresh)
+- [x] WIQL fallback is bounded (project-scoped, recent window, excludes completed)
+- [x] No unbounded WIQL queries executed (guards against 20k server limit)
+- [x] Work item expansion uses chunked requests (prevents HTTP 414 long URLs)
+- [x] “Created By Me” query is mapped to valid WIQL
 - [x] Timer action button displays active timer with elapsed time on work item cards
 - [x] Timer button toggles between Start and Stop states
 - [x] Timer persists across VSCode restarts and work item refreshes
@@ -413,6 +419,17 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] New Azure client exposes getWorkItemById (timer/comment operations)
 - [x] Cross-connection UI isolation enforced (provider/webview messages carry connectionId and are filtered)
 - [x] Work item list and kanban strictly show data for the active connection
+
+#### Upgrade Validation: Connections
+
+- [ ] After upgrade, `azureDevOpsIntegration.connections` is present in current profile’s settings
+- [ ] Extension startup reads connections (Output: “[connections] Loaded connections from config” with `count > 0` when configured)
+- [ ] An `activeConnectionId` is resolved or persisted (UI does not show “No active connection selected.” when connections exist)
+- [ ] Editing/saving settings triggers live reload (config change watcher re-loads connections)
+- [ ] Legacy single `organization/project` settings (namespace `azureDevOps`) are migrated into a connection when no connections array exists
+- [ ] Multi-root/workspace profile verified: connections available in both User and Workspace scopes as expected
+- [ ] Entra/PAT tokens remain scoped per-connection after upgrade (no cross-connection leakage)
+- [ ] Visual Studio Online (`*.visualstudio.com`) and `dev.azure.com` base URLs both normalize `apiBaseUrl` correctly after upgrade
 
 ### Git Integration
 
