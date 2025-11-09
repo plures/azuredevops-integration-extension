@@ -392,6 +392,11 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Work items reload on query change (debounce queues a deferred refresh)
 - [x] WIQL fallback is bounded (project-scoped, recent window, excludes completed)
 - [x] No unbounded WIQL queries executed (guards against 20k server limit)
+- [x] "Recently Updated" query includes project filter and active filter (prevents 20k limit errors)
+- [x] "Recently Updated" query uses 3-day window (aligned with ADO defaults)
+- [x] Error retry logic uses shorter date windows (1 day) instead of longer ones
+- [x] All default queries include project filter where applicable
+- [x] All default queries use active filter to exclude completed items
 - [x] Work item expansion uses chunked requests (prevents HTTP 414 long URLs)
 - [x] “Created By Me” query is mapped to valid WIQL
 - [x] Timer action button displays active timer with elapsed time on work item cards
@@ -419,6 +424,54 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] New Azure client exposes getWorkItemById (timer/comment operations)
 - [x] Cross-connection UI isolation enforced (provider/webview messages carry connectionId and are filtered)
 - [x] Work item list and kanban strictly show data for the active connection
+
+#### Webview Connection Isolation Design (Proposed)
+
+**Design Document**: `docs/WEBVIEW_CONNECTION_ISOLATION_DESIGN.md`
+
+**Architecture Requirements:**
+- [ ] Query selector appears below tab buttons (not adjacent)
+- [ ] All controls and views are children of ConnectionView component
+- [ ] FSM context includes per-connection state maps (`connectionQueries`, `connectionWorkItems`, `connectionFilters`)
+- [ ] Components use visibility toggle (not mount/unmount) for connection switching
+- [ ] Per-connection state persists when switching connections
+- [ ] Per-connection state persists across VS Code sessions
+
+**Component Structure:**
+- [ ] `ConnectionViews.svelte` container component created
+- [ ] `ConnectionView.svelte` per-connection component created
+- [ ] Query selector moved into `ConnectionView` (below tabs)
+- [ ] Filters moved into `ConnectionView` (below tabs)
+- [ ] WorkItemList scoped to `ConnectionView`
+- [ ] StatusBar scoped to `ConnectionView`
+
+**State Management:**
+- [ ] FSM actions for `SET_CONNECTION_QUERY` implemented
+- [ ] FSM actions for `SET_CONNECTION_WORK_ITEMS` implemented
+- [ ] FSM actions for `SET_CONNECTION_FILTERS` implemented
+- [ ] Per-connection state maps initialized in context
+- [ ] State restoration from `globalState` on activation
+
+**Data Loading:**
+- [ ] Provider instances created per connection
+- [ ] Data loading populates `connectionWorkItems` map
+- [ ] Background refresh updates inactive connections (optional)
+- [ ] Query changes trigger refresh for specific connection only
+
+**User Experience:**
+- [ ] Query selection persists when switching connections
+- [ ] Work items persist when switching connections
+- [ ] Filters persist when switching connections
+- [ ] View mode (list/kanban) persists per connection
+- [ ] Selected items persist per connection
+- [ ] Instant switching (no loading delay for cached data)
+- [ ] No data loss when switching connections rapidly
+
+**Performance:**
+- [ ] Components don't unmount/remount on connection switch
+- [ ] Data persists in memory for all connections
+- [ ] Acceptable performance with multiple connections (5+)
+- [ ] Memory usage is reasonable
 
 #### Upgrade Validation: Connections
 
