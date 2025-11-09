@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [3.0.8] - 2025-11-09
+
+### Other
+
+- Upgrade Node.js version from 20 to 24
+
+
 ## [3.0.7] - 2025-11-07
 
 ### Other
