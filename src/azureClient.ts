@@ -922,39 +922,44 @@ export class AzureDevOpsIntClient {
             // Also update wiql for subsequent logs/context
             wiql = wiqlLegacy;
           } else if (this._isTooManyResultsError(err)) {
-            // Server indicates the result set is too large (e.g., >20k). 
+            // Server indicates the result set is too large (e.g., >20k).
             // Retry with progressively shorter date windows to stay under limit.
             // Try 1 day first (most restrictive), then fail if still too large.
             const DAYS = 1;
             const idx = wiqlToSend.lastIndexOf('ORDER BY');
             const head = idx > -1 ? wiqlToSend.slice(0, idx).trimEnd() : wiqlToSend;
             const tail = idx > -1 ? wiqlToSend.slice(idx) : 'ORDER BY [System.ChangedDate] DESC';
-            
+
             // Check if query already has a ChangedDate filter - if so, replace it; otherwise add it
             let bounded: string;
             if (/\[System\.ChangedDate\]\s*>=\s*@Today/i.test(head)) {
               // Replace existing ChangedDate filter with shorter window
-              bounded = head.replace(
-                /\[System\.ChangedDate\]\s*>=\s*@Today\s*-\s*\d+/i,
-                `[System.ChangedDate] >= @Today - ${DAYS}`
-              ) + '\n' + tail;
+              bounded =
+                head.replace(
+                  /\[System\.ChangedDate\]\s*>=\s*@Today\s*-\s*\d+/i,
+                  `[System.ChangedDate] >= @Today - ${DAYS}`
+                ) +
+                '\n' +
+                tail;
             } else {
               // Add new ChangedDate filter
               bounded = `${head}\nAND [System.ChangedDate] >= @Today - ${DAYS}\n${tail}`;
             }
-            
-            // Ensure project filter is present for "Recently Updated" queries
-            if (query === 'Recently Updated' && !/\[System\.TeamProject\]\s*=\s*@Project/i.test(bounded)) {
+
+            // Ensure project filter is present for all queries during retry.
+            // Many large result sets can be reduced by scoping to the current project.
+            // This applies to custom WIQL queries and any built-in query that might be
+            // executed in a context where project scoping is beneficial.
+            if (!/\[System\.TeamProject\]\s*=\s*@Project/i.test(bounded)) {
               const whereIdx = bounded.indexOf('WHERE');
               if (whereIdx > -1) {
-                // Insert after 'WHERE' and any following space, or add a space if missing
-                const afterWhere = bounded[whereIdx + 5] === ' ' ? whereIdx + 6 : whereIdx + 5;
-                const prefix = bounded.slice(0, afterWhere);
-                const suffix = bounded.slice(afterWhere);
-                bounded = prefix + `[System.TeamProject] = @Project AND ` + suffix;
+                bounded =
+                  bounded.slice(0, whereIdx + 5) +
+                  ` [System.TeamProject] = @Project AND` +
+                  bounded.slice(whereIdx + 5);
               }
             }
-            
+
             // Apply @Me replacement again if present
             try {
               if (/@Me\b/i.test(bounded)) {
@@ -980,7 +985,7 @@ export class AzureDevOpsIntClient {
               if (this._isTooManyResultsError(retryErr)) {
                 throw new Error(
                   `Query "${query}" returns too many work items (>20,000). ` +
-                  `Try filtering by a specific area path, iteration, or work item type to narrow results.`
+                    `Try filtering by a specific area path, iteration, or work item type to narrow results.`
                 );
               }
               throw retryErr;
