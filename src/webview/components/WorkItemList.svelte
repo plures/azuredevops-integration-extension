@@ -27,8 +27,8 @@ LLM-GUARD:
 
   const { context, sendEvent, matches = {}, query: propQuery, onQueryChange }: Props = $props();
 
-  // NOTE: Refresh button loading is handled by the button click feedback itself.
-  // We only show loading indicators for query changes, not refresh button clicks.
+  // NOTE: Loading indicators are shown for both query changes and refresh button clicks.
+  // The refresh button triggers loading feedback just like a query change.
 
   const activeConnectionId = $derived(context?.activeConnectionId);
   const connections = $derived(context?.connections || []);
