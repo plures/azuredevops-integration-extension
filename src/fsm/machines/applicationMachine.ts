@@ -1005,9 +1005,14 @@ export const applicationMachine = createMachine(
           viewMode: legacyViewMode,
         };
       }),
-      selectConnection: assign(({ event }) => {
+      selectConnection: assign(({ context, event }) => {
         if (event.type !== 'SELECT_CONNECTION') return {};
-        return { activeConnectionId: event.connectionId };
+        // When switching active connection, update legacy viewMode to match the new active connection's view mode (or fallback)
+        const newActiveId = event.connectionId;
+        const newViewMode =
+          (context.connectionViewModes && context.connectionViewModes.get(newActiveId)) ||
+          context.viewMode || 'list'; // fallback to previous or default
+        return { activeConnectionId: newActiveId, viewMode: newViewMode };
       }),
       handleStartTimer: ({ event, context }) => {
         if (event.type !== 'START_TIMER_INTERACTIVE') return;
