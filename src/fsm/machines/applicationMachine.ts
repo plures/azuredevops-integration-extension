@@ -40,6 +40,7 @@ import {
   clearErrorState,
   updateRefreshStatus,
 } from '../functions/ui/error-handling.js';
+import { FSM_CONFIG } from '../config.js';
 
 // ============================================================================
 // APPLICATION STATE DEFINITIONS
@@ -447,6 +448,19 @@ export const applicationMachine = createMachine(
                   onError: {
                     target: 'error',
                     actions: 'updateRefreshStatusError',
+                  },
+                },
+                after: {
+                  [FSM_CONFIG.webview.loadingTimeoutMs]: {
+                    target: 'error',
+                    actions: assign({
+                      ui: ({ context }) =>
+                        updateUIStateForError(context, {
+                          message: 'Loading work items timed out after 5 seconds',
+                          type: 'timeout',
+                          recoverable: true,
+                        }),
+                    }),
                   },
                 },
               },

@@ -67,7 +67,7 @@ export const FSM_CONFIG = {
   webview: {
     refreshIntervalMs: 60000,
     maxWorkItems: 1000,
-    loadingTimeoutMs: 15000,
+    loadingTimeoutMs: 5000, // 5 seconds - lightweight tool designed for 10s-100s of items
   },
 
   // Feature flags for gradual rollout
