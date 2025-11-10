@@ -579,11 +579,24 @@ export class AzureDevOpsIntClient {
   /**
    * Normalize query name to canonical form for consistent caching and matching
    * Known query names are matched case-insensitively
+   *
+   * @param query - The query name to normalize
+   * @returns The normalized query name in canonical form, or the original trimmed input for custom WIQL
+   * @throws {Error} If query is null, undefined, not a string, empty, or only whitespace
    */
   private _normalizeQueryName(query: string): string {
-    if (!query || typeof query !== 'string') return query;
-    
+    // Explicitly validate input type
+    if (query === null || query === undefined || typeof query !== 'string') {
+      throw new Error(`Invalid query parameter: expected non-empty string, got ${typeof query}`);
+    }
+
     const trimmed = query.trim();
+
+    // Explicitly reject empty or whitespace-only strings
+    if (trimmed.length === 0) {
+      throw new Error('Query name cannot be empty or contain only whitespace');
+    }
+
     const knownQueries = [
       'My Activity',
       'Assigned to me',
@@ -596,12 +609,10 @@ export class AzureDevOpsIntClient {
       'Following',
       'Mentioned',
     ];
-    
+
     // Find case-insensitive match
-    const normalized = knownQueries.find(
-      (q) => q.toLowerCase() === trimmed.toLowerCase()
-    );
-    
+    const normalized = knownQueries.find((q) => q.toLowerCase() === trimmed.toLowerCase());
+
     // Return canonical form if found, otherwise return original (might be custom WIQL)
     return normalized || trimmed;
   }
@@ -836,7 +847,7 @@ export class AzureDevOpsIntClient {
         // Normalize query name for consistent caching and matching
         // Known query names should be case-insensitive
         const normalizedQuery = this._normalizeQueryName(query);
-        
+
         // Check cache first (use normalized query for cache key)
         const cacheKey = WorkItemCache.generateWorkItemsKey(
           `${this.organization}-${this.project}`,
@@ -895,7 +906,8 @@ export class AzureDevOpsIntClient {
         ].includes(normalizedQuery);
         const needsLimit =
           !knownUserScopedQueries.includes(normalizedQuery) &&
-          (['Recently Updated', 'All Active', 'Current Sprint'].includes(normalizedQuery) || !isKnownQuery);
+          (['Recently Updated', 'All Active', 'Current Sprint'].includes(normalizedQuery) ||
+            !isKnownQuery);
 
         if (needsLimit) {
           logger.debug('Applying hard limit of 100 items for query', { meta: { query } });
@@ -907,7 +919,8 @@ export class AzureDevOpsIntClient {
           try {
             const resolved = await this._getAuthenticatedIdentity();
             if (resolved) {
-              const idVal = resolved.uniqueName || resolved.displayName || resolved.id || this.identityName;
+              const idVal =
+                resolved.uniqueName || resolved.displayName || resolved.id || this.identityName;
               if (idVal) {
                 const escaped = this._escapeWIQL(String(idVal));
                 wiqlToSend = wiql.replace(/@Me\b/g, `'${escaped}'`);
@@ -946,7 +959,11 @@ export class AzureDevOpsIntClient {
               try {
                 const resolved2 = await this._getAuthenticatedIdentity();
                 if (resolved2) {
-                  const idVal2 = resolved2.uniqueName || resolved2.displayName || resolved2.id || this.identityName;
+                  const idVal2 =
+                    resolved2.uniqueName ||
+                    resolved2.displayName ||
+                    resolved2.id ||
+                    this.identityName;
                   if (idVal2) {
                     legacyToSend = wiqlLegacy.replace(
                       /@Me\b/g,
@@ -977,7 +994,11 @@ export class AzureDevOpsIntClient {
               try {
                 const resolved3 = await this._getAuthenticatedIdentity();
                 if (resolved3) {
-                  const idVal3 = resolved3.uniqueName || resolved3.displayName || resolved3.id || this.identityName;
+                  const idVal3 =
+                    resolved3.uniqueName ||
+                    resolved3.displayName ||
+                    resolved3.id ||
+                    this.identityName;
                   if (idVal3) {
                     bounded = bounded.replace(/@Me\b/g, `'${this._escapeWIQL(String(idVal3))}'`);
                   }
@@ -1021,7 +1042,9 @@ export class AzureDevOpsIntClient {
             // Log detailed diagnostics to help debug why query returned 0 results
             const hadMeToken = /@Me\b/i.test(wiql);
             const meWasReplaced = hadMeToken && wiqlToSend !== wiql;
-            const identityInfo = hadMeToken ? await this._getAuthenticatedIdentity().catch(() => null) : null;
+            const identityInfo = hadMeToken
+              ? await this._getAuthenticatedIdentity().catch(() => null)
+              : null;
             logger.debug('User-scoped query returned 0 results', {
               meta: {
                 query,
@@ -1031,11 +1054,13 @@ export class AzureDevOpsIntClient {
                 hadMeToken,
                 meWasReplaced,
                 usingMeDirectly: hadMeToken && !meWasReplaced,
-                identityInfo: identityInfo ? {
-                  id: identityInfo.id,
-                  displayName: identityInfo.displayName,
-                  uniqueName: identityInfo.uniqueName,
-                } : null,
+                identityInfo: identityInfo
+                  ? {
+                      id: identityInfo.id,
+                      displayName: identityInfo.displayName,
+                      uniqueName: identityInfo.uniqueName,
+                    }
+                  : null,
                 wiqlEndpoint,
                 responseStatus: wiqlResp?.status,
               },
