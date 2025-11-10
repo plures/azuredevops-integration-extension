@@ -27,8 +27,8 @@ LLM-GUARD:
 
   const { context, sendEvent, matches = {}, query: propQuery, onQueryChange }: Props = $props();
 
-  // NOTE: Loading indicators are shown for both query changes and refresh button clicks.
-  // The refresh button triggers loading feedback just like a query change.
+  // NOTE: Loading state is managed centrally by the FSM through ui.loading.workItems
+  // The FSM sets this when entering loadingData state (query changes, refresh, etc.)
 
   const activeConnectionId = $derived(context?.activeConnectionId);
   const connections = $derived(context?.connections || []);
@@ -68,183 +68,16 @@ LLM-GUARD:
   const workItemsErrorConnectionId = $derived(context?.workItemsErrorConnectionId);
   const showError = $derived(workItemsError && workItemsErrorConnectionId === activeConnectionId);
   
-  // Get error state from UI state
+  // Get UI state from FSM - loading state is managed centrally in FSM
   const uiState = $derived(context?.ui);
   const connectionHealth = $derived(uiState?.connectionHealth);
   const hasConnectionError = $derived(connectionHealth?.status === 'error' && connectionHealth?.lastError);
   const connectionError = $derived(connectionHealth?.lastError);
   
-  // LOCAL LOADING STATE - Managed directly in Svelte for query changes only
-  // Refresh button clicks don't trigger loading indicators (button click provides feedback)
-  let isLoading = $state(false);
-  let loadingStartTime = $state(0);
-  let previousQuery = $state(propQuery || context?.activeQuery || predefinedQueries[0]);
-  let previousWorkItemsRef = $state<string | null>(null); // Reference to detect work items changes (null = not initialized)
-  let queryChangeTimeout: ReturnType<typeof setTimeout> | null = null;
-  
-  // Create a reference string from work items to detect changes
-  // Uses a combination of count, IDs, and a hash to detect updates
-  // DJB2 string hash function for better collision resistance
-  function djb2Hash(str: string): number {
-    let hash = 5381;
-    for (let i = 0; i < str.length; i++) {
-      hash = ((hash << 5) + hash) + str.charCodeAt(i); // hash * 33 + c
-    }
-    return hash >>> 0; // Ensure unsigned
-  }
-  const workItemsRef = $derived.by(() => {
-    if (workItems.length === 0) return 'empty';
-    // Use first 3 IDs and count to create a unique reference
-    // Also include a hash of all IDs to detect when items change even if count stays same
-    const ids = workItems.slice(0, 3).map((w: any) => w.id).join(',');
-    const allIds = workItems.map((w: any) => w.id).join(',');
-    // Use DJB2 hash of all IDs to detect changes
-    const hash = allIds.length > 0 ? djb2Hash(allIds) : 0;
-    return `${workItems.length}:${ids}:${hash}`;
-  });
-  
-  // Initialize previousWorkItemsRef on mount
-  // Also clear loading if work items are already present on startup
-  $effect(() => {
-    if (previousWorkItemsRef === null) {
-      previousWorkItemsRef = workItemsRef;
-      // If work items are already present on mount, clear any loading state
-      if (workItems.length > 0 && isLoading) {
-        console.debug('[AzureDevOpsInt][WorkItemList] Component initialized with work items already present, clearing loading');
-        isLoading = false;
-      }
-      console.debug('[AzureDevOpsInt][WorkItemList] Component initialized with workItemsRef:', workItemsRef);
-    }
-  });
-  
-  // Track query changes - show loading immediately when query changes
-  $effect(() => {
-    const currentQuery = propQuery || context?.activeQuery || predefinedQueries[0];
-    if (currentQuery !== previousQuery) {
-      // Clear any existing timeout
-      if (queryChangeTimeout) {
-        clearTimeout(queryChangeTimeout);
-        queryChangeTimeout = null;
-      }
-      
-      // Set loading immediately
-      isLoading = true;
-      loadingStartTime = Date.now();
-      previousQuery = currentQuery;
-      
-      console.debug('[AzureDevOpsInt][WorkItemList] Query changed, setting isLoading=true', {
-        previousQuery,
-        currentQuery,
-        timestamp: loadingStartTime,
-        workItemsCount: workItems.length,
-        workItemsRef: workItemsRef,
-      });
-    }
-  });
-
-  // Watch FSM loadingData state for both query changes and refresh button clicks
-  // This ensures loading indicator shows for both query changes and refresh actions
-  let wasFSMLoading = $state(false);
-  $effect(() => {
-    const isFSMLoading = matches['active.ready.loadingData'] === true;
-    
-    // When FSM enters loadingData state (query change or refresh), set loading
-    if (!wasFSMLoading && isFSMLoading) {
-      isLoading = true;
-      loadingStartTime = Date.now();
-      console.debug('[AzureDevOpsInt][WorkItemList] FSM entered loadingData (query/refresh started), setting isLoading=true', {
-        workItemsCount: workItems.length,
-        timestamp: loadingStartTime,
-      });
-    }
-    
-    // When FSM exits loadingData state and we're loading (query/refresh completed)
-    if (wasFSMLoading && !isFSMLoading && isLoading) {
-      const elapsed = Date.now() - loadingStartTime;
-      console.debug('[AzureDevOpsInt][WorkItemList] FSM exited loadingData (query/refresh completed), clearing loading', {
-        elapsed,
-        workItemsCount: workItems.length,
-      });
-      isLoading = false;
-    }
-    
-    wasFSMLoading = isFSMLoading;
-  });
-  
-  // Track work items updates - clear loading when query results arrive
-  // Only used for query changes, not refresh button clicks
-  $effect(() => {
-    if (previousWorkItemsRef === null) {
-      // Initialize on mount
-      previousWorkItemsRef = workItemsRef;
-      // If work items already present, don't show loading
-      if (workItems.length > 0 && isLoading) {
-        isLoading = false;
-      }
-      return;
-    }
-    
-    const currentRef = workItemsRef;
-    
-    // Clear loading ONLY when work items actually change (query results arrived)
-    // Don't clear just because work items exist - wait for actual change
-    const workItemsChanged = currentRef !== previousWorkItemsRef;
-    
-    if (isLoading && workItemsChanged) {
-      const elapsed = Date.now() - loadingStartTime;
-      
-      console.debug('[AzureDevOpsInt][WorkItemList] Query results arrived, clearing loading', {
-        previousRef: previousWorkItemsRef,
-        currentRef,
-        workItemsCount: workItems.length,
-        elapsed,
-      });
-      
-      // Clear loading immediately
-      if (queryChangeTimeout) {
-        clearTimeout(queryChangeTimeout);
-        queryChangeTimeout = null;
-      }
-      
-      isLoading = false;
-      previousWorkItemsRef = currentRef;
-    } else if (!isLoading && workItemsChanged) {
-      // Work items changed but we weren't loading - update ref anyway
-      previousWorkItemsRef = currentRef;
-    }
-  });
-  
-  // Fallback: Clear loading if it's been showing for too long (safety mechanism)
-  $effect(() => {
-    if (isLoading) {
-      const timeoutId = setTimeout(() => {
-        if (isLoading) {
-          console.warn('[AzureDevOpsInt][WorkItemList] ⚠️ Loading timeout - clearing loading state after 10 seconds');
-          isLoading = false;
-        }
-      }, 10000); // 10 second max loading time
-      return () => clearTimeout(timeoutId);
-    }
-  });
-  
-  const showLoading = $derived(isLoading);
-  
-  // Debug: Log loading state changes (only when state changes)
-  let lastLoggedState = $state({ isLoading: false, showLoading: false });
-  $effect(() => {
-    if (isLoading !== lastLoggedState.isLoading || showLoading !== lastLoggedState.showLoading) {
-      console.debug('[AzureDevOpsInt][WorkItemList] Loading state changed:', {
-        isLoading,
-        showLoading,
-        workItemsCount: workItems.length,
-        workItemsRef,
-        previousWorkItemsRef,
-        currentQuery: propQuery || context?.activeQuery || predefinedQueries[0],
-        previousQuery,
-      });
-      lastLoggedState = { isLoading, showLoading };
-    }
-  });
+  // FSM-MANAGED LOADING STATE - Read from FSM context, never set locally
+  // The FSM sets ui.loading.workItems when entering loadingData state
+  // and clears it when exiting (via entry/exit actions)
+  const showLoading = $derived(uiState?.loading?.workItems === true);
 
   // Force reactivity every second to update timer display
   let tick = $state(0);
@@ -346,14 +179,8 @@ LLM-GUARD:
   }
 
   function handleRefresh() {
-    // Immediately show loading indicator
-    isLoading = true;
-    loadingStartTime = Date.now();
-    console.debug('[AzureDevOpsInt][WorkItemList] Refresh clicked, showing loading', {
-      timestamp: loadingStartTime,
-    });
+    // Send REFRESH_DATA event - FSM will set loading state automatically
     sendEvent({ type: 'REFRESH_DATA' });
-    // Loading will be cleared when work items update (handled by effect above)
   }
 
   function handleStartTimer(item: any, event: Event) {
@@ -438,9 +265,7 @@ LLM-GUARD:
           value={currentQuery}
           options={predefinedQueries.map((q) => ({ value: q, label: q }))}
           onChange={(value) => {
-            // Set loading immediately when user changes query
-            isLoading = true;
-            loadingStartTime = Date.now();
+            // Send query change - FSM will set loading state automatically
             if (onQueryChange) {
               onQueryChange(value);
             }

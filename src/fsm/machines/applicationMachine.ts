@@ -435,6 +435,8 @@ export const applicationMachine = createMachine(
                 },
               },
               loadingData: {
+                entry: 'setWorkItemsLoading',
+                exit: 'clearWorkItemsLoading',
                 invoke: {
                   src: 'loadData',
                   input: ({ context }) => context,
@@ -709,12 +711,38 @@ export const applicationMachine = createMachine(
       syncDataToWebview: () => {
         /* Placeholder - data sync handled via syncState message */
       },
+      setWorkItemsLoading: assign(({ context }) => {
+        return {
+          ui: {
+            ...context.ui,
+            loading: {
+              ...context.ui?.loading,
+              workItems: true,
+            },
+          },
+        };
+      }),
+      clearWorkItemsLoading: assign(({ context }) => {
+        return {
+          ui: {
+            ...context.ui,
+            loading: {
+              ...context.ui?.loading,
+              workItems: false,
+            },
+          },
+        };
+      }),
       updateRefreshStatusSuccess: assign(({ context }) => {
         const refreshStatus = updateRefreshStatus(true);
         return {
           ui: {
             ...context.ui,
             ...refreshStatus,
+            loading: {
+              ...context.ui?.loading,
+              workItems: false,
+            },
           },
         };
       }),
@@ -728,6 +756,10 @@ export const applicationMachine = createMachine(
           ui: {
             ...context.ui,
             ...refreshStatus,
+            loading: {
+              ...context.ui?.loading,
+              workItems: false,
+            },
           },
         };
       }),
@@ -1011,7 +1043,8 @@ export const applicationMachine = createMachine(
         const newActiveId = event.connectionId;
         const newViewMode =
           (context.connectionViewModes && context.connectionViewModes.get(newActiveId)) ||
-          context.viewMode || 'list'; // fallback to previous or default
+          context.viewMode ||
+          'list'; // fallback to previous or default
         return { activeConnectionId: newActiveId, viewMode: newViewMode };
       }),
       handleStartTimer: ({ event, context }) => {
