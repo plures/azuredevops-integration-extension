@@ -866,7 +866,22 @@ export const connectionMachine = createMachine(
       notifyConnectionSuccess: ({ context }) => {
         logger.info(`${context.connectionId} connected successfully`);
 
+        // Notify application machine that connection is established
+        // This will trigger the application FSM to transition to loadingData state
+        // which will show the loading indicator in the webview
+        sendApplicationStoreEvent({
+          type: 'CONNECTION_ESTABLISHED',
+          connectionId: context.connectionId,
+          connectionState: {
+            client: context.client,
+            provider: context.provider,
+            isConnected: true,
+          },
+        });
+
         // Trigger initial work items refresh after successful connection
+        // Note: The application FSM's loadData invoke will handle the actual refresh
+        // This direct call is kept for backward compatibility but the FSM should handle it
         if (context.provider) {
           logger.info(`Triggering initial work items refresh for ${context.connectionId}`);
           try {

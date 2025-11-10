@@ -195,9 +195,18 @@ export const showWorkItemsCommand: CommandHandler = (_ctx) => {
 };
 
 export const refreshWorkItemsCommand: CommandHandler = async (ctx) => {
+  // Dispatch REFRESH_DATA event to FSM
+  dispatchApplicationEvent({ type: 'REFRESH_DATA' });
+  
+  // Also send message to webview to trigger icon animation
+  // Access the webview panel from the global panel variable
+  const { panel } = await import('../../activation.js');
+  if (panel?.webview) {
+    panel.webview.postMessage({ type: 'REFRESH_DATA' });
+  }
+  
   if (ctx.provider) {
     await ctx.provider.refresh();
-    vscode.window.showInformationMessage('Work items refreshed');
   }
 };
 

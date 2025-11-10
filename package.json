@@ -483,33 +483,6 @@
       }
     ],
     "menus": {
-      "view/title": [
-        {
-          "command": "azureDevOpsInt.toggleKanbanView",
-          "when": "view == azureDevOpsWorkItems",
-          "group": "navigation@1"
-        },
-        {
-          "command": "azureDevOpsInt.refreshWorkItems",
-          "when": "view == azureDevOpsWorkItems",
-          "group": "navigation"
-        },
-        {
-          "command": "azureDevOpsInt.createWorkItem",
-          "when": "view == azureDevOpsWorkItems",
-          "group": "navigation"
-        },
-        {
-          "command": "azureDevOpsInt.setup",
-          "when": "view == azureDevOpsWorkItems",
-          "group": "navigation"
-        },
-        {
-          "command": "azureDevOpsInt.toggleDebugView",
-          "when": "view == azureDevOpsWorkItems && config.azureDevOpsIntegration.debugLogging",
-          "group": "navigation"
-        }
-      ],
       "view/item/context": [
         {
           "command": "azureDevOpsInt.editWorkItem",

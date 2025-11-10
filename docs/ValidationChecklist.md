@@ -392,6 +392,11 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Work items reload on query change (debounce queues a deferred refresh)
 - [x] WIQL fallback is bounded (project-scoped, recent window, excludes completed)
 - [x] No unbounded WIQL queries executed (guards against 20k server limit)
+- [x] "Recently Updated" query includes project filter and active filter (prevents 20k limit errors)
+- [x] "Recently Updated" query uses 3-day window (aligned with ADO defaults)
+- [x] Error retry logic uses shorter date windows (1 day) instead of longer ones
+- [x] All default queries include project filter where applicable
+- [x] All default queries use active filter to exclude completed items
 - [x] Work item expansion uses chunked requests (prevents HTTP 414 long URLs)
 - [x] “Created By Me” query is mapped to valid WIQL
 - [x] Timer action button displays active timer with elapsed time on work item cards
@@ -419,6 +424,71 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] New Azure client exposes getWorkItemById (timer/comment operations)
 - [x] Cross-connection UI isolation enforced (provider/webview messages carry connectionId and are filtered)
 - [x] Work item list and kanban strictly show data for the active connection
+
+#### Webview Connection Isolation Design (Implemented)
+
+**Design Document**: `docs/WEBVIEW_CONNECTION_ISOLATION_DESIGN.md`
+
+**Architecture Requirements:**
+
+- [x] Query selector appears below tab buttons (not adjacent)
+- [x] All controls and views are children of ConnectionView component
+- [x] FSM context includes per-connection state maps (`connectionQueries`, `connectionWorkItems`, `connectionFilters`, `connectionViewModes`)
+- [x] Components use visibility toggle (not mount/unmount) for connection switching
+- [x] Per-connection state persists when switching connections
+- [ ] Per-connection state persists across VS Code sessions (requires persistence implementation)
+
+**Component Structure:**
+
+- [x] Query selector appears below tab buttons (not adjacent)
+- [x] All controls and views are children of ConnectionView component
+- [x] FSM context includes per-connection state maps (`connectionQueries`, `connectionWorkItems`, `connectionFilters`, `connectionViewModes`)
+- [x] Components use visibility toggle (not mount/unmount) for connection switching
+- [x] Per-connection state persists when switching connections
+- [ ] Per-connection state persists across VS Code sessions (requires persistence implementation)
+
+**Component Structure:**
+
+- [x] `ConnectionViews.svelte` container component created
+- [x] `ConnectionView.svelte` per-connection component created
+- [x] Query selector moved into `ConnectionView` (below tabs)
+- [ ] Filters moved into `ConnectionView` (below tabs) - placeholder ready
+- [x] WorkItemList scoped to `ConnectionView`
+- [x] StatusBar scoped to `ConnectionView`
+
+**State Management:**
+
+- [x] FSM actions for `SET_CONNECTION_QUERY` implemented
+- [x] FSM actions for `SET_CONNECTION_WORK_ITEMS` implemented
+- [x] FSM actions for `SET_CONNECTION_FILTERS` implemented
+- [x] FSM actions for `SET_CONNECTION_VIEW_MODE` implemented
+- [x] FSM actions for `SELECT_CONNECTION` implemented
+- [x] Per-connection state maps initialized in context
+- [ ] State restoration from `globalState` on activation (requires persistence implementation)
+
+**Data Loading:**
+
+- [x] Provider instances created per connection (existing architecture)
+- [x] Data loading populates `connectionWorkItems` map
+- [ ] Background refresh updates inactive connections (optional - not yet implemented)
+- [x] Query changes trigger refresh for specific connection only
+
+**User Experience:**
+
+- [x] Query selection persists when switching connections
+- [x] Work items persist when switching connections
+- [x] Filters persist when switching connections (structure ready)
+- [x] View mode (list/kanban) persists per connection
+- [ ] Selected items persist per connection (requires UI state implementation)
+- [x] Instant switching (no loading delay for cached data)
+- [x] No data loss when switching connections rapidly
+
+**Performance:**
+
+- [x] Components don't unmount/remount on connection switch
+- [x] Data persists in memory for all connections
+- [ ] Acceptable performance with multiple connections (5+) - needs testing
+- [ ] Memory usage is reasonable - needs monitoring
 
 #### Upgrade Validation: Connections
 

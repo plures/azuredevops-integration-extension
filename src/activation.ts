@@ -108,7 +108,7 @@ const LEGACY_CONFIG_NS = 'azureDevOps';
 const CONNECTIONS_CONFIG_KEY = 'connections';
 const ACTIVE_CONNECTION_STATE_KEY = 'azureDevOpsInt.activeConnectionId';
 
-let panel: vscode.WebviewView | undefined;
+export let panel: vscode.WebviewView | undefined;
 let provider: WorkItemsProvider | undefined;
 let timer: WorkItemTimer | undefined;
 let sessionTelemetry: SessionTelemetryManager | undefined;
@@ -2907,6 +2907,19 @@ function getSerializableContext(context: any): Record<string, any> {
     workItemsErrorConnectionId,
     debugLoggingEnabled: context.debugLoggingEnabled,
     debugViewVisible: context.debugViewVisible,
+    // Serialize per-connection Maps to plain objects for webview
+    connectionQueries: context.connectionQueries
+      ? Object.fromEntries(context.connectionQueries)
+      : {},
+    connectionWorkItems: context.connectionWorkItems
+      ? Object.fromEntries(context.connectionWorkItems)
+      : {},
+    connectionFilters: context.connectionFilters
+      ? Object.fromEntries(context.connectionFilters)
+      : {},
+    connectionViewModes: context.connectionViewModes
+      ? Object.fromEntries(context.connectionViewModes)
+      : {},
     deviceCodeSession: context.deviceCodeSession
       ? {
           connectionId: context.deviceCodeSession.connectionId,
@@ -2954,6 +2967,10 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
   ) {
     this.view = webviewView;
     panel = webviewView; // Store in global for snapshot subscription
+    
+    // CRITICAL: When panel is created, immediately send current FSM state
+    // This ensures work items loaded before panel creation are sent to webview
+    // (State will be sent below after webview setup is complete)
     const webview = webviewView.webview;
     webview.options = {
       enableScripts: true,
@@ -3021,12 +3038,19 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
               );
               return;
             }
-            // Translate to existing application event for compatibility
+            // Extract connectionId from payload and send SELECT_CONNECTION event
             const targetId = message.event?.payload?.id ?? null;
-            if (typeof targetId === 'string' || targetId === null) {
+            if (typeof targetId === 'string') {
+              dispatchApplicationEvent({
+                type: 'SELECT_CONNECTION',
+                connectionId: targetId,
+              });
+              return;
+            } else if (targetId === null) {
+              // Handle null case (deselection) - translate to CONNECTION_SELECTED for backward compatibility
               dispatchApplicationEvent({
                 type: 'CONNECTION_SELECTED',
-                connectionId: targetId,
+                connectionId: null as any,
               });
               return;
             }
@@ -3086,6 +3110,23 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
             type: 'TOGGLE_DEBUG_VIEW',
             debugViewVisible: message.debugViewVisible,
           });
+        } else if (message.type === 'EXECUTE_COMMAND') {
+          // Execute VS Code command from webview header
+          const command = message.command;
+          verbose('[AzureDevOpsIntViewProvider] Executing command from webview:', command);
+          if (command) {
+            vscode.commands
+              .executeCommand(command, ...(message.args || []))
+              .then(() => {
+                verbose('[AzureDevOpsIntViewProvider] Command executed successfully:', command);
+              })
+              .catch((err) => {
+                activationLogger.error('[AzureDevOpsIntViewProvider] Failed to execute command', {
+                  command,
+                  meta: err,
+                });
+              });
+          }
         } else if (message.type === 'openDeviceCodeBrowser') {
           // Handle device code browser opening from webview
           verbose('[AzureDevOpsIntViewProvider] Received openDeviceCodeBrowser from webview', {
@@ -3144,6 +3185,8 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
     this.fsm?.send?.({ type: 'UPDATE_WEBVIEW_PANEL', webviewPanel: webviewView });
 
     // Send initial FSM state to webview
+    // CRITICAL: When panel is created, immediately send current FSM state
+    // This ensures work items loaded before panel creation are sent to webview
     const appActor = getApplicationStoreActor();
     verbose('[AzureDevOpsIntViewProvider] Attempting to send initial state', {
       hasActor: !!appActor,
@@ -3187,7 +3230,11 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
           context: getSerializableContext(snapshot.context),
           matches,
         };
-        verbose('[AzureDevOpsIntViewProvider] Posting initial syncState message with matches');
+        verbose('[AzureDevOpsIntViewProvider] Posting initial syncState message with matches', {
+          workItemsCount: serializableState.context.workItems?.length || 0,
+          connectionWorkItemsKeys: Object.keys(serializableState.context.connectionWorkItems || {}),
+          activeConnectionId: serializableState.context.activeConnectionId,
+        });
         webview.postMessage({
           type: 'syncState',
           payload: serializableState,
