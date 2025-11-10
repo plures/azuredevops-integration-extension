@@ -31,18 +31,7 @@ LLM-GUARD:
   
   const { connection, isActive, query, workItems, filters, viewMode, context, matches, sendEvent }: Props = $props();
   
-  // Local query state (synced with context)
-  let localQuery = $state(query);
-  
-  // Sync with context when it changes
-  $effect(() => {
-    if (query !== localQuery) {
-      localQuery = query;
-    }
-  });
-  
   function handleQueryChange(newQuery: string) {
-    localQuery = newQuery;
     sendEvent({
       type: 'SET_CONNECTION_QUERY',
       connectionId: connection.id,
@@ -83,7 +72,7 @@ LLM-GUARD:
           context={contextWithWorkItems} 
           {matches}
           {sendEvent}
-          query={localQuery}
+          {query}
           onQueryChange={handleQueryChange}
         />
       {/if}
