@@ -83,15 +83,23 @@ LLM-GUARD:
   let queryChangeTimeout: ReturnType<typeof setTimeout> | null = null;
   
   // Create a reference string from work items to detect changes
-  // Uses a combination of count, IDs, and a timestamp-based hash to detect updates
+  // Uses a combination of count, IDs, and a hash to detect updates
+  // DJB2 string hash function for better collision resistance
+  function djb2Hash(str: string): number {
+    let hash = 5381;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) + hash) + str.charCodeAt(i); // hash * 33 + c
+    }
+    return hash >>> 0; // Ensure unsigned
+  }
   const workItemsRef = $derived.by(() => {
     if (workItems.length === 0) return 'empty';
     // Use first 3 IDs and count to create a unique reference
     // Also include a hash of all IDs to detect when items change even if count stays same
     const ids = workItems.slice(0, 3).map((w: any) => w.id).join(',');
     const allIds = workItems.map((w: any) => w.id).join(',');
-    // Simple hash of all IDs to detect changes
-    const hash = allIds.length > 0 ? allIds.split(',').reduce((acc, id) => acc + Number(id || 0), 0) : 0;
+    // Use DJB2 hash of all IDs to detect changes
+    const hash = allIds.length > 0 ? djb2Hash(allIds) : 0;
     return `${workItems.length}:${ids}:${hash}`;
   });
   
