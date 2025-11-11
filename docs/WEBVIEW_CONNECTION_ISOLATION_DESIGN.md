@@ -16,17 +16,20 @@ This document proposes a redesign of the webview layout to properly isolate conn
 ## Current Problems
 
 ### Layout Issue
+
 ```
 [Tab1] [Tab2] [Query Selector]  ← Query selector is adjacent to tabs (WRONG)
 ```
 
 ### State Management Issue
+
 - Query selection is stored globally (`activeQuery` in context)
 - Work items are stored globally (`pendingWorkItems` in context)
 - Switching connections clears/resets data instead of preserving it
 - Components unmount/remount on connection switch, losing local state
 
 ### Architecture Issue
+
 - Controls are siblings to tabs instead of children
 - No per-connection state isolation
 - Data fetching is tied to `activeConnectionId` rather than per-connection
@@ -82,34 +85,39 @@ App.svelte
 ### 1. FSM Context Changes
 
 **Current Context Structure:**
+
 ```typescript
 interface ApplicationContext {
   activeConnectionId?: string;
-  activeQuery?: string;  // ← Global, not per-connection
+  activeQuery?: string; // ← Global, not per-connection
   pendingWorkItems?: {
     workItems: any[];
     connectionId?: string;
-  };  // ← Single work items array
+  }; // ← Single work items array
 }
 ```
 
 **Proposed Context Structure:**
+
 ```typescript
 interface ApplicationContext {
   activeConnectionId?: string;
-  
+
   // Per-connection state maps
-  connectionQueries: Map<string, string>;  // connectionId → query
-  connectionWorkItems: Map<string, WorkItem[]>;  // connectionId → workItems
-  connectionFilters: Map<string, FilterState>;  // connectionId → filters
-  connectionViewModes: Map<string, 'list' | 'kanban'>;  // connectionId → viewMode
-  
+  connectionQueries: Map<string, string>; // connectionId → query
+  connectionWorkItems: Map<string, WorkItem[]>; // connectionId → workItems
+  connectionFilters: Map<string, FilterState>; // connectionId → filters
+  connectionViewModes: Map<string, 'list' | 'kanban'>; // connectionId → viewMode
+
   // UI state per connection
-  connectionUIState: Map<string, {
-    selectedItems: Set<number>;
-    scrollPosition: number;
-    expandedItems: Set<number>;
-  }>;
+  connectionUIState: Map<
+    string,
+    {
+      selectedItems: Set<number>;
+      scrollPosition: number;
+      expandedItems: Set<number>;
+    }
+  >;
 }
 ```
 
@@ -122,12 +130,12 @@ interface ApplicationContext {
   import { applicationSnapshot } from './fsmSnapshotStore.js';
   import ConnectionTabs from './components/ConnectionTabs.svelte';
   import ConnectionViews from './components/ConnectionViews.svelte';
-  
+
   const snapshot = $derived($applicationSnapshot);
   const context = $derived(snapshot.context);
   const activeConnectionId = $derived(context?.activeConnectionId);
   const connections = $derived(context?.connections || []);
-  
+
   function sendEvent(event: any) {
     const vscode = (window as any).__vscodeApi;
     if (vscode) {
@@ -144,7 +152,7 @@ interface ApplicationContext {
       onSelect={(id) => sendEvent({ type: 'SELECT_CONNECTION', connectionId: id })}
     />
   {/if}
-  
+
   <ConnectionViews
     {connections}
     {activeConnectionId}
@@ -159,12 +167,12 @@ interface ApplicationContext {
 ```svelte
 <script lang="ts">
   import ConnectionView from './ConnectionView.svelte';
-  
+
   export let connections: Array<{ id: string; label?: string }>;
   export let activeConnectionId: string | undefined;
   export let context: any;
   export let sendEvent: (event: any) => void;
-  
+
   // Derive per-connection data from context
   const connectionQueries = $derived(context?.connectionQueries || new Map());
   const connectionWorkItems = $derived(context?.connectionWorkItems || new Map());
@@ -177,7 +185,7 @@ interface ApplicationContext {
     {@const query = connectionQueries.get(connection.id) || 'My Activity'}
     {@const workItems = connectionWorkItems.get(connection.id) || []}
     {@const filters = connectionFilters.get(connection.id) || {}}
-    
+
     <ConnectionView
       {connection}
       {isActive}
@@ -206,7 +214,7 @@ interface ApplicationContext {
   import Filters from './Filters.svelte';
   import WorkItemList from './WorkItemList.svelte';
   import StatusBar from './StatusBar.svelte';
-  
+
   export let connection: { id: string; label?: string };
   export let isActive: boolean;
   export let query: string;
@@ -214,17 +222,17 @@ interface ApplicationContext {
   export let filters: any;
   export let context: any;
   export let sendEvent: (event: any) => void;
-  
+
   // Local UI state (persisted per connection via FSM context)
   let localQuery = $state(query);
-  
+
   // Sync with context when it changes
   $effect(() => {
     if (query !== localQuery) {
       localQuery = query;
     }
   });
-  
+
   function handleQueryChange(newQuery: string) {
     localQuery = newQuery;
     sendEvent({
@@ -247,7 +255,7 @@ interface ApplicationContext {
         connectionId={connection.id}
         onChange={handleQueryChange}
       />
-      
+
       <Filters
         connectionId={connection.id}
         filters={filters}
@@ -259,14 +267,14 @@ interface ApplicationContext {
           });
         }}
       />
-      
+
       <WorkItemList
         connectionId={connection.id}
         workItems={workItems}
         {context}
         {sendEvent}
       />
-      
+
       <StatusBar
         connectionId={connection.id}
         {context}
@@ -279,11 +287,11 @@ interface ApplicationContext {
   .connection-view {
     display: none; /* Hidden by default */
   }
-  
+
   .connection-view.active {
     display: block; /* Visible when active */
   }
-  
+
   .connection-content {
     display: flex;
     flex-direction: column;
@@ -344,7 +352,7 @@ actions: {
       return newMap;
     },
   }),
-  
+
   setConnectionWorkItems: assign({
     connectionWorkItems: ({ context, event }) => {
       const { connectionId, workItems } = event as {
@@ -356,7 +364,7 @@ actions: {
       return newMap;
     },
   }),
-  
+
   setConnectionFilters: assign({
     connectionFilters: ({ context, event }) => {
       const { connectionId, filters } = event as {
@@ -378,18 +386,20 @@ export type ApplicationEvent =
   | { type: 'SET_CONNECTION_QUERY'; connectionId: string; query: string }
   | { type: 'SET_CONNECTION_FILTERS'; connectionId: string; filters: FilterState }
   | { type: 'SET_CONNECTION_WORK_ITEMS'; connectionId: string; workItems: WorkItem[] }
-  | { type: 'SELECT_CONNECTION'; connectionId: string }
-  // ... existing events
+  | { type: 'SELECT_CONNECTION'; connectionId: string };
+// ... existing events
 ```
 
 ### 5. Data Loading Strategy
 
 **Current (Wrong):**
+
 - Data loading is triggered by `activeConnectionId` change
 - Only active connection's data is loaded
 - Switching connections triggers new data fetch
 
 **Proposed (Correct):**
+
 - Each connection loads its data independently
 - Data persists in `connectionWorkItems` map
 - Switching connections only changes visibility
@@ -403,9 +413,9 @@ const providersByConnection = new Map<string, WorkItemProvider>();
 
 function getProviderForConnection(connectionId: string): WorkItemProvider {
   if (!providersByConnection.has(connectionId)) {
-    const connection = connections.find(c => c.id === connectionId);
+    const connection = connections.find((c) => c.id === connectionId);
     if (!connection) throw new Error(`Connection ${connectionId} not found`);
-    
+
     const provider = new WorkItemProvider(connection);
     providersByConnection.set(connectionId, provider);
   }
@@ -417,7 +427,7 @@ async function refreshConnectionData(connectionId: string) {
   const provider = getProviderForConnection(connectionId);
   const query = context.connectionQueries.get(connectionId) || 'My Activity';
   const workItems = await provider.refresh(query);
-  
+
   // Update FSM context
   appActor.send({
     type: 'SET_CONNECTION_WORK_ITEMS',
@@ -430,26 +440,31 @@ async function refreshConnectionData(connectionId: string) {
 ## Benefits
 
 ### 1. **Proper Isolation**
+
 - Each connection maintains its own state
 - No cross-contamination between connections
 - Clear ownership of data and controls
 
 ### 2. **Better UX**
+
 - Instant switching (no loading delay)
 - Preserved selections and filters
 - No data loss when switching
 
 ### 3. **Performance**
+
 - Components don't unmount/remount
 - Data persists in memory
 - Background refresh possible
 
 ### 4. **Maintainability**
+
 - Clear component hierarchy
 - Predictable data flow
 - Easier to debug and test
 
 ### 5. **Svelte 5 Best Practices**
+
 - Uses `$state` and `$derived` runes
 - Reactive patterns throughout
 - Type-safe state management
@@ -457,27 +472,32 @@ async function refreshConnectionData(connectionId: string) {
 ## Migration Strategy
 
 ### Phase 1: Context Structure
+
 1. ✅ Add `connectionQueries`, `connectionWorkItems`, `connectionFilters` maps to `ApplicationContext`
 2. ✅ Add actions for updating per-connection state
 3. ✅ Add events for connection-specific operations
 
 ### Phase 2: Component Restructure
+
 1. ✅ Create `ConnectionViews.svelte` container component
 2. ✅ Create `ConnectionView.svelte` per-connection component
 3. ✅ Move query selector and filters into `ConnectionView`
 4. ✅ Update `App.svelte` to use new structure
 
 ### Phase 3: Data Loading
+
 1. ✅ Update `provider.ts` to support per-connection providers
 2. ✅ Update data loading to populate `connectionWorkItems` map
 3. ✅ Implement background refresh for inactive connections
 
 ### Phase 4: State Persistence
+
 1. ✅ Persist per-connection state to `globalState`
 2. ✅ Restore state on activation
 3. ✅ Sync state changes to persistence
 
 ### Phase 5: Testing & Validation
+
 1. ✅ Test connection switching preserves state
 2. ✅ Test data persistence across sessions
 3. ✅ Test background refresh
@@ -522,4 +542,3 @@ async function refreshConnectionData(connectionId: string) {
 - `docs/SVELTE5_REACTIVITY_MIGRATION.md` - Svelte 5 patterns in this project
 - `docs/XSTATE_SVELTE_PROVEN_PATTERNS.md` - XState integration patterns
 - `docs/TAB_ARCHITECTURE_FIX.md` - Previous tab architecture analysis
-
