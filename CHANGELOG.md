@@ -6,6 +6,17 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.0.9] - 2025-11-10
+
+### Fixed
+
+- Fixed 6 TypeScript build errors in `App.svelte` related to Svelte store reactivity
+  - Resolved incorrect store unwrapping using `$derived()` which doesn't work with Svelte stores
+  - Implemented proper reactive store subscription using `$state` and `$effect` in Svelte 5 runes mode
+  - Fixed property access errors for `context`, `matches`, and `value` properties on store
+  - Removed unused `get` import that was causing linter warnings
+  - All TypeScript compilation errors now resolved, extension builds successfully
+
 ## [2.0.7] - 2025-11-07
 
 ### Other

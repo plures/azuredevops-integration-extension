@@ -26,8 +26,16 @@ LLM-GUARD:
 
   console.debug('[webview] App.svelte initializing');
 
-  // Reactive FSM state derived from snapshot store
-  let snapshot = $derived(applicationSnapshot);
+  // Reactive FSM state from snapshot store (subscribe reactively in Svelte 5 runes)
+  let snapshot = $state<ApplicationSnapshot>(get(applicationSnapshot));
+  
+  // Subscribe to store updates
+  $effect(() => {
+    const unsubscribe = applicationSnapshot.subscribe((value) => {
+      snapshot = value;
+    });
+    return unsubscribe;
+  });
   
   const context = $derived(snapshot.context);
   const matches = $derived(snapshot.matches || {}); // Pre-computed state matches from extension
