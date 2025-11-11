@@ -425,7 +425,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Cross-connection UI isolation enforced (provider/webview messages carry connectionId and are filtered)
 - [x] Work item list and kanban strictly show data for the active connection
 
-#### Webview Connection Isolation Design (Proposed)
+#### Webview Connection Isolation Design (Implemented)
 
 **Design Document**: `docs/WEBVIEW_CONNECTION_ISOLATION_DESIGN.md`
 

@@ -40,6 +40,7 @@ import {
   clearErrorState,
   updateRefreshStatus,
 } from '../functions/ui/error-handling.js';
+import { FSM_CONFIG } from '../config.js';
 
 // ============================================================================
 // APPLICATION STATE DEFINITIONS
@@ -124,7 +125,7 @@ export type ApplicationContext = {
   isDeactivating: boolean;
   connections: ProjectConnection[];
   activeConnectionId?: string;
-  /** Active WIQL or logical query name selected by user */
+  /** Active WIQL or logical query name selected by user (legacy - use connectionQueries) */
   activeQuery?: string;
   connectionStates: Map<string, ConnectionState>;
   pendingAuthReminders: Map<string, AuthReminderState>;
@@ -135,11 +136,20 @@ export type ApplicationContext = {
   authActors: Map<string, Actor<typeof authMachine>>;
   dataActor?: Actor<typeof dataMachine>;
   webviewActor?: any;
+  /** Legacy work items storage - use connectionWorkItems instead */
   pendingWorkItems?: {
     workItems: any[];
     connectionId?: string;
     query?: string;
   };
+  /** Per-connection query selection */
+  connectionQueries: Map<string, string>;
+  /** Per-connection work items */
+  connectionWorkItems: Map<string, any[]>;
+  /** Per-connection filter state */
+  connectionFilters: Map<string, Record<string, any>>;
+  /** Per-connection view mode (list/kanban) */
+  connectionViewModes: Map<string, 'list' | 'kanban'>;
   timerState?: {
     state: string;
     workItemId?: number;
@@ -150,6 +160,7 @@ export type ApplicationContext = {
   };
   lastError?: Error;
   errorRecoveryAttempts: number;
+  /** Legacy view mode - use connectionViewModes instead */
   viewMode: 'list' | 'kanban';
   kanbanColumns?: { id: string; title: string; itemIds: number[] }[];
   /** Active device code authentication session (if any) */
@@ -216,6 +227,12 @@ export type ApplicationEvent =
   | { type: 'TOGGLE_VIEW'; view?: 'list' | 'kanban' }
   | { type: 'TOGGLE_DEBUG_VIEW' }
   | { type: 'SET_QUERY'; query: string }
+  // Per-connection state events
+  | { type: 'SET_CONNECTION_QUERY'; connectionId: string; query: string }
+  | { type: 'SET_CONNECTION_WORK_ITEMS'; connectionId: string; workItems: any[] }
+  | { type: 'SET_CONNECTION_FILTERS'; connectionId: string; filters: Record<string, any> }
+  | { type: 'SET_CONNECTION_VIEW_MODE'; connectionId: string; viewMode: 'list' | 'kanban' }
+  | { type: 'SELECT_CONNECTION'; connectionId: string }
   // Work Item Action Events
   | { type: 'START_TIMER_INTERACTIVE'; workItemId?: number; workItemTitle?: string }
   | { type: 'STOP_TIMER' }
@@ -294,6 +311,10 @@ export const applicationMachine = createMachine(
       errorRecoveryAttempts: 0,
       webviewPanel: undefined,
       pendingWorkItems: undefined,
+      connectionQueries: new Map(),
+      connectionWorkItems: new Map(),
+      connectionFilters: new Map(),
+      connectionViewModes: new Map(),
       viewMode: 'list',
       deviceCodeSession: undefined,
       debugLoggingEnabled: false,
@@ -415,6 +436,8 @@ export const applicationMachine = createMachine(
                 },
               },
               loadingData: {
+                entry: 'setWorkItemsLoading',
+                exit: 'clearWorkItemsLoading',
                 invoke: {
                   src: 'loadData',
                   input: ({ context }) => context,
@@ -425,6 +448,19 @@ export const applicationMachine = createMachine(
                   onError: {
                     target: 'error',
                     actions: 'updateRefreshStatusError',
+                  },
+                },
+                after: {
+                  [FSM_CONFIG.webview.loadingTimeoutMs]: {
+                    target: 'error',
+                    actions: assign({
+                      ui: ({ context }) =>
+                        updateUIStateForError(context, {
+                          message: 'Loading work items timed out after 5 seconds',
+                          type: 'timeout',
+                          recoverable: true,
+                        }),
+                    }),
                   },
                 },
               },
@@ -518,6 +554,22 @@ export const applicationMachine = createMachine(
                 target: '.loadingData', // Trigger data loading when query changes (relative to ready state)
                 // TODO: Use ApplicationStates constant once we verify it works
                 // target: ApplicationStates['active.ready.loadingData'],
+              },
+              SELECT_CONNECTION: {
+                actions: ['selectConnection', 'setActiveConnectionInContext'],
+              },
+              SET_CONNECTION_QUERY: {
+                actions: 'setConnectionQuery',
+                target: '.loadingData', // Trigger data loading when query changes
+              },
+              SET_CONNECTION_WORK_ITEMS: {
+                actions: 'setConnectionWorkItems',
+              },
+              SET_CONNECTION_FILTERS: {
+                actions: 'setConnectionFilters',
+              },
+              SET_CONNECTION_VIEW_MODE: {
+                actions: 'setConnectionViewMode',
               },
               START_TIMER_INTERACTIVE: {
                 actions: 'handleStartTimer',
@@ -673,12 +725,38 @@ export const applicationMachine = createMachine(
       syncDataToWebview: () => {
         /* Placeholder - data sync handled via syncState message */
       },
+      setWorkItemsLoading: assign(({ context }) => {
+        return {
+          ui: {
+            ...context.ui,
+            loading: {
+              ...context.ui?.loading,
+              workItems: true,
+            },
+          },
+        };
+      }),
+      clearWorkItemsLoading: assign(({ context }) => {
+        return {
+          ui: {
+            ...context.ui,
+            loading: {
+              ...context.ui?.loading,
+              workItems: false,
+            },
+          },
+        };
+      }),
       updateRefreshStatusSuccess: assign(({ context }) => {
         const refreshStatus = updateRefreshStatus(true);
         return {
           ui: {
             ...context.ui,
             ...refreshStatus,
+            loading: {
+              ...context.ui?.loading,
+              workItems: false,
+            },
           },
         };
       }),
@@ -692,6 +770,10 @@ export const applicationMachine = createMachine(
           ui: {
             ...context.ui,
             ...refreshStatus,
+            loading: {
+              ...context.ui?.loading,
+              workItems: false,
+            },
           },
         };
       }),
@@ -881,6 +963,8 @@ export const applicationMachine = createMachine(
       storeWorkItemsInContext: assign(({ context, event }) => {
         if (event.type !== 'WORK_ITEMS_LOADED') return {};
 
+        const connectionId = event.connectionId || context.activeConnectionId || '';
+
         // Debug logging to track work items flow
         appLogger.debug('Storing work items', undefined, {
           eventType: event.type,
@@ -890,14 +974,23 @@ export const applicationMachine = createMachine(
           workItemsCount: Array.isArray(event.workItems) ? event.workItems.length : 'n/a',
           eventConnectionId: event.connectionId,
           contextActiveConnectionId: context.activeConnectionId,
+          resolvedConnectionId: connectionId,
         });
 
+        // Update per-connection work items map
+        const newConnectionWorkItems = new Map(context.connectionWorkItems || new Map());
+        if (connectionId) {
+          newConnectionWorkItems.set(connectionId, event.workItems || []);
+        }
+
+        // Also update legacy pendingWorkItems for backward compatibility
         return {
           pendingWorkItems: {
             workItems: event.workItems,
-            connectionId: event.connectionId || context.activeConnectionId,
+            connectionId,
             query: event.query,
           },
+          connectionWorkItems: newConnectionWorkItems,
         };
       }),
       toggleViewMode: assign(({ context, event }) => {
@@ -923,6 +1016,50 @@ export const applicationMachine = createMachine(
       setActiveQuery: assign(({ event }) => {
         if (event.type !== 'SET_QUERY') return {};
         return { activeQuery: event.query };
+      }),
+      setConnectionQuery: assign(({ context, event }) => {
+        if (event.type !== 'SET_CONNECTION_QUERY') return {};
+        const { connectionId, query } = event;
+        const newMap = new Map(context.connectionQueries || new Map());
+        newMap.set(connectionId, query);
+        return { connectionQueries: newMap };
+      }),
+      setConnectionWorkItems: assign(({ context, event }) => {
+        if (event.type !== 'SET_CONNECTION_WORK_ITEMS') return {};
+        const { connectionId, workItems } = event;
+        const newMap = new Map(context.connectionWorkItems || new Map());
+        newMap.set(connectionId, workItems);
+        return { connectionWorkItems: newMap };
+      }),
+      setConnectionFilters: assign(({ context, event }) => {
+        if (event.type !== 'SET_CONNECTION_FILTERS') return {};
+        const { connectionId, filters } = event;
+        const newMap = new Map(context.connectionFilters || new Map());
+        newMap.set(connectionId, filters);
+        return { connectionFilters: newMap };
+      }),
+      setConnectionViewMode: assign(({ context, event }) => {
+        if (event.type !== 'SET_CONNECTION_VIEW_MODE') return {};
+        const { connectionId, viewMode } = event;
+        const newMap = new Map(context.connectionViewModes || new Map());
+        newMap.set(connectionId, viewMode);
+        // Also update legacy viewMode for backward compatibility
+        const legacyViewMode =
+          context.activeConnectionId === connectionId ? viewMode : context.viewMode;
+        return {
+          connectionViewModes: newMap,
+          viewMode: legacyViewMode,
+        };
+      }),
+      selectConnection: assign(({ context, event }) => {
+        if (event.type !== 'SELECT_CONNECTION') return {};
+        // When switching active connection, update legacy viewMode to match the new active connection's view mode (or fallback)
+        const newActiveId = event.connectionId;
+        const newViewMode =
+          (context.connectionViewModes && context.connectionViewModes.get(newActiveId)) ||
+          context.viewMode ||
+          'list'; // fallback to previous or default
+        return { activeConnectionId: newActiveId, viewMode: newViewMode };
       }),
       handleStartTimer: ({ event, context }) => {
         if (event.type !== 'START_TIMER_INTERACTIVE') return;
@@ -1278,9 +1415,14 @@ export const applicationMachine = createMachine(
 
           const provider = connectionSnapshot.context.provider;
 
+          // Get per-connection query, fallback to legacy activeQuery or default
+          const connectionQuery =
+            input.connectionQueries?.get(input.activeConnectionId) ||
+            input.activeQuery ||
+            'My Activity';
+
           // Force refresh by calling provider.refresh()
-          const activeQuery = input.activeQuery || 'My Activity';
-          await provider.refresh(activeQuery);
+          await provider.refresh(connectionQuery);
 
           // Get refreshed work items
           const workItems = provider.getWorkItems?.() || [];
@@ -1288,7 +1430,7 @@ export const applicationMachine = createMachine(
           return {
             workItems,
             connectionId: input.activeConnectionId,
-            query: activeQuery,
+            query: connectionQuery,
           };
         } catch (error) {
           appLogger.error('Data loading failed', undefined, { error });

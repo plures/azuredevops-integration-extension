@@ -21,13 +21,29 @@ LLM-GUARD:
     context: any;
     sendEvent: (event: any) => void;
     matches?: Record<string, boolean>;
+    query?: string;
+    onQueryChange?: (query: string) => void;
   }
 
-  const { context, sendEvent, matches = {} }: Props = $props();
+  const { context, sendEvent, matches = {}, query: propQuery, onQueryChange }: Props = $props();
+
+  // NOTE: Loading state is managed centrally by the FSM through ui.loading.workItems
+  // The FSM sets this when entering loadingData state (query changes, refresh, etc.)
 
   const activeConnectionId = $derived(context?.activeConnectionId);
   const connections = $derived(context?.connections || []);
   const activeConnection = $derived(connections.find((c: any) => c.id === activeConnectionId));
+  
+  // Query selector
+  const predefinedQueries = [
+    'My Activity',
+    'Assigned to me',
+    'Recently Updated',
+    'Created By Me',
+    'All Active',
+    'All Work Items', // Includes closed/completed items
+  ];
+  const currentQuery = $derived(propQuery || context?.activeQuery || predefinedQueries[0]);
   
   // CRITICAL: Filter work items to only show those for the active connection
   // This ensures work items from one connection are never shown when another connection's tab is selected
@@ -52,27 +68,16 @@ LLM-GUARD:
   const workItemsErrorConnectionId = $derived(context?.workItemsErrorConnectionId);
   const showError = $derived(workItemsError && workItemsErrorConnectionId === activeConnectionId);
   
-  // Get error state from UI state
+  // Get UI state from FSM - loading state is managed centrally in FSM
   const uiState = $derived(context?.ui);
   const connectionHealth = $derived(uiState?.connectionHealth);
   const hasConnectionError = $derived(connectionHealth?.status === 'error' && connectionHealth?.lastError);
   const connectionError = $derived(connectionHealth?.lastError);
   
-  // Check if work items are currently being loaded
-  const isLoading = $derived(matches['active.ready.loadingData'] === true);
-  
-  // Debug: Log loading state changes
-  $effect(() => {
-    if (isLoading) {
-      console.debug('[AzureDevOpsInt][WorkItemList] Loading state active', {
-        isLoading,
-        matchesKey: 'active.ready.loadingData',
-        matchValue: matches['active.ready.loadingData'],
-        allMatches: Object.keys(matches).filter((k) => matches[k]),
-        workItemsCount: workItems.length,
-      });
-    }
-  });
+  // FSM-MANAGED LOADING STATE - Read from FSM context, never set locally
+  // The FSM sets ui.loading.workItems when entering loadingData state
+  // and clears it when exiting (via entry/exit actions)
+  const showLoading = $derived(uiState?.loading?.workItems === true);
 
   // Force reactivity every second to update timer display
   let tick = $state(0);
@@ -174,6 +179,7 @@ LLM-GUARD:
   }
 
   function handleRefresh() {
+    // Send REFRESH_DATA event - FSM will set loading state automatically
     sendEvent({ type: 'REFRESH_DATA' });
   }
 
@@ -244,13 +250,31 @@ LLM-GUARD:
   }
 </script>
 
-<div class="work-item-list">
+<div class="work-item-list" style="position: relative;">
   {#if !activeConnectionId}
     <div class="empty-state">
       <p>No active connection selected.</p>
       <p class="hint">Configure a connection in settings to get started.</p>
     </div>
   {:else}
+    <!-- Query Selector -->
+    {#if onQueryChange}
+      <div class="query-selector-bar">
+        <label for="query-select" class="query-label">Query:</label>
+        <Dropdown
+          value={currentQuery}
+          options={predefinedQueries.map((q) => ({ value: q, label: q }))}
+          onChange={(value) => {
+            // Send query change - FSM will set loading state automatically
+            if (onQueryChange) {
+              onQueryChange(value);
+            }
+          }}
+          class="query-select"
+        />
+      </div>
+    {/if}
+    
     <!-- Filters Bar -->
     <div class="filters-bar">
       <input
@@ -263,7 +287,7 @@ LLM-GUARD:
         value={typeFilter}
         options={[
           { value: '', label: 'All Types' },
-          ...availableTypes.map((type) => ({ value: type, label: type })),
+          ...availableTypes.map((type: string) => ({ value: type, label: type })),
         ]}
         onChange={(value) => {
           typeFilter = value;
@@ -273,7 +297,7 @@ LLM-GUARD:
         value={stateFilter}
         options={[
           { value: 'all', label: 'All States' },
-          ...availableStates.map((state) => ({ value: state, label: state })),
+          ...availableStates.map((state: string) => ({ value: state, label: state })),
         ]}
         onChange={(value) => {
           stateFilter = value;
@@ -293,18 +317,19 @@ LLM-GUARD:
       />
     </div>
 
-    {#if isLoading && workItems.length === 0}
-      <!-- Full loading indicator when no work items exist -->
-      <div class="loading-indicator">
-        <div class="loading-spinner"></div>
-        <p>Loading work items...</p>
-      </div>
-    {:else if isLoading && workItems.length > 0}
-      <!-- Loading banner when refreshing existing work items -->
-      <div class="loading-banner">
-        <div class="loading-spinner small"></div>
-        <span>Refreshing work items...</span>
-      </div>
+    {#if showLoading}
+      {#if workItems.length === 0}
+        <!-- Full loading indicator when no work items exist -->
+        <div class="loading-indicator">
+          <div class="loading-spinner"></div>
+          <p>Loading work items...</p>
+        </div>
+      {:else}
+        <!-- Discrete loading spinner - positioned absolutely to not affect layout -->
+        <div class="loading-spinner-container">
+          <div class="loading-spinner small"></div>
+        </div>
+      {/if}
     {/if}
     {#if hasConnectionError && connectionError}
       <ErrorBanner
@@ -316,7 +341,7 @@ LLM-GUARD:
         }}
       />
     {/if}
-    {#if (hasConnectionError || showError) && workItems.length === 0 && !isLoading}
+    {#if (hasConnectionError || showError) && workItems.length === 0 && !showLoading}
       <EmptyState
         hasError={true}
         error={connectionError || (showError ? {
@@ -456,11 +481,6 @@ LLM-GUARD:
     opacity: 0.8;
   }
 
-  .empty-state .error-text {
-    color: var(--vscode-errorForeground);
-    font-weight: 500;
-    margin-bottom: 0.5rem;
-  }
 
   .empty-state-actions {
     display: flex;
@@ -493,21 +513,17 @@ LLM-GUARD:
     border-width: 2px;
   }
 
-  .loading-banner {
+  .loading-spinner-container {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 100;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: var(--vscode-inputValidation-infoBackground, var(--vscode-editorWidget-background));
-    border: 1px solid var(--vscode-inputValidation-infoBorder, var(--vscode-panel-border));
-    border-radius: 4px;
-    margin-bottom: 0.75rem;
-    color: var(--vscode-descriptionForeground);
-    font-size: 0.85rem;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    pointer-events: none;
   }
 
   @keyframes spin {
@@ -516,6 +532,27 @@ LLM-GUARD:
     }
   }
 
+  .query-selector-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+    border-top: 1px solid var(--vscode-panel-border, var(--vscode-input-border));
+  }
+  
+  .query-label {
+    font-size: 0.75rem;
+    color: var(--vscode-foreground);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  
+  .query-selector-bar :global(.query-select) {
+    min-width: 150px;
+  }
+  
   .filters-bar {
     display: flex;
     gap: 0.5rem;

@@ -194,11 +194,20 @@ export const showWorkItemsCommand: CommandHandler = (_ctx) => {
   vscode.commands.executeCommand('azureDevOpsInt.workItemsView.focus');
 };
 
-export const refreshWorkItemsCommand: CommandHandler = async (ctx) => {
-  if (ctx.provider) {
-    await ctx.provider.refresh();
-    vscode.window.showInformationMessage('Work items refreshed');
+export const refreshWorkItemsCommand: CommandHandler = async (_ctx) => {
+  // Dispatch REFRESH_DATA event to FSM - this triggers the same refresh process
+  // as changing the query selector (transitions to loadingData state, invokes loadData actor)
+  dispatchApplicationEvent({ type: 'REFRESH_DATA' });
+
+  // Also send message to webview to trigger the full refresh process
+  // (the WebviewHeader button has its own onclick CSS spin animation)
+  const { panel } = await import('../../activation.js');
+  if (panel?.webview) {
+    panel.webview.postMessage({ type: 'REFRESH_DATA' });
   }
+
+  // Note: No need to call provider.refresh() here - the FSM's loadData actor
+  // handles this in the loadingData state for consistency with query changes
 };
 
 export const createWorkItemCommand: CommandHandler = (_ctx) => {

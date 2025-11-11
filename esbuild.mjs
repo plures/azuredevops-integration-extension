@@ -135,4 +135,19 @@ async function build() {
   }
 }
 
-build();
+// In watch mode, do an initial build check before starting watch
+// This ensures debug sessions don't start if there are build errors
+if (isWatch) {
+  build()
+    .then(() => {
+      console.log('[esbuild] Initial build succeeded, watch mode will continue...');
+      // Note: Current watch mode rebuilds on file changes via esbuild's incremental builds
+      // The initial build check above ensures we don't start debug with errors
+    })
+    .catch((err) => {
+      console.error('[esbuild] Initial build failed, exiting. Fix errors before debugging.');
+      process.exit(1);
+    });
+} else {
+  build();
+}

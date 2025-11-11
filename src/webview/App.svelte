@@ -14,19 +14,21 @@ LLM-GUARD:
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { applicationSnapshot } from './fsmSnapshotStore.js';
-  import WorkItemList from './components/WorkItemList.svelte';
+  import { get } from 'svelte/store';
+  import { applicationSnapshot, type ApplicationSnapshot } from './fsmSnapshotStore.js';
   import Settings from './components/Settings.svelte';
-  import StatusBar from './components/StatusBar.svelte';
-  import KanbanBoard from './components/KanbanBoard.svelte';
   import ConnectionTabs from './components/ConnectionTabs.svelte';
+  import ConnectionViews from './components/ConnectionViews.svelte';
   import AuthReminder from './components/AuthReminder.svelte';
-  import Dropdown from './components/Dropdown.svelte';
+  import WebviewHeader from './components/WebviewHeader.svelte';
+  
+  // ConnectionViews component uses export let syntax for proper TypeScript inference
 
   console.debug('[webview] App.svelte initializing');
 
   // Reactive FSM state derived from snapshot store
-  const snapshot = $derived($applicationSnapshot);
+  let snapshot = $derived(applicationSnapshot);
+  
   const context = $derived(snapshot.context);
   const matches = $derived(snapshot.matches || {}); // Pre-computed state matches from extension
 
@@ -62,24 +64,14 @@ LLM-GUARD:
   const isActiveReady = $derived(matches['active.ready']);
   const isActive = $derived(matches.active);
 
+  // Typed derived values for ConnectionViews props
+  // Explicitly typed to ensure TypeScript inference works correctly
+  const connectionsArray: Array<{ id: string; label?: string }> = $derived(
+    context?.connections || []
+  );
+  const activeId: string | undefined = $derived(context?.activeConnectionId);
 
-  // Query selector support (replaces internal toolbar controls)
-  const predefinedQueries = [
-    'My Activity',
-    'Assigned to me', // Lowercase 't' to match azureClient.ts case statement
-    'Recently Updated',
-    'Created By Me',
-  ];
-  const contextActiveQuery = $derived(context?.activeQuery || predefinedQueries[0]);
-  let localActiveQuery = $state(predefinedQueries[0]);
-  
-  // Sync local query with context when it changes
-  $effect(() => {
-    const nextQuery = contextActiveQuery;
-    if (nextQuery && nextQuery !== localActiveQuery) {
-      localActiveQuery = nextQuery;
-    }
-  });
+
   
 
 
@@ -118,12 +110,16 @@ LLM-GUARD:
     localDebugViewVisible = !localDebugViewVisible;
     // Notify FSM of the change (but don't wait for it - Svelte controls display)
     if (vscode) {
-      vscode.postMessage({ 
+      vscode.postMessage({
         type: 'TOGGLE_DEBUG_VIEW',
-        debugViewVisible: localDebugViewVisible 
+        debugViewVisible: localDebugViewVisible
       });
     }
   }
+
+  // Expose function globally so it can be called from message handlers if needed
+  (window as any).__toggleDebugView = toggleDebugView;
+
 </script>
 
 <main>
@@ -149,36 +145,29 @@ LLM-GUARD:
     <Settings {context} {sendEvent} />
   {:else if isActiveReady || isActive}
     <!-- Main work items UI -->
-    <div class="header-stack">
-      <div class="toolbar primary-row">
-        <div class="left-group">
-          {#if context?.connections?.length > 1}
-            <ConnectionTabs
-              connections={context.connections}
-              activeConnectionId={context.activeConnectionId}
-            />
-          {:else if context?.activeConnectionId}
-            <span class="single-connection-label" title="Active Connection">
-              {context.connections?.find((c) => c.id === context.activeConnectionId)?.label ||
-                context.activeConnectionId}
-            </span>
-          {/if}
-          <Dropdown
-            value={localActiveQuery}
-            options={predefinedQueries.map((q) => ({ value: q, label: q }))}
-            onChange={(value) => {
-              localActiveQuery = value;
-              if (value && value !== context?.activeQuery) {
-                sendEvent({ type: 'SET_QUERY', query: value });
-              }
-            }}
-            class="query-select"
-          />
-        </div>
-        <!-- Internal actions removed; rely on VS Code view/title menu commands -->
+    <WebviewHeader {context} {sendEvent} />
+    {#if context?.connections?.length > 1}
+      <ConnectionTabs
+        connections={context.connections}
+        activeConnectionId={context.activeConnectionId}
+      />
+    {:else if context?.activeConnectionId}
+      <div class="single-connection-header">
+        <span class="single-connection-label" title="Active Connection">
+          {context.connections?.find((c: { id: string; label?: string }) => c.id === context.activeConnectionId)?.label ||
+            context.activeConnectionId}
+        </span>
       </div>
-      <!-- Removed visible live count to reduce extraneous text; accessible output disabled intentionally -->
-    </div>
+    {/if}
+
+  <ConnectionViews
+    connections={connectionsArray}
+    activeConnectionId={activeId}
+    context={context}
+    {matches}
+    {sendEvent}
+  />
+    
     <AuthReminder {context} {sendEvent} />
     {#if context?.debugLoggingEnabled && localDebugViewVisible}
       <div class="debug-panel" role="region" aria-label="Debug View">
@@ -195,12 +184,6 @@ LLM-GUARD:
           )}</pre>
       </div>
     {/if}
-    {#if context?.viewMode === 'kanban'}
-      <KanbanBoard {context} {sendEvent} />
-    {:else}
-      <WorkItemList {context} {sendEvent} {matches} />
-    {/if}
-    <StatusBar {context} {sendEvent} />
   {/if}
 </main>
 
@@ -230,28 +213,9 @@ LLM-GUARD:
   button:hover {
     background: var(--vscode-button-hoverBackground);
   }
-  .toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.75rem;
-    gap: 1rem;
-    padding: 0.5rem 0.25rem 0.5rem 0.5rem;
-    border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-input-border));
-    background: var(--vscode-editorWidget-background);
-  }
-  .header-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-  .primary-row {
-    margin-bottom: 0;
-  }
-  .left-group {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
+  .single-connection-header {
+    padding: 0.5rem 0;
+    margin-bottom: 0.5rem;
   }
   .debug-panel {
     margin: 0.5rem 0 0.75rem;
@@ -279,16 +243,5 @@ LLM-GUARD:
     border: 1px solid var(--vscode-tab-activeBorder, var(--vscode-focusBorder));
     border-radius: 4px;
     color: var(--vscode-tab-activeForeground);
-  }
-  .query-select {
-    padding: 0.35rem 0.55rem;
-    font-size: 0.7rem;
-    background: var(--vscode-input-background);
-    color: var(--vscode-input-foreground);
-    border: 1px solid var(--vscode-input-border);
-    border-radius: 3px;
-  }
-  .query-select:focus {
-    outline: 1px solid var(--vscode-focusBorder);
   }
 </style>

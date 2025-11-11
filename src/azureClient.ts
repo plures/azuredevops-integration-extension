@@ -576,6 +576,47 @@ export class AzureDevOpsIntClient {
     return /preview/i.test(message) || /api[- ]?version/i.test(message);
   }
 
+  /**
+   * Normalize query name to canonical form for consistent caching and matching
+   * Known query names are matched case-insensitively
+   *
+   * @param query - The query name to normalize
+   * @returns The normalized query name in canonical form, or the original trimmed input for custom WIQL
+   * @throws {Error} If query is null, undefined, not a string, empty, or only whitespace
+   */
+  private _normalizeQueryName(query: string): string {
+    // Explicitly validate input type
+    if (query === null || query === undefined || typeof query !== 'string') {
+      throw new Error(`Invalid query parameter: expected non-empty string, got ${typeof query}`);
+    }
+
+    const trimmed = query.trim();
+
+    // Explicitly reject empty or whitespace-only strings
+    if (trimmed.length === 0) {
+      throw new Error('Query name cannot be empty or contain only whitespace');
+    }
+
+    const knownQueries = [
+      'My Activity',
+      'Assigned to me',
+      'My Work Items',
+      'Recently Updated',
+      'All Active',
+      'All Work Items',
+      'Current Sprint',
+      'Created By Me',
+      'Following',
+      'Mentioned',
+    ];
+
+    // Find case-insensitive match
+    const normalized = knownQueries.find((q) => q.toLowerCase() === trimmed.toLowerCase());
+
+    // Return canonical form if found, otherwise return original (might be custom WIQL)
+    return normalized || trimmed;
+  }
+
   buildWIQL(queryNameOrText: string) {
     // Use capability cache to decide whether to include [System.StateCategory]
     return this._buildWIQL(queryNameOrText, this.preferStateCategory);
@@ -622,6 +663,13 @@ export class AzureDevOpsIntClient {
         return `SELECT ${fields} FROM WorkItems 
                         WHERE [System.TeamProject] = @Project
                         ${activeFilter}
+                        ${sprintClause}
+                        ORDER BY [System.ChangedDate] DESC`;
+      case 'All Work Items':
+        // Include all work items including closed/completed ones (only exclude Removed)
+        return `SELECT ${fields} FROM WorkItems 
+                        WHERE [System.TeamProject] = @Project
+                        AND [System.State] <> 'Removed'
                         ${sprintClause}
                         ORDER BY [System.ChangedDate] DESC`;
       case 'Recently Updated':
@@ -712,7 +760,7 @@ export class AzureDevOpsIntClient {
       if (chunk.length === 0) continue;
       try {
         const resp = await this.axios.get(
-          `/wit/workitems?ids=${chunk.join(',')}&$expand=all&api-version=7.0`
+          `/wit/workitems?ids=${chunk.join(',')}&$expand=all&api-version=7.1`
         );
         const rawItems: any[] = resp.data?.value || [];
         results.push(...this._mapRawWorkItems(rawItems));
@@ -743,7 +791,7 @@ export class AzureDevOpsIntClient {
 
   private async _getFollowedWorkItems(): Promise<WorkItem[]> {
     try {
-      const resp = await this.axios.get('/work/workitems/favorites?api-version=7.0');
+      const resp = await this.axios.get('/work/workitems/favorites?api-version=7.1');
       const entries = Array.isArray(resp.data?.value) ? resp.data.value : [];
       const ids = entries
         .map((entry: any) => {
@@ -797,32 +845,36 @@ export class AzureDevOpsIntClient {
       let wiql = ''; // Declare outside try block for error reporting
       let wiqlToSend = '';
       try {
-        // Check cache first
+        // Normalize query name for consistent caching and matching
+        // Known query names should be case-insensitive
+        const normalizedQuery = this._normalizeQueryName(query);
+
+        // Check cache first (use normalized query for cache key)
         const cacheKey = WorkItemCache.generateWorkItemsKey(
           `${this.organization}-${this.project}`,
-          query,
+          normalizedQuery,
           { team: this.team }
         );
 
         const cached = workItemCache.get(cacheKey);
         if (cached) {
-          logger.debug('Cache hit for query', { meta: { query } });
+          logger.debug('Cache hit for query', { meta: { query, normalizedQuery } });
           return cached;
         }
 
-        if (query === 'Following') {
+        if (normalizedQuery === 'Following') {
           const result = await this._getFollowedWorkItems();
           workItemCache.setWorkItems(cacheKey, result);
           return result;
         }
-        if (query === 'Mentioned') {
+        if (normalizedQuery === 'Mentioned') {
           const result = await this._getMentionedWorkItems();
           workItemCache.setWorkItems(cacheKey, result);
           return result;
         }
-        wiql = this.buildWIQL(query);
+        wiql = this.buildWIQL(normalizedQuery);
         // If querying Current Sprint, prefer resolving the explicit current iteration path for configured team
-        if (query === 'Current Sprint') {
+        if (normalizedQuery === 'Current Sprint') {
           try {
             const cur = await this.getCurrentIteration();
             const iterPath = cur?.path;
@@ -839,8 +891,9 @@ export class AzureDevOpsIntClient {
           meta: { wiql, apiBaseUrl: this.axios.defaults.baseURL },
         });
 
-        // Prepare the WIQL to send. Some on-prem/TFS servers don't reliably resolve the @Me token
-        // so, when possible, replace @Me with an explicit identity string (uniqueName, displayName, or id).
+        // Prepare the WIQL to send
+        // For cloud Azure DevOps, use @Me directly (it's reliable and handles identity matching correctly)
+        // Only replace @Me for on-prem/TFS servers that don't support it
         wiqlToSend = wiql;
 
         // For queries that might return many results, add a hard limit via client-side limiting
@@ -851,39 +904,43 @@ export class AzureDevOpsIntClient {
           'All Active',
           'Current Sprint',
           ...knownUserScopedQueries,
-        ].includes(query);
+        ].includes(normalizedQuery);
         const needsLimit =
-          !knownUserScopedQueries.includes(query) &&
-          (['Recently Updated', 'All Active', 'Current Sprint'].includes(query) || !isKnownQuery);
+          !knownUserScopedQueries.includes(normalizedQuery) &&
+          (['Recently Updated', 'All Active', 'Current Sprint'].includes(normalizedQuery) ||
+            !isKnownQuery);
 
         if (needsLimit) {
           logger.debug('Applying hard limit of 100 items for query', { meta: { query } });
         }
 
-        try {
-          if (/@Me\b/i.test(wiql)) {
+        // Only replace @Me if we have identityName configured (indicates on-prem/TFS)
+        // For cloud Azure DevOps, @Me works reliably and handles identity matching better
+        if (/@Me\b/i.test(wiql) && this.identityName) {
+          try {
             const resolved = await this._getAuthenticatedIdentity();
             if (resolved) {
-              const idVal = resolved.uniqueName || resolved.displayName || resolved.id;
+              const idVal =
+                resolved.uniqueName || resolved.displayName || resolved.id || this.identityName;
               if (idVal) {
                 const escaped = this._escapeWIQL(String(idVal));
                 wiqlToSend = wiql.replace(/@Me\b/g, `'${escaped}'`);
-                logger.debug('Replacing @Me with explicit identity for compatibility', {
-                  meta: { idVal },
+                logger.debug('Replacing @Me with explicit identity for on-prem compatibility', {
+                  meta: { idVal, reason: 'identityName configured' },
                 });
-              } else {
-                logger.debug('_getAuthenticatedIdentity returned no usable identifier');
               }
-            } else {
-              logger.debug('Could not resolve authenticated identity to replace @Me');
             }
+          } catch (identErr) {
+            logger.warn('Failed resolving identity for @Me replacement', { meta: identErr });
           }
-        } catch (identErr) {
-          logger.warn('Failed resolving identity for @Me replacement', { meta: identErr });
+        } else if (/@Me\b/i.test(wiql)) {
+          logger.debug('Using @Me token directly (cloud Azure DevOps)', {
+            meta: { hasIdentityName: !!this.identityName },
+          });
         }
 
         // First, try the WIQL query
-        const wiqlEndpoint = '/wit/wiql?api-version=7.0';
+        const wiqlEndpoint = '/wit/wiql?api-version=7.1';
 
         let wiqlResp;
         try {
@@ -894,15 +951,20 @@ export class AzureDevOpsIntClient {
             // Update capability cache so future queries avoid the failing path for this client lifetime
             this.preferStateCategory = false;
             // Rebuild the WIQL with legacy state filters and retry
-            const wiqlLegacy = this._buildWIQL(query, false);
+            const wiqlLegacy = this._buildWIQL(normalizedQuery, false);
             logger.debug('Fallback WIQL', { meta: { wiqlLegacy } });
             // Apply the same @Me replacement logic to the legacy WIQL as well
             let legacyToSend = wiqlLegacy;
-            try {
-              if (/@Me\b/i.test(wiqlLegacy)) {
+            // Only replace @Me if identityName is configured (on-prem/TFS)
+            if (/@Me\b/i.test(wiqlLegacy) && this.identityName) {
+              try {
                 const resolved2 = await this._getAuthenticatedIdentity();
                 if (resolved2) {
-                  const idVal2 = resolved2.uniqueName || resolved2.displayName || resolved2.id;
+                  const idVal2 =
+                    resolved2.uniqueName ||
+                    resolved2.displayName ||
+                    resolved2.id ||
+                    this.identityName;
                   if (idVal2) {
                     legacyToSend = wiqlLegacy.replace(
                       /@Me\b/g,
@@ -913,9 +975,9 @@ export class AzureDevOpsIntClient {
                     });
                   }
                 }
+              } catch (e) {
+                logger.warn('Identity resolution failed for fallback WIQL', { meta: e });
               }
-            } catch (e) {
-              logger.warn('Identity resolution failed for fallback WIQL', { meta: e });
             }
 
             wiqlResp = await this.axios.post(wiqlEndpoint, { query: legacyToSend });
@@ -929,50 +991,24 @@ export class AzureDevOpsIntClient {
             const idx = wiqlToSend.lastIndexOf('ORDER BY');
             const head = idx > -1 ? wiqlToSend.slice(0, idx).trimEnd() : wiqlToSend;
             const tail = idx > -1 ? wiqlToSend.slice(idx) : 'ORDER BY [System.ChangedDate] DESC';
-
-            // Check if query already has a ChangedDate filter - if so, replace it; otherwise add it
-            let bounded: string;
-            if (/\[System\.ChangedDate\]\s*>=\s*@Today/i.test(head)) {
-              // Replace existing ChangedDate filter with shorter window
-              bounded =
-                head.replace(
-                  /\[System\.ChangedDate\]\s*>=\s*@Today\s*-\s*\d+/i,
-                  `[System.ChangedDate] >= @Today - ${DAYS}`
-                ) +
-                '\n' +
-                tail;
-            } else {
-              // Add new ChangedDate filter
-              bounded = `${head}\nAND [System.ChangedDate] >= @Today - ${DAYS}\n${tail}`;
-            }
-
-            // Ensure project filter is present for all queries during retry.
-            // Many large result sets can be reduced by scoping to the current project.
-            // This applies to custom WIQL queries and any built-in query that might be
-            // executed in a context where project scoping is beneficial.
-            if (!/\[System\.TeamProject\]\s*=\s*@Project/i.test(bounded)) {
-              const whereIdx = bounded.indexOf('WHERE');
-              if (whereIdx > -1) {
-                bounded =
-                  bounded.slice(0, whereIdx + 5) +
-                  ` [System.TeamProject] = @Project AND` +
-                  bounded.slice(whereIdx + 5);
-              }
-            }
-
-            // Apply @Me replacement again if present
-            try {
-              if (/@Me\b/i.test(bounded)) {
+            let bounded = `${head}\nAND [System.ChangedDate] >= @Today - ${DAYS}\n${tail}`;
+            // Apply @Me replacement again if present (only for on-prem/TFS)
+            if (/@Me\b/i.test(bounded) && this.identityName) {
+              try {
                 const resolved3 = await this._getAuthenticatedIdentity();
                 if (resolved3) {
-                  const idVal3 = resolved3.uniqueName || resolved3.displayName || resolved3.id;
+                  const idVal3 =
+                    resolved3.uniqueName ||
+                    resolved3.displayName ||
+                    resolved3.id ||
+                    this.identityName;
                   if (idVal3) {
                     bounded = bounded.replace(/@Me\b/g, `'${this._escapeWIQL(String(idVal3))}'`);
                   }
                 }
+              } catch {
+                /* ignore */
               }
-            } catch {
-              /* ignore */
             }
             logger.warn('Result too large; retrying WIQL with shorter ChangedDate bound', {
               meta: { days: DAYS, query },
@@ -1013,6 +1049,41 @@ export class AzureDevOpsIntClient {
         }
 
         if (refs.length === 0) {
+          // For user-scoped queries, 0 results is legitimate (user might not have assigned items)
+          // Don't fall back to a simple query that would show all work items
+          const isUserScopedQuery = knownUserScopedQueries.includes(normalizedQuery);
+          if (isUserScopedQuery) {
+            // Log detailed diagnostics to help debug why query returned 0 results
+            const hadMeToken = /@Me\b/i.test(wiql);
+            const meWasReplaced = hadMeToken && wiqlToSend !== wiql;
+            const identityInfo = hadMeToken
+              ? await this._getAuthenticatedIdentity().catch(() => null)
+              : null;
+            logger.debug('User-scoped query returned 0 results', {
+              meta: {
+                query,
+                normalizedQuery,
+                originalWIQL: wiql,
+                sentWIQL: wiqlToSend,
+                hadMeToken,
+                meWasReplaced,
+                usingMeDirectly: hadMeToken && !meWasReplaced,
+                identityInfo: identityInfo
+                  ? {
+                      id: identityInfo.id,
+                      displayName: identityInfo.displayName,
+                      uniqueName: identityInfo.uniqueName,
+                    }
+                  : null,
+                wiqlEndpoint,
+                responseStatus: wiqlResp?.status,
+              },
+            });
+            // Still return empty - 0 results is legitimate for user-scoped queries
+            // But the detailed logging will help diagnose if there's an actual issue
+            return [];
+          }
+
           logger.debug('No work items matched query. Trying simpler query...');
 
           // Try a safer, bounded simple query to test authentication and data access
@@ -1022,7 +1093,7 @@ export class AzureDevOpsIntClient {
             AND [System.ChangedDate] >= @Today - 90
             AND [System.State] NOT IN ('Closed','Done','Resolved','Removed')
             ORDER BY [System.ChangedDate] DESC`;
-          const simpleResp = await this.axios.post('/wit/wiql?api-version=7.0', {
+          const simpleResp = await this.axios.post('/wit/wiql?api-version=7.1', {
             query: simpleWiql,
           });
           // Diagnostic: log simple query response snippet
@@ -1178,7 +1249,7 @@ export class AzureDevOpsIntClient {
 
   async getWorkItemById(id: number): Promise<WorkItem | null> {
     try {
-      const resp = await this.axios.get(`/wit/workitems/${id}?$expand=all&api-version=7.0`);
+      const resp = await this.axios.get(`/wit/workitems/${id}?$expand=all&api-version=7.1`);
       return { id: resp.data.id, fields: resp.data.fields } as WorkItem;
     } catch (err) {
       logger.error('Error fetching work item by id', { meta: err });
@@ -1188,7 +1259,7 @@ export class AzureDevOpsIntClient {
 
   async runWIQL(wiql: string): Promise<WorkItem[]> {
     try {
-      const wiqlResp = await this.axios.post('/wit/wiql?api-version=7.0', { query: wiql });
+      const wiqlResp = await this.axios.post('/wit/wiql?api-version=7.1', { query: wiql });
       if (!wiqlResp.data.workItems || wiqlResp.data.workItems.length === 0) return [];
       const idsArray = wiqlResp.data.workItems
         .map((w: any) => Number(w.id))
@@ -1256,7 +1327,7 @@ export class AzureDevOpsIntClient {
     }
 
     try {
-      const resp = await this.axios.post(`/wit/workitems/$${type}?api-version=7.0`, patch, {
+      const resp = await this.axios.post(`/wit/workitems/$${type}?api-version=7.1`, patch, {
         headers: { 'Content-Type': 'application/json-patch+json' },
       });
 
@@ -1278,7 +1349,7 @@ export class AzureDevOpsIntClient {
   }
 
   async updateWorkItem(id: number, patchOps: any[]): Promise<WorkItem> {
-    const resp = await this.axios.patch(`/wit/workitems/${id}?api-version=7.0`, patchOps, {
+    const resp = await this.axios.patch(`/wit/workitems/${id}?api-version=7.1`, patchOps, {
       headers: { 'Content-Type': 'application/json-patch+json' },
     });
     return { id: resp.data.id, fields: resp.data.fields } as WorkItem;
@@ -1302,7 +1373,7 @@ export class AzureDevOpsIntClient {
 
   async getWorkItemTypes(): Promise<any[]> {
     try {
-      const resp = await this.axios.get(`/wit/workitemtypes?api-version=7.0`);
+      const resp = await this.axios.get(`/wit/workitemtypes?api-version=7.1`);
       return resp.data.value || [];
     } catch (e) {
       logger.error('Error fetching work item types', { meta: e });
@@ -1313,7 +1384,7 @@ export class AzureDevOpsIntClient {
   async getWorkItemTypeStates(workItemType: string): Promise<string[]> {
     try {
       const resp = await this.axios.get(
-        `/wit/workitemtypes/${encodeURIComponent(workItemType)}?api-version=7.0`
+        `/wit/workitemtypes/${encodeURIComponent(workItemType)}?api-version=7.1`
       );
       const states = resp.data.states || [];
       return states.map((state: any) => state.name || state);
@@ -1325,7 +1396,7 @@ export class AzureDevOpsIntClient {
 
   async getIterations() {
     try {
-      const url = this.buildTeamApiUrl('/work/teamsettings/iterations?api-version=7.0');
+      const url = this.buildTeamApiUrl('/work/teamsettings/iterations?api-version=7.1');
       const resp = await this.axios.get(url);
       return resp.data.value || [];
     } catch (err) {
@@ -1349,7 +1420,7 @@ export class AzureDevOpsIntClient {
         }
 
         const url = this.buildTeamApiUrl(
-          '/work/teamsettings/iterations?$timeframe=current&api-version=7.0'
+          '/work/teamsettings/iterations?$timeframe=current&api-version=7.1'
         );
         const resp = await this.axios.get(url);
         const result = resp.data.value?.[0] || null;
@@ -1387,7 +1458,7 @@ export class AzureDevOpsIntClient {
         // the correct host regardless of axios.baseURL (which may include project/_apis).
         const orgTeamsUrl =
           this.baseUrl.replace(/\/$/, '') +
-          `/_apis/projects/${this.encodedProject}/teams?api-version=7.0`;
+          `/_apis/projects/${this.encodedProject}/teams?api-version=7.1`;
         // Note: build the absolute URL so axios will call the intended host rather than prefixing baseURL.
         const resp = await this.axios.get(orgTeamsUrl);
         const result = resp.data?.value || [];
@@ -1544,7 +1615,7 @@ export class AzureDevOpsIntClient {
       const payload: any = { sourceRefName, targetRefName, title };
       if (description) payload.description = description;
       const resp = await this.axios.post(
-        `/git/repositories/${repositoryId}/pullrequests?api-version=7.0`,
+        `/git/repositories/${repositoryId}/pullrequests?api-version=7.1`,
         payload
       );
       return resp.data;
