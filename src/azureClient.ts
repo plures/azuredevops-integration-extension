@@ -674,8 +674,9 @@ export class AzureDevOpsIntClient {
                         ORDER BY [System.ChangedDate] DESC`;
       case 'Recently Updated':
         return `SELECT ${fields} FROM WorkItems 
-                        WHERE [System.ChangedDate] >= @Today - 7
-                        AND [System.State] <> 'Removed'
+                        WHERE [System.TeamProject] = @Project
+                        AND [System.ChangedDate] >= @Today - 3
+                        ${activeFilter}
                         ${sprintClause}
                         ORDER BY [System.ChangedDate] DESC`;
       case 'Created By Me':
@@ -983,8 +984,10 @@ export class AzureDevOpsIntClient {
             // Also update wiql for subsequent logs/context
             wiql = wiqlLegacy;
           } else if (this._isTooManyResultsError(err)) {
-            // Server indicates the result set is too large (e.g., >20k). Retry with a ChangedDate bound.
-            const DAYS = 90;
+            // Server indicates the result set is too large (e.g., >20k).
+            // Retry with progressively shorter date windows to stay under limit.
+            // Try 1 day first (most restrictive), then fail if still too large.
+            const DAYS = 1;
             const idx = wiqlToSend.lastIndexOf('ORDER BY');
             const head = idx > -1 ? wiqlToSend.slice(0, idx).trimEnd() : wiqlToSend;
             const tail = idx > -1 ? wiqlToSend.slice(idx) : 'ORDER BY [System.ChangedDate] DESC';
@@ -1007,11 +1010,22 @@ export class AzureDevOpsIntClient {
                 /* ignore */
               }
             }
-            logger.warn('Result too large; retrying WIQL with ChangedDate bound', {
-              meta: { days: DAYS },
+            logger.warn('Result too large; retrying WIQL with shorter ChangedDate bound', {
+              meta: { days: DAYS, query },
             });
-            wiqlResp = await this.axios.post(wiqlEndpoint, { query: bounded });
-            wiql = bounded;
+            try {
+              wiqlResp = await this.axios.post(wiqlEndpoint, { query: bounded });
+              wiql = bounded;
+            } catch (retryErr: any) {
+              // If retry still fails, throw original error with helpful message
+              if (this._isTooManyResultsError(retryErr)) {
+                throw new Error(
+                  `Query "${query}" returns too many work items (>20,000). ` +
+                    `Try filtering by a specific area path, iteration, or work item type to narrow results.`
+                );
+              }
+              throw retryErr;
+            }
           } else {
             throw err;
           }

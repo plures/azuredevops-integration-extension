@@ -430,65 +430,48 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 **Design Document**: `docs/WEBVIEW_CONNECTION_ISOLATION_DESIGN.md`
 
 **Architecture Requirements:**
-
-- [x] Query selector appears below tab buttons (not adjacent)
-- [x] All controls and views are children of ConnectionView component
-- [x] FSM context includes per-connection state maps (`connectionQueries`, `connectionWorkItems`, `connectionFilters`, `connectionViewModes`)
-- [x] Components use visibility toggle (not mount/unmount) for connection switching
-- [x] Per-connection state persists when switching connections
-- [ ] Per-connection state persists across VS Code sessions (requires persistence implementation)
-
-**Component Structure:**
-
-- [x] Query selector appears below tab buttons (not adjacent)
-- [x] All controls and views are children of ConnectionView component
-- [x] FSM context includes per-connection state maps (`connectionQueries`, `connectionWorkItems`, `connectionFilters`, `connectionViewModes`)
-- [x] Components use visibility toggle (not mount/unmount) for connection switching
-- [x] Per-connection state persists when switching connections
-- [ ] Per-connection state persists across VS Code sessions (requires persistence implementation)
+- [ ] Query selector appears below tab buttons (not adjacent)
+- [ ] All controls and views are children of ConnectionView component
+- [ ] FSM context includes per-connection state maps (`connectionQueries`, `connectionWorkItems`, `connectionFilters`)
+- [ ] Components use visibility toggle (not mount/unmount) for connection switching
+- [ ] Per-connection state persists when switching connections
+- [ ] Per-connection state persists across VS Code sessions
 
 **Component Structure:**
-
-- [x] `ConnectionViews.svelte` container component created
-- [x] `ConnectionView.svelte` per-connection component created
-- [x] Query selector moved into `ConnectionView` (below tabs)
-- [ ] Filters moved into `ConnectionView` (below tabs) - placeholder ready
-- [x] WorkItemList scoped to `ConnectionView`
-- [x] StatusBar scoped to `ConnectionView`
+- [ ] `ConnectionViews.svelte` container component created
+- [ ] `ConnectionView.svelte` per-connection component created
+- [ ] Query selector moved into `ConnectionView` (below tabs)
+- [ ] Filters moved into `ConnectionView` (below tabs)
+- [ ] WorkItemList scoped to `ConnectionView`
+- [ ] StatusBar scoped to `ConnectionView`
 
 **State Management:**
-
-- [x] FSM actions for `SET_CONNECTION_QUERY` implemented
-- [x] FSM actions for `SET_CONNECTION_WORK_ITEMS` implemented
-- [x] FSM actions for `SET_CONNECTION_FILTERS` implemented
-- [x] FSM actions for `SET_CONNECTION_VIEW_MODE` implemented
-- [x] FSM actions for `SELECT_CONNECTION` implemented
-- [x] Per-connection state maps initialized in context
-- [ ] State restoration from `globalState` on activation (requires persistence implementation)
+- [ ] FSM actions for `SET_CONNECTION_QUERY` implemented
+- [ ] FSM actions for `SET_CONNECTION_WORK_ITEMS` implemented
+- [ ] FSM actions for `SET_CONNECTION_FILTERS` implemented
+- [ ] Per-connection state maps initialized in context
+- [ ] State restoration from `globalState` on activation
 
 **Data Loading:**
-
-- [x] Provider instances created per connection (existing architecture)
-- [x] Data loading populates `connectionWorkItems` map
-- [ ] Background refresh updates inactive connections (optional - not yet implemented)
-- [x] Query changes trigger refresh for specific connection only
+- [ ] Provider instances created per connection
+- [ ] Data loading populates `connectionWorkItems` map
+- [ ] Background refresh updates inactive connections (optional)
+- [ ] Query changes trigger refresh for specific connection only
 
 **User Experience:**
-
-- [x] Query selection persists when switching connections
-- [x] Work items persist when switching connections
-- [x] Filters persist when switching connections (structure ready)
-- [x] View mode (list/kanban) persists per connection
-- [ ] Selected items persist per connection (requires UI state implementation)
-- [x] Instant switching (no loading delay for cached data)
-- [x] No data loss when switching connections rapidly
+- [ ] Query selection persists when switching connections
+- [ ] Work items persist when switching connections
+- [ ] Filters persist when switching connections
+- [ ] View mode (list/kanban) persists per connection
+- [ ] Selected items persist per connection
+- [ ] Instant switching (no loading delay for cached data)
+- [ ] No data loss when switching connections rapidly
 
 **Performance:**
-
-- [x] Components don't unmount/remount on connection switch
-- [x] Data persists in memory for all connections
-- [ ] Acceptable performance with multiple connections (5+) - needs testing
-- [ ] Memory usage is reasonable - needs monitoring
+- [ ] Components don't unmount/remount on connection switch
+- [ ] Data persists in memory for all connections
+- [ ] Acceptable performance with multiple connections (5+)
+- [ ] Memory usage is reasonable
 
 #### Upgrade Validation: Connections
 

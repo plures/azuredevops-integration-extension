@@ -26,7 +26,7 @@ const QUERY_OPTIONS = [
   {
     value: 'Recently Updated',
     label: 'Recently Updated',
-    description: 'Work items updated in the last 14 days',
+    description: 'Work items updated in the last 3 days',
   },
   { value: 'Following', label: 'Following', description: "Work items I'm following" },
   { value: 'Mentioned', label: 'Mentioned', description: "Work items where I've been mentioned" },
