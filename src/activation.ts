@@ -2967,7 +2967,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
   ) {
     this.view = webviewView;
     panel = webviewView; // Store in global for snapshot subscription
-    
+
     // CRITICAL: When panel is created, immediately send current FSM state
     // This ensures work items loaded before panel creation are sent to webview
     // (State will be sent below after webview setup is complete)

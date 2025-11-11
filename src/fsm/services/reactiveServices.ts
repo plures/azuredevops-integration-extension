@@ -59,7 +59,7 @@ export const createVSCodeReadinessService = () => {
             }
             return;
           }
-        } catch (err) {
+        } catch {
           // VS Code not ready yet - this is expected during activation
           readyCheckCount++;
           if (readyCheckCount < maxChecks) {
@@ -162,7 +162,7 @@ export const createNotificationDisplayService = () => {
               selection: selection || 'Dismiss',
             });
           }
-        } catch (err) {
+        } catch {
           // VS Code not ready - wait for next event loop tick and retry
           // This is event-driven retry, not polling
           setImmediate(() => {

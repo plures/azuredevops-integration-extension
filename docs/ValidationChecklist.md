@@ -430,6 +430,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 **Design Document**: `docs/WEBVIEW_CONNECTION_ISOLATION_DESIGN.md`
 
 **Architecture Requirements:**
+
 - [ ] Query selector appears below tab buttons (not adjacent)
 - [ ] All controls and views are children of ConnectionView component
 - [ ] FSM context includes per-connection state maps (`connectionQueries`, `connectionWorkItems`, `connectionFilters`)
@@ -438,6 +439,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [ ] Per-connection state persists across VS Code sessions
 
 **Component Structure:**
+
 - [ ] `ConnectionViews.svelte` container component created
 - [ ] `ConnectionView.svelte` per-connection component created
 - [ ] Query selector moved into `ConnectionView` (below tabs)
@@ -446,6 +448,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [ ] StatusBar scoped to `ConnectionView`
 
 **State Management:**
+
 - [ ] FSM actions for `SET_CONNECTION_QUERY` implemented
 - [ ] FSM actions for `SET_CONNECTION_WORK_ITEMS` implemented
 - [ ] FSM actions for `SET_CONNECTION_FILTERS` implemented
@@ -453,12 +456,14 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [ ] State restoration from `globalState` on activation
 
 **Data Loading:**
+
 - [ ] Provider instances created per connection
 - [ ] Data loading populates `connectionWorkItems` map
 - [ ] Background refresh updates inactive connections (optional)
 - [ ] Query changes trigger refresh for specific connection only
 
 **User Experience:**
+
 - [ ] Query selection persists when switching connections
 - [ ] Work items persist when switching connections
 - [ ] Filters persist when switching connections
@@ -468,6 +473,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [ ] No data loss when switching connections rapidly
 
 **Performance:**
+
 - [ ] Components don't unmount/remount on connection switch
 - [ ] Data persists in memory for all connections
 - [ ] Acceptable performance with multiple connections (5+)
