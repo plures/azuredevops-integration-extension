@@ -41,6 +41,7 @@ import {
   updateRefreshStatus,
 } from '../functions/ui/error-handling.js';
 import { FSM_CONFIG } from '../config.js';
+import { clearConnectionCaches } from '../functions/connection/branchEnrichment.js';
 
 // ============================================================================
 // APPLICATION STATE DEFINITIONS
@@ -501,9 +502,26 @@ export const applicationMachine = createMachine(
                     on: {
                       CONFIRM_DELETE_CONNECTION: {
                         target: 'idle',
-                        actions: assign({
-                          connections: ({ context, event }) => deleteConnection(context, event),
-                        }),
+                        actions: [
+                          assign({
+                            connections: ({ context, event }) => deleteConnection(context, event),
+                            connectionStates: ({ context, event }) => {
+                              const deletedConnectionId = event.connectionId;
+                              const newConnectionStates = new Map(context.connectionStates);
+                              newConnectionStates.delete(deletedConnectionId);
+                              return newConnectionStates;
+                            },
+                            activeConnectionId: ({ context, event }) => {
+                              const deletedConnectionId = event.connectionId;
+                              const newConnections = deleteConnection(context, event);
+                              if (context.activeConnectionId === deletedConnectionId) {
+                                return newConnections.length > 0 ? newConnections[0].id : undefined;
+                              }
+                              return context.activeConnectionId;
+                            },
+                          }),
+                          'persistConnectionsAfterDelete',
+                        ],
                       },
                       CANCEL_CONNECTION_MANAGEMENT: 'idle',
                     },
@@ -1275,6 +1293,60 @@ export const applicationMachine = createMachine(
         // We do NOT mutate connections here; the real onDone handler (if it fires) will overwrite.
         return { ...context };
       }),
+      persistConnectionsAfterDelete: async ({ context, event }) => {
+        if (event.type !== 'CONFIRM_DELETE_CONNECTION') return;
+        if (!context.extensionContext) {
+          appLogger.warn('persistConnectionsAfterDelete: No extensionContext available');
+          return;
+        }
+
+        const deletedConnectionId = event.connectionId;
+        const newConnections = deleteConnection(context, event);
+
+        try {
+          // Save connections to VS Code settings
+          const settings = vscode.workspace.getConfiguration('azureDevOpsIntegration');
+          const serialized = newConnections.map((entry) => ({ ...entry }));
+          await settings.update('connections', serialized, vscode.ConfigurationTarget.Global);
+
+          appLogger.debug('Persisted connections after deletion', undefined, {
+            deletedConnectionId,
+            remainingConnectionsCount: newConnections.length,
+            remainingConnectionIds: newConnections.map((c) => c.id),
+          });
+
+          // Clean up connection caches
+          clearConnectionCaches(deletedConnectionId);
+
+          // Update active connection if the deleted one was active
+          const validIds = new Set(newConnections.map((item) => item.id));
+          if (context.activeConnectionId === deletedConnectionId) {
+            const nextActive = newConnections.length > 0 ? newConnections[0].id : undefined;
+            if (nextActive) {
+              await context.extensionContext.globalState.update(
+                'azureDevOpsInt.activeConnectionId',
+                nextActive
+              );
+            } else {
+              await context.extensionContext.globalState.update(
+                'azureDevOpsInt.activeConnectionId',
+                undefined
+              );
+            }
+          } else if (context.activeConnectionId && !validIds.has(context.activeConnectionId)) {
+            // Handle case where active connection was somehow invalid
+            const nextActive = newConnections.length > 0 ? newConnections[0].id : undefined;
+            if (nextActive) {
+              await context.extensionContext.globalState.update(
+                'azureDevOpsInt.activeConnectionId',
+                nextActive
+              );
+            }
+          }
+        } catch (error) {
+          appLogger.error('Failed to persist connections after deletion', undefined, { error });
+        }
+      },
     },
     actors: {
       performActivation: fromPromise(async () => {
