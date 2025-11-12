@@ -67,12 +67,63 @@ export class FSMSetupService {
       })),
     });
 
+    // Create real implementations of saveConnections and ensureActiveConnection
+    const saveConnections = async (connections: ProjectConnection[]): Promise<void> => {
+      const configSettings = vscode.workspace.getConfiguration('azureDevOpsIntegration');
+      // Serialize connections, explicitly removing undefined values
+      const serialized = connections.map((entry) => {
+        const { patKey, ...rest } = entry;
+        // Only include patKey if it exists (for PAT connections)
+        return patKey ? { ...rest, patKey } : rest;
+      });
+      await configSettings.update('connections', serialized, vscode.ConfigurationTarget.Global);
+      logger.info('✅ Connections saved to VS Code settings', {
+        count: serialized.length,
+        connectionIds: serialized.map((c: any) => c.id),
+      });
+
+      // CRITICAL: Update bridge reader immediately so FSM can see the new connection
+      // This ensures the connection is available when ensureActiveConnection is called
+      try {
+        const { setLoadedConnectionsReader } = await import('../services/extensionHostBridge.js');
+        setLoadedConnectionsReader(() => connections);
+        logger.debug('Bridge reader updated with saved connections', {
+          count: connections.length,
+        });
+      } catch (error) {
+        logger.warn('Failed to update bridge reader', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+
+    const ensureActiveConnection = async (
+      context: vscode.ExtensionContext,
+      connectionId?: string,
+      options?: { refresh?: boolean; interactive?: boolean }
+    ): Promise<any> => {
+      // Import ConnectionAdapter and related modules dynamically to avoid circular dependencies
+      const { getConnectionFSMManager } = await import('../ConnectionFSMManager.js');
+      const { ConnectionAdapter } = await import('../adapters/ConnectionAdapter.js');
+      const fsmManager = getConnectionFSMManager();
+      if (!fsmManager) {
+        logger.warn('ConnectionFSMManager not available');
+        return undefined;
+      }
+      // Create ConnectionAdapter instance (same pattern as activation.ts)
+      const adapter = new ConnectionAdapter(fsmManager, async () => undefined, true);
+      adapter.setUseFSM(true);
+      return await adapter.ensureActiveConnection(context, connectionId, options);
+    };
+
     // Create and start the setup machine
     const actor = createActor(setupMachine, {
       input: {
         extensionContext: this.context,
         existingConnections,
         activeConnectionId,
+        saveConnections,
+        ensureActiveConnection,
       } as any,
     });
 

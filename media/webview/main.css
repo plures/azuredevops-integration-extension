@@ -1,4 +1,4 @@
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/Settings.esbuild-svelte-fake-css */
+/* fakecss:C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/RbIGN/src/webview/components/Settings.esbuild-svelte-fake-css */
 .settings.svelte-1k6z38r {
   display: flex;
   flex-direction: column;
@@ -84,7 +84,7 @@ button.danger.svelte-1k6z38r:hover {
   border-top: 1px solid var(--vscode-panel-border);
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/ConnectionTabs.esbuild-svelte-fake-css */
+/* fakecss:C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/RbIGN/src/webview/components/ConnectionTabs.esbuild-svelte-fake-css */
 .tab-bar.svelte-2w6d2o {
   display: flex;
   gap: 0.25rem;
@@ -150,7 +150,7 @@ button.danger.svelte-1k6z38r:hover {
   display: none;
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/Dropdown.esbuild-svelte-fake-css */
+/* fakecss:C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/RbIGN/src/webview/components/Dropdown.esbuild-svelte-fake-css */
 .custom-dropdown.svelte-y8wbtj {
   position: relative;
   display: inline-block;
@@ -232,7 +232,7 @@ button.danger.svelte-1k6z38r:hover {
   color: var(--vscode-list-focusForeground, var(--vscode-list-hoverForeground));
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/ErrorBanner.esbuild-svelte-fake-css */
+/* fakecss:C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/RbIGN/src/webview/components/ErrorBanner.esbuild-svelte-fake-css */
 .error-banner.svelte-1ju6edo {
   display: flex;
   align-items: center;
@@ -300,7 +300,7 @@ button.danger.svelte-1k6z38r:hover {
   background: var(--vscode-list-hoverBackground);
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/EmptyState.esbuild-svelte-fake-css */
+/* fakecss:C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/RbIGN/src/webview/components/EmptyState.esbuild-svelte-fake-css */
 .empty-state.svelte-qlco7a {
   display: flex;
   align-items: center;
@@ -346,7 +346,7 @@ button.danger.svelte-1k6z38r:hover {
   background: var(--vscode-button-hoverBackground);
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/WorkItemList.esbuild-svelte-fake-css */
+/* fakecss:C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/RbIGN/src/webview/components/WorkItemList.esbuild-svelte-fake-css */
 .work-item-list.svelte-1uil3z2 {
   display: flex;
   flex-direction: column;
@@ -658,7 +658,7 @@ button.svelte-1uil3z2:hover {
   line-height: 1;
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/KanbanBoard.esbuild-svelte-fake-css */
+/* fakecss:C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/RbIGN/src/webview/components/KanbanBoard.esbuild-svelte-fake-css */
 .kanban-board.svelte-j9p4i1 {
   display: flex;
   flex-direction: column;
@@ -817,7 +817,7 @@ h3.svelte-j9p4i1 {
   color: var(--vscode-descriptionForeground);
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/ConnectionStatus.esbuild-svelte-fake-css */
+/* fakecss:C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/RbIGN/src/webview/components/ConnectionStatus.esbuild-svelte-fake-css */
 .connection-status.svelte-ky1zja {
   display: flex;
   align-items: center;
@@ -854,7 +854,7 @@ h3.svelte-j9p4i1 {
   font-size: 0.75rem;
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/StatusBar.esbuild-svelte-fake-css */
+/* fakecss:C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/RbIGN/src/webview/components/StatusBar.esbuild-svelte-fake-css */
 .status-bar.svelte-1764dnv {
   display: flex;
   gap: 1rem;
@@ -877,6 +877,9 @@ h3.svelte-j9p4i1 {
 .value.svelte-1764dnv {
   font-weight: 500;
 }
+.connection-info.svelte-1764dnv {
+  color: var(--vscode-foreground);
+}
 .timer-active.svelte-1764dnv {
   color: var(--vscode-statusBarItem-prominentForeground);
   background: var(--vscode-statusBarItem-prominentBackground);
@@ -884,7 +887,7 @@ h3.svelte-j9p4i1 {
   border-radius: 3px;
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/ConnectionView.esbuild-svelte-fake-css */
+/* fakecss:C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/RbIGN/src/webview/components/ConnectionView.esbuild-svelte-fake-css */
 .connection-view.svelte-5unw23 {
   display: none;
 }
@@ -897,21 +900,24 @@ h3.svelte-j9p4i1 {
   gap: 0.75rem;
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/ConnectionViews.esbuild-svelte-fake-css */
+/* fakecss:C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/RbIGN/src/webview/components/ConnectionViews.esbuild-svelte-fake-css */
 .connection-views.svelte-19sc4ta {
   display: flex;
   flex-direction: column;
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/AuthReminder.esbuild-svelte-fake-css */
+/* fakecss:C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/RbIGN/src/webview/components/AuthReminder.esbuild-svelte-fake-css */
 .auth-reminder-banner.svelte-cv3w9g {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
   border-radius: 4px;
   margin-bottom: 1rem;
   color: var(--vscode-foreground);
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .auth-reminder-banner.error.svelte-cv3w9g {
   background: var(--vscode-inputValidation-errorBackground);
@@ -927,9 +933,17 @@ h3.svelte-j9p4i1 {
   font-size: 1.2rem;
   flex-shrink: 0;
 }
+.auth-message-container.svelte-cv3w9g {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 100%;
+}
 .auth-message.svelte-cv3w9g {
-  flex: 1;
   font-size: 0.9rem;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+div.auth-message.svelte-cv3w9g {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -952,28 +966,68 @@ h3.svelte-j9p4i1 {
   display: flex;
   gap: 0.5rem;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  flex-basis: auto;
+}
+@media (max-width: 800px) {
+  .auth-reminder-banner.svelte-cv3w9g {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .auth-message-container.svelte-cv3w9g {
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 0.5rem;
+  }
+  .auth-actions.svelte-cv3w9g {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 .auth-action.svelte-cv3w9g {
-  padding: 0.35rem 0.7rem;
-  font-size: 0.85rem;
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  margin: 0;
+  background: transparent;
   border: none;
-  border-radius: 3px;
+  border-radius: 4px;
   cursor: pointer;
+  color: var(--vscode-icon-foreground);
+  transition: background-color 0.2s ease;
 }
 .auth-action.svelte-cv3w9g:hover {
-  background: var(--vscode-button-hoverBackground);
+  background: var(--vscode-toolbar-hoverBackground);
+}
+.auth-action.svelte-cv3w9g:active {
+  background: var(--vscode-toolbar-activeBackground);
+}
+.auth-action.svelte-cv3w9g .codicon:where(.svelte-cv3w9g) {
+  font-family: "codicon";
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  display: inline-block;
+  text-decoration: none;
+  text-rendering: auto;
+  text-align: center;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
 }
 .auth-action.secondary.svelte-cv3w9g {
-  background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
-  color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
+  opacity: 0.8;
 }
 .auth-action.secondary.svelte-cv3w9g:hover {
-  background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-hoverBackground));
+  opacity: 1;
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/WebviewHeader.esbuild-svelte-fake-css */
+/* fakecss:C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/RbIGN/src/webview/components/WebviewHeader.esbuild-svelte-fake-css */
 .webview-header.svelte-1bw0sfy {
   display: flex;
   align-items: center;
@@ -1034,7 +1088,7 @@ h3.svelte-j9p4i1 {
   }
 }
 
-/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/App.esbuild-svelte-fake-css */
+/* fakecss:C:/Users/kayod/.cursor/worktrees/azuredevops-integration-extension/RbIGN/src/webview/App.esbuild-svelte-fake-css */
 main.svelte-db2r4i {
   padding: 1rem;
   font-family: var(--vscode-font-family, sans-serif);

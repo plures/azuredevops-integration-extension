@@ -62,8 +62,9 @@ export const setupMachine = createMachine(
       extensionContext: (input as any)?.extensionContext,
       connections: (input as any)?.existingConnections || [],
       activeConnectionId: (input as any)?.activeConnectionId,
-      saveConnections: async () => {},
-      ensureActiveConnection: async () => {},
+      // Use real functions from input if provided, otherwise use no-ops for tests
+      saveConnections: (input as any)?.saveConnections || (async () => {}),
+      ensureActiveConnection: (input as any)?.ensureActiveConnection || (async () => {}),
     }),
     states: {
       [SetupStates.IDLE]: {
