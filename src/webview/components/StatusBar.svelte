@@ -15,23 +15,72 @@ LLM-GUARD:
 <script lang="ts">
   import ConnectionStatus from './ConnectionStatus.svelte';
 
-  export let context: any;
+  interface Connection {
+    id: string;
+    label?: string;
+    organization?: string;
+    project?: string;
+  }
 
-  $: timerState = context?.timerActor?.state || 'idle';
-  $: activeConnectionId = context?.activeConnectionId;
-  $: connections = context?.connections || [];
-  $: activeConnection = connections.find((c: any) => c.id === activeConnectionId);
-  $: uiState = context?.ui;
-  $: connectionHealth = uiState?.connectionHealth;
-  $: refreshStatus = uiState?.refreshStatus;
+  interface TimerActor {
+    state?: string;
+  }
 
-  function formatConnectionLabel(conn: any): string {
+  interface UIState {
+    connectionHealth?: {
+      status: 'healthy' | 'error' | 'warning' | 'unknown';
+      lastSuccess?: number;
+      lastFailure?: number;
+    };
+    refreshStatus?: {
+      lastAttempt: number;
+      success: boolean;
+      error?: string;
+      nextAutoRefresh?: number;
+    };
+  }
+
+  interface Context {
+    timerActor?: TimerActor;
+    activeConnectionId?: string;
+    connections?: Connection[];
+    ui?: UIState;
+  }
+
+  interface Props {
+    context: Context;
+  }
+
+  const { context }: Props = $props();
+
+  // Use $derived instead of $: reactive statements (Svelte 5 best practice)
+  const timerState = $derived(context?.timerActor?.state || 'idle');
+  const activeConnectionId = $derived(context?.activeConnectionId);
+  const connections = $derived(context?.connections || []);
+  const activeConnection = $derived.by(() =>
+    connections.find((c) => c.id === activeConnectionId)
+  );
+  const uiState = $derived(context?.ui);
+  const connectionHealth = $derived(uiState?.connectionHealth);
+  const refreshStatus = $derived(uiState?.refreshStatus);
+
+  function formatConnectionLabel(conn: Connection | undefined): string {
     if (!conn) return 'No connection';
-    return conn.label || `${conn.organization}/${conn.project}`;
+    if (conn.label) return conn.label;
+    if (conn.organization && conn.project) {
+      return `${conn.organization}/${conn.project}`;
+    }
+    return conn.id;
   }
 </script>
 
 <div class="status-bar">
+  {#if activeConnection}
+    <div class="status-section connection-info">
+      <span class="label">Connection:</span>
+      <span class="value">{formatConnectionLabel(activeConnection)}</span>
+    </div>
+  {/if}
   {#if connectionHealth || refreshStatus}
     <ConnectionStatus {connectionHealth} {refreshStatus} />
   {/if}
@@ -68,6 +117,10 @@ LLM-GUARD:
 
   .value {
     font-weight: 500;
+  }
+
+  .connection-info {
+    color: var(--vscode-foreground);
   }
 
   .timer-active {

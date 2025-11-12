@@ -151,13 +151,29 @@ LLM-GUARD:
   <!-- Entra Device Code Banner -->
   <div class="auth-reminder-banner warning">
     <span class="auth-icon">🔐</span>
-    <span class="auth-message">
-      Authentication Required: Enter code <strong>{deviceCodeSession.userCode}</strong> in your
-      browser ({deviceCodeExpiresInMinutes}m left)
-    </span>
+    <div class="auth-message-container">
+      <span class="auth-message">
+        Authentication Required: Enter code <strong>{deviceCodeSession.userCode}</strong> in your
+        browser ({deviceCodeExpiresInMinutes}m left)
+      </span>
+    </div>
     <div class="auth-actions">
-      <button class="auth-action" onclick={copyAndOpenDeviceCode}>Copy & Open</button>
-      <button class="auth-action secondary" onclick={handleCancelDeviceCode}>Cancel</button>
+      <button
+        class="auth-action"
+        onclick={copyAndOpenDeviceCode}
+        title="Copy code and open browser"
+        aria-label="Copy code and open browser"
+      >
+        <span class="codicon">📋</span>
+      </button>
+      <button
+        class="auth-action secondary"
+        onclick={handleCancelDeviceCode}
+        title="Cancel authentication"
+        aria-label="Cancel authentication"
+      >
+        <span class="codicon">✗</span>
+      </button>
     </div>
   </div>
 {/if}
@@ -165,12 +181,15 @@ LLM-GUARD:
 <style>
   .auth-reminder-banner {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
     gap: 0.75rem;
     padding: 0.75rem 1rem;
     border-radius: 4px;
     margin-bottom: 1rem;
     color: var(--vscode-foreground);
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   .auth-reminder-banner.error {
@@ -190,9 +209,19 @@ LLM-GUARD:
     flex-shrink: 0;
   }
 
+  .auth-message-container {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .auth-message {
-    flex: 1;
     font-size: 0.9rem;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  div.auth-message {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
@@ -219,29 +248,76 @@ LLM-GUARD:
     display: flex;
     gap: 0.5rem;
     flex-shrink: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    flex-basis: auto;
+  }
+
+  /* Force buttons to wrap below text when space is limited */
+  /* Stack vertically on smaller/medium screens to prevent overflow */
+  @media (max-width: 800px) {
+    .auth-reminder-banner {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .auth-message-container {
+      width: 100%;
+      max-width: 100%;
+      margin-bottom: 0.5rem;
+    }
+
+    .auth-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
   }
 
   .auth-action {
-    padding: 0.35rem 0.7rem;
-    font-size: 0.85rem;
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    margin: 0;
+    background: transparent;
     border: none;
-    border-radius: 3px;
+    border-radius: 4px;
     cursor: pointer;
+    color: var(--vscode-icon-foreground);
+    transition: background-color 0.2s ease;
   }
 
   .auth-action:hover {
-    background: var(--vscode-button-hoverBackground);
+    background: var(--vscode-toolbar-hoverBackground);
+  }
+
+  .auth-action:active {
+    background: var(--vscode-toolbar-activeBackground);
+  }
+
+  .auth-action .codicon {
+    font-family: 'codicon';
+    font-size: 16px;
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    display: inline-block;
+    text-decoration: none;
+    text-rendering: auto;
+    text-align: center;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    user-select: none;
   }
 
   .auth-action.secondary {
-    background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
-    color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
+    opacity: 0.8;
   }
 
   .auth-action.secondary:hover {
-    background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-hoverBackground));
+    opacity: 1;
   }
 </style>
 
