@@ -7,10 +7,12 @@ Purpose: Custom header with action buttons matching VS Code header functionality
   interface Props {
     context?: any;
     sendEvent?: (event: any) => void;
-    vscode?: any;
   }
   
-  const { context, sendEvent, vscode }: Props = $props();
+  const { context, sendEvent }: Props = $props();
+  
+  // Get VS Code API instance from global window (set in main.ts)
+  const vscode = (window as any).__vscodeApi;
   
   // Refresh button state for animation
   let isRefreshing = $state(false);
