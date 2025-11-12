@@ -309,6 +309,8 @@ build-*.ts
 release-*.js
 release-*.mjs
 release-*.ts
+# Allow release scripts in scripts/ directory
+!scripts/release-*.js
 
 # Temporary validation files
 validate-*.js
@@ -330,6 +332,8 @@ fix-*.ts
 update-*.js
 update-*.mjs
 update-*.ts
+# Allow update scripts in scripts/ directory
+!scripts/update-*.js
 
 # Temporary generate files
 generate-*.js
