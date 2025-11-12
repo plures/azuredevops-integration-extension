@@ -6,6 +6,22 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.2.0] - 2025-11-12
+
+### Added
+
+- enhance connection deletion with cache clearing and persistence
+
+### Fixed
+
+- restore missing release automation scripts (#89)
+
+### Other
+
+- Issue with connections command triggering (#86)
+- Troubleshooting connection and device code flow (#85)
+
+
 ## [2.0.9] - 2025-11-10
 
 ### Fixed
