@@ -37,13 +37,19 @@ jobs:
           TAG_COMMIT=$(git rev-parse $TAG_NAME)
           if git merge-base --is-ancestor $TAG_COMMIT origin/main; then
             echo "is_on_main=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Tag $TAG_NAME commit is on main branch"
           else
             echo "is_on_main=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Tag $TAG_NAME commit is NOT on main branch"
           fi
+          
+          # Debug: Show what was set
+          echo "Debug: tag_name output will be: $TAG_NAME"
+          echo "Debug: is_on_main check result: $(git merge-base --is-ancestor $TAG_COMMIT origin/main && echo 'true' || echo 'false')"
 
   build-package-and-publish:
     needs: verify-release
-    if: needs.verify-release.outputs.is_on_main == 'true'
+    if: ${{ needs.verify-release.outputs.is_on_main == 'true' }}
     runs-on: ubuntu-latest
     env:
       VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
