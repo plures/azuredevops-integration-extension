@@ -619,6 +619,23 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [ ] Performance requirements are met
 - [ ] Accessibility standards are followed
 
+### Multi-Platform Support (Visual Studio Extension)
+
+- [ ] Platform abstraction layer implemented (`PlatformAdapter` interface)
+- [ ] VS Code adapter wraps all vscode API calls
+- [ ] Visual Studio adapter implements platform interface
+- [ ] Platform detection works correctly
+- [ ] Activation flow works on both platforms
+- [ ] Command registration works on both platforms
+- [ ] Webview creation works on both platforms
+- [ ] Storage/secret APIs work on both platforms
+- [ ] Build system supports both platforms
+- [ ] Visual Studio manifest (`source.extension.vsixmanifest`) created
+- [ ] Visual Studio packaging script implemented
+- [ ] Tests pass on both platforms
+- [ ] Documentation updated for Visual Studio support
+- [ ] Visual Studio Marketplace listing created
+
 ## Final Release Checklist
 
 ### Pre-Release
