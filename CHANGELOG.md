@@ -6,6 +6,14 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.2.3] - 2025-11-13
+
+### Fixed
+
+- simplify condition syntax in release workflow
+- fix tag name resolution in release workflow
+
+
 ## [2.2.2] - 2025-11-13
 
 ### Fixed
