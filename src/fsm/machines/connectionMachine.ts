@@ -550,13 +550,14 @@ export const connectionMachine = createMachine(
               }),
             },
             {
-              // CRITICAL: For Entra auth, trigger interactive authentication instead of token refresh
-              // Token refresh for Entra is handled by the authentication flow, not a separate refresh
-              target: ConnectionStates.AUTHENTICATING,
+              // SECURITY FIX: For Entra auth, transition to AUTH_FAILED to show auth reminder
+              // User must click "Re-authenticate" button before browser opens
+              // This prevents automatic browser opening and allows user to see which connection needs reauth
+              target: ConnectionStates.AUTH_FAILED,
               guard: 'isEntraAuth',
               actions: assign({
                 retryCount: 0,
-                forceInteractive: true, // Force interactive auth for Entra token expiration
+                lastError: 'Entra ID authentication expired. Please re-authenticate.',
               }),
             },
             {
@@ -586,10 +587,23 @@ export const connectionMachine = createMachine(
               connectionId: context.connectionId,
             });
 
-            // Log to output channel as reliable fallback notification
+            // Notify application machine about authentication failure
+            // This ensures connection health is updated and auth reminders are shown
             const errorMessage = context.lastError || 'Authentication failed';
-            const connectionLabel = context.config?.label || context.connectionId;
             const authMethod = context.authMethod || context.config?.authMethod || 'pat';
+
+            if (authMethod === 'entra') {
+              // For Entra auth failures, notify application machine to update connection health
+              // This will trigger the auth reminder UI to show
+              sendApplicationStoreEvent({
+                type: 'AUTHENTICATION_FAILED',
+                connectionId: context.connectionId,
+                error: errorMessage,
+              });
+            }
+
+            // Log to output channel as reliable fallback notification
+            const connectionLabel = context.config?.label || context.connectionId;
             const authLabel = authMethod === 'entra' ? 'Entra ID' : 'PAT';
 
             // Import output channel utilities and log immediately

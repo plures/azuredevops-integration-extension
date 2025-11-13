@@ -240,6 +240,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Authentication errors are handled properly
 - [x] Entra token expiration triggers interactive re-auth (no legacy refresh path)
 - [x] Status bar shows "Connecting..." during retries (no premature failure)
+- [x] Entra ID reauth requires user confirmation before browser opens (security fix: prevents automatic browser opening)
 
 ### Input Validation
 
