@@ -6,6 +6,14 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.2.4] - 2025-11-13
+
+### Fixed
+
+- always run build job for workflow_dispatch in release workflow
+- fix condition syntax and add debugging to release workflow
+
+
 ## [2.2.3] - 2025-11-13
 
 ### Fixed
