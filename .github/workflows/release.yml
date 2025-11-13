@@ -43,7 +43,7 @@ jobs:
 
   build-package-and-publish:
     needs: verify-release
-    if: ${{ needs.verify-release.outputs.is_on_main == 'true' }}
+    if: needs.verify-release.outputs.is_on_main == 'true'
     runs-on: ubuntu-latest
     env:
       VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
