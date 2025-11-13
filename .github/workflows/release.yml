@@ -49,7 +49,9 @@ jobs:
 
   build-package-and-publish:
     needs: verify-release
-    if: ${{ needs.verify-release.outputs.is_on_main == 'true' }}
+    # For workflow_dispatch, always run (user manually triggered)
+    # For tag push events, only run if tag is on main
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.verify-release.outputs.is_on_main == 'true' }}
     runs-on: ubuntu-latest
     env:
       VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
