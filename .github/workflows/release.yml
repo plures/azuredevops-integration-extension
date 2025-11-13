@@ -27,14 +27,9 @@ jobs:
           fetch-depth: 0
       - name: Verify tag commit is on main
         id: verify
+        env:
+          TAG_NAME: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
-          # Determine tag name from event
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG_NAME="${{ github.event.inputs.tag }}"
-          else
-            TAG_NAME="${{ github.ref_name }}"
-          fi
-          
           echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
           
           # Fetch origin/main and check whether the tagged commit is contained in main
