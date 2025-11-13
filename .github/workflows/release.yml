@@ -7,20 +7,40 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v2.2.1)'
+        required: true
+        type: string
 
 jobs:
   verify-release:
     runs-on: ubuntu-latest
     outputs:
       is_on_main: ${{ steps.verify.outputs.is_on_main }}
+      tag_name: ${{ steps.verify.outputs.tag_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+          fetch-depth: 0
       - name: Verify tag commit is on main
         id: verify
         run: |
+          # Determine tag name from event
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_NAME="${{ github.event.inputs.tag }}"
+          else
+            TAG_NAME="${{ github.ref_name }}"
+          fi
+          
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          
           # Fetch origin/main and check whether the tagged commit is contained in main
           git fetch origin main --depth=1
-          if git merge-base --is-ancestor $GITHUB_SHA origin/main; then
+          TAG_COMMIT=$(git rev-parse $TAG_NAME)
+          if git merge-base --is-ancestor $TAG_COMMIT origin/main; then
             echo "is_on_main=true" >> "$GITHUB_OUTPUT"
           else
             echo "is_on_main=false" >> "$GITHUB_OUTPUT"
@@ -34,6 +54,8 @@ jobs:
       VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-release.outputs.tag_name }}
       - name: Use Node.js 24
         uses: actions/setup-node@v4
         with:
@@ -54,10 +76,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
+          tag_name: ${{ needs.verify-release.outputs.tag_name }}
+          name: Release ${{ needs.verify-release.outputs.tag_name }}
           body: |
-            Release ${{ github.ref_name }}
+            Release ${{ needs.verify-release.outputs.tag_name }}
 
             See [CHANGELOG.md](https://github.com/plures/azuredevops-integration-extension/blob/main/CHANGELOG.md) for details.
           files: azuredevops-integration-extension-${{ steps.version.outputs.version }}.vsix
