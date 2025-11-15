@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.2.6] - 2025-11-15
+
+### Other
+
+- build(deps-dev): bump svelte from 3.59.2 to 5.43.6 in the npm_and_yarn group across 1 directory (#91)
+
+
 ## [2.2.5] - 2025-11-15
 
 ### Other
