@@ -8,3 +8,19 @@ node_modules
 !.env.example
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Desktop app specific
+node_modules/
+dist/
+build/
+.svelte-kit/
+.tauri/
+
+# Dependencies
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Build outputs
+*.log
+*.vsix
