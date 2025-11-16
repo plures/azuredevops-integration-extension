@@ -183,6 +183,26 @@ The wizard auto-detects your organization, project, and server type!
 - **[Release Notes](CHANGELOG.md)** - Latest features and fixes
 - **[GitHub Repository](https://github.com/plures/azuredevops-integration-extension)** - Source code and issues
 
+## 🖥️ Cross-Platform Desktop Application
+
+A standalone desktop application is available in `apps/app-desktop/` that brings the same Azure DevOps integration to Windows, macOS, and Linux as a native application powered by Tauri.
+
+**Key Features:**
+- Same FSM architecture and business logic as VS Code extension
+- Native desktop experience with no VS Code dependency
+- Cross-platform: Windows, macOS, Linux
+- Secure credential storage
+- Work items, time tracking, and more
+
+**Get Started:**
+```bash
+cd apps/app-desktop
+npm install
+npm run tauri dev
+```
+
+See [apps/app-desktop/GETTING_STARTED.md](apps/app-desktop/GETTING_STARTED.md) for detailed instructions.
+
 ## 🤝 Contributing
 
 Contributions welcome! Please open an issue for substantial changes. Built with TypeScript, Svelte, and ESBuild following VS Code extension best practices.
