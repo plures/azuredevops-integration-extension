@@ -47,16 +47,24 @@ class TauriPlatformAdapter implements PlatformAdapter {
 
   constructor() {
     this.store = new Store('config.json');
-    this.setupMessageBridge();
+    // Setup message bridge asynchronously with error handling
+    this.setupMessageBridge().catch(error => {
+      console.error('[PlatformAdapter] Failed to setup message bridge:', error);
+    });
   }
 
   private async setupMessageBridge() {
-    // Listen for messages from Rust backend
-    const { listen } = await import('@tauri-apps/api/event');
-    const unlisten = await listen<any>('message-from-backend', (event) => {
-      this.messageHandlers.forEach(handler => handler(event.payload));
-    });
-    this.eventUnlisteners.push(unlisten);
+    try {
+      // Listen for messages from Rust backend
+      const { listen } = await import('@tauri-apps/api/event');
+      const unlisten = await listen<any>('message-from-backend', (event) => {
+        this.messageHandlers.forEach(handler => handler(event.payload));
+      });
+      this.eventUnlisteners.push(unlisten);
+    } catch (error) {
+      console.error('[PlatformAdapter] Error setting up message bridge:', error);
+      throw error;
+    }
   }
 
   postMessage(message: any): void {
@@ -70,7 +78,9 @@ class TauriPlatformAdapter implements PlatformAdapter {
 
   async getSecret(key: string): Promise<string | undefined> {
     try {
-      // Tauri store plugin for secure storage
+      // WARNING: Tauri Store plugin does not provide encryption by default.
+      // For production use, implement proper encryption for sensitive data like PATs.
+      // Consider using OS-specific keyring services or implementing encryption layer.
       const value = await this.store.get<string>(`secrets.${key}`);
       return value || undefined;
     } catch (error) {
@@ -80,6 +90,8 @@ class TauriPlatformAdapter implements PlatformAdapter {
   }
 
   async setSecret(key: string, value: string): Promise<void> {
+    // WARNING: This stores secrets without encryption. For production,
+    // use a proper secure storage mechanism (e.g., OS keyring).
     await this.store.set(`secrets.${key}`, value);
     await this.store.save();
   }

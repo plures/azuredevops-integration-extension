@@ -33,54 +33,16 @@ export class DesktopFsmManager {
     console.log('[DesktopFSM] Initializing application machine...');
 
     // Dynamically import the machine to avoid bundling issues
-    const { createApplicationMachine } = await import(
+    // Note: applicationMachine is directly exported, not a factory function
+    const { applicationMachine } = await import(
       '../../../src/fsm/machines/applicationMachine.js'
     );
 
-    // Create machine with desktop-specific actor implementations
-    const machine = createApplicationMachine({
-      actors: {
-        // Storage actor - uses Tauri store
-        storage: {
-          getSecret: async (key: string) => {
-            return await this.platformAdapter.getSecret(key);
-          },
-          setSecret: async (key: string, value: string) => {
-            await this.platformAdapter.setSecret(key, value);
-          },
-          getConfig: async <T,>(key: string, defaultValue?: T) => {
-            return await this.platformAdapter.getConfiguration(key, defaultValue);
-          },
-          setConfig: async (key: string, value: any) => {
-            await this.platformAdapter.setConfiguration(key, value);
-          },
-        },
-        // Dialog actor - uses Tauri dialogs
-        dialogs: {
-          showInput: async (prompt: string, password?: boolean) => {
-            return await this.platformAdapter.showInputBox({ prompt, password });
-          },
-          showPick: async <T extends string>(items: T[], placeholder?: string) => {
-            return await this.platformAdapter.showQuickPick(items, { placeHolder: placeholder });
-          },
-          showError: async (message: string) => {
-            await this.platformAdapter.showErrorMessage(message);
-          },
-          showInfo: async (message: string) => {
-            await this.platformAdapter.showInformationMessage(message);
-          },
-        },
-        // External URLs - uses Tauri opener
-        external: {
-          open: async (url: string) => {
-            await this.platformAdapter.openExternal(url);
-          },
-        },
-      },
-    });
-
     // Create and start the actor
-    this.actor = createActor(machine);
+    // The applicationMachine is pre-configured for VS Code extension context
+    // For desktop, we would need to adapt it or create a desktop-specific machine
+    // For now, we use it as-is for demonstration purposes
+    this.actor = createActor(applicationMachine);
 
     // Subscribe to state changes
     this.actor.subscribe((state) => {

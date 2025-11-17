@@ -20,15 +20,17 @@ async fn handle_webview_message(message: serde_json::Value) -> Result<(), String
 
 #[tauri::command]
 async fn show_input_dialog(prompt: String, password: bool) -> Result<Option<String>, String> {
-    // TODO: Implement custom input dialog
-    // For now, return None (user cancelled)
+    // Placeholder implementation - returns None to simulate user cancellation
+    // TODO: Implement custom input dialog UI in future iteration
+    // This should present a native dialog or custom Svelte component for user input
     Ok(None)
 }
 
 #[tauri::command]
 async fn show_selection_dialog(items: Vec<String>, placeholder: Option<String>) -> Result<Option<String>, String> {
-    // TODO: Implement custom selection dialog
-    // For now, return None (user cancelled)
+    // Placeholder implementation - returns None to simulate user cancellation
+    // TODO: Implement custom selection dialog UI in future iteration
+    // This should present a dropdown or list selection UI for the user
     Ok(None)
 }
 
