@@ -1,13 +1,19 @@
 /**
  * FSM Integration for Desktop Application
  *
- * This module demonstrates how to integrate XState FSM machines from the parent
+ * This module provides a stub for integrating XState FSM machines from the parent
  * VS Code extension into the Tauri desktop application.
+ * 
+ * NOTE: Full FSM integration is planned for future iterations.
+ * For now, this is a stub implementation that provides the interface
+ * without the actual FSM logic.
  */
 
 import { createActor, type AnyActorRef } from 'xstate';
-import type { ApplicationContext } from '../../../src/fsm/machines/applicationMachine.js';
 import { getPlatformAdapter } from './platform-adapter';
+
+// Temporary type placeholder until FSM integration is complete
+type ApplicationContext = any;
 
 // Type for our FSM snapshot that will be sent to UI
 export interface FsmSnapshot {
@@ -17,9 +23,10 @@ export interface FsmSnapshot {
 }
 
 /**
- * Desktop-specific FSM Manager
+ * Desktop-specific FSM Manager (Stub Implementation)
  *
- * This wraps the shared application FSM machine and adapts it for Tauri
+ * This provides the interface for FSM integration but currently
+ * returns stub/mock data. Full integration pending.
  */
 export class DesktopFsmManager {
   private actor: AnyActorRef | null = null;
@@ -28,57 +35,36 @@ export class DesktopFsmManager {
 
   /**
    * Initialize the FSM with desktop-specific actors
+   * 
+   * NOTE: This is a stub implementation. Full FSM integration pending.
    */
   async initialize() {
-    console.log('[DesktopFSM] Initializing application machine...');
-
-    // Dynamically import the machine to avoid bundling issues
-    // Note: applicationMachine is directly exported, not a factory function
-    const { applicationMachine } = await import('../../../src/fsm/machines/applicationMachine.js');
-
-    // Create and start the actor
-    // The applicationMachine is pre-configured for VS Code extension context
-    // For desktop, we would need to adapt it or create a desktop-specific machine
-    // For now, we use it as-is for demonstration purposes
-    this.actor = createActor(applicationMachine);
-
-    // Subscribe to state changes
-    this.actor.subscribe((state) => {
-      const snapshot: FsmSnapshot = {
-        value: JSON.stringify(state.value),
-        context: state.context as ApplicationContext,
-        matches: this.computeMatches(state),
-      };
-
-      console.log('[DesktopFSM] State changed:', snapshot.value);
-
-      // Notify all subscribers
-      this.subscribers.forEach((subscriber) => subscriber(snapshot));
-    });
-
-    this.actor.start();
-    console.log('[DesktopFSM] Application machine started');
+    console.log('[DesktopFSM] Stub initialization - FSM integration pending');
+    // TODO: Import and initialize actual FSM machines when ready
+    // const { applicationMachine } = await import('../../../src/fsm/machines/applicationMachine.js');
+    // this.actor = createActor(applicationMachine);
+    // this.actor.subscribe((state) => { ... });
+    // this.actor.start();
+    return Promise.resolve();
   }
 
   /**
    * Send an event to the FSM
+   * 
+   * NOTE: Stub implementation - logs but doesn't process
    */
   send(event: any) {
-    if (!this.actor) {
-      console.error('[DesktopFSM] Cannot send event - actor not initialized');
-      return;
-    }
-
-    console.log('[DesktopFSM] Sending event:', event.type);
-    this.actor.send(event);
+    console.log('[DesktopFSM] Stub send - event:', event.type);
+    // Events are currently ignored in stub implementation
   }
 
   /**
    * Subscribe to FSM state changes
+   * 
+   * NOTE: Stub implementation - accepts subscriptions but never fires them
    */
   subscribe(callback: (snapshot: FsmSnapshot) => void): () => void {
     this.subscribers.push(callback);
-
     // Return unsubscribe function
     return () => {
       const index = this.subscribers.indexOf(callback);
@@ -90,51 +76,30 @@ export class DesktopFsmManager {
 
   /**
    * Get current FSM snapshot
+   * 
+   * NOTE: Stub implementation returns null
    */
   getSnapshot(): FsmSnapshot | null {
-    if (!this.actor) {
-      return null;
-    }
-
-    const state = this.actor.getSnapshot();
-    return {
-      value: JSON.stringify(state.value),
-      context: state.context as ApplicationContext,
-      matches: this.computeMatches(state),
-    };
+    return null;
   }
 
   /**
-   * Compute state matches for easier UI conditionals
+   * Stop the FSM
+   * 
+   * NOTE: Stub implementation
    */
-  private computeMatches(state: any): Record<string, boolean> {
-    const matches: Record<string, boolean> = {};
-
-    // Helper to check if in state
-    const check = (path: string) => {
-      return state.matches(path);
-    };
-
-    // Common state checks used by UI
-    matches.inactive = check('inactive');
-    matches.activating = check('activating');
-    matches.activation_failed = check('activation_failed');
-    matches.active = check('active');
-    matches['active.setup'] = check('active.setup');
-    matches['active.ready'] = check('active.ready');
-    matches['active.ready.managingConnections'] = check('active.ready.managingConnections');
-
-    return matches;
+  stop() {
+    console.log('[DesktopFSM] Stub stop');
+    this.actor = null;
   }
 
   /**
-   * Cleanup and stop the FSM
+   * Cleanup and dispose resources
+   * 
+   * NOTE: Stub implementation
    */
   dispose() {
-    if (this.actor) {
-      this.actor.stop();
-      this.actor = null;
-    }
+    this.stop();
     this.subscribers = [];
     console.log('[DesktopFSM] Disposed');
   }

@@ -1,5 +1,30 @@
-use tauri::{Manager, Emitter};
+use tauri::{Manager, Emitter, AppHandle};
+use tauri_plugin_store::StoreExt;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct Connection {
+    id: String,
+    organization: String,
+    project: String,
+    #[serde(rename = "baseUrl")]
+    base_url: String,
+    label: Option<String>,
+    #[serde(rename = "authMethod")]
+    auth_method: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct WorkItem {
+    id: u32,
+    title: String,
+    #[serde(rename = "type")]
+    work_item_type: String,
+    state: String,
+    #[serde(rename = "assignedTo")]
+    assigned_to: Option<String>,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct WebviewMessage {
@@ -34,6 +59,94 @@ async fn show_selection_dialog(items: Vec<String>, placeholder: Option<String>) 
     Ok(None)
 }
 
+// Connection management commands
+#[tauri::command]
+async fn get_connections(app: AppHandle) -> Result<Vec<Connection>, String> {
+    let store = app.store("connections.json")
+        .map_err(|e| format!("Failed to open store: {}", e))?;
+    
+    let connections = store.get("connections")
+        .and_then(|v| serde_json::from_value::<Vec<Connection>>(v.clone()).ok())
+        .unwrap_or_default();
+    
+    Ok(connections)
+}
+
+#[tauri::command]
+async fn save_connection(app: AppHandle, connection: Connection, pat: String) -> Result<(), String> {
+    // Save connection to store
+    let store = app.store("connections.json")
+        .map_err(|e| format!("Failed to open store: {}", e))?;
+    
+    let mut connections = store.get("connections")
+        .and_then(|v| serde_json::from_value::<Vec<Connection>>(v.clone()).ok())
+        .unwrap_or_default();
+    
+    // Update or add connection
+    if let Some(existing) = connections.iter_mut().find(|c| c.id == connection.id) {
+        *existing = connection.clone();
+    } else {
+        connections.push(connection.clone());
+    }
+    
+    store.set("connections", json!(connections));
+    store.save().map_err(|e| format!("Failed to save store: {}", e))?;
+    
+    // Save PAT separately in secure store
+    let tokens_store = app.store("tokens.json")
+        .map_err(|e| format!("Failed to open tokens store: {}", e))?;
+    
+    tokens_store.set(&connection.id, json!(pat));
+    tokens_store.save().map_err(|e| format!("Failed to save tokens: {}", e))?;
+    
+    Ok(())
+}
+
+#[tauri::command]
+async fn save_token(app: AppHandle, connection_id: String, token: String) -> Result<(), String> {
+    let tokens_store = app.store("tokens.json")
+        .map_err(|e| format!("Failed to open tokens store: {}", e))?;
+    
+    tokens_store.set(&connection_id, json!(token));
+    tokens_store.save().map_err(|e| format!("Failed to save tokens: {}", e))?;
+    
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_token(app: AppHandle, connection_id: String) -> Result<Option<String>, String> {
+    let tokens_store = app.store("tokens.json")
+        .map_err(|e| format!("Failed to open tokens store: {}", e))?;
+    
+    let token = tokens_store.get(&connection_id)
+        .and_then(|v| v.as_str().map(String::from));
+    
+    Ok(token)
+}
+
+// Work item management commands
+#[tauri::command]
+async fn get_work_items() -> Result<Vec<WorkItem>, String> {
+    // Placeholder implementation - returns mock data
+    // TODO: Integrate with Azure DevOps API client
+    Ok(vec![
+        WorkItem {
+            id: 1,
+            title: "Example work item".to_string(),
+            work_item_type: "Task".to_string(),
+            state: "New".to_string(),
+            assigned_to: Some("user@example.com".to_string()),
+        },
+        WorkItem {
+            id: 2,
+            title: "Another work item".to_string(),
+            work_item_type: "Bug".to_string(),
+            state: "Active".to_string(),
+            assigned_to: None,
+        },
+    ])
+}
+
 // Legacy greet command from template (can be removed later)
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -52,7 +165,12 @@ pub fn run() {
             greet,
             handle_webview_message,
             show_input_dialog,
-            show_selection_dialog
+            show_selection_dialog,
+            get_connections,
+            save_connection,
+            save_token,
+            get_token,
+            get_work_items
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

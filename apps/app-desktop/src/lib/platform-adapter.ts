@@ -44,16 +44,25 @@ export interface PlatformAdapter {
 
 // Tauri implementation
 class TauriPlatformAdapter implements PlatformAdapter {
-  private store: Store;
+  private store: Store | null = null;
   private messageHandlers: ((message: any) => void)[] = [];
   private eventUnlisteners: (() => void)[] = [];
 
   constructor() {
-    this.store = new Store('config.json');
+    // Store will be initialized lazily when first accessed
     // Setup message bridge asynchronously with error handling
     this.setupMessageBridge().catch((error) => {
       console.error('[PlatformAdapter] Failed to setup message bridge:', error);
     });
+  }
+  
+  private async getStore(): Promise<Store> {
+    if (!this.store) {
+      // Lazy load store using the load method
+      const { load } = await import('@tauri-apps/plugin-store');
+      this.store = await load('config.json');
+    }
+    return this.store;
   }
 
   private async setupMessageBridge() {
@@ -84,7 +93,8 @@ class TauriPlatformAdapter implements PlatformAdapter {
       // WARNING: Tauri Store plugin does not provide encryption by default.
       // For production use, implement proper encryption for sensitive data like PATs.
       // Consider using OS-specific keyring services or implementing encryption layer.
-      const value = await this.store.get<string>(`secrets.${key}`);
+      const store = await this.getStore();
+      const value = await store.get<string>(`secrets.${key}`);
       return value || undefined;
     } catch (error) {
       console.error('Error getting secret:', error);
@@ -95,19 +105,22 @@ class TauriPlatformAdapter implements PlatformAdapter {
   async setSecret(key: string, value: string): Promise<void> {
     // WARNING: This stores secrets without encryption. For production,
     // use a proper secure storage mechanism (e.g., OS keyring).
-    await this.store.set(`secrets.${key}`, value);
-    await this.store.save();
+    const store = await this.getStore();
+    await store.set(`secrets.${key}`, value);
+    await store.save();
   }
 
   async deleteSecret(key: string): Promise<void> {
-    await this.store.delete(`secrets.${key}`);
-    await this.store.save();
+    const store = await this.getStore();
+    await store.delete(`secrets.${key}`);
+    await store.save();
   }
 
   async getConfiguration<T = any>(key: string, defaultValue?: T): Promise<T> {
     try {
-      const value = await this.store.get<T>(`config.${key}`);
-      return value !== null ? value : (defaultValue as T);
+      const store = await this.getStore();
+      const value = await store.get<T>(`config.${key}`);
+      return (value !== null && value !== undefined) ? value : (defaultValue as T);
     } catch (error) {
       console.error('Error getting configuration:', error);
       return defaultValue as T;
@@ -115,8 +128,9 @@ class TauriPlatformAdapter implements PlatformAdapter {
   }
 
   async setConfiguration(key: string, value: any): Promise<void> {
-    await this.store.set(`config.${key}`, value);
-    await this.store.save();
+    const store = await this.getStore();
+    await store.set(`config.${key}`, value);
+    await store.save();
   }
 
   async showInputBox(options: { prompt: string; password?: boolean }): Promise<string | undefined> {
@@ -169,7 +183,7 @@ class TauriPlatformAdapter implements PlatformAdapter {
   }
 
   async openExternal(url: string): Promise<void> {
-    const { open: openUrl } = await import('@tauri-apps/plugin-opener');
+    const { openUrl } = await import('@tauri-apps/plugin-opener');
     await openUrl(url);
   }
 
