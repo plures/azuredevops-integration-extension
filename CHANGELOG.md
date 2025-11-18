@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.2.7] - 2025-11-18
+
+### Other
+
+- Add Tauri-based cross-platform desktop application with shared FSM architecture (#94)
+
+
 ## [2.2.6] - 2025-11-15
 
 ### Other
