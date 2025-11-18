@@ -13,28 +13,31 @@ export interface PlatformAdapter {
   // Messaging
   postMessage(message: any): void;
   onMessage(handler: (message: any) => void): void;
-  
+
   // Storage
   getSecret(key: string): Promise<string | undefined>;
   setSecret(key: string, value: string): Promise<void>;
   deleteSecret(key: string): Promise<void>;
-  
+
   // Configuration
   getConfiguration<T = any>(key: string, defaultValue?: T): Promise<T>;
   setConfiguration(key: string, value: any): Promise<void>;
-  
+
   // Dialogs
   showInputBox(options: { prompt: string; password?: boolean }): Promise<string | undefined>;
-  showQuickPick<T extends string>(items: T[], options?: { placeHolder?: string }): Promise<T | undefined>;
+  showQuickPick<T extends string>(
+    items: T[],
+    options?: { placeHolder?: string }
+  ): Promise<T | undefined>;
   showInformationMessage(message: string): Promise<void>;
   showErrorMessage(message: string): Promise<void>;
   showWarningMessage(message: string): Promise<void>;
-  
+
   // File System
   fileExists(path: string): Promise<boolean>;
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
-  
+
   // External
   openExternal(url: string): Promise<void>;
 }
@@ -48,7 +51,7 @@ class TauriPlatformAdapter implements PlatformAdapter {
   constructor() {
     this.store = new Store('config.json');
     // Setup message bridge asynchronously with error handling
-    this.setupMessageBridge().catch(error => {
+    this.setupMessageBridge().catch((error) => {
       console.error('[PlatformAdapter] Failed to setup message bridge:', error);
     });
   }
@@ -58,7 +61,7 @@ class TauriPlatformAdapter implements PlatformAdapter {
       // Listen for messages from Rust backend
       const { listen } = await import('@tauri-apps/api/event');
       const unlisten = await listen<any>('message-from-backend', (event) => {
-        this.messageHandlers.forEach(handler => handler(event.payload));
+        this.messageHandlers.forEach((handler) => handler(event.payload));
       });
       this.eventUnlisteners.push(unlisten);
     } catch (error) {
@@ -120,16 +123,19 @@ class TauriPlatformAdapter implements PlatformAdapter {
     // Use Tauri dialog for input
     const result = await invoke<string | null>('show_input_dialog', {
       prompt: options.prompt,
-      password: options.password || false
+      password: options.password || false,
     });
     return result || undefined;
   }
 
-  async showQuickPick<T extends string>(items: T[], options?: { placeHolder?: string }): Promise<T | undefined> {
+  async showQuickPick<T extends string>(
+    items: T[],
+    options?: { placeHolder?: string }
+  ): Promise<T | undefined> {
     // Use Tauri dialog for selection
     const result = await invoke<string | null>('show_selection_dialog', {
       items,
-      placeholder: options?.placeHolder
+      placeholder: options?.placeHolder,
     });
     return result as T | undefined;
   }
@@ -168,7 +174,7 @@ class TauriPlatformAdapter implements PlatformAdapter {
   }
 
   dispose() {
-    this.eventUnlisteners.forEach(unlisten => unlisten());
+    this.eventUnlisteners.forEach((unlisten) => unlisten());
     this.eventUnlisteners = [];
     this.messageHandlers = [];
   }
@@ -187,7 +193,7 @@ export function getPlatformAdapter(): PlatformAdapter {
 // Helper to create mock adapter for VS Code compatibility layer
 export function createVSCodeCompatibilityAPI() {
   const adapter = getPlatformAdapter();
-  
+
   return {
     postMessage: (msg: any) => adapter.postMessage(msg),
     setState: (state: any) => adapter.setConfiguration('vscode.state', state),

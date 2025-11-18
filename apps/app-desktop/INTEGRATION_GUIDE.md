@@ -34,6 +34,7 @@ This guide documents how the Azure DevOps Integration desktop application (Tauri
 ## Key Differences: VS Code Extension vs Desktop App
 
 ### VS Code Extension
+
 - **Host**: VS Code Extension Host (Node.js)
 - **UI**: Webview Panel (sandboxed)
 - **IPC**: `vscode.postMessage()` / message handlers
@@ -42,6 +43,7 @@ This guide documents how the Azure DevOps Integration desktop application (Tauri
 - **Distribution**: VSIX package via VS Code Marketplace
 
 ### Desktop App (Tauri)
+
 - **Host**: Tauri (Rust backend)
 - **UI**: SvelteKit (SSG) with native window
 - **IPC**: Tauri `invoke()` / event system
@@ -62,27 +64,27 @@ export interface PlatformAdapter {
   // Messaging - replaces vscode.postMessage()
   postMessage(message: any): void;
   onMessage(handler: (message: any) => void): void;
-  
+
   // Storage - replaces vscode.SecretStorage
   getSecret(key: string): Promise<string | undefined>;
   setSecret(key: string, value: string): Promise<void>;
   deleteSecret(key: string): Promise<void>;
-  
+
   // Configuration - replaces workspace.getConfiguration()
   getConfiguration<T>(key: string, defaultValue?: T): Promise<T>;
   setConfiguration(key: string, value: any): Promise<void>;
-  
+
   // Dialogs - replaces vscode.window.*
   showInputBox(options: {...}): Promise<string | undefined>;
   showQuickPick<T>(...): Promise<T | undefined>;
   showInformationMessage(message: string): Promise<void>;
   showErrorMessage(message: string): Promise<void>;
-  
+
   // File System - replaces vscode.workspace.fs
   fileExists(path: string): Promise<boolean>;
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
-  
+
   // External URLs - replaces vscode.env.openExternal()
   openExternal(url: string): Promise<void>;
 }
@@ -157,6 +159,7 @@ This allows Svelte components from `src/webview/` to work with minimal changes.
 ### Pattern 1: Importing FSM Machines
 
 **Desktop App Usage:**
+
 ```typescript
 // apps/app-desktop/src/lib/fsm-integration.ts
 import { createApplicationMachine } from '../../../src/fsm/machines/applicationMachine.js';
@@ -176,10 +179,11 @@ const machine = createApplicationMachine({
 ### Pattern 2: Adapting Svelte Components
 
 **Original (VS Code):**
+
 ```svelte
 <script lang="ts">
   const vscode = (window as any).__vscodeApi;
-  
+
   function sendEvent(event: any) {
     vscode.postMessage({ type: 'fsmEvent', event });
   }
@@ -187,12 +191,13 @@ const machine = createApplicationMachine({
 ```
 
 **Adapted (Desktop):**
+
 ```svelte
 <script lang="ts">
   import { getPlatformAdapter } from '$lib/platform-adapter';
-  
+
   const adapter = getPlatformAdapter();
-  
+
   function sendEvent(event: any) {
     adapter.postMessage({ type: 'fsmEvent', event });
   }
@@ -202,6 +207,7 @@ const machine = createApplicationMachine({
 ### Pattern 3: Using Azure Client
 
 **Both platforms can use the same import:**
+
 ```typescript
 import { AzureDevOpsIntClient } from '../../../src/azureClient.js';
 
@@ -328,11 +334,13 @@ npm run tauri build
 ## Configuration Management
 
 ### VS Code Extension
+
 - Settings: `settings.json` via VS Code API
 - Secrets: VS Code SecretStorage API
 - Workspace-specific configurations
 
 ### Desktop App
+
 - Settings: Tauri Store plugin → `config.json`
 - Secrets: Tauri Store plugin → encrypted storage
 - Application-wide configuration
@@ -393,6 +401,7 @@ npm run check
 ```
 
 Update `tsconfig.json` paths if needed:
+
 ```json
 {
   "compilerOptions": {
@@ -408,6 +417,7 @@ Update `tsconfig.json` paths if needed:
 ### Tauri Plugin Errors
 
 If Tauri plugins fail to initialize, check:
+
 1. `Cargo.toml` includes the plugin dependency
 2. `lib.rs` calls `.plugin(...)` initialization
 3. `tauri.conf.json` includes required permissions
@@ -415,6 +425,7 @@ If Tauri plugins fail to initialize, check:
 ### Svelte Component Issues
 
 When adapting VS Code components:
+
 1. Replace `vscode.postMessage()` with platform adapter
 2. Remove VS Code CSS variables (e.g., `var(--vscode-*)`)
 3. Update imports to use SvelteKit aliases (`$lib/...`)

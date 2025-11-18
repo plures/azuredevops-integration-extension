@@ -1,6 +1,6 @@
 /**
  * FSM Integration for Desktop Application
- * 
+ *
  * This module demonstrates how to integrate XState FSM machines from the parent
  * VS Code extension into the Tauri desktop application.
  */
@@ -18,7 +18,7 @@ export interface FsmSnapshot {
 
 /**
  * Desktop-specific FSM Manager
- * 
+ *
  * This wraps the shared application FSM machine and adapts it for Tauri
  */
 export class DesktopFsmManager {
@@ -34,9 +34,7 @@ export class DesktopFsmManager {
 
     // Dynamically import the machine to avoid bundling issues
     // Note: applicationMachine is directly exported, not a factory function
-    const { applicationMachine } = await import(
-      '../../../src/fsm/machines/applicationMachine.js'
-    );
+    const { applicationMachine } = await import('../../../src/fsm/machines/applicationMachine.js');
 
     // Create and start the actor
     // The applicationMachine is pre-configured for VS Code extension context
