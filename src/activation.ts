@@ -19,6 +19,13 @@ import { randomUUID as _randomUUID } from 'crypto';
 import { OpenAI } from 'openai';
 import { AzureDevOpsIntClient } from './azureClient.js';
 import {
+  createPlatformAdapter,
+  setPlatformAdapter,
+  getPlatformAdapter,
+  detectPlatform,
+  type PlatformAdapter,
+} from './platform/index.js';
+import {
   parseAzureDevOpsUrl as _parseAzureDevOpsUrl,
   isAzureDevOpsWorkItemUrl as _isAzureDevOpsWorkItemUrl,
 } from './azureDevOpsUrlParser.js';
@@ -2379,6 +2386,12 @@ export async function activate(context: vscode.ExtensionContext) {
   extensionContextRef = context;
   setExtensionContextRefBridge(context);
 
+  // Initialize platform adapter for multi-platform support
+  verbose('[activation] Initializing platform adapter');
+  const platformAdapter = createPlatformAdapter(context);
+  setPlatformAdapter(platformAdapter);
+  verbose('[activation] Platform adapter initialized:', detectPlatform());
+
   // Hydrate persisted per-connection query selections (if present)
   try {
     const persistedQueries =
@@ -2455,6 +2468,9 @@ export async function activate(context: vscode.ExtensionContext) {
   verbose('[activation] Application store initialized, FSM actor available');
 
   // Register the work items webview view resolver (guard against duplicate registration)
+  // NOTE: For now, we use VS Code API directly since AzureDevOpsIntViewProvider implements
+  // vscode.WebviewViewProvider. This will be migrated to use platform adapter once
+  // the provider is refactored to use platform-agnostic interfaces.
   if (!viewProviderRegistered) {
     verbose('[azureDevOpsInt] Registering webview view provider: azureDevOpsWorkItems');
     context.subscriptions.push(

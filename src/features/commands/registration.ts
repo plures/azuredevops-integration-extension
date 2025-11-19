@@ -13,6 +13,7 @@
  */
 import * as vscode from 'vscode';
 import { createLogger } from '../../logging/unifiedLogger.js';
+import { getPlatformAdapter } from '../../platform/index.js';
 
 const logger = createLogger('commands-registration');
 import type { CommandContext, CommandRegistration } from './types.js';
@@ -94,23 +95,25 @@ export function registerCommands(
   commandContext: CommandContext
 ): vscode.Disposable[] {
   const disposables: vscode.Disposable[] = [];
+  const platformAdapter = getPlatformAdapter();
 
   for (const registration of commandRegistrations) {
-    const disposable = vscode.commands.registerCommand(registration.command, (...args: any[]) => {
+    // Use platform adapter for command registration (supports VS Code and Visual Studio)
+    const disposable = platformAdapter.registerCommand(registration.command, (...args: any[]) => {
       try {
         const result = registration.handler(commandContext, ...args);
         if (result instanceof Promise) {
           result.catch((error) => {
             logger.error(`Error in command ${registration.command}`, { meta: error });
-            vscode.window.showErrorMessage(`Command failed: ${error.message}`);
+            platformAdapter.showErrorMessage(`Command failed: ${error.message}`);
           });
         }
       } catch (error) {
         logger.error(`Error in command ${registration.command}`, { meta: error });
-        vscode.window.showErrorMessage(`Command failed: ${error.message}`);
+        platformAdapter.showErrorMessage(`Command failed: ${error.message}`);
       }
     });
-    disposables.push(disposable);
+    disposables.push(disposable as vscode.Disposable);
   }
 
   return disposables;
@@ -122,7 +125,8 @@ export function safeCommandHandler(handler: (...args: any[]) => Promise<void> | 
       await handler(...args);
     } catch (error) {
       logger.error('Command handler error', { meta: error });
-      vscode.window.showErrorMessage(`Command failed: ${error.message}`);
+      const platformAdapter = getPlatformAdapter();
+      platformAdapter.showErrorMessage(`Command failed: ${error.message}`);
     }
   };
 }
