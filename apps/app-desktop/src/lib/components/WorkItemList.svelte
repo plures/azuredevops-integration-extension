@@ -1,10 +1,11 @@
 <!--
 Module: apps/app-desktop/src/lib/components/WorkItemList.svelte
-List view for work items
+List view for work items - Now with real Azure DevOps API integration
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { fetchWorkItems } from '$lib/azureService';
   
   let { context, sendEvent }: { context: any; sendEvent: (event: any) => void } = $props();
   
@@ -22,12 +23,37 @@ List view for work items
     errorMessage = '';
     
     try {
-      // In full implementation, this will call Azure DevOps API via platform adapter
-      const items = await invoke('get_work_items');
+      // Get active connection from context
+      const activeConnectionId = context?.activeConnectionId;
+      if (!activeConnectionId) {
+        throw new Error('No active connection');
+      }
+      
+      // Get connections and find active one
+      const connections = await invoke('get_connections');
+      const activeConnection = Array.isArray(connections) 
+        ? connections.find((c: any) => c.id === activeConnectionId)
+        : null;
+        
+      if (!activeConnection) {
+        throw new Error('Active connection not found');
+      }
+      
+      // Get token for active connection
+      const token = await invoke('get_token', { connectionId: activeConnectionId });
+      if (!token) {
+        throw new Error('Authentication token not found. Please configure your connection.');
+      }
+      
+      // Fetch work items from Azure DevOps API
+      const items = await fetchWorkItems(activeConnection, token as string);
       workItems = Array.isArray(items) ? items : [];
+      
+      console.log(`[WorkItemList] Loaded ${workItems.length} work items`);
     } catch (error) {
       errorMessage = error instanceof Error ? error.message : String(error);
       console.error('[WorkItemList] Load error:', error);
+      workItems = [];
     } finally {
       isLoading = false;
     }
@@ -38,8 +64,9 @@ List view for work items
   }
   
   function handleWorkItemClick(workItem: any) {
-    selectedWorkItemId = workItem.id;
-    sendEvent({ type: 'WORK_ITEM_SELECTED', workItemId: workItem.id });
+    const id = workItem.id || workItem.fields?.['System.Id'];
+    selectedWorkItemId = id;
+    sendEvent({ type: 'WORK_ITEM_SELECTED', workItemId: id });
   }
   
   function getStateColor(state: string): string {
@@ -49,6 +76,39 @@ List view for work items
     if (lowerState === 'resolved' || lowerState === 'done') return '#6c757d';
     if (lowerState === 'closed') return '#6c757d';
     return '#888';
+  }
+  
+  // Helper to extract field values from work item
+  function getField(workItem: any, fieldName: string): any {
+    return workItem.fields?.[fieldName] || workItem[fieldName.replace('System.', '').toLowerCase()];
+  }
+  
+  function getWorkItemId(workItem: any): number {
+    return workItem.id || workItem.fields?.['System.Id'] || 0;
+  }
+  
+  function getWorkItemTitle(workItem: any): string {
+    return getField(workItem, 'System.Title') || 'Untitled';
+  }
+  
+  function getWorkItemState(workItem: any): string {
+    return getField(workItem, 'System.State') || 'Unknown';
+  }
+  
+  function getWorkItemType(workItem: any): string {
+    return getField(workItem, 'System.WorkItemType') || 'Unknown';
+  }
+  
+  function getWorkItemAssignee(workItem: any): string | null {
+    const assignedTo = getField(workItem, 'System.AssignedTo');
+    if (!assignedTo) return null;
+    
+    // Azure DevOps returns assignedTo as an object with displayName
+    if (typeof assignedTo === 'object' && assignedTo.displayName) {
+      return assignedTo.displayName;
+    }
+    
+    return String(assignedTo);
   }
 </script>
 
@@ -84,28 +144,29 @@ List view for work items
     </div>
   {:else}
     <div class="work-item-grid">
-      {#each workItems as workItem (workItem.id)}
+      {#each workItems as workItem (getWorkItemId(workItem))}
         <div
           class="work-item-card"
-          class:selected={workItem.id === selectedWorkItemId}
+          class:selected={getWorkItemId(workItem) === selectedWorkItemId}
           onclick={() => handleWorkItemClick(workItem)}
           role="button"
           tabindex="0"
+          onkeydown={(e) => e.key === 'Enter' && handleWorkItemClick(workItem)}
         >
           <div class="work-item-header">
-            <span class="work-item-id">#{workItem.id}</span>
+            <span class="work-item-id">#{getWorkItemId(workItem)}</span>
             <span
               class="work-item-state"
-              style="color: {getStateColor(workItem.state)}"
+              style="color: {getStateColor(getWorkItemState(workItem))}"
             >
-              {workItem.state}
+              {getWorkItemState(workItem)}
             </span>
           </div>
-          <div class="work-item-title">{workItem.title}</div>
+          <div class="work-item-title">{getWorkItemTitle(workItem)}</div>
           <div class="work-item-meta">
-            <span class="work-item-type">{workItem.type}</span>
-            {#if workItem.assignedTo}
-              <span class="work-item-assigned">@{workItem.assignedTo}</span>
+            <span class="work-item-type">{getWorkItemType(workItem)}</span>
+            {#if getWorkItemAssignee(workItem)}
+              <span class="work-item-assigned">@{getWorkItemAssignee(workItem)}</span>
             {/if}
           </div>
         </div>

@@ -126,25 +126,37 @@ async fn get_token(app: AppHandle, connection_id: String) -> Result<Option<Strin
 
 // Work item management commands
 #[tauri::command]
-async fn get_work_items() -> Result<Vec<WorkItem>, String> {
-    // Placeholder implementation - returns mock data
-    // TODO: Integrate with Azure DevOps API client
-    Ok(vec![
-        WorkItem {
-            id: 1,
-            title: "Example work item".to_string(),
-            work_item_type: "Task".to_string(),
-            state: "New".to_string(),
-            assigned_to: Some("user@example.com".to_string()),
-        },
-        WorkItem {
-            id: 2,
-            title: "Another work item".to_string(),
-            work_item_type: "Bug".to_string(),
-            state: "Active".to_string(),
-            assigned_to: None,
-        },
-    ])
+async fn get_work_items(
+    app: AppHandle,
+    connection_id: String,
+    wiql: Option<String>
+) -> Result<Vec<WorkItem>, String> {
+    // Get connection from store
+    let store = app.store("connections.json")
+        .map_err(|e| format!("Failed to open store: {}", e))?;
+    
+    let connections = store.get("connections")
+        .and_then(|v| serde_json::from_value::<Vec<Connection>>(v.clone()).ok())
+        .unwrap_or_default();
+    
+    let connection = connections.iter()
+        .find(|c| c.id == connection_id)
+        .ok_or_else(|| format!("Connection not found: {}", connection_id))?;
+    
+    // Get token for this connection
+    let tokens_store = app.store("tokens.json")
+        .map_err(|e| format!("Failed to open tokens store: {}", e))?;
+    
+    let token = tokens_store.get(&connection_id)
+        .and_then(|v| v.as_str().map(String::from))
+        .ok_or_else(|| "Token not found for connection".to_string())?;
+    
+    // For now, return an error indicating that API integration is not yet complete
+    // This will be updated when the frontend service bridge is implemented
+    Err("Azure DevOps API integration in progress. Please use the frontend service directly.".to_string())
+    
+    // TODO: Once frontend service bridge is set up, call it here
+    // The frontend will expose JavaScript functions that this Rust code can invoke
 }
 
 // Legacy greet command from template (can be removed later)
