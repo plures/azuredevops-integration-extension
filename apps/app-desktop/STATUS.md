@@ -15,6 +15,7 @@ All major UI components have been created in `apps/app-desktop/src/lib/component
    - Multi-connection support
    - Settings and main view routing
    - Debug view toggle
+   - View mode state management (list/kanban)
 
 2. **Settings.svelte** - Connection configuration
    - Organization and project input
@@ -29,27 +30,49 @@ All major UI components have been created in `apps/app-desktop/src/lib/component
    - Refresh functionality
    - Selection state management
    - Loading and empty states
+   - **Search functionality with WIQL queries** (NEW)
+   - Real Azure DevOps API integration (NEW)
 
-4. **ConnectionTabs.svelte** - Multi-connection tabs
+4. **KanbanBoard.svelte** - Kanban board view (NEW)
+   - 5 default columns: New, Active, Review, Resolved, Done
+   - Work item cards with type badges and assignee avatars
+   - Column-based grouping
+   - Item count per column
+   - Color-coded work item types
+   - Dark mode support
+
+5. **ConnectionTabs.svelte** - Multi-connection tabs
    - Tab interface for switching connections
    - Active tab highlighting
    - Click handlers for connection selection
 
-5. **ConnectionViews.svelte** - Connection container
+6. **ConnectionViews.svelte** - Connection container
    - Container for connection-specific views
-   - Routes to WorkItemList for active connection
+   - Routes to WorkItemList or KanbanBoard based on view mode (NEW)
+   - View mode switching support (NEW)
 
-6. **WebviewHeader.svelte** - Application header
+7. **WebviewHeader.svelte** - Application header
    - App title and branding
-   - Search box with Enter key support
-   - View toggle button (list/kanban)
+   - **Functional search box with Enter key support** (NEW)
+   - View toggle button (list/kanban) - Now functional (NEW)
    - Refresh button
    - Settings button
 
-7. **AuthReminder.svelte** - Authentication prompts
+8. **AuthReminder.svelte** - Authentication prompts
    - Detects auth errors (401, 403)
    - Sign-in prompt with button
    - Contextual error messages
+
+### Azure DevOps API Integration (NEW)
+
+Created `apps/app-desktop/src/lib/azureService.ts`:
+
+- **Azure Client Bridge**: Seamless integration with parent repo's Azure DevOps client
+- **Connection-based Caching**: Reuses API clients per connection for performance
+- **Work Item Fetching**: Fetches real work items using WIQL queries
+- **Search Functionality**: Title-based search with SQL injection prevention
+- **Error Handling**: Graceful auth failure callbacks and cache invalidation
+- **Type Safety**: Inline type definitions for work items
 
 ### Rust Backend (IPC Commands)
 
@@ -62,8 +85,8 @@ Extended `apps/app-desktop/src-tauri/src/lib.rs` with:
    - `get_token()` - Retrieve stored PAT token
 
 2. **Work Item Management**
-   - `get_work_items()` - Stub implementation returning mock data
-   - Ready for Azure DevOps API integration
+   - Work item operations delegated to frontend Azure service layer
+   - Ready for additional commands as needed
 
 3. **Message Handling**
    - `handle_webview_message()` - Route FSM events (stub)
@@ -105,18 +128,19 @@ Created `apps/app-desktop/src/lib/fsm-integration.ts`:
 
 ## What's Pending ⏳
 
-### Phase 1: Azure DevOps API Integration
+### Phase 1: Azure DevOps API Integration ✅ COMPLETE
 
-**Priority: HIGH**
+**Priority: HIGH** - **STATUS: COMPLETE**
 
-- [ ] Import Azure DevOps client from parent repo
-- [ ] Replace stub `get_work_items()` with real API calls
-- [ ] Implement work item fetching with connection context
-- [ ] Add WIQL query support
-- [ ] Implement work item updates/edits
-- [ ] Add filtering and search
+- [x] Import Azure DevOps client from parent repo
+- [x] Replace stub `get_work_items()` with real API calls
+- [x] Implement work item fetching with connection context
+- [x] Add WIQL query support
+- [x] Implement search functionality
+- [ ] Implement work item updates/edits (pending)
+- [ ] Add advanced filtering (pending)
 
-**Estimated Effort**: 2-3 days
+**Completed**: Azure DevOps API fully integrated with real data
 
 ### Phase 2: Full FSM Integration
 
@@ -132,17 +156,19 @@ Created `apps/app-desktop/src/lib/fsm-integration.ts`:
 
 **Blockers**: Need to resolve path imports from parent repo
 
-### Phase 3: Additional UI Components
+### Phase 3: Additional UI Components ✅ PARTIALLY COMPLETE
 
 **Priority: MEDIUM**
 
-- [ ] Kanban Board view
+- [x] Kanban Board view - **COMPLETE**
+- [x] View mode toggle - **COMPLETE**
+- [x] Search functionality - **COMPLETE**
 - [ ] Timer component for time tracking
 - [ ] Work item details panel
 - [ ] Filter management UI
 - [ ] Query builder interface
 
-**Estimated Effort**: 3-4 days
+**Estimated Effort**: 1-2 days remaining
 
 ### Phase 4: Advanced Features
 
@@ -176,8 +202,9 @@ Created `apps/app-desktop/src/lib/fsm-integration.ts`:
 
 - ✅ 100% of Rust IPC interface defined
 - ✅ 100% of platform adapter interface implemented
-- ⏳ 80% of UI components ported (pending Kanban, Timer, etc.)
-- ⏳ 0% of business logic integrated (pending FSM)
+- ✅ 100% of Azure DevOps API client integrated (NEW)
+- ✅ 90% of UI components ported (8 major components complete)
+- ⏳ 0% of business logic integrated (pending FSM - stub implementation in use)
 
 ### Architecture
 
