@@ -13,44 +13,56 @@ export interface PlatformAdapter {
   // Messaging
   postMessage(message: any): void;
   onMessage(handler: (message: any) => void): void;
-  
+
   // Storage
   getSecret(key: string): Promise<string | undefined>;
   setSecret(key: string, value: string): Promise<void>;
   deleteSecret(key: string): Promise<void>;
-  
+
   // Configuration
   getConfiguration<T = any>(key: string, defaultValue?: T): Promise<T>;
   setConfiguration(key: string, value: any): Promise<void>;
-  
+
   // Dialogs
   showInputBox(options: { prompt: string; password?: boolean }): Promise<string | undefined>;
-  showQuickPick<T extends string>(items: T[], options?: { placeHolder?: string }): Promise<T | undefined>;
+  showQuickPick<T extends string>(
+    items: T[],
+    options?: { placeHolder?: string }
+  ): Promise<T | undefined>;
   showInformationMessage(message: string): Promise<void>;
   showErrorMessage(message: string): Promise<void>;
   showWarningMessage(message: string): Promise<void>;
-  
+
   // File System
   fileExists(path: string): Promise<boolean>;
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
-  
+
   // External
   openExternal(url: string): Promise<void>;
 }
 
 // Tauri implementation
 class TauriPlatformAdapter implements PlatformAdapter {
-  private store: Store;
+  private store: Store | null = null;
   private messageHandlers: ((message: any) => void)[] = [];
   private eventUnlisteners: (() => void)[] = [];
 
   constructor() {
-    this.store = new Store('config.json');
+    // Store will be initialized lazily when first accessed
     // Setup message bridge asynchronously with error handling
-    this.setupMessageBridge().catch(error => {
+    this.setupMessageBridge().catch((error) => {
       console.error('[PlatformAdapter] Failed to setup message bridge:', error);
     });
+  }
+  
+  private async getStore(): Promise<Store> {
+    if (!this.store) {
+      // Lazy load store using the load method
+      const { load } = await import('@tauri-apps/plugin-store');
+      this.store = await load('config.json');
+    }
+    return this.store;
   }
 
   private async setupMessageBridge() {
@@ -58,7 +70,7 @@ class TauriPlatformAdapter implements PlatformAdapter {
       // Listen for messages from Rust backend
       const { listen } = await import('@tauri-apps/api/event');
       const unlisten = await listen<any>('message-from-backend', (event) => {
-        this.messageHandlers.forEach(handler => handler(event.payload));
+        this.messageHandlers.forEach((handler) => handler(event.payload));
       });
       this.eventUnlisteners.push(unlisten);
     } catch (error) {
@@ -81,7 +93,8 @@ class TauriPlatformAdapter implements PlatformAdapter {
       // WARNING: Tauri Store plugin does not provide encryption by default.
       // For production use, implement proper encryption for sensitive data like PATs.
       // Consider using OS-specific keyring services or implementing encryption layer.
-      const value = await this.store.get<string>(`secrets.${key}`);
+      const store = await this.getStore();
+      const value = await store.get<string>(`secrets.${key}`);
       return value || undefined;
     } catch (error) {
       console.error('Error getting secret:', error);
@@ -92,19 +105,22 @@ class TauriPlatformAdapter implements PlatformAdapter {
   async setSecret(key: string, value: string): Promise<void> {
     // WARNING: This stores secrets without encryption. For production,
     // use a proper secure storage mechanism (e.g., OS keyring).
-    await this.store.set(`secrets.${key}`, value);
-    await this.store.save();
+    const store = await this.getStore();
+    await store.set(`secrets.${key}`, value);
+    await store.save();
   }
 
   async deleteSecret(key: string): Promise<void> {
-    await this.store.delete(`secrets.${key}`);
-    await this.store.save();
+    const store = await this.getStore();
+    await store.delete(`secrets.${key}`);
+    await store.save();
   }
 
   async getConfiguration<T = any>(key: string, defaultValue?: T): Promise<T> {
     try {
-      const value = await this.store.get<T>(`config.${key}`);
-      return value !== null ? value : (defaultValue as T);
+      const store = await this.getStore();
+      const value = await store.get<T>(`config.${key}`);
+      return (value !== null && value !== undefined) ? value : (defaultValue as T);
     } catch (error) {
       console.error('Error getting configuration:', error);
       return defaultValue as T;
@@ -112,24 +128,28 @@ class TauriPlatformAdapter implements PlatformAdapter {
   }
 
   async setConfiguration(key: string, value: any): Promise<void> {
-    await this.store.set(`config.${key}`, value);
-    await this.store.save();
+    const store = await this.getStore();
+    await store.set(`config.${key}`, value);
+    await store.save();
   }
 
   async showInputBox(options: { prompt: string; password?: boolean }): Promise<string | undefined> {
     // Use Tauri dialog for input
     const result = await invoke<string | null>('show_input_dialog', {
       prompt: options.prompt,
-      password: options.password || false
+      password: options.password || false,
     });
     return result || undefined;
   }
 
-  async showQuickPick<T extends string>(items: T[], options?: { placeHolder?: string }): Promise<T | undefined> {
+  async showQuickPick<T extends string>(
+    items: T[],
+    options?: { placeHolder?: string }
+  ): Promise<T | undefined> {
     // Use Tauri dialog for selection
     const result = await invoke<string | null>('show_selection_dialog', {
       items,
-      placeholder: options?.placeHolder
+      placeholder: options?.placeHolder,
     });
     return result as T | undefined;
   }
@@ -163,12 +183,12 @@ class TauriPlatformAdapter implements PlatformAdapter {
   }
 
   async openExternal(url: string): Promise<void> {
-    const { open: openUrl } = await import('@tauri-apps/plugin-opener');
+    const { openUrl } = await import('@tauri-apps/plugin-opener');
     await openUrl(url);
   }
 
   dispose() {
-    this.eventUnlisteners.forEach(unlisten => unlisten());
+    this.eventUnlisteners.forEach((unlisten) => unlisten());
     this.eventUnlisteners = [];
     this.messageHandlers = [];
   }
@@ -187,7 +207,7 @@ export function getPlatformAdapter(): PlatformAdapter {
 // Helper to create mock adapter for VS Code compatibility layer
 export function createVSCodeCompatibilityAPI() {
   const adapter = getPlatformAdapter();
-  
+
   return {
     postMessage: (msg: any) => adapter.postMessage(msg),
     setState: (state: any) => adapter.setConfiguration('vscode.state', state),

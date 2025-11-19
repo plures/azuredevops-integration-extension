@@ -19,20 +19,17 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Add Tauri-based cross-platform desktop application with shared FSM architecture (#94)
 
-
 ## [2.2.6] - 2025-11-15
 
 ### Other
 
 - build(deps-dev): bump svelte from 3.59.2 to 5.43.6 in the npm_and_yarn group across 1 directory (#91)
 
-
 ## [2.2.5] - 2025-11-15
 
 ### Other
 
 - Fix formatting in dependabot.yml
-
 
 ## [2.2.4] - 2025-11-13
 
@@ -41,7 +38,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - always run build job for workflow_dispatch in release workflow
 - fix condition syntax and add debugging to release workflow
 
-
 ## [2.2.3] - 2025-11-13
 
 ### Fixed
@@ -49,20 +45,17 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - simplify condition syntax in release workflow
 - fix tag name resolution in release workflow
 
-
 ## [2.2.2] - 2025-11-13
 
 ### Fixed
 
 - add workflow_dispatch to release workflow for manual triggering
 
-
 ## [2.2.1] - 2025-11-13
 
 ### Fixed
 
 - require user confirmation before opening browser for Entra reauth (#90)
-
 
 ## [2.2.0] - 2025-11-12
 
@@ -78,7 +71,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Issue with connections command triggering (#86)
 - Troubleshooting connection and device code flow (#85)
-
 
 ## [2.0.9] - 2025-11-10
 

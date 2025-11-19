@@ -5,11 +5,13 @@
 ### Prerequisites
 
 1. **Node.js** (v20 or higher)
+
    ```bash
    node --version  # Should be 20.x or higher
    ```
 
 2. **Rust** (latest stable)
+
    ```bash
    rustc --version  # Should be 1.70 or higher
    ```
@@ -17,6 +19,7 @@
 3. **Platform-specific dependencies**:
 
    **Linux (Ubuntu/Debian):**
+
    ```bash
    sudo apt update
    sudo apt install libwebkit2gtk-4.1-dev \
@@ -31,6 +34,7 @@
    ```
 
    **macOS:**
+
    ```bash
    # Install Xcode Command Line Tools
    xcode-select --install
@@ -43,17 +47,20 @@
 ### Installation
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/plures/azuredevops-integration-extension.git
    cd azuredevops-integration-extension
    ```
 
 2. **Install root dependencies**:
+
    ```bash
    npm install
    ```
 
 3. **Navigate to desktop app**:
+
    ```bash
    cd apps/app-desktop
    ```
@@ -71,6 +78,7 @@ npm run tauri dev
 ```
 
 This will:
+
 - Start the Vite dev server
 - Launch the Tauri application window
 - Enable hot module reloading for frontend changes
@@ -92,6 +100,7 @@ Build output will be in `src-tauri/target/release/bundle/`:
 ## First Run Experience
 
 When you first run the app, you'll see a welcome screen with:
+
 - Brief introduction to the application
 - Next steps for configuration
 
@@ -109,6 +118,7 @@ When you first run the app, you'll see a welcome screen with:
 PATs are stored securely using Tauri's Store plugin with encryption.
 
 **To create a PAT**:
+
 1. Go to Azure DevOps → User Settings → Personal Access Tokens
 2. Create new token with scopes:
    - Work Items (Read & Write)
@@ -187,6 +197,7 @@ See [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md) for detailed integration patt
 ### Backend Debugging (Rust)
 
 1. Enable debug logging in `lib.rs`:
+
    ```rust
    println!("Debug: {:?}", some_variable);
    ```
@@ -200,6 +211,7 @@ See [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md) for detailed integration patt
 ### Issue: "webkit2gtk not found" (Linux)
 
 **Solution**: Install required dependencies:
+
 ```bash
 sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev
 ```
@@ -207,6 +219,7 @@ sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev
 ### Issue: "failed to run custom build command for tauri"
 
 **Solution**: Ensure Rust is up to date:
+
 ```bash
 rustup update
 ```
@@ -214,6 +227,7 @@ rustup update
 ### Issue: TypeScript errors about missing types
 
 **Solution**: Install parent repo dependencies:
+
 ```bash
 cd ../../  # Go to repo root
 npm install
@@ -224,6 +238,7 @@ npm run check
 ### Issue: "Cannot find module" when importing shared code
 
 **Solution**: Check TypeScript paths configuration in `tsconfig.json`:
+
 ```json
 {
   "compilerOptions": {
@@ -238,6 +253,7 @@ npm run check
 ### Issue: Application won't launch on macOS
 
 **Solution**: If you see security warnings:
+
 1. Go to System Preferences → Security & Privacy
 2. Click "Open Anyway" for the blocked application
 3. Or code-sign the app (requires Apple Developer account)
