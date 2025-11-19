@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.4.0] - 2025-11-19
+
+### Added
+
+- Complete Tauri desktop app with Azure DevOps API integration and Kanban board (#96)
+
+
 ## [2.2.8] - 2025-11-18
 
 ### Other
