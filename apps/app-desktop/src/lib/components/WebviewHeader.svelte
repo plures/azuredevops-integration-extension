@@ -1,6 +1,6 @@
 <!--
 Module: apps/app-desktop/src/lib/components/WebviewHeader.svelte
-Header with actions and controls
+Header with actions and controls - Now with real search
 -->
 <script lang="ts">
   let { context, sendEvent }: { context: any; sendEvent: (event: any) => void } = $props();
@@ -8,7 +8,8 @@ Header with actions and controls
   let searchQuery = $state('');
   
   function handleViewToggle() {
-    const newMode = context?.viewMode === 'list' ? 'kanban' : 'list';
+    const currentMode = context?.viewMode || 'list';
+    const newMode = currentMode === 'list' ? 'kanban' : 'list';
     sendEvent({ type: 'TOGGLE_VIEW_MODE', viewMode: newMode });
   }
   
@@ -21,7 +22,18 @@ Header with actions and controls
   }
   
   function handleSearch() {
-    sendEvent({ type: 'SEARCH', query: searchQuery });
+    if (searchQuery.trim()) {
+      sendEvent({ type: 'SEARCH', query: searchQuery.trim() });
+    } else {
+      // Empty search means show all items
+      sendEvent({ type: 'REFRESH_WORK_ITEMS' });
+    }
+  }
+  
+  function handleSearchKeyup(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
   }
 </script>
 
@@ -36,7 +48,7 @@ Header with actions and controls
         type="search"
         bind:value={searchQuery}
         placeholder="Search work items..."
-        onkeyup={(e) => e.key === 'Enter' && handleSearch()}
+        onkeyup={handleSearchKeyup}
       />
       <button onclick={handleSearch} title="Search">
         🔍

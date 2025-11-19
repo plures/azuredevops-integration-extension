@@ -5,7 +5,7 @@ List view for work items - Now with real Azure DevOps API integration
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import { fetchWorkItems } from '$lib/azureService';
+  import { fetchWorkItems, searchWorkItems } from '$lib/azureService';
   
   let { context, sendEvent }: { context: any; sendEvent: (event: any) => void } = $props();
   
@@ -13,12 +13,36 @@ List view for work items - Now with real Azure DevOps API integration
   let isLoading = $state(false);
   let errorMessage = $state('');
   let selectedWorkItemId = $state<number | null>(null);
+  let currentSearchQuery = $state<string>('');
   
   onMount(async () => {
     await loadWorkItems();
   });
   
-  async function loadWorkItems() {
+  // Watch for context changes that trigger reload
+  $effect(() => {
+    // Listen for events via context or global event system
+    // This is a simplified version - full FSM integration would handle this better
+    if (typeof window !== 'undefined') {
+      const handleEvent = (e: CustomEvent) => {
+        if (e.detail.type === 'REFRESH_WORK_ITEMS') {
+          loadWorkItems();
+        } else if (e.detail.type === 'SEARCH') {
+          handleSearch(e.detail.query);
+        }
+      };
+      
+      window.addEventListener('app-event', handleEvent as EventListener);
+      return () => window.removeEventListener('app-event', handleEvent as EventListener);
+    }
+  });
+  
+  async function handleSearch(query: string) {
+    currentSearchQuery = query;
+    await loadWorkItems(query);
+  }
+  
+  async function loadWorkItems(searchQuery?: string) {
     isLoading = true;
     errorMessage = '';
     
@@ -46,7 +70,12 @@ List view for work items - Now with real Azure DevOps API integration
       }
       
       // Fetch work items from Azure DevOps API
-      const items = await fetchWorkItems(activeConnection, token as string);
+      let items;
+      if (searchQuery && searchQuery.trim()) {
+        items = await searchWorkItems(activeConnection, token as string, searchQuery);
+      } else {
+        items = await fetchWorkItems(activeConnection, token as string);
+      }
       workItems = Array.isArray(items) ? items : [];
       
       console.log(`[WorkItemList] Loaded ${workItems.length} work items`);
@@ -60,7 +89,7 @@ List view for work items - Now with real Azure DevOps API integration
   }
   
   function handleRefresh() {
-    loadWorkItems();
+    loadWorkItems(currentSearchQuery || undefined);
   }
   
   function handleWorkItemClick(workItem: any) {

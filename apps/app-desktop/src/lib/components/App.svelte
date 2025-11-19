@@ -47,6 +47,15 @@ Adapted from src/webview/App.svelte for desktop environment
   // Helper to send events
   function sendEvent(event: any) {
     console.log('[Desktop App] Event:', event);
+    
+    // Handle view mode toggle locally
+    if (event.type === 'TOGGLE_VIEW_MODE') {
+      viewMode = event.viewMode || (viewMode === 'list' ? 'kanban' : 'list');
+      console.log('[Desktop App] View mode toggled to:', viewMode);
+      return;
+    }
+    
+    // Handle other events via vscodeApi if available
     if (vscodeApi) {
       vscodeApi.postMessage({ type: 'fsmEvent', event });
     }

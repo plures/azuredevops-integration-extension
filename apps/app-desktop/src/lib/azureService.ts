@@ -122,7 +122,23 @@ export async function searchWorkItems(
   searchTerm: string
 ): Promise<WorkItem[]> {
   const client = await getAzureClient(connection, token);
-  return await client.searchWorkItems(searchTerm);
+  
+  console.log('[AzureService] Searching work items for term:', searchTerm);
+  
+  // Use title search via WIQL
+  const query = `
+    SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo], [System.WorkItemType], [System.ChangedDate]
+    FROM WorkItems
+    WHERE [System.TeamProject] = @project
+      AND [System.Title] CONTAINS '${searchTerm.replace(/'/g, "''")}'
+      AND [System.State] <> 'Closed'
+      AND [System.State] <> 'Removed'
+    ORDER BY [System.ChangedDate] DESC
+  `;
+  
+  const items = await client.runWIQL(query);
+  console.log('[AzureService] Found', items.length, 'work items matching search');
+  return items;
 }
 
 /**

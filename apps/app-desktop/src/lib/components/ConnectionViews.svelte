@@ -1,9 +1,10 @@
 <!--
 Module: apps/app-desktop/src/lib/components/ConnectionViews.svelte
-Container for connection-specific views
+Container for connection-specific views with view mode switching
 -->
 <script lang="ts">
   import WorkItemList from './WorkItemList.svelte';
+  import KanbanBoard from './KanbanBoard.svelte';
   
   let { connections, activeConnectionId, context, sendEvent }: {
     connections: Array<{ id: string; label?: string }>;
@@ -12,11 +13,18 @@ Container for connection-specific views
     matches: any;
     sendEvent: (event: any) => void;
   } = $props();
+  
+  // Get current view mode from context (default to 'list')
+  const viewMode = $derived(context?.viewMode || 'list');
 </script>
 
 <div class="connection-views">
   {#if activeConnectionId}
-    <WorkItemList {context} {sendEvent} />
+    {#if viewMode === 'kanban'}
+      <KanbanBoard {context} {sendEvent} />
+    {:else}
+      <WorkItemList {context} {sendEvent} />
+    {/if}
   {:else}
     <div class="no-connection">
       <p>No active connection selected</p>
@@ -27,6 +35,9 @@ Container for connection-specific views
 <style>
   .connection-views {
     padding: 1rem 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
   }
   
   .no-connection {
