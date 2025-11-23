@@ -8,7 +8,7 @@
 // Import types and client - using relative paths to parent repo
 // Note: These imports work at runtime due to the monorepo structure
 // @ts-ignore - Parent repo imports
-import { AzureDevOpsIntClient } from '../../../src/azureClient.js';
+import { AzureDevOpsIntClient } from '../../../../src/azureClient';
 
 // Type definitions for work items (inline to avoid import issues)
 interface WorkItemFields {

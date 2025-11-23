@@ -5,7 +5,12 @@ Adapted from src/webview/App.svelte for desktop environment
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
+  // Dynamic invoke import guarded for browser runtime
+  // Non-throwing initial stub; replaced if Tauri is available
+  let invoke: (<T>(cmd: string, args?: any) => Promise<T>) = async () => undefined as any;
+  if ((window as any).__TAURI__) {
+    import('@tauri-apps/api/core').then(m => { invoke = m.invoke as any; }).catch(() => {});
+  }
   import Settings from './Settings.svelte';
   import ConnectionTabs from './ConnectionTabs.svelte';
   import ConnectionViews from './ConnectionViews.svelte';
@@ -55,6 +60,21 @@ Adapted from src/webview/App.svelte for desktop environment
       return;
     }
     
+    // Local event handling for browser fallback
+    if (event.type === 'CONNECTION_ADDED') {
+      connections = [...connections, event.connection];
+      activeConnectionId = event.connection.id;
+      appState = 'active.ready';
+      return;
+    }
+    if (event.type === 'CLOSE_SETTINGS') {
+      if (connections.length > 0 && activeConnectionId) {
+        appState = 'active.ready';
+      } else {
+        appState = 'active.setup';
+      }
+      return;
+    }
     // Handle other events via vscodeApi if available
     if (vscodeApi) {
       vscodeApi.postMessage({ type: 'fsmEvent', event });
@@ -81,16 +101,19 @@ Adapted from src/webview/App.svelte for desktop environment
     appState = 'activating';
     
     try {
-      // Check for saved connections
-      const savedConnections = await invoke('get_connections');
+      if (!(window as any).__TAURI__) {
+        // Browser runtime: start in setup without invoking backend
+        appState = 'active.setup';
+        return;
+      }
+      // Check for saved connections via Tauri backend
+      const savedConnections = await invoke('get_connections').catch(() => []);
       console.log('[Desktop App] Loaded connections:', savedConnections);
-      
       if (Array.isArray(savedConnections) && savedConnections.length > 0) {
         connections = savedConnections;
         activeConnectionId = savedConnections[0].id;
         appState = 'active.ready';
       } else {
-        // No connections, show setup
         appState = 'active.setup';
       }
     } catch (error) {

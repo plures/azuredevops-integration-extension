@@ -3,7 +3,11 @@ Module: apps/app-desktop/src/lib/components/Settings.svelte
 Connection settings and configuration for desktop app
 -->
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core';
+  // Dynamic invoke guarded for browser
+  let invoke: (<T>(cmd: string, args?: any) => Promise<T>) = async () => undefined as any;
+  if ((window as any).__TAURI__) {
+    import('@tauri-apps/api/core').then(m => { invoke = m.invoke as any; }).catch(() => {});
+  }
   import { open } from '@tauri-apps/plugin-dialog';
   
   let { context, sendEvent }: { context: any; sendEvent: (event: any) => void } = $props();
@@ -39,14 +43,15 @@ Connection settings and configuration for desktop app
         authMethod: 'pat',
       };
       
-      // Save connection via Tauri
-      await invoke('save_connection', { connection, pat });
-      
-      // Save PAT token securely
-      await invoke('save_token', { 
-        connectionId: connection.id,
-        token: pat 
-      });
+      if ((window as any).__TAURI__) {
+        // Save connection via Tauri
+        await invoke('save_connection', { connection, pat });
+        // Save PAT token securely
+        await invoke('save_token', { connectionId: connection.id, token: pat });
+      } else {
+        // Browser: simulate save
+        console.log('[Settings] Browser save (simulated)', connection);
+      }
       
       successMessage = 'Connection saved successfully!';
       
