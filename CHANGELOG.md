@@ -12,13 +12,11 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Complete Tauri desktop app with Azure DevOps API integration and Kanban board (#96)
 
-
 ## [2.2.8] - 2025-11-18
 
 ### Other
 
 - build(deps-dev): bump the npm_and_yarn group across 1 directory with 2 updates (#97)
-
 
 ## [2.2.7] - 2025-11-18
 

@@ -24,6 +24,7 @@ This implementation establishes a solid **MVP foundation** for the Tauri desktop
 ### 1. UI Components (`apps/app-desktop/src/lib/components/`)
 
 #### App.svelte (240 lines)
+
 - Main application component with complete state management
 - Loading, error, and success states
 - Multi-connection support with routing
@@ -31,6 +32,7 @@ This implementation establishes a solid **MVP foundation** for the Tauri desktop
 - Debug view for development
 
 #### Settings.svelte (200 lines)
+
 - Connection configuration form
 - Organization, project, base URL inputs
 - PAT token input with secure storage integration
@@ -39,6 +41,7 @@ This implementation establishes a solid **MVP foundation** for the Tauri desktop
 - Help section with PAT creation instructions
 
 #### WorkItemList.svelte (230 lines)
+
 - Grid layout for work item cards
 - Work item display: ID, title, type, state, assignee
 - Refresh button with loading state
@@ -47,17 +50,20 @@ This implementation establishes a solid **MVP foundation** for the Tauri desktop
 - State color coding
 
 #### ConnectionTabs.svelte (70 lines)
+
 - Tab interface for multiple connections
 - Active tab highlighting
 - Click handlers for connection switching
 - Accessible ARIA attributes
 
 #### ConnectionViews.svelte (40 lines)
+
 - Container component for connection-specific views
 - Routes to WorkItemList
 - No-connection fallback message
 
 #### WebviewHeader.svelte (120 lines)
+
 - Application header with branding
 - Search box with Enter key handling
 - View toggle (list/kanban)
@@ -65,6 +71,7 @@ This implementation establishes a solid **MVP foundation** for the Tauri desktop
 - Icon-based actions
 
 #### AuthReminder.svelte (60 lines)
+
 - Authentication error detection (401, 403)
 - Sign-in prompt with button
 - Contextual error messages
@@ -90,6 +97,7 @@ show_selection_dialog(items, placeholder) -> Result<Option<String>, String>
 ```
 
 **Features**:
+
 - Uses Tauri Store for connection persistence
 - Separate secure storage for PAT tokens
 - Type-safe structs (Connection, WorkItem)
@@ -99,12 +107,14 @@ show_selection_dialog(items, placeholder) -> Result<Option<String>, String>
 ### 3. Platform Adapter (`apps/app-desktop/src/lib/platform-adapter.ts`)
 
 **Fixed Issues**:
+
 - ✅ Store initialization (lazy loading via `load()`)
 - ✅ openUrl import from @tauri-apps/plugin-opener
 - ✅ All Store access patterns updated
 - ✅ Async getStore() helper method
 
 **Provides**:
+
 - VS Code API compatibility layer
 - Message passing (postMessage, onMessage)
 - Secret storage (getSecret, setSecret, deleteSecret)
@@ -113,6 +123,7 @@ show_selection_dialog(items, placeholder) -> Result<Option<String>, String>
 - Dialog interfaces (showErrorMessage, showInformationMessage, etc.)
 
 **Security Notes**:
+
 - Added warnings about unencrypted secrets
 - Documented need for OS keyring integration
 - Clear TODOs for production security
@@ -122,12 +133,14 @@ show_selection_dialog(items, placeholder) -> Result<Option<String>, String>
 **Current State**: Stub implementation providing the interface
 
 **Provides**:
+
 - `DesktopFsmManager` class
 - Singleton pattern via `getFsmManager()`
 - Methods: initialize(), send(), subscribe(), getSnapshot(), stop(), dispose()
 - Documented TODOs for full integration
 
 **Blockers**:
+
 - Need to resolve path imports from parent repo
 - May require bundler configuration changes
 - Planned for Phase 6 of implementation
@@ -135,6 +148,7 @@ show_selection_dialog(items, placeholder) -> Result<Option<String>, String>
 ### 5. Styling & Theming
 
 **Approach**:
+
 - Converted all VS Code CSS variables to standard CSS
 - Dark mode via `@media (prefers-color-scheme: dark)`
 - Consistent color palette (Azure blue #0078d4)
@@ -142,6 +156,7 @@ show_selection_dialog(items, placeholder) -> Result<Option<String>, String>
 - Smooth transitions and hover effects
 
 **Features**:
+
 - Professional look and feel
 - Platform-appropriate fonts
 - Accessible color contrasts
@@ -151,6 +166,7 @@ show_selection_dialog(items, placeholder) -> Result<Option<String>, String>
 ### 6. Documentation
 
 #### STATUS.md (380 lines)
+
 - Complete implementation checklist
 - Detailed feature tracking
 - Known issues and workarounds
@@ -158,12 +174,14 @@ show_selection_dialog(items, placeholder) -> Result<Option<String>, String>
 - Success criteria
 
 #### Updated README.md
+
 - Current status with checkboxes
 - Feature list organized by status
 - Development instructions
 - Updated feature descriptions
 
 #### Existing Docs
+
 - GETTING_STARTED.md (developer onboarding)
 - INTEGRATION_GUIDE.md (architecture patterns)
 - IMPLEMENTATION_SUMMARY.md (historical context)
@@ -173,12 +191,14 @@ show_selection_dialog(items, placeholder) -> Result<Option<String>, String>
 ### Type Safety ✅
 
 All TypeScript checks passing:
+
 ```bash
 npm run check
 # Result: 0 errors, 1 warning (accessibility)
 ```
 
 **Fixed Issues**:
+
 - Svelte 5 runes mode ($ props instead of export let)
 - Store constructor privacy
 - Type assertions for generic returns
@@ -187,15 +207,17 @@ npm run check
 ### Dependencies
 
 **Frontend**:
+
 - @tauri-apps/api v2
-- @tauri-apps/plugin-* (store, dialog, fs, os, opener)
+- @tauri-apps/plugin-\* (store, dialog, fs, os, opener)
 - xstate ^5.23.0
 - @xstate/svelte (local package)
 - axios, azure-devops-node-api
 
 **Backend**:
+
 - tauri (core framework)
-- tauri-plugin-* (store, dialog, fs, os, opener)
+- tauri-plugin-\* (store, dialog, fs, os, opener)
 - serde, serde_json
 
 ### Build Configuration
@@ -210,6 +232,7 @@ npm run check
 ### 1. Build Environment
 
 **Issue**: Rust build requires system dependencies
+
 - webkit2gtk-4.1-dev
 - glib-2.0
 - gobject-2.0
@@ -224,6 +247,7 @@ npm run check
 ### 2. FSM Integration
 
 **Issue**: Path imports from parent repo unresolved
+
 ```typescript
 // Currently commented out:
 import type { ApplicationContext } from '../../../src/fsm/machines/applicationMachine.js';
@@ -238,6 +262,7 @@ import type { ApplicationContext } from '../../../src/fsm/machines/applicationMa
 ### 3. Mock Data
 
 **Issue**: Work items return stub data
+
 ```rust
 get_work_items() -> Result<Vec<WorkItem>, String> {
     Ok(vec![/* mock data */])
@@ -253,6 +278,7 @@ get_work_items() -> Result<Vec<WorkItem>, String> {
 ### 4. Store Encryption
 
 **Issue**: Tauri Store doesn't encrypt by default
+
 ```typescript
 // WARNING: This stores secrets without encryption.
 // For production, use a proper secure storage mechanism.
@@ -267,18 +293,22 @@ get_work_items() -> Result<Vec<WorkItem>, String> {
 ## Performance Characteristics
 
 ### Binary Size
+
 - **Expected**: 3-5 MB (Tauri native)
 - **vs Electron**: ~95% smaller
 
 ### Memory Usage
+
 - **Expected**: 50-100 MB
 - **Reason**: Shared system webview
 
 ### Startup Time
+
 - **Expected**: < 1 second
 - **Reason**: Rust backend + native window
 
 ### Build Time
+
 - **Frontend**: ~30 seconds (Vite)
 - **Backend**: ~2 minutes (Rust, first build)
 - **Total**: ~2.5 minutes
@@ -290,6 +320,7 @@ get_work_items() -> Result<Vec<WorkItem>, String> {
 **Estimated**: 2-3 days
 
 **Tasks**:
+
 1. Import Azure DevOps client from parent repo
 2. Update Rust backend to call API
 3. Replace mock data with real API calls
@@ -304,6 +335,7 @@ get_work_items() -> Result<Vec<WorkItem>, String> {
 **Estimated**: 2-3 days
 
 **Tasks**:
+
 1. Resolve path import issues
 2. Import Application FSM machine
 3. Wire FSM to UI components
@@ -318,6 +350,7 @@ get_work_items() -> Result<Vec<WorkItem>, String> {
 **Estimated**: 1-2 weeks
 
 **Tasks**:
+
 1. Kanban board component
 2. Timer component
 3. Work item details panel
@@ -334,6 +367,7 @@ get_work_items() -> Result<Vec<WorkItem>, String> {
 **Estimated**: 1 week
 
 **Tasks**:
+
 1. Cross-platform testing
 2. Security audit
 3. Performance optimization
@@ -367,6 +401,7 @@ get_work_items() -> Result<Vec<WorkItem>, String> {
 ## Code Statistics
 
 ### Lines of Code
+
 - **Svelte Components**: ~960 lines
 - **Rust Backend**: ~150 lines
 - **Platform Adapter**: ~200 lines
@@ -375,11 +410,13 @@ get_work_items() -> Result<Vec<WorkItem>, String> {
 - **Total**: ~2640 lines
 
 ### Files Changed
+
 - **New**: 10 files
 - **Modified**: 5 files
 - **Documentation**: 3 files
 
 ### Commits
+
 - **Phase 1**: Initial exploration and planning
 - **Phase 2**: Core UI components and Rust backend
 - **Phase 3**: Documentation and status tracking

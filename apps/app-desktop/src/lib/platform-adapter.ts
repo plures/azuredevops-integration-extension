@@ -55,7 +55,7 @@ class TauriPlatformAdapter implements PlatformAdapter {
       console.error('[PlatformAdapter] Failed to setup message bridge:', error);
     });
   }
-  
+
   private async getStore(): Promise<Store> {
     if (!this.store) {
       // Lazy load store using the load method
@@ -120,7 +120,7 @@ class TauriPlatformAdapter implements PlatformAdapter {
     try {
       const store = await this.getStore();
       const value = await store.get<T>(`config.${key}`);
-      return (value !== null && value !== undefined) ? value : (defaultValue as T);
+      return value !== null && value !== undefined ? value : (defaultValue as T);
     } catch (error) {
       console.error('Error getting configuration:', error);
       return defaultValue as T;
