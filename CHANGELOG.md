@@ -12,7 +12,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Fix: Add missing CREATE_WORK_ITEM event handler (#99)
 
-
 ## [2.4.0] - 2025-11-19
 
 ### Added

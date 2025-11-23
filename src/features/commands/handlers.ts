@@ -59,33 +59,9 @@ function _getExtensionVersion(_context: vscode.ExtensionContext): string {
   return _context.extension.packageJSON.version || 'dev';
 }
 
-// Import functions to dispatch FSM events
-import {
-  sendApplicationStoreEvent,
-  getApplicationStoreActor,
-} from '../../fsm/services/extensionHostBridge.js';
-
-// Helper function to dispatch events - routes to FSM via bridge or actor directly
-function dispatchApplicationEvent(event: any) {
-  // Try bridge first (preferred - uses dispatcher if available)
-  const bridgeSent = sendApplicationStoreEvent(event);
-
-  // Fallback: if bridge dispatcher isn't set, try to get actor directly
-  if (!bridgeSent) {
-    const actor = getApplicationStoreActor();
-    if (actor && typeof (actor as any).send === 'function') {
-      try {
-        (actor as any).send(event);
-      } catch (error) {
-        logger.error('Failed to send event to FSM actor', { meta: { event, error } });
-      }
-    } else {
-      logger.warn('Cannot send event: bridge not initialized and actor not available', {
-        meta: { eventType: event?.type },
-      });
-    }
-  }
-}
+// Import the dispatchApplicationEvent function from activation.ts
+// This ensures events are handled by the actual implementation with work item dialogs, etc.
+import { dispatchApplicationEvent } from '../../activation.js';
 
 // Setup Commands
 export const setupCommand: CommandHandler = async (ctx) => {
@@ -260,12 +236,12 @@ export const showBuildStatusCommand: CommandHandler = (_ctx) => {
 // View Commands
 export const toggleKanbanViewCommand: CommandHandler = (_ctx) => {
   // Dispatch TOGGLE_VIEW event - the FSM will toggle between list and kanban
-  sendApplicationStoreEvent({ type: 'TOGGLE_VIEW' });
+  dispatchApplicationEvent({ type: 'TOGGLE_VIEW' });
 };
 
 export const toggleDebugViewCommand: CommandHandler = (_ctx) => {
   // Dispatch TOGGLE_DEBUG_VIEW event - the FSM will toggle the debug view
-  sendApplicationStoreEvent({ type: 'TOGGLE_DEBUG_VIEW' });
+  dispatchApplicationEvent({ type: 'TOGGLE_DEBUG_VIEW' });
 };
 
 // Team Commands

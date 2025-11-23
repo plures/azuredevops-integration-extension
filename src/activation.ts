@@ -591,17 +591,52 @@ async function showCreateWorkItemDialog(
 
     // Step 5: Enter assignee (optional)
     const assignTo = await vscode.window.showInputBox({
-      prompt: 'Assign to (optional, leave empty to assign to yourself)',
+      prompt: 'Assign to (optional, leave empty for unassigned)',
       placeHolder: 'Email or display name',
       ignoreFocusOut: true,
     });
+
+    // Step 6: Select Iteration (optional)
+    let iterationPath: string | undefined;
+    try {
+      // Try to fetch iterations if the client supports it
+      if (typeof client.getIterations === 'function') {
+        const iterations = await client.getIterations();
+        if (Array.isArray(iterations) && iterations.length > 0) {
+          const iterationItems = iterations.map((i: any) => ({
+            label: i.name,
+            description: i.path,
+            detail: i.attributes?.startDate
+              ? `Start: ${new Date(i.attributes.startDate).toLocaleDateString()}`
+              : undefined,
+          }));
+
+          const selectedIteration = await vscode.window.showQuickPick(iterationItems, {
+            placeHolder: 'Select Iteration (optional)',
+            title: 'Iteration',
+          });
+
+          if (selectedIteration) {
+            iterationPath = selectedIteration.description;
+          }
+        }
+      }
+    } catch (error) {
+      activationLogger.warn('Failed to fetch iterations', { meta: error });
+    }
+
+    const extraFields: Record<string, unknown> = {};
+    if (iterationPath) {
+      extraFields['System.IterationPath'] = iterationPath;
+    }
 
     // Create the work item
     const createdItem = await client.createWorkItem(
       selectedType,
       title.trim(),
       description?.trim(),
-      assignTo?.trim() || undefined
+      assignTo?.trim() || undefined,
+      extraFields
     );
 
     if (createdItem) {
@@ -622,7 +657,7 @@ async function showCreateWorkItemDialog(
   }
 }
 
-function dispatchApplicationEvent(event: unknown): void {
+export function dispatchApplicationEvent(event: unknown): void {
   // Route work item action events to legacy handleMessage which has implementations
   if (event && typeof event === 'object' && 'type' in event) {
     const evt = event as any;
