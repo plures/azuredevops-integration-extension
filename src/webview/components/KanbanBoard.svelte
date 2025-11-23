@@ -25,7 +25,7 @@ LLM-GUARD:
   // CRITICAL: Filter work items to only show those for the active connection
   // This ensures work items from one connection are never shown when another connection's tab is selected
   const activeConnectionId = $derived(context?.activeConnectionId);
-  const allWorkItems = $derived(context?.workItems || context?.pendingWorkItems?.workItems || []);
+  const allWorkItems = $derived(context?.pendingWorkItems?.workItems || context?.workItems || []);
   const pendingWorkItemsConnectionId = $derived(context?.pendingWorkItems?.connectionId);
   const workItems = $derived.by(() => {
     // If pendingWorkItems has a connectionId, filter by it

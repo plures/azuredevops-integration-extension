@@ -63,11 +63,11 @@ LLM-GUARD:
   data-connection-id={connection.id}
 >
   {#if isActive}
+    {@const contextWithWorkItems = { ...context, pendingWorkItems: { workItems, connectionId: connection.id } }}
     <div class="connection-content">
       {#if viewMode === 'kanban'}
-        <KanbanBoard {context} {sendEvent} />
+        <KanbanBoard context={contextWithWorkItems} {sendEvent} />
       {:else}
-        {@const contextWithWorkItems = { ...context, pendingWorkItems: { workItems, connectionId: connection.id } }}
         <WorkItemList 
           context={contextWithWorkItems} 
           {matches}

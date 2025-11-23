@@ -4,7 +4,9 @@
  */
 
 // Dynamic Tauri core import; undefined in pure browser
-let invoke: (<T>(cmd: string, args?: any) => Promise<T>) = async () => { throw new Error('Tauri invoke unavailable in browser'); };
+let invoke: <T>(cmd: string, args?: any) => Promise<T> = async () => {
+  throw new Error('Tauri invoke unavailable in browser');
+};
 try {
   if ((window as any).__TAURI__) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -13,10 +15,21 @@ try {
 } catch {
   /* browser fallback */
 }
-let Store: any = class { async get() { return undefined; } async set() {} async save() {} async delete() {} };
+let Store: any = class {
+  async get() {
+    return undefined;
+  }
+  async set() {}
+  async save() {}
+  async delete() {}
+};
 let message: any = async (msg: string) => alert(msg);
-let readTextFile: any = async () => { throw new Error('FS unavailable'); };
-let writeTextFile: any = async () => { throw new Error('FS unavailable'); };
+let readTextFile: any = async () => {
+  throw new Error('FS unavailable');
+};
+let writeTextFile: any = async () => {
+  throw new Error('FS unavailable');
+};
 let exists: any = async () => false;
 const BaseDirectory: any = {};
 
@@ -101,7 +114,9 @@ class TauriPlatformAdapter implements PlatformAdapter {
           this.messageHandlers.forEach((h) => h(payload));
         };
         window.addEventListener('app-backend-message', handler as EventListener);
-        this.eventUnlisteners.push(() => window.removeEventListener('app-backend-message', handler as EventListener));
+        this.eventUnlisteners.push(() =>
+          window.removeEventListener('app-backend-message', handler as EventListener)
+        );
       }
     } catch (error) {
       console.error('[PlatformAdapter] Error setting up message bridge:', error);
@@ -194,19 +209,31 @@ class TauriPlatformAdapter implements PlatformAdapter {
       return result as T | undefined;
     }
     const chosen = window.prompt(`Select: ${items.join(', ')}`);
-    return (items.includes(chosen as T) ? (chosen as T) : undefined);
+    return items.includes(chosen as T) ? (chosen as T) : undefined;
   }
 
   async showInformationMessage(msg: string): Promise<void> {
-    if ((window as any).__TAURI__) { await message(msg, { title: 'Information', kind: 'info' }); } else { alert(msg); }
+    if ((window as any).__TAURI__) {
+      await message(msg, { title: 'Information', kind: 'info' });
+    } else {
+      alert(msg);
+    }
   }
 
   async showErrorMessage(msg: string): Promise<void> {
-    if ((window as any).__TAURI__) { await message(msg, { title: 'Error', kind: 'error' }); } else { alert(`Error: ${msg}`); }
+    if ((window as any).__TAURI__) {
+      await message(msg, { title: 'Error', kind: 'error' });
+    } else {
+      alert(`Error: ${msg}`);
+    }
   }
 
   async showWarningMessage(msg: string): Promise<void> {
-    if ((window as any).__TAURI__) { await message(msg, { title: 'Warning', kind: 'warning' }); } else { alert(`Warning: ${msg}`); }
+    if ((window as any).__TAURI__) {
+      await message(msg, { title: 'Warning', kind: 'warning' });
+    } else {
+      alert(`Warning: ${msg}`);
+    }
   }
 
   async fileExists(path: string): Promise<boolean> {
@@ -218,12 +245,14 @@ class TauriPlatformAdapter implements PlatformAdapter {
   }
 
   async readFile(path: string): Promise<string> {
-    if ((window as any).__TAURI__) return await readTextFile(path, { baseDir: BaseDirectory.AppData });
+    if ((window as any).__TAURI__)
+      return await readTextFile(path, { baseDir: BaseDirectory.AppData });
     throw new Error('readFile not available in browser');
   }
 
   async writeFile(path: string, content: string): Promise<void> {
-    if ((window as any).__TAURI__) return await writeTextFile(path, content, { baseDir: BaseDirectory.AppData });
+    if ((window as any).__TAURI__)
+      return await writeTextFile(path, content, { baseDir: BaseDirectory.AppData });
     console.warn('writeFile ignored in browser runtime');
   }
 

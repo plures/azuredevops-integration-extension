@@ -714,6 +714,17 @@ h3.svelte-j9p4i1 {
   background: var(--vscode-list-hoverBackground);
   border-color: var(--vscode-focusBorder);
 }
+.kanban-item.selected.svelte-j9p4i1 {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+  border-color: var(--vscode-focusBorder);
+}
+.kanban-item.selected.svelte-j9p4i1 .kanban-item-title:where(.svelte-j9p4i1) {
+  color: var(--vscode-list-activeSelectionForeground);
+}
+.kanban-item.selected.svelte-j9p4i1 .type-icon:where(.svelte-j9p4i1) {
+  color: var(--vscode-list-activeSelectionForeground);
+}
 .kanban-item-header.svelte-j9p4i1 {
   display: flex;
   align-items: center;

@@ -12,9 +12,11 @@ This checklist should be completed before each release to ensure all UI buttons 
 ## Test 1: Create Work Item Button
 
 ### Location
+
 Webview header, + icon
 
 ### Steps
+
 1. [ ] Click the + button in the webview header
 2. [ ] Verify: Dialog appears with "Create Work Item" title
 3. [ ] Verify: Work item type list includes Task, Bug, User Story, Feature, Epic (or organization-specific types)
@@ -30,12 +32,14 @@ Webview header, + icon
 13. [ ] Verify: Work item has correct type (Task), title, and description
 
 ### Cancel Test
+
 14. [ ] Click + button again
 15. [ ] Press Escape or click away from dialog
 16. [ ] Verify: No error message appears
 17. [ ] Verify: No work item was created
 
 ### Error Test
+
 18. [ ] Disconnect or invalidate connection
 19. [ ] Click + button
 20. [ ] Verify: Appropriate error message appears
@@ -43,9 +47,11 @@ Webview header, + icon
 ## Test 2: Refresh Work Items Button
 
 ### Location
+
 Webview header, ↻ icon
 
 ### Steps
+
 1. [ ] Click the refresh button (↻)
 2. [ ] Verify: Button shows spinning animation
 3. [ ] Verify: Work items list refreshes
@@ -54,9 +60,11 @@ Webview header, ↻ icon
 ## Test 3: Toggle Kanban View Button
 
 ### Location
+
 Webview header, ⚏ icon
 
 ### Steps
+
 1. [ ] Verify current view (list or kanban)
 2. [ ] Click the toggle button (⚏)
 3. [ ] Verify: View changes to opposite mode
@@ -69,9 +77,11 @@ Webview header, ⚏ icon
 ## Test 4: Setup/Manage Connections Button
 
 ### Location
+
 Webview header, ⚙ icon
 
 ### Steps
+
 1. [ ] Click the settings button (⚙)
 2. [ ] Verify: Settings/connection management UI appears
 3. [ ] Verify: Existing connections are shown
@@ -82,13 +92,16 @@ Webview header, ⚙ icon
 ## Test 5: Toggle Debug View Button (Conditional)
 
 ### Location
+
 Webview header, 🐛 icon (only appears if debug logging is enabled)
 
 ### Setup
+
 1. [ ] Enable debug logging in VS Code settings
 2. [ ] Verify debug button appears in header
 
 ### Steps
+
 3. [ ] Click the debug button (🐛)
 4. [ ] Verify: Debug panel appears/disappears
 5. [ ] Verify: Debug information is shown when visible
@@ -99,6 +112,7 @@ Webview header, 🐛 icon (only appears if debug logging is enabled)
 ## Test 6: Command Palette Commands
 
 ### Create Work Item
+
 1. [ ] Press `Ctrl+Shift+P` (Windows/Linux) or `Cmd+Shift+P` (Mac)
 2. [ ] Type "Create Work Item"
 3. [ ] Select "Azure DevOps Int: Create Work Item"
@@ -107,6 +121,7 @@ Webview header, 🐛 icon (only appears if debug logging is enabled)
 6. [ ] Verify: Works identically to button
 
 ### Refresh Work Items
+
 7. [ ] Press `Ctrl+Shift+P` or `Cmd+Shift+P`
 8. [ ] Type "Refresh Work Items"
 9. [ ] Select "Azure DevOps Int: Refresh Work Items"
@@ -114,6 +129,7 @@ Webview header, 🐛 icon (only appears if debug logging is enabled)
 11. [ ] Verify: Same behavior as button
 
 ### Toggle Kanban View
+
 12. [ ] Press `Ctrl+Shift+P` or `Cmd+Shift+P`
 13. [ ] Type "Toggle Kanban View"
 14. [ ] Select "Azure DevOps Int: Toggle Kanban View"
@@ -121,6 +137,7 @@ Webview header, 🐛 icon (only appears if debug logging is enabled)
 16. [ ] Verify: Same behavior as button
 
 ### Setup/Manage Connections
+
 17. [ ] Press `Ctrl+Shift+P` or `Cmd+Shift+P`
 18. [ ] Type "Setup or Manage Connections"
 19. [ ] Select "Azure DevOps Int: Setup or Manage Connections"
@@ -130,18 +147,21 @@ Webview header, 🐛 icon (only appears if debug logging is enabled)
 ## Test 7: Keyboard Shortcuts
 
 ### Refresh (R key when view has focus)
+
 1. [ ] Click in the work items view to give it focus
 2. [ ] Press the `R` key
 3. [ ] Verify: Work items refresh
 4. [ ] Verify: Same behavior as button/command
 
 ### Toggle View (V key when view has focus)
+
 5. [ ] Ensure work items view has focus
 6. [ ] Press the `V` key
 7. [ ] Verify: View toggles between list and kanban
 8. [ ] Verify: Same behavior as button/command
 
 ### Focus Search (/ key when view has focus)
+
 9. [ ] Ensure work items view has focus
 10. [ ] Press the `/` key
 11. [ ] Verify: Search box gets focus
@@ -150,12 +170,14 @@ Webview header, 🐛 icon (only appears if debug logging is enabled)
 ## Test 8: Error Scenarios
 
 ### No Connection
+
 1. [ ] Remove or disconnect all connections
 2. [ ] Try each button
 3. [ ] Verify: Appropriate error messages appear
 4. [ ] Verify: No crashes or unhandled exceptions
 
 ### Network Issues
+
 5. [ ] Simulate network disconnection (if possible)
 6. [ ] Try refresh button
 7. [ ] Try create work item
@@ -163,6 +185,7 @@ Webview header, 🐛 icon (only appears if debug logging is enabled)
 9. [ ] Verify: Helpful error messages shown
 
 ### Invalid Credentials
+
 10. [ ] Use invalid or expired PAT
 11. [ ] Try operations
 12. [ ] Verify: Authentication errors shown
@@ -191,6 +214,7 @@ If multiple connections are configured:
 All checkboxes above should be checked (✓) for the test to pass.
 
 Any failures should be:
+
 - [ ] Documented with details
 - [ ] Logged as issues
 - [ ] Fixed before release
@@ -204,9 +228,9 @@ Date: _______________
 Tester: _______________
 
 Issues Found:
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
 Additional Observations:
 -
