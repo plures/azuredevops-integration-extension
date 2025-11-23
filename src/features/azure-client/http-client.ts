@@ -98,7 +98,7 @@ export class AzureHttpClient {
     // Request interceptor
     this.axiosInstance.interceptors.request.use(
       async (config) => {
-        await this.rateLimiter.wait();
+        await this.rateLimiter.acquire();
 
         // Add authentication
         if (this.authType === 'pat') {
@@ -119,45 +119,53 @@ export class AzureHttpClient {
     this.axiosInstance.interceptors.response.use(
       (response) => response,
       async (err) => {
-        const cfg = err.config || {};
-        const url = cfg.url || 'unknown';
-
-        if (err.response) {
-          const { status, statusText, data } = err.response;
-
-          if (status === 404) {
-            logger.error('HTTP 404 Details', {
-              url,
-              status,
-              statusText,
-              data: data ? JSON.stringify(data).substring(0, 200) : 'no data',
-            });
-          }
-
-          if (status === 401 && this.authType === 'bearer') {
-            logger.error('HTTP 401 Unauthorized - authentication required');
-          }
-
-          // Handle specific error cases
-          if (status === 400 && data) {
-            let snippet: string;
-            try {
-              snippet = JSON.stringify(data).substring(0, 200);
-            } catch {
-              snippet = String(data).substring(0, 200);
-            }
-            logger.error('HTTP 400 Details', {
-              url,
-              status,
-              statusText,
-              data: snippet,
-            });
-          }
-        }
-
+        this._logResponseError(err);
         return Promise.reject(err);
       }
     );
+  }
+
+  private _logResponseError(err: any): void {
+    const cfg = err.config || {};
+    const url = cfg.url || 'unknown';
+
+    if (err.response) {
+      const { status, statusText, data } = err.response;
+
+      if (status === 404) {
+        logger.error('HTTP 404 Details', {
+          meta: {
+            url,
+            status,
+            statusText,
+            data: data ? JSON.stringify(data).substring(0, 200) : 'no data',
+          },
+        });
+      }
+
+      if (status === 401 && this.authType === 'bearer') {
+        logger.error('HTTP 401 Unauthorized - authentication required');
+      }
+
+      // Handle specific error cases
+      if (status === 400 && data) {
+        let snippet: string;
+        try {
+          snippet = JSON.stringify(data).substring(0, 200);
+        } catch {
+          snippet = 'Unable to stringify data';
+        }
+
+        logger.error('HTTP 400 Details', {
+          meta: {
+            url,
+            status,
+            statusText,
+            data: snippet,
+          },
+        });
+      }
+    }
   }
 
   updateCredential(newCredential: string): void {

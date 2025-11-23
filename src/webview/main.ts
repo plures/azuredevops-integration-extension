@@ -49,7 +49,6 @@ if (typeof (globalThis as any).process === 'undefined') {
   };
   // Ensure identifier binding in module scope
 
-  const _process = (globalThis as any).process;
   console.debug('[AzureDevOpsInt][webview] process shim installed');
 }
 
@@ -59,6 +58,25 @@ if (typeof (globalThis as any).process === 'undefined') {
 // We update a Svelte store so components can react without importing
 // Node-bound FSM implementations.
 // -------------------------------------------------------------
+function handleSyncState(msg: any) {
+  console.debug('[AzureDevOpsInt][webview] Processing syncState message:', {
+    fsmState: msg.payload.fsmState,
+    hasContext: !!msg.payload.context,
+    hasMatches: !!msg.payload.matches,
+    matches: msg.payload.matches,
+  });
+  try {
+    applicationSnapshot.set({
+      value: msg.payload.fsmState,
+      context: msg.payload.context,
+      matches: msg.payload.matches || {},
+    });
+    console.debug('[AzureDevOpsInt][webview] Successfully updated applicationSnapshot store');
+  } catch (e) {
+    console.debug('[AzureDevOpsInt][webview] Failed to apply FSM snapshot', e);
+  }
+}
+
 window.addEventListener('message', (event) => {
   const msg = event?.data;
   console.debug('[AzureDevOpsInt][webview] Received message:', {
@@ -69,22 +87,7 @@ window.addEventListener('message', (event) => {
     fullMessage: msg,
   });
   if (msg?.type === 'syncState' && msg?.payload) {
-    console.debug('[AzureDevOpsInt][webview] Processing syncState message:', {
-      fsmState: msg.payload.fsmState,
-      hasContext: !!msg.payload.context,
-      hasMatches: !!msg.payload.matches,
-      matches: msg.payload.matches,
-    });
-    try {
-      applicationSnapshot.set({
-        value: msg.payload.fsmState,
-        context: msg.payload.context,
-        matches: msg.payload.matches || {},
-      });
-      console.debug('[AzureDevOpsInt][webview] Successfully updated applicationSnapshot store');
-    } catch (e) {
-      console.debug('[AzureDevOpsInt][webview] Failed to apply FSM snapshot', e);
-    }
+    handleSyncState(msg);
   }
   // Note: All state updates now come via syncState message (reactive architecture).
   // Partial message handlers (syncTimerState, workItemsError, workItemsLoaded) have been removed.

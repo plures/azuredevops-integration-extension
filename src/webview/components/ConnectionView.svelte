@@ -29,7 +29,7 @@ LLM-GUARD:
     sendEvent: (event: any) => void;
   }
   
-  const { connection, isActive, query, workItems, filters, viewMode, context, matches, sendEvent }: Props = $props();
+  const { connection, isActive, query, workItems, viewMode, context, matches, sendEvent }: Props = $props();
   
   function handleQueryChange(newQuery: string) {
     sendEvent({
@@ -39,22 +39,6 @@ LLM-GUARD:
     });
   }
   
-  function handleFilterChange(newFilters: any) {
-    sendEvent({
-      type: 'SET_CONNECTION_FILTERS',
-      connectionId: connection.id,
-      filters: newFilters,
-    });
-  }
-  
-  function handleViewModeToggle() {
-    const nextMode = viewMode === 'list' ? 'kanban' : 'list';
-    sendEvent({
-      type: 'SET_CONNECTION_VIEW_MODE',
-      connectionId: connection.id,
-      viewMode: nextMode,
-    });
-  }
 </script>
 
 <div

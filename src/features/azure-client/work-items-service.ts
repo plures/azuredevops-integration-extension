@@ -18,7 +18,6 @@ import type { AzureHttpClient } from './http-client.js';
 
 const logger = createLogger('work-items-service');
 import type {
-  WorkItem,
   WorkItemFilter,
   WorkItemPatch,
   WorkItemCreateData,
@@ -28,6 +27,18 @@ import type {
   WorkItemRelationInfo,
 } from './types.js';
 import { WIQLBuilder } from './wiql-builder.js';
+
+export interface WorkItem {
+  id: number;
+  title: string;
+  state: string;
+  assignedTo: string;
+  workItemType: string;
+  changedDate: string;
+  url: string;
+  fields: Record<string, any>;
+  relations?: WorkItemRelationInfo[];
+}
 
 export class WorkItemsService {
   private httpClient: AzureHttpClient;
@@ -121,7 +132,7 @@ export class WorkItemsService {
     try {
       const cached = this.cache.get(cacheKey);
       if (cached) {
-        logger.debug('Cache hit for query', { query });
+        logger.debug('Cache hit for query', { meta: { query } });
         return cached;
       }
 
@@ -145,7 +156,7 @@ export class WorkItemsService {
     }
   }
 
-  async createWorkItem(data: WorkItemCreateData): Promise<WorkItem | null> {
+  private _buildCreatePatch(data: WorkItemCreateData): WorkItemPatch[] {
     const patch: WorkItemPatch[] = [{ op: 'add', path: '/fields/System.Title', value: data.title }];
 
     if (data.description) {
@@ -160,6 +171,18 @@ export class WorkItemsService {
         patch.push({ op: 'add', path: `/fields/${field}`, value });
       }
     }
+    return patch;
+  }
+
+  private _handleRequestError(error: unknown, logMessage: string, actionDescription: string): void {
+    logger.error(logMessage, { meta: error });
+    if ((error as any).response?.status === 403) {
+      logger.error(`403 Forbidden - insufficient permissions to ${actionDescription}`);
+    }
+  }
+
+  async createWorkItem(data: WorkItemCreateData): Promise<WorkItem | null> {
+    const patch = this._buildCreatePatch(data);
 
     try {
       const response = await this.httpClient.post(
@@ -173,14 +196,10 @@ export class WorkItemsService {
       );
 
       if (response.data?.id) {
-        const workItem = this._mapWorkItems([response.data])[0];
-        return workItem;
+        return this._mapWorkItems([response.data])[0];
       }
     } catch (error) {
-      logger.error('Error creating work item', { meta: error });
-      if (error.response?.status === 403) {
-        logger.error('403 Forbidden - insufficient permissions to create work items');
-      }
+      this._handleRequestError(error, 'Error creating work item', 'create work items');
     }
 
     return null;
@@ -200,13 +219,11 @@ export class WorkItemsService {
 
       if (response.data?.id) {
         const workItem = this._mapWorkItems([response.data])[0];
-        // Invalidate cache for this work item
-        this.cache.invalidateWorkItem(id);
         return workItem;
       }
     } catch (error) {
       logger.error('Error updating work item', { meta: error });
-      if (error.response?.status === 403) {
+      if ((error as any).response?.status === 403) {
         logger.error('403 Forbidden - insufficient permissions to update work items');
       }
     }
@@ -235,13 +252,11 @@ export class WorkItemsService {
       );
 
       if (response.data?.id) {
-        // Invalidate cache for this work item
-        this.cache.invalidateWorkItem(id);
         return true;
       }
     } catch (error) {
-      logger.error('Error adding comment to work item', { meta: error });
-      if (error.response?.status === 403) {
+      logger.error('Error adding comment', { meta: error });
+      if ((error as any).response?.status === 403) {
         logger.error('403 Forbidden - insufficient permissions to add comments');
       }
     }

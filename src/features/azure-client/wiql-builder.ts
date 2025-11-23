@@ -69,14 +69,16 @@ export class WIQLBuilder {
                   WHERE [System.TeamProject] = @project
                   AND ([System.Title] CONTAINS '${safe}' OR [System.Description] CONTAINS '${safe}')`;
 
+    const clauses = this._buildFilterClauses(filter);
+
+    return `${base} AND ${clauses.join(' AND ')} ORDER BY [System.ChangedDate] DESC`;
+  }
+
+  private _buildFilterClauses(filter?: WorkItemFilter): string[] {
     const clauses: string[] = [];
 
     if (filter?.sprint && filter.sprint !== 'All') {
-      if (filter.sprint === '@CurrentIteration') {
-        clauses.push('[System.IterationPath] UNDER @CurrentIteration');
-      } else {
-        clauses.push(`[System.IterationPath] UNDER '${this._escapeWIQL(filter.sprint)}'`);
-      }
+      clauses.push(this._getSprintClause(filter.sprint));
     }
 
     if (filter?.includeState) {
@@ -87,12 +89,27 @@ export class WIQLBuilder {
       clauses.push(`[System.WorkItemType] = '${this._escapeWIQL(filter.type)}'`);
     }
 
-    if (filter?.assignedTo === 'Me') clauses.push('[System.AssignedTo] = @Me');
-    else if (filter?.assignedTo === 'Unassigned') clauses.push('[System.AssignedTo] = ""');
+    if (filter?.assignedTo) {
+      const clause = this._getAssignedToClause(filter.assignedTo);
+      if (clause) clauses.push(clause);
+    }
 
     if (clauses.length === 0) clauses.push('[System.State] <> "Removed"');
 
-    return `${base} AND ${clauses.join(' AND ')} ORDER BY [System.ChangedDate] DESC`;
+    return clauses;
+  }
+
+  private _getSprintClause(sprint: string): string {
+    if (sprint === '@CurrentIteration') {
+      return '[System.IterationPath] UNDER @CurrentIteration';
+    }
+    return `[System.IterationPath] UNDER '${this._escapeWIQL(sprint)}'`;
+  }
+
+  private _getAssignedToClause(assignedTo: string): string | null {
+    if (assignedTo === 'Me') return '[System.AssignedTo] = @Me';
+    if (assignedTo === 'Unassigned') return '[System.AssignedTo] = ""';
+    return null;
   }
 
   private _buildActiveFilter(useStateCategory: boolean): string {

@@ -14,11 +14,11 @@
 import { AzureHttpClient } from './http-client.js';
 import { WorkItemsService } from './work-items-service.js';
 import { createLogger } from '../../logging/unifiedLogger.js';
+import type { WorkItem } from 'azure-devops-node-api/interfaces/WorkItemTrackingInterfaces.js';
 
 const logger = createLogger('azure-client');
 import type {
   ClientOptions,
-  WorkItem,
   WorkItemFilter,
   WorkItemCreateData,
   WorkItemTimeEntry,
@@ -52,11 +52,11 @@ export class AzureDevOpsIntClient {
 
   // Delegate work items operations to the service
   async getWorkItems(query: string): Promise<WorkItem[]> {
-    return this.workItemsService.getWorkItemsByQuery(query);
+    return this.workItemsService.getWorkItemsByQuery(query) as unknown as WorkItem[];
   }
 
   async updateWorkItem(id: number, patches: WorkItemPatch[]): Promise<WorkItem | null> {
-    return this.workItemsService.updateWorkItem(id, patches);
+    return this.workItemsService.updateWorkItem(id, patches) as unknown as WorkItem | null;
   }
 
   async addWorkItemComment(id: number, comment: string): Promise<boolean> {
@@ -64,16 +64,16 @@ export class AzureDevOpsIntClient {
   }
 
   async getWorkItemsByIds(ids: number[]): Promise<WorkItem[]> {
-    return this.workItemsService.getWorkItemsByIds(ids);
+    return this.workItemsService.getWorkItemsByIds(ids) as unknown as WorkItem[];
   }
 
   async getWorkItemById(id: number): Promise<WorkItem | null> {
     const items = await this.workItemsService.getWorkItemsByIds([id]);
-    return items.length > 0 ? items[0] : null;
+    return items.length > 0 ? (items[0] as unknown as WorkItem) : null;
   }
 
   async createWorkItem(data: WorkItemCreateData): Promise<WorkItem | null> {
-    return this.workItemsService.createWorkItem(data);
+    return this.workItemsService.createWorkItem(data) as unknown as WorkItem | null;
   }
 
   async addWorkItemTime(id: number, timeEntry: WorkItemTimeEntry): Promise<boolean> {
@@ -81,7 +81,7 @@ export class AzureDevOpsIntClient {
   }
 
   async searchWorkItems(term: string, filter?: WorkItemFilter): Promise<WorkItem[]> {
-    return this.workItemsService.searchWorkItems(term, filter);
+    return this.workItemsService.searchWorkItems(term, filter) as unknown as WorkItem[];
   }
 
   // Authentication and identity methods
@@ -89,7 +89,9 @@ export class AzureDevOpsIntClient {
     if (this.cachedIdentity) return this.cachedIdentity;
 
     try {
-      const response = await this.httpClient.get<ConnectionData>('/connectionData');
+      const response = (await (this.httpClient as any).get('/connectionData')) as {
+        data: ConnectionData;
+      };
       if (response.data?.authenticatedUser) {
         this.cachedIdentity = response.data.authenticatedUser;
         return this.cachedIdentity;
@@ -105,18 +107,22 @@ export class AzureDevOpsIntClient {
   async getRepositories(force = false): Promise<RepositoryInfo[]> {
     if (this._repoCache && !force) return this._repoCache;
 
-    const cacheKey = `repos:${this.httpClient.organizationName}:${this.httpClient.projectName}`;
+    const cacheKey = `repos:${this.organization}:${this.project}`;
 
     if (!force) {
-      const cached = this.httpClient['cache']?.get(cacheKey);
+      const cached = (this.httpClient as any).cache?.get(cacheKey);
       if (cached) {
         this._repoCache = cached;
         return cached;
       }
     }
 
+    return this.fetchAndCacheRepositories(cacheKey);
+  }
+
+  private async fetchAndCacheRepositories(cacheKey: string): Promise<RepositoryInfo[]> {
     try {
-      const response = await this.httpClient.get('/git/repositories');
+      const response = await (this.httpClient as any).get('/git/repositories');
       if (response.data?.value) {
         const repos: RepositoryInfo[] = response.data.value.map((repo: any) => ({
           id: repo.id,
@@ -126,7 +132,7 @@ export class AzureDevOpsIntClient {
         }));
 
         this._repoCache = repos;
-        this.httpClient['cache']?.set(cacheKey, repos, 10 * 60 * 1000); // 10 minutes
+        (this.httpClient as any).cache?.set(cacheKey, repos, 10 * 60 * 1000); // 10 minutes
         return repos;
       }
     } catch (error) {
@@ -144,9 +150,12 @@ export class AzureDevOpsIntClient {
         params.status = status;
       }
 
-      const response = await this.httpClient.get(`/git/repositories/${repositoryId}/pullrequests`, {
-        params,
-      });
+      const response = await (this.httpClient as any).get(
+        `/git/repositories/${repositoryId}/pullrequests`,
+        {
+          params,
+        }
+      );
 
       if (response.data?.value) {
         return response.data.value.map((pr: any) => ({
@@ -179,7 +188,7 @@ export class AzureDevOpsIntClient {
         params.definitions = Array.isArray(definitions) ? definitions.join(',') : definitions;
       }
 
-      const response = await this.httpClient.get('/build/builds', { params });
+      const response = await (this.httpClient as any).get('/build/builds', { params });
 
       if (response.data?.value) {
         return response.data.value.map((build: any) => ({
@@ -202,44 +211,44 @@ export class AzureDevOpsIntClient {
 
   // Utility methods
   updateCredential(newCredential: string): void {
-    this.httpClient.updateCredential(newCredential);
+    (this.httpClient as any).updateCredential(newCredential);
   }
 
   buildFullUrl(path: string): string {
-    return this.httpClient.buildFullUrl(path);
+    return (this.httpClient as any).buildFullUrl(path);
   }
 
   getBrowserUrl(path: string): string {
-    return this.httpClient.getBrowserUrl(path);
+    return (this.httpClient as any).getBrowserUrl(path);
   }
 
   buildTeamUrl(path: string): string {
-    return this.httpClient.buildTeamUrl(path);
+    return (this.httpClient as any).buildTeamUrl(path);
   }
 
   setTeam(teamName: string): void {
-    this.httpClient.setTeam(teamName);
+    (this.httpClient as any).setTeam(teamName);
   }
 
   // Getters for external access
   get organization(): string {
-    return this.httpClient.organizationName;
+    return (this.httpClient as any).organization;
   }
 
   get project(): string {
-    return this.httpClient.projectName;
+    return (this.httpClient as any).project;
   }
 
   get encodedOrganization(): string {
-    return this.httpClient.encodedOrg;
+    return (this.httpClient as any).encodedOrg;
   }
 
   get encodedProject(): string {
-    return this.httpClient.encodedProj;
+    return (this.httpClient as any).encodedProj;
   }
 
   get encodedTeam(): string | undefined {
-    return this.httpClient.encodedTeamName;
+    return (this.httpClient as any).encodedTeamName;
   }
 }
 

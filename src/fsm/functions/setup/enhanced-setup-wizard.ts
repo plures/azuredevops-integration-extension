@@ -42,6 +42,47 @@ export interface EnhancedSetupResult {
 }
 
 /**
+ * Prompts for OnPremises identity name during quick setup
+ */
+async function getQuickSetupIdentity(
+  defaults: ReturnType<typeof autoDetectConnectionDefaults>
+): Promise<string | undefined> {
+  const suggestedIdentity = defaults.identityName || '';
+  const identityPrompt = suggestedIdentity
+    ? `Identity for @Me queries (press Enter to use: ${suggestedIdentity})`
+    : `Identity for @Me queries (e.g., DOMAIN\\user or user@domain.com)`;
+
+  const identityInput = await vscode.window.showInputBox({
+    prompt: identityPrompt,
+    value: suggestedIdentity,
+    placeHolder: suggestedIdentity || 'CORP\\username or user@domain.com',
+    validateInput: (value) => {
+      // Allow empty if we have a suggestion (user can press Enter to accept)
+      if (!value && suggestedIdentity) {
+        return null;
+      }
+      // Require value if no suggestion
+      if (!value) {
+        return 'Identity is recommended for OnPremises servers to resolve @Me queries';
+      }
+      // Validate format if provided
+      if (!validateUsernameFormat(value)) {
+        return 'Invalid format. Use DOMAIN\\user or user@domain.com';
+      }
+      return null;
+    },
+  });
+
+  // Use provided input, or fall back to suggested if empty (but not empty string)
+  // identityInput can be empty string if user pressed Enter with suggestion
+  const finalIdentity = identityInput !== undefined ? identityInput : suggestedIdentity;
+  if (finalIdentity && finalIdentity.trim()) {
+    return formatUsername(finalIdentity);
+  }
+  return undefined;
+}
+
+/**
  * Shows quick setup dialog with auto-detected values
  *
  * @param defaults - Auto-detected connection defaults
@@ -92,38 +133,10 @@ async function showQuickSetup(
 
   // For OnPremises, prompt for identityName
   if (defaults.environment === 'onpremises') {
-    const suggestedIdentity = defaults.identityName || '';
-    const identityPrompt = suggestedIdentity
-      ? `Identity for @Me queries (press Enter to use: ${suggestedIdentity})`
-      : `Identity for @Me queries (e.g., DOMAIN\\user or user@domain.com)`;
-
-    const identityInput = await vscode.window.showInputBox({
-      prompt: identityPrompt,
-      value: suggestedIdentity,
-      placeHolder: suggestedIdentity || 'CORP\\username or user@domain.com',
-      validateInput: (value) => {
-        // Allow empty if we have a suggestion (user can press Enter to accept)
-        if (!value && suggestedIdentity) {
-          return null;
-        }
-        // Require value if no suggestion
-        if (!value) {
-          return 'Identity is recommended for OnPremises servers to resolve @Me queries';
-        }
-        // Validate format if provided
-        if (!validateUsernameFormat(value)) {
-          return 'Invalid format. Use DOMAIN\\user or user@domain.com';
-        }
-        return null;
-      },
-    });
-
-    // Use provided input, or fall back to suggested if empty (but not empty string)
-    // identityInput can be empty string if user pressed Enter with suggestion
-    const finalIdentity = identityInput !== undefined ? identityInput : suggestedIdentity;
-    if (finalIdentity && finalIdentity.trim()) {
-      result.identityName = formatUsername(finalIdentity);
-      result.connection.identityName = result.identityName;
+    const identityName = await getQuickSetupIdentity(defaults);
+    if (identityName) {
+      result.identityName = identityName;
+      result.connection.identityName = identityName;
     }
   }
 
@@ -177,15 +190,14 @@ async function collectPAT(): Promise<string | undefined> {
 }
 
 /**
- * Shows advanced setup dialog with all fields editable
- *
- * @param defaults - Auto-detected defaults
- * @returns Setup result or undefined if cancelled
+ * Collects basic connection details for advanced setup
  */
-async function showAdvancedSetup(
+async function collectAdvancedBasicDetails(
   defaults: ReturnType<typeof autoDetectConnectionDefaults>
-): Promise<EnhancedSetupResult | undefined> {
-  // Show all fields for manual editing
+): Promise<
+  | { organization: string; project: string; baseUrl: string; apiBaseUrl: string | undefined }
+  | undefined
+> {
   const organization = await vscode.window.showInputBox({
     prompt: 'Organization/Collection Name',
     value: defaults.organization,
@@ -228,6 +240,24 @@ async function showAdvancedSetup(
       }
     },
   });
+
+  return { organization, project, baseUrl, apiBaseUrl };
+}
+
+/**
+ * Shows advanced setup dialog with all fields editable
+ *
+ * @param defaults - Auto-detected defaults
+ * @returns Setup result or undefined if cancelled
+ */
+async function showAdvancedSetup(
+  defaults: ReturnType<typeof autoDetectConnectionDefaults>
+): Promise<EnhancedSetupResult | undefined> {
+  // Collect basic details
+  const basicDetails = await collectAdvancedBasicDetails(defaults);
+  if (!basicDetails) return undefined;
+
+  const { organization, project, baseUrl, apiBaseUrl } = basicDetails;
 
   // Auth method selection
   const availableMethods = getAvailableAuthMethods(defaults.environment);
