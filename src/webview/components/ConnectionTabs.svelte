@@ -49,7 +49,7 @@ LLM-GUARD:
     };
   }
 
-  import { createSelectConnection, webviewOwner } from '../selection.writer.internal';
+  import { createSelectConnection, webviewOwner } from  '../selection.writer.internal.js';
 
   function select(id: string) {
     if (!vscode) return;

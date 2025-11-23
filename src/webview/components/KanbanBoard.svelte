@@ -55,19 +55,6 @@ LLM-GUARD:
   });
 
   // Helper functions (same as WorkItemList)
-  function normalizeState(raw: string): string {
-    if (!raw) return 'new';
-    const s = String(raw).toLowerCase().trim().replace(/\s+/g, '-');
-    if (['new', 'to-do', 'todo', 'proposed'].includes(s)) return 'new';
-    if (s === 'active') return 'active';
-    if (['in-progress', 'inprogress', 'doing'].includes(s)) return 'inprogress';
-    if (['review', 'code-review', 'testing'].includes(s)) return 'review';
-    if (s === 'resolved') return 'resolved';
-    if (s === 'done') return 'done';
-    if (['closed', 'completed'].includes(s)) return 'closed';
-    return 'new';
-  }
-
   function getWorkItemTypeIcon(type: string): string {
     const t = String(type || '').toLowerCase();
     if (t.includes('bug')) return '\uf41d';
@@ -122,7 +109,18 @@ LLM-GUARD:
             {#each col.itemIds as id (id)}
               {@const item = workItemsMap.get(String(id))}
               {#if item}
-                <div class="kanban-item" onclick={(e) => handleItemClick(item, e)}>
+                <div
+                  class="kanban-item"
+                  role="button"
+                  tabindex="0"
+                  onclick={(e) => handleItemClick(item, e)}
+                  onkeydown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleItemClick(item, e);
+                    }
+                  }}
+                >
                   <div class="kanban-item-header">
                     <span class="type-icon">{getWorkItemTypeIcon(item.fields?.['System.WorkItemType'])}</span>
                     <span class="item-id">#{item.id}</span>
