@@ -539,13 +539,17 @@ async function showEditDialog(item: any, client: any, provider: any): Promise<vo
   }
 }
 
-async function showCreateWorkItemDialog(client: any, provider: any): Promise<void> {
+async function showCreateWorkItemDialog(
+  client: any,
+  provider: any,
+  connectionId?: string
+): Promise<void> {
   try {
     // Step 1: Get work item types from Azure DevOps
     let workItemTypes: string[] = [];
     try {
-      const types = await client.getWorkItemTypes();
-      workItemTypes = types.map((t: any) => t.name).filter((n: string) => n);
+      const types: Array<{ name: string }> = await client.getWorkItemTypes();
+      workItemTypes = types.map((t) => t.name).filter((n) => n);
     } catch (error) {
       activationLogger.warn('Could not fetch work item types, using defaults', { meta: error });
     }
@@ -606,7 +610,7 @@ async function showCreateWorkItemDialog(client: any, provider: any): Promise<voi
       );
 
       // Refresh the provider to show the new work item
-      provider.refresh?.(getStoredQueryForConnection(activeConnectionId));
+      provider.refresh?.(getStoredQueryForConnection(connectionId || activeConnectionId));
     } else {
       vscode.window.showErrorMessage(`Failed to create ${selectedType}`);
     }
@@ -749,7 +753,7 @@ function dispatchApplicationEvent(event: unknown): void {
         // Show dialog to create new work item
         try {
           if (client && provider) {
-            showCreateWorkItemDialog(client, provider);
+            showCreateWorkItemDialog(client, provider, activeConnectionId);
           } else {
             vscode.window.showErrorMessage(
               'Unable to create work item: missing client or provider'
