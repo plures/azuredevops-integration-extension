@@ -550,14 +550,12 @@ export const connectionMachine = createMachine(
               }),
             },
             {
-              // SECURITY FIX: For Entra auth, transition to AUTH_FAILED to show auth reminder
-              // User must click "Re-authenticate" button before browser opens
-              // This prevents automatic browser opening and allows user to see which connection needs reauth
+              // User requested to STOP automatic device code flow on token expiration
+              // We now transition to AUTH_FAILED and wait for user to initiate sign-in
               target: ConnectionStates.AUTH_FAILED,
               guard: 'isEntraAuth',
               actions: assign({
-                retryCount: 0,
-                lastError: 'Entra ID authentication expired. Please re-authenticate.',
+                lastError: () => 'Session expired. Please sign in again.',
               }),
             },
             {
@@ -1383,55 +1381,27 @@ export const connectionMachine = createMachine(
                 );
               }
 
-              // Copy code to clipboard and open browser immediately
-              try {
-                await vscode.env.clipboard.writeText(userCode);
-                logger.info('Device code copied to clipboard', authContext, { userCode });
+              // Show notification with action to copy and open
+              // We NO LONGER auto-open the browser to avoid interrupting the user
+              setImmediate(async () => {
+                try {
+                  const action = await vscode.window.showInformationMessage(
+                    `Authentication required for ${connectionName}. Code: ${userCode}\n\nClick 'Copy & Open' or use the Azure DevOps extension view to sign in.`,
+                    'Copy & Open'
+                  );
 
-                const uri = vscode.Uri.parse(verificationUri);
-                await vscode.env.openExternal(uri);
-                logger.info('Browser opened', authContext, { verificationUri });
-
-                // Show notification - use setImmediate to ensure VS Code is ready
-                setImmediate(async () => {
-                  try {
-                    await vscode.window.showInformationMessage(
-                      `Authentication code ${userCode} for ${connectionName} copied to clipboard and browser opened!\n\nPaste the code in the browser to complete sign-in.\n\nCode expires in ${expiresInMinutes} minutes.`
-                    );
-                  } catch (notifError) {
-                    logger.error('Failed to show device code notification', authContext, {
-                      error: notifError instanceof Error ? notifError.message : String(notifError),
-                    });
+                  if (action === 'Copy & Open') {
+                    await vscode.env.clipboard.writeText(userCode);
+                    const uri = vscode.Uri.parse(verificationUri);
+                    await vscode.env.openExternal(uri);
+                    logger.info('User clicked Copy & Open from notification', authContext);
                   }
-                });
-              } catch (error) {
-                logger.error('Failed to open browser or copy code', authContext, {
-                  error: error instanceof Error ? error.message : String(error),
-                  verificationUri,
-                  userCode,
-                });
-
-                // Fallback: show manual instructions
-                setImmediate(async () => {
-                  try {
-                    const action = await vscode.window.showErrorMessage(
-                      `Could not open browser automatically. Please manually go to ${verificationUri} and enter code: ${userCode}`,
-                      'Copy Code'
-                    );
-
-                    if (action === 'Copy Code') {
-                      await vscode.env.clipboard.writeText(userCode);
-                    }
-                  } catch (fallbackError) {
-                    logger.error('Failed to show fallback notification', authContext, {
-                      error:
-                        fallbackError instanceof Error
-                          ? fallbackError.message
-                          : String(fallbackError),
-                    });
-                  }
-                });
-              }
+                } catch (notifError) {
+                  logger.error('Failed to show device code notification', authContext, {
+                    error: notifError instanceof Error ? notifError.message : String(notifError),
+                  });
+                }
+              });
             },
           });
 
@@ -1490,7 +1460,7 @@ export const connectionMachine = createMachine(
               forceInteractive: isForceInteractive,
             }
           );
-          const authResult = await authProvider.authenticate();
+          const authResult = await authProvider.authenticate(isForceInteractive);
 
           if (authResult.success && authResult.accessToken) {
             logger.info('Interactive authentication successful', authContext, {
@@ -1584,8 +1554,8 @@ export const connectionMachine = createMachine(
                     error: error.message,
                   });
                 } else if (input.authMethod === 'entra') {
-                  // CRITICAL: For Entra auth, trigger interactive authentication via TOKEN_EXPIRED
-                  // CONNECT is not handled in CONNECTED state; TOKEN_EXPIRED transitions to AUTHENTICATING with forceInteractive
+                  // CRITICAL: For Entra auth, trigger TOKEN_EXPIRED which transitions to AUTH_FAILED
+                  // This ensures we don't auto-start interactive auth (browser/notification) without user consent
                   const connectionActor = fsmManager.getConnectionActor(input.connectionId);
                   connectionActor.send({ type: 'TOKEN_EXPIRED' });
                 } else {

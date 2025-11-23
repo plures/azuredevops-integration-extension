@@ -20,10 +20,12 @@ LLM-GUARD:
 
   const { context, sendEvent }: Props = $props();
 
+  let selectedItemId = $state<string | null>(null);
+
   // CRITICAL: Filter work items to only show those for the active connection
   // This ensures work items from one connection are never shown when another connection's tab is selected
   const activeConnectionId = $derived(context?.activeConnectionId);
-  const allWorkItems = $derived(context?.workItems || context?.pendingWorkItems?.workItems || []);
+  const allWorkItems = $derived(context?.pendingWorkItems?.workItems || context?.workItems || []);
   const pendingWorkItemsConnectionId = $derived(context?.pendingWorkItems?.connectionId);
   const workItems = $derived.by(() => {
     // If pendingWorkItems has a connectionId, filter by it
@@ -55,19 +57,6 @@ LLM-GUARD:
   });
 
   // Helper functions (same as WorkItemList)
-  function normalizeState(raw: string): string {
-    if (!raw) return 'new';
-    const s = String(raw).toLowerCase().trim().replace(/\s+/g, '-');
-    if (['new', 'to-do', 'todo', 'proposed'].includes(s)) return 'new';
-    if (s === 'active') return 'active';
-    if (['in-progress', 'inprogress', 'doing'].includes(s)) return 'inprogress';
-    if (['review', 'code-review', 'testing'].includes(s)) return 'review';
-    if (s === 'resolved') return 'resolved';
-    if (s === 'done') return 'done';
-    if (['closed', 'completed'].includes(s)) return 'closed';
-    return 'new';
-  }
-
   function getWorkItemTypeIcon(type: string): string {
     const t = String(type || '').toLowerCase();
     if (t.includes('bug')) return '\uf41d';
@@ -89,8 +78,8 @@ LLM-GUARD:
 
   function handleItemClick(item: any, event: Event) {
     event.stopPropagation();
-    // Open work item in browser or show details
-    sendEvent({ type: 'OPEN_IN_BROWSER', workItemId: item.id });
+    // Select the item instead of opening in browser
+    selectedItemId = String(item.id);
   }
 
   function handleStartTimer(item: any, event: Event) {
@@ -122,7 +111,19 @@ LLM-GUARD:
             {#each col.itemIds as id (id)}
               {@const item = workItemsMap.get(String(id))}
               {#if item}
-                <div class="kanban-item" onclick={(e) => handleItemClick(item, e)}>
+                <div
+                  class="kanban-item"
+                  class:selected={selectedItemId === String(item.id)}
+                  role="button"
+                  tabindex="0"
+                  onclick={(e) => handleItemClick(item, e)}
+                  onkeydown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleItemClick(item, e);
+                    }
+                  }}
+                >
                   <div class="kanban-item-header">
                     <span class="type-icon">{getWorkItemTypeIcon(item.fields?.['System.WorkItemType'])}</span>
                     <span class="item-id">#{item.id}</span>
@@ -230,6 +231,17 @@ LLM-GUARD:
   .kanban-item:hover {
     background: var(--vscode-list-hoverBackground);
     border-color: var(--vscode-focusBorder);
+  }
+  .kanban-item.selected {
+    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+    border-color: var(--vscode-focusBorder);
+  }
+  .kanban-item.selected .kanban-item-title {
+    color: var(--vscode-list-activeSelectionForeground);
+  }
+  .kanban-item.selected .type-icon {
+    color: var(--vscode-list-activeSelectionForeground);
   }
   .kanban-item-header {
     display: flex;

@@ -31,7 +31,7 @@ LLM-GUARD:
     sendEvent({ type: 'CONFIRM_DELETE_CONNECTION', connectionId });
   }
 
-  import { createSelectConnection, webviewOwner } from '../selection.writer.internal';
+  import { createSelectConnection, webviewOwner } from '../selection.writer.internal.js';
   function handleSelectConnection(connectionId: string) {
     const evt = createSelectConnection(webviewOwner, connectionId);
     // Maintain compatibility with existing sendEvent wrapper: forward fsmEvent envelope

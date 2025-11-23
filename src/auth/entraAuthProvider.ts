@@ -50,7 +50,7 @@ type DeviceCodeCallback = (
 ) => Promise<void>;
 
 interface IAuthProvider {
-  authenticate(): Promise<AuthenticationResult>;
+  authenticate(forceInteractive?: boolean): Promise<AuthenticationResult>;
   getAccessToken(): Promise<string | undefined>;
   refreshAccessToken(): Promise<AuthenticationResult>;
   signOut(): Promise<void>;
@@ -194,22 +194,29 @@ export class EntraAuthProvider implements IAuthProvider {
 
   /**
    * Authenticate using device code flow (v1.9.3 proven approach)
+   * @param forceInteractive If true, skips silent authentication and forces device code flow
    */
-  async authenticate(): Promise<AuthenticationResult> {
+  async authenticate(forceInteractive: boolean = false): Promise<AuthenticationResult> {
     try {
       const scopes = this.resolveScopes();
 
-      // Try silent authentication first
-      const silentResult = await this.trySilentAuthentication(scopes);
-      if (silentResult.success) {
-        // Reset refresh failure tracking on successful authentication
-        this.refreshFailureCount = 0;
-        this.lastRefreshFailure = undefined;
-        this.refreshBackoffUntil = undefined;
-        return silentResult;
+      // Try silent authentication first (unless forced)
+      if (!forceInteractive) {
+        const silentResult = await this.trySilentAuthentication(scopes);
+        if (silentResult.success) {
+          // Reset refresh failure tracking on successful authentication
+          this.refreshFailureCount = 0;
+          this.lastRefreshFailure = undefined;
+          this.refreshBackoffUntil = undefined;
+          return silentResult;
+        }
+      } else {
+        logger.info('Skipping silent authentication due to forceInteractive flag', {
+          meta: { connectionId: this.connectionId },
+        });
       }
 
-      // If silent auth fails, fall back to device code flow
+      // If silent auth fails or is skipped, fall back to device code flow
       const deviceCodeRequest: msal.DeviceCodeRequest = {
         deviceCodeCallback: async (response) => {
           // Call the provided callback to show device code to user

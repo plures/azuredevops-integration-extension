@@ -4,7 +4,11 @@ List view for work items - Now with real Azure DevOps API integration
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
+  // Dynamic invoke guarded for browser
+  let invoke: (<T>(cmd: string, args?: any) => Promise<T>) = async () => undefined as any;
+  if ((window as any).__TAURI__) {
+    import('@tauri-apps/api/core').then(m => { invoke = m.invoke as any; }).catch(() => {});
+  }
   import { fetchWorkItems, searchWorkItems } from '$lib/azureService';
   
   let { context, sendEvent }: { context: any; sendEvent: (event: any) => void } = $props();
@@ -53,8 +57,8 @@ List view for work items - Now with real Azure DevOps API integration
         throw new Error('No active connection');
       }
       
-      // Get connections and find active one
-      const connections = await invoke('get_connections');
+      // Get connections and find active one (skip backend in browser)
+      const connections = (window as any).__TAURI__ ? await invoke('get_connections') : context?.connections || [];
       const activeConnection = Array.isArray(connections) 
         ? connections.find((c: any) => c.id === activeConnectionId)
         : null;
@@ -63,8 +67,8 @@ List view for work items - Now with real Azure DevOps API integration
         throw new Error('Active connection not found');
       }
       
-      // Get token for active connection
-      const token = await invoke('get_token', { connectionId: activeConnectionId });
+      // Get token for active connection (browser: placeholder token)
+      const token = (window as any).__TAURI__ ? await invoke('get_token', { connectionId: activeConnectionId }) : 'browser-token';
       if (!token) {
         throw new Error('Authentication token not found. Please configure your connection.');
       }

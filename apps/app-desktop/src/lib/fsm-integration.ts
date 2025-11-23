@@ -3,7 +3,7 @@
  *
  * This module provides a stub for integrating XState FSM machines from the parent
  * VS Code extension into the Tauri desktop application.
- * 
+ *
  * NOTE: Full FSM integration is planned for future iterations.
  * For now, this is a stub implementation that provides the interface
  * without the actual FSM logic.
@@ -35,7 +35,7 @@ export class DesktopFsmManager {
 
   /**
    * Initialize the FSM with desktop-specific actors
-   * 
+   *
    * NOTE: This is a stub implementation. Full FSM integration pending.
    */
   async initialize() {
@@ -50,7 +50,7 @@ export class DesktopFsmManager {
 
   /**
    * Send an event to the FSM
-   * 
+   *
    * NOTE: Stub implementation - logs but doesn't process
    */
   send(event: any) {
@@ -60,7 +60,7 @@ export class DesktopFsmManager {
 
   /**
    * Subscribe to FSM state changes
-   * 
+   *
    * NOTE: Stub implementation - accepts subscriptions but never fires them
    */
   subscribe(callback: (snapshot: FsmSnapshot) => void): () => void {
@@ -76,7 +76,7 @@ export class DesktopFsmManager {
 
   /**
    * Get current FSM snapshot
-   * 
+   *
    * NOTE: Stub implementation returns null
    */
   getSnapshot(): FsmSnapshot | null {
@@ -85,7 +85,7 @@ export class DesktopFsmManager {
 
   /**
    * Stop the FSM
-   * 
+   *
    * NOTE: Stub implementation
    */
   stop() {
@@ -95,7 +95,7 @@ export class DesktopFsmManager {
 
   /**
    * Cleanup and dispose resources
-   * 
+   *
    * NOTE: Stub implementation
    */
   dispose() {

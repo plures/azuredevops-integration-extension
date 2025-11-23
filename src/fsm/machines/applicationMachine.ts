@@ -238,6 +238,7 @@ export type ApplicationEvent =
   | { type: 'START_TIMER_INTERACTIVE'; workItemId?: number; workItemTitle?: string }
   | { type: 'STOP_TIMER' }
   | { type: 'TIMER_STATE_CHANGED'; timerState: any }
+  | { type: 'CREATE_WORK_ITEM' }
   | { type: 'EDIT_WORK_ITEM'; workItemId: number }
   | { type: 'OPEN_IN_BROWSER'; workItemId: number }
   | { type: 'CREATE_BRANCH'; workItemId: number }

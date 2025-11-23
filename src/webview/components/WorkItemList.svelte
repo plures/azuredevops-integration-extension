@@ -25,14 +25,12 @@ LLM-GUARD:
     onQueryChange?: (query: string) => void;
   }
 
-  const { context, sendEvent, matches = {}, query: propQuery, onQueryChange }: Props = $props();
+  const { context, sendEvent, query: propQuery, onQueryChange }: Props = $props();
 
   // NOTE: Loading state is managed centrally by the FSM through ui.loading.workItems
   // The FSM sets this when entering loadingData state (query changes, refresh, etc.)
 
   const activeConnectionId = $derived(context?.activeConnectionId);
-  const connections = $derived(context?.connections || []);
-  const activeConnection = $derived(connections.find((c: any) => c.id === activeConnectionId));
   
   // Query selector
   const predefinedQueries = [
@@ -47,7 +45,7 @@ LLM-GUARD:
   
   // CRITICAL: Filter work items to only show those for the active connection
   // This ensures work items from one connection are never shown when another connection's tab is selected
-  const allWorkItems = $derived(context?.workItems || context?.pendingWorkItems?.workItems || []);
+  const allWorkItems = $derived(context?.pendingWorkItems?.workItems || context?.workItems || []);
   const pendingWorkItemsConnectionId = $derived(context?.pendingWorkItems?.connectionId);
   const workItems = $derived.by(() => {
     // If pendingWorkItems has a connectionId, filter by it
@@ -88,7 +86,7 @@ LLM-GUARD:
   // Compute elapsed time from startTime
   const timerElapsedSeconds = $derived.by(() => {
     // Trigger recomputation on tick
-    const _currentTick = tick;
+   
 
     if (!timerState?.startTime) return 0;
 
@@ -107,11 +105,11 @@ LLM-GUARD:
 
   // Extract available types and states from work items
   const availableTypes = $derived([
-    ...new Set(workItems.map((w: any) => w.fields?.['System.WorkItemType']).filter(Boolean)),
+    ...new Set(workItems.map((w: any) => w.fields?.['System.WorkItemType']).filter(Boolean) as string[]),
   ]);
   const availableStates = $derived([
     ...new Set(
-      workItems.map((w: any) => normalizeState(w.fields?.['System.State'])).filter(Boolean)
+      workItems.map((w: any) => normalizeState(w.fields?.['System.State'])).filter(Boolean) as string[]
     ),
   ]);
 
@@ -178,11 +176,7 @@ LLM-GUARD:
     return 'priority-3';
   }
 
-  function handleRefresh() {
-    // Send REFRESH_DATA event - FSM will set loading state automatically
-    sendEvent({ type: 'REFRESH_DATA' });
-  }
-
+  
   function handleStartTimer(item: any, event: Event) {
     event.stopPropagation();
 

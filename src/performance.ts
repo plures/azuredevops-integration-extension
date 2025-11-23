@@ -16,8 +16,23 @@
  * Tracks metrics, provides performance insights, and optimizes operations
  */
 
-import { performance } from 'perf_hooks';
 import { getCacheStats } from './cache.js';
+
+// Optional Node perf_hooks; fallback to browser performance
+let performanceImpl: { now: () => number } = { now: () => Date.now() };
+try {
+  const req = eval('require') as any;
+  if (req) {
+    const ph = req('perf_hooks');
+    if (ph?.performance?.now) {
+      performanceImpl = ph.performance;
+    }
+  }
+} catch {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    performanceImpl = performance;
+  }
+}
 
 export interface PerformanceMetrics {
   operation: string;
@@ -59,12 +74,12 @@ class PerformanceMonitor {
   /**
    * Start timing an operation
    */
-  startTiming(operation: string): () => PerformanceMetrics {
-    const startTime = performance.now();
+  startTiming(operation: string): (error?: string, cacheHit?: boolean) => PerformanceMetrics {
+    const startTime = performanceImpl.now();
     const startMemory = this.getMemoryUsage();
 
     return (error?: string, cacheHit?: boolean): PerformanceMetrics => {
-      const endTime = performance.now();
+      const endTime = performanceImpl.now();
       const endMemory = this.getMemoryUsage();
 
       const metric: PerformanceMetrics = {
@@ -258,7 +273,7 @@ export const performanceMonitor = new PerformanceMonitor();
  * Performance decorator for methods
  */
 export function measurePerformance(operationName: string) {
-  return function (target: any, propertyName: string, descriptor: PropertyDescriptor) {
+  return function (_target: any, propertyName: string, descriptor: PropertyDescriptor) {
     const method = descriptor.value;
 
     descriptor.value = async function (...args: any[]) {

@@ -3,10 +3,35 @@
  * Provides abstraction layer to replace VS Code API calls with Tauri equivalents
  */
 
-import { invoke } from '@tauri-apps/api/core';
-import { Store } from '@tauri-apps/plugin-store';
-import { message } from '@tauri-apps/plugin-dialog';
-import { readTextFile, writeTextFile, exists, BaseDirectory } from '@tauri-apps/plugin-fs';
+// Dynamic Tauri core import; undefined in pure browser
+let invoke: <T>(cmd: string, args?: any) => Promise<T> = async () => {
+  throw new Error('Tauri invoke unavailable in browser');
+};
+try {
+  if ((window as any).__TAURI__) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    invoke = (await import('@tauri-apps/api/core')).invoke as any;
+  }
+} catch {
+  /* browser fallback */
+}
+let Store: any = class {
+  async get() {
+    return undefined;
+  }
+  async set() {}
+  async save() {}
+  async delete() {}
+};
+let message: any = async (msg: string) => alert(msg);
+let readTextFile: any = async () => {
+  throw new Error('FS unavailable');
+};
+let writeTextFile: any = async () => {
+  throw new Error('FS unavailable');
+};
+let exists: any = async () => false;
+const BaseDirectory: any = {};
 
 // Platform adapter interface matching VS Code-like API surface
 export interface PlatformAdapter {
@@ -55,12 +80,20 @@ class TauriPlatformAdapter implements PlatformAdapter {
       console.error('[PlatformAdapter] Failed to setup message bridge:', error);
     });
   }
-  
+
   private async getStore(): Promise<Store> {
     if (!this.store) {
-      // Lazy load store using the load method
-      const { load } = await import('@tauri-apps/plugin-store');
-      this.store = await load('config.json');
+      try {
+        if ((window as any).__TAURI__) {
+          const { load } = await import('@tauri-apps/plugin-store');
+          this.store = await load('config.json');
+        } else {
+          // In browser fallback use in-memory store
+          this.store = new Store();
+        }
+      } catch {
+        this.store = new Store();
+      }
     }
     return this.store;
   }
@@ -68,11 +101,23 @@ class TauriPlatformAdapter implements PlatformAdapter {
   private async setupMessageBridge() {
     try {
       // Listen for messages from Rust backend
-      const { listen } = await import('@tauri-apps/api/event');
-      const unlisten = await listen<any>('message-from-backend', (event) => {
-        this.messageHandlers.forEach((handler) => handler(event.payload));
-      });
-      this.eventUnlisteners.push(unlisten);
+      if ((window as any).__TAURI__) {
+        const { listen } = await import('@tauri-apps/api/event');
+        const unlisten = await listen<any>('message-from-backend', (event) => {
+          this.messageHandlers.forEach((handler) => handler(event.payload));
+        });
+        this.eventUnlisteners.push(unlisten);
+      } else {
+        // Browser: simulate message bridge via custom event
+        const handler = (e: Event) => {
+          const payload = (e as CustomEvent).detail;
+          this.messageHandlers.forEach((h) => h(payload));
+        };
+        window.addEventListener('app-backend-message', handler as EventListener);
+        this.eventUnlisteners.push(() =>
+          window.removeEventListener('app-backend-message', handler as EventListener)
+        );
+      }
     } catch (error) {
       console.error('[PlatformAdapter] Error setting up message bridge:', error);
       throw error;
@@ -81,7 +126,12 @@ class TauriPlatformAdapter implements PlatformAdapter {
 
   postMessage(message: any): void {
     // Send message to Rust backend
-    invoke('handle_webview_message', { message }).catch(console.error);
+    if ((window as any).__TAURI__) {
+      invoke('handle_webview_message', { message }).catch(console.error);
+    } else {
+      // Browser: dispatch custom event
+      window.dispatchEvent(new CustomEvent('app-webview-message', { detail: message }));
+    }
   }
 
   onMessage(handler: (message: any) => void): void {
@@ -120,7 +170,7 @@ class TauriPlatformAdapter implements PlatformAdapter {
     try {
       const store = await this.getStore();
       const value = await store.get<T>(`config.${key}`);
-      return (value !== null && value !== undefined) ? value : (defaultValue as T);
+      return value !== null && value !== undefined ? value : (defaultValue as T);
     } catch (error) {
       console.error('Error getting configuration:', error);
       return defaultValue as T;
@@ -135,11 +185,15 @@ class TauriPlatformAdapter implements PlatformAdapter {
 
   async showInputBox(options: { prompt: string; password?: boolean }): Promise<string | undefined> {
     // Use Tauri dialog for input
-    const result = await invoke<string | null>('show_input_dialog', {
-      prompt: options.prompt,
-      password: options.password || false,
-    });
-    return result || undefined;
+    if ((window as any).__TAURI__) {
+      const result = await invoke<string | null>('show_input_dialog', {
+        prompt: options.prompt,
+        password: options.password || false,
+      });
+      return result || undefined;
+    }
+    const result = window.prompt(options.prompt) ?? undefined;
+    return result;
   }
 
   async showQuickPick<T extends string>(
@@ -147,23 +201,39 @@ class TauriPlatformAdapter implements PlatformAdapter {
     options?: { placeHolder?: string }
   ): Promise<T | undefined> {
     // Use Tauri dialog for selection
-    const result = await invoke<string | null>('show_selection_dialog', {
-      items,
-      placeholder: options?.placeHolder,
-    });
-    return result as T | undefined;
+    if ((window as any).__TAURI__) {
+      const result = await invoke<string | null>('show_selection_dialog', {
+        items,
+        placeholder: options?.placeHolder,
+      });
+      return result as T | undefined;
+    }
+    const chosen = window.prompt(`Select: ${items.join(', ')}`);
+    return items.includes(chosen as T) ? (chosen as T) : undefined;
   }
 
   async showInformationMessage(msg: string): Promise<void> {
-    await message(msg, { title: 'Information', kind: 'info' });
+    if ((window as any).__TAURI__) {
+      await message(msg, { title: 'Information', kind: 'info' });
+    } else {
+      alert(msg);
+    }
   }
 
   async showErrorMessage(msg: string): Promise<void> {
-    await message(msg, { title: 'Error', kind: 'error' });
+    if ((window as any).__TAURI__) {
+      await message(msg, { title: 'Error', kind: 'error' });
+    } else {
+      alert(`Error: ${msg}`);
+    }
   }
 
   async showWarningMessage(msg: string): Promise<void> {
-    await message(msg, { title: 'Warning', kind: 'warning' });
+    if ((window as any).__TAURI__) {
+      await message(msg, { title: 'Warning', kind: 'warning' });
+    } else {
+      alert(`Warning: ${msg}`);
+    }
   }
 
   async fileExists(path: string): Promise<boolean> {
@@ -175,16 +245,24 @@ class TauriPlatformAdapter implements PlatformAdapter {
   }
 
   async readFile(path: string): Promise<string> {
-    return await readTextFile(path, { baseDir: BaseDirectory.AppData });
+    if ((window as any).__TAURI__)
+      return await readTextFile(path, { baseDir: BaseDirectory.AppData });
+    throw new Error('readFile not available in browser');
   }
 
   async writeFile(path: string, content: string): Promise<void> {
-    await writeTextFile(path, content, { baseDir: BaseDirectory.AppData });
+    if ((window as any).__TAURI__)
+      return await writeTextFile(path, content, { baseDir: BaseDirectory.AppData });
+    console.warn('writeFile ignored in browser runtime');
   }
 
   async openExternal(url: string): Promise<void> {
-    const { openUrl } = await import('@tauri-apps/plugin-opener');
-    await openUrl(url);
+    if ((window as any).__TAURI__) {
+      const { openUrl } = await import('@tauri-apps/plugin-opener');
+      await openUrl(url);
+    } else {
+      window.open(url, '_blank');
+    }
   }
 
   dispose() {

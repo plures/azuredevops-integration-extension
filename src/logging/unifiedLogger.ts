@@ -18,7 +18,18 @@
  * Use this instead of console.log/error/warn directly.
  */
 
-import * as vscode from 'vscode';
+// Optional vscode import (extension host only); dynamic to avoid bundler resolution errors in desktop app
+let vscode: any = undefined;
+try {
+  // Use eval(require) to avoid static analysis in non-Node runtimes
+
+  const req = eval('require') as any;
+  if (req) {
+    vscode = req('vscode');
+  }
+} catch {
+  vscode = undefined;
+}
 import { logLine } from '../logging.js';
 
 const LOG_PREFIX = '[AzureDevOpsInt]';
@@ -64,8 +75,13 @@ export const log = {
 
 function shouldLogDebug(): boolean {
   try {
-    const config = vscode.workspace.getConfiguration('azureDevOpsIntegration');
-    return Boolean(config.get('debugLogging'));
+    if (vscode?.workspace?.getConfiguration) {
+      const config = vscode.workspace.getConfiguration('azureDevOpsIntegration');
+      return Boolean(config.get('debugLogging'));
+    }
+    // Fallback: environment flag for non-extension runtimes
+    if (typeof process !== 'undefined' && process?.env?.AZDO_INT_DEBUG === '1') return true;
+    return false;
   } catch {
     return false;
   }

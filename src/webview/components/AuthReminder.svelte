@@ -36,8 +36,8 @@ LLM-GUARD:
   const workItemsError = $derived(context?.workItemsError);
   const workItemsErrorConnectionId = $derived(context?.workItemsErrorConnectionId);
   const activeConnectionId = $derived(context?.activeConnectionId);
-  const workItems = $derived(context?.workItems || context?.pendingWorkItems?.workItems || []);
-  const hasWorkItems = $derived(workItems.length > 0);
+  // const workItems = $derived(context?.workItems || context?.pendingWorkItems?.workItems || []);
+  // const hasWorkItems = $derived(workItems.length > 0);
 
   // Get connection health error from UI state
   const uiState = $derived(context?.ui);
@@ -65,16 +65,15 @@ LLM-GUARD:
   const canShowDeviceCodeBase = $derived(
     deviceCodeSession &&
       !deviceCodeExpired &&
-      deviceCodeSession.connectionId === activeConnectionId &&
-      !hasWorkItems
+      deviceCodeSession.connectionId === activeConnectionId
   );
   const entraAuthErrorEligible = $derived(
     hasConnectionHealthError && !!activeConnectionId && isEntraAuth
   );
 
-  // Final visibility flags without cross-referencing each other
-  const showDeviceCode = $derived(Boolean(canShowDeviceCodeBase && !entraAuthErrorEligible));
-  const showEntraAuthError = $derived(Boolean(entraAuthErrorEligible && !canShowDeviceCodeBase));
+  // Final visibility flags - prioritize device code over error
+  const showDeviceCode = $derived(Boolean(canShowDeviceCodeBase));
+  const showEntraAuthError = $derived(Boolean(entraAuthErrorEligible && !showDeviceCode));
 
   // Get VS Code API instance
   const vscode = (window as any).__vscodeApi;
