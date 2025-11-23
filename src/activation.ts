@@ -539,6 +539,85 @@ async function showEditDialog(item: any, client: any, provider: any): Promise<vo
   }
 }
 
+async function showCreateWorkItemDialog(client: any, provider: any): Promise<void> {
+  try {
+    // Step 1: Get work item types from Azure DevOps
+    let workItemTypes: string[] = [];
+    try {
+      const types = await client.getWorkItemTypes();
+      workItemTypes = types.map((t: any) => t.name).filter((n: string) => n);
+    } catch (error) {
+      activationLogger.warn('Could not fetch work item types, using defaults', { meta: error });
+    }
+
+    // Use defaults if API call failed
+    if (workItemTypes.length === 0) {
+      workItemTypes = ['Task', 'Bug', 'User Story', 'Feature', 'Epic'];
+    }
+
+    // Step 2: Select work item type
+    const selectedType = await vscode.window.showQuickPick(workItemTypes, {
+      placeHolder: 'Select work item type',
+      title: 'Create Work Item',
+    });
+
+    if (!selectedType) return;
+
+    // Step 3: Enter title
+    const title = await vscode.window.showInputBox({
+      prompt: 'Enter work item title',
+      placeHolder: 'Title',
+      ignoreFocusOut: true,
+      validateInput: (value) => {
+        if (!value || value.trim().length === 0) {
+          return 'Title is required';
+        }
+        return null;
+      },
+    });
+
+    if (!title) return;
+
+    // Step 4: Enter description (optional)
+    const description = await vscode.window.showInputBox({
+      prompt: 'Enter work item description (optional)',
+      placeHolder: 'Description',
+      ignoreFocusOut: true,
+    });
+
+    // Step 5: Enter assignee (optional)
+    const assignTo = await vscode.window.showInputBox({
+      prompt: 'Assign to (optional, leave empty to assign to yourself)',
+      placeHolder: 'Email or display name',
+      ignoreFocusOut: true,
+    });
+
+    // Create the work item
+    const createdItem = await client.createWorkItem(
+      selectedType,
+      title.trim(),
+      description?.trim(),
+      assignTo?.trim() || undefined
+    );
+
+    if (createdItem) {
+      vscode.window.showInformationMessage(
+        `Successfully created ${selectedType} #${createdItem.id}: ${title}`
+      );
+
+      // Refresh the provider to show the new work item
+      provider.refresh?.(getStoredQueryForConnection(activeConnectionId));
+    } else {
+      vscode.window.showErrorMessage(`Failed to create ${selectedType}`);
+    }
+  } catch (error) {
+    activationLogger.error('Error creating work item', { meta: error });
+    vscode.window.showErrorMessage(
+      `Error creating work item: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
 function dispatchApplicationEvent(event: unknown): void {
   // Route work item action events to legacy handleMessage which has implementations
   if (event && typeof event === 'object' && 'type' in event) {
@@ -663,6 +742,23 @@ function dispatchApplicationEvent(event: unknown): void {
           activationLogger.error('Error editing work item', { meta: error });
           vscode.window.showErrorMessage(
             `Failed to edit work item: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+        break;
+      case 'CREATE_WORK_ITEM':
+        // Show dialog to create new work item
+        try {
+          if (client && provider) {
+            showCreateWorkItemDialog(client, provider);
+          } else {
+            vscode.window.showErrorMessage(
+              'Unable to create work item: missing client or provider'
+            );
+          }
+        } catch (error) {
+          activationLogger.error('Error creating work item', { meta: error });
+          vscode.window.showErrorMessage(
+            `Failed to create work item: ${error instanceof Error ? error.message : String(error)}`
           );
         }
         break;
