@@ -1,6 +1,6 @@
 {
   "name": "azuredevops-integration-desktop",
-  "version": "0.1.0",
+  "version": "2.4.4",
   "description": "Cross-platform Azure DevOps Integration Desktop Application",
   "type": "module",
   "scripts": {
@@ -9,29 +9,32 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:msi": "tauri build --bundles msi"
   },
   "license": "MIT",
   "dependencies": {
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2",
-    "@tauri-apps/plugin-store": "^2",
     "@tauri-apps/plugin-dialog": "^2",
-    "@tauri-apps/plugin-os": "^2",
     "@tauri-apps/plugin-fs": "^2",
-    "xstate": "^5.23.0",
+    "@tauri-apps/plugin-http": "^2.5.4",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-os": "^2",
+    "@tauri-apps/plugin-store": "^2",
     "@xstate/svelte": "file:../../src/fsm/xstate-svelte",
     "axios": "^1.12.2",
-    "azure-devops-node-api": "^15.1.1"
+    "azure-devops-node-api": "^15.1.1",
+    "xstate": "^5.23.0"
   },
   "devDependencies": {
+    "@babel/core": "^7.28.5",
     "@sveltejs/adapter-static": "^3.0.6",
     "@sveltejs/kit": "^2.9.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@tauri-apps/cli": "^2",
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",
     "typescript": "~5.6.2",
-    "vite": "^6.0.3",
-    "@tauri-apps/cli": "^2"
+    "vite": "^6.0.3"
   }
 }

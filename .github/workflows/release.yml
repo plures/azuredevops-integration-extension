@@ -9,87 +9,234 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag to release (e.g., v2.2.1)'
+      bump_type:
+        description: 'Bump type (major, minor, patch)'
         required: true
-        type: string
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 jobs:
-  verify-release:
+  prepare-release:
     runs-on: ubuntu-latest
     outputs:
-      is_on_main: ${{ steps.verify.outputs.is_on_main }}
-      tag_name: ${{ steps.verify.outputs.tag_name }}
+      tag_name: ${{ steps.set_tag.outputs.tag_name }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref_name }}
           fetch-depth: 0
-      - name: Verify tag commit is on main
-        id: verify
-        env:
-          TAG_NAME: ${{ github.event.inputs.tag || github.ref_name }}
-        run: |
-          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
-          
-          # Fetch origin/main and check whether the tagged commit is contained in main
-          git fetch origin main --depth=1
-          TAG_COMMIT=$(git rev-parse $TAG_NAME)
-          if git merge-base --is-ancestor $TAG_COMMIT origin/main; then
-            echo "is_on_main=true" >> "$GITHUB_OUTPUT"
-            echo "✅ Tag $TAG_NAME commit is on main branch"
-          else
-            echo "is_on_main=false" >> "$GITHUB_OUTPUT"
-            echo "❌ Tag $TAG_NAME commit is NOT on main branch"
-          fi
-          
-          # Debug: Show what was set
-          echo "Debug: tag_name output will be: $TAG_NAME"
-          echo "Debug: is_on_main check result: $(git merge-base --is-ancestor $TAG_COMMIT origin/main && echo 'true' || echo 'false')"
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-  build-package-and-publish:
-    needs: verify-release
-    # For workflow_dispatch, always run (user manually triggered)
-    # For tag push events, only run if tag is on main
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.verify-release.outputs.is_on_main == 'true' }}
-    runs-on: ubuntu-latest
-    env:
-      VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.verify-release.outputs.tag_name }}
-      - name: Use Node.js 24
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24.x'
-      - name: Install dependencies
-        run: npm ci
-      # Webview assets are committed under media/webview; no separate build step required.
-      - name: Build extension
-        run: npm run build
-      - name: Create VSIX
-        run: npm run package
-      - name: Get version
-        id: version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+          node-version: '20'
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump and Tag (Manual Trigger)
+        if: github.event_name == 'workflow_dispatch'
+        id: bump
+        run: |
+          # Bump version in root package.json
+          npm version ${{ inputs.bump_type }} --no-git-tag-version
+          
+          # Sync versions to other files
+          node scripts/sync-versions.mjs
+          
+          # Get new version
+          VERSION=$(node -p "require('./package.json').version")
+          TAG_NAME="v$VERSION"
+          
+          # Commit and Tag
+          git add .
+          git commit -m "chore: release $TAG_NAME"
+          git tag $TAG_NAME
+          
+          # Push
+          git push origin HEAD
+          git push origin $TAG_NAME
+          
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Set Tag Output
+        id: set_tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tag_name=${{ steps.bump.outputs.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.set_tag.outputs.tag_name }}
+          name: Release ${{ steps.set_tag.outputs.tag_name }}
+          draft: false
+          prerelease: false
+
+  build-extension:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm run build
+      - run: npm run package
+      - name: Upload Extension
+        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ needs.verify-release.outputs.tag_name }}
-          name: Release ${{ needs.verify-release.outputs.tag_name }}
-          body: |
-            Release ${{ needs.verify-release.outputs.tag_name }}
+          upload_url: ${{ needs.prepare-release.outputs.upload_url }}
+          asset_path: ./azuredevops-integration-extension-*.vsix
+          asset_name: azuredevops-integration-extension.vsix
+          asset_content_type: application/zip
 
-            See [CHANGELOG.md](https://github.com/plures/azuredevops-integration-extension/blob/main/CHANGELOG.md) for details.
-          files: azuredevops-integration-extension-${{ steps.version.outputs.version }}.vsix
-          draft: false
-          prerelease: false
-      - name: Publish to Marketplace
-        if: ${{ env.VSCE_TOKEN != '' }}
+  build-desktop-windows:
+    needs: prepare-release
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/app-desktop
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install Root Dependencies
+        working-directory: .
+        run: npm ci
+      - name: Install Desktop Dependencies
+        run: npm ci
+      - name: Build MSI
+        run: npm run build:msi
+      - name: Upload MSI
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.prepare-release.outputs.upload_url }}
+          asset_path: apps/app-desktop/src-tauri/target/release/bundle/msi/*.msi
+          asset_name: azuredevops-integration-desktop.msi
+          asset_content_type: application/octet-stream
+
+  build-mobile-android:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/app-desktop
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - name: Install Root Dependencies
+        working-directory: .
+        run: npm ci
+      - name: Install Desktop Dependencies
+        run: npm ci
+      - name: Initialize Android
+        run: npx tauri android init --ci || true
+      - name: Build Android APK
+        run: npx tauri android build
+      - name: Find APK
+        id: find_apk
         run: |
-          npm install -g @vscode/vsce
-          vsce publish --packagePath azuredevops-integration-extension-${{ steps.version.outputs.version }}.vsix --pat ${{ env.VSCE_TOKEN }}
+          APK_PATH=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | head -n 1)
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+      - name: Upload APK
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.prepare-release.outputs.upload_url }}
+          asset_path: ${{ steps.find_apk.outputs.apk_path }}
+          asset_name: azuredevops-integration-android.apk
+          asset_content_type: application/vnd.android.package-archive
+
+  build-mobile-ios:
+    needs: prepare-release
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apps/app-desktop
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,x86_64-apple-ios,aarch64-apple-ios-sim
+      - name: Install Root Dependencies
+        working-directory: .
+        run: npm ci
+      - name: Install Desktop Dependencies
+        run: npm ci
+      - name: Initialize iOS
+        run: npx tauri ios init --ci || true
+      - name: Build iOS IPA
+        run: npx tauri ios build --no-bundle || true 
+        # Note: Real iOS build requires signing. This might fail or produce unsigned app.
+        # We upload whatever we find.
+      - name: Find IPA
+        id: find_ipa
+        run: |
+          IPA_PATH=$(find src-tauri/gen/apple/build -name "*.ipa" | head -n 1)
+          if [ -z "$IPA_PATH" ]; then
+             # Fallback to .app if no ipa
+             APP_PATH=$(find src-tauri/gen/apple/build -name "*.app" | head -n 1)
+             if [ -n "$APP_PATH" ]; then
+                # Zip it
+                zip -r app.zip "$APP_PATH"
+                echo "ipa_path=app.zip" >> $GITHUB_OUTPUT
+                echo "asset_name=azuredevops-integration-ios.zip" >> $GITHUB_OUTPUT
+             fi
+          else
+             echo "ipa_path=$IPA_PATH" >> $GITHUB_OUTPUT
+             echo "asset_name=azuredevops-integration-ios.ipa" >> $GITHUB_OUTPUT
+          fi
+      - name: Upload iOS Asset
+        if: steps.find_ipa.outputs.ipa_path != ''
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.prepare-release.outputs.upload_url }}
+          asset_path: ${{ steps.find_ipa.outputs.ipa_path }}
+          asset_name: ${{ steps.find_ipa.outputs.asset_name }}
+          asset_content_type: application/octet-stream

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Azure DevOps Integration",
-  "version": "0.1.0",
+  "version": "2.4.4",
   "identifier": "com.plures.azuredevops-integration",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -33,13 +33,5 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
-  },
-  "permissions": [
-    "core:default",
-    "dialog:default",
-    "fs:default",
-    "store:default",
-    "opener:default",
-    "os:default"
-  ]
+  }
 }
