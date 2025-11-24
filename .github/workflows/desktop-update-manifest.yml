@@ -1,0 +1,97 @@
+name: Generate Desktop Update Manifest
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v0.1.0)'
+        required: true
+        type: string
+
+jobs:
+  generate-manifest:
+    name: Generate Update Manifest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get release version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+            # Remove 'v' prefix if present
+            VERSION=${VERSION#v}
+          else
+            VERSION="${{ github.event.inputs.version }}"
+            # Remove 'v' prefix if present
+            VERSION=${VERSION#v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Get release notes
+        id: get_notes
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            NOTES="${{ github.event.release.body }}"
+          else
+            NOTES="Release ${{ steps.get_version.outputs.version }}"
+          fi
+          # Escape newlines for JSON
+          NOTES=$(echo "$NOTES" | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/"/\\"/g')
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate update manifest
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_NOTES: ${{ steps.get_notes.outputs.notes }}
+        run: |
+          cd apps/app-desktop
+          node scripts/generate-update-manifest.js latest.json ${{ steps.get_version.outputs.version }}
+          cat latest.json
+
+      - name: Upload manifest to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: apps/app-desktop/latest.json
+          tag_name: ${{ github.event.release.tag_name }}
+
+      - name: Output instructions
+        run: |
+          echo "## Update Manifest Generated ✅"
+          echo ""
+          echo "### Next Steps:"
+          echo ""
+          echo "1. **Generate a signing key** (if not already done):"
+          echo "   \`\`\`bash"
+          echo "   npx tauri signer generate -w ~/.tauri/azuredevops-integration.key"
+          echo "   \`\`\`"
+          echo ""
+          echo "2. **Add the public key** to \`apps/app-desktop/src-tauri/tauri.conf.json\`"
+          echo ""
+          echo "3. **Sign your update files** before uploading:"
+          echo "   \`\`\`bash"
+          echo "   cd apps/app-desktop"
+          echo "   bash scripts/sign-update-files.sh"
+          echo "   \`\`\`"
+          echo ""
+          echo "4. **Upload signed bundles** to GitHub Release: v${{ steps.get_version.outputs.version }}"
+          echo ""
+          echo "5. **Update signatures** in the manifest after signing"

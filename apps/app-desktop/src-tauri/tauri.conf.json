@@ -34,12 +34,14 @@
       "icons/icon.ico"
     ]
   },
-  "permissions": [
-    "core:default",
-    "dialog:default",
-    "fs:default",
-    "store:default",
-    "opener:default",
-    "os:default"
-  ]
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/plures/azuredevops-integration-extension/releases/download/latest/latest.json"
+      ],
+      "dialog": true,
+      "pubkey": ""
+    }
+  }
 }
