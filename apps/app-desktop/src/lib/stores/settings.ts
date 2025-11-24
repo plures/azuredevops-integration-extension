@@ -117,10 +117,12 @@ function createSettingsStore() {
   async function update(
     updater: (current: Settings) => Settings
   ): Promise<void> {
+    // Svelte stores call the callback immediately with current value
     let currentSettings: Settings = DEFAULT_SETTINGS;
     const unsubscribe = subscribe((s) => {
       currentSettings = s;
     });
+    // The callback has already been called synchronously above
     unsubscribe();
     const newSettings = updater(currentSettings);
     await save(newSettings);

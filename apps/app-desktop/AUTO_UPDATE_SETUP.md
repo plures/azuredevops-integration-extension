@@ -2,6 +2,15 @@
 
 This guide explains how to configure and use the auto-update feature in the Azure DevOps Integration desktop application.
 
+## ⚠️ Required Pre-Distribution Setup
+
+Before distributing the application, you **MUST**:
+1. Generate a signing key pair (see [Setup Steps](#setup-steps) below)
+2. Add the public key to `tauri.conf.json`
+3. Sign all update bundles before uploading to releases
+
+**The `pubkey` field in `tauri.conf.json` is currently empty as a placeholder. Updates will NOT be verified without a valid public key configured.**
+
 ## 🎯 Overview
 
 The auto-update feature allows the application to:

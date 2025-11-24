@@ -27,13 +27,19 @@ export async function initializeAutoUpdate(): Promise<() => void> {
     return () => {};
   }
 
-  // Load settings and react to changes
-  let autoUpdateEnabled = true;
+  // Ensure settings are loaded before proceeding
+  await settings.load();
+
+  // Track auto-update state (subscription is called synchronously with current value)
+  let autoUpdateEnabled = false;
   const unsubscribe = settings.subscribe((s) => {
+    const wasEnabled = autoUpdateEnabled;
     autoUpdateEnabled = s.autoUpdate;
-    if (autoUpdateEnabled) {
+    
+    // Only start/stop if state changed (avoid duplicate start on initial subscribe)
+    if (autoUpdateEnabled && !wasEnabled) {
       startAutoUpdate();
-    } else {
+    } else if (!autoUpdateEnabled && wasEnabled) {
       stopAutoUpdate();
     }
   });
