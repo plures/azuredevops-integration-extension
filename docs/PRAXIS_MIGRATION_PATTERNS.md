@@ -10,14 +10,14 @@ The Praxis logic engine provides a declarative, functional approach to state man
 
 ### XState vs Praxis Comparison
 
-| XState Concept | Praxis Equivalent | Description |
-|---------------|-------------------|-------------|
-| State | Context property | The current state value is stored in the context |
-| Context | Context | Application data that changes over time |
-| Event | Event | Actions that trigger state changes |
-| Guard | Condition in rule | Logic in the rule implementation |
-| Action | Rule side effect | Direct context mutation in rule |
-| History | Manual tracking | Track previous states in context if needed |
+| XState Concept | Praxis Equivalent | Description                                      |
+| -------------- | ----------------- | ------------------------------------------------ |
+| State          | Context property  | The current state value is stored in the context |
+| Context        | Context           | Application data that changes over time          |
+| Event          | Event             | Actions that trigger state changes               |
+| Guard          | Condition in rule | Logic in the rule implementation                 |
+| Action         | Rule side effect  | Direct context mutation in rule                  |
+| History        | Manual tracking   | Track previous states in context if needed       |
 
 ## Migration Steps
 
@@ -44,10 +44,16 @@ Instead of using XState's state nodes, store the state value directly in the con
 const timerMachine = createMachine({
   initial: 'idle',
   states: {
-    idle: { /* ... */ },
-    running: { /* ... */ },
-    paused: { /* ... */ },
-  }
+    idle: {
+      /* ... */
+    },
+    running: {
+      /* ... */
+    },
+    paused: {
+      /* ... */
+    },
+  },
 });
 
 // Praxis approach
@@ -85,7 +91,7 @@ export const startTimerRule = defineRule<TimerEngineContext>({
     const startEvent = findEvent(events, StartTimerEvent);
     if (!startEvent) return [];
     if (state.context.timerState !== 'idle') return [];  // Guard
-    
+
     // Direct context mutation (action)
     state.context.timerState = 'running';
     state.context.timerData.startTime = Date.now();
@@ -100,7 +106,7 @@ XState guards become simple conditions in the rule implementation.
 
 ```typescript
 // XState guard
-guard: ({ context }) => context.isPaused === false
+guard: ({ context }) => context.isPaused === false;
 
 // Praxis condition
 if (state.context.timerData.isPaused) return [];
@@ -115,7 +121,7 @@ XState actions (especially `assign`) become direct context mutations.
 actions: assign({
   startTime: () => Date.now(),
   isPaused: false,
-})
+});
 
 // Praxis context mutation
 state.context.timerData.startTime = Date.now();
@@ -131,16 +137,18 @@ import { createPraxisEngine, PraxisRegistry } from '@plures/praxis';
 
 export function createTimerEngine(): LogicEngine<TimerEngineContext> {
   const registry = new PraxisRegistry<TimerEngineContext>();
-  
+
   // Register rules
   registry.registerRule(startTimerRule);
   registry.registerRule(pauseTimerRule);
   registry.registerRule(stopTimerRule);
-  
+
   return createPraxisEngine<TimerEngineContext>({
     initialContext: {
       timerState: 'idle',
-      timerData: { /* ... */ },
+      timerData: {
+        /* ... */
+      },
     },
     registry,
     initialFacts: [],
@@ -194,7 +202,7 @@ describe('Timer', () => {
   it('should start timer', () => {
     const manager = new PraxisTimerManager();
     manager.start();
-    
+
     const result = manager.startTimer(123, 'Test');
     expect(result).toBe(true);
     expect(manager.getTimerState()).toBe('running');

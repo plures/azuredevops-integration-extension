@@ -6,6 +6,7 @@
  */
 
 import { defineRule, findEvent, type RuleDescriptor } from '@plures/praxis';
+import type { PraxisTimerContext } from './types.js';
 import { DEFAULT_TIMER_CONFIG } from './types.js';
 import {
   StartTimerEvent,
@@ -17,6 +18,15 @@ import {
   RestoreTimerEvent,
 } from './facts.js';
 import type { TimerEngineContext } from './engine.js';
+
+/**
+ * Calculate the adjusted start time after resuming from pause.
+ * This adjusts for the pause duration so elapsed time is accurate.
+ */
+function calculateAdjustedStartTime(timerData: PraxisTimerContext, now: number): number {
+  const pauseDuration = timerData.pausedAt && timerData.startTime ? now - timerData.pausedAt : 0;
+  return timerData.startTime ? timerData.startTime + pauseDuration : now;
+}
 
 export const startTimerRule: RuleDescriptor<TimerEngineContext> = defineRule({
   id: 'timer.start',
@@ -70,8 +80,7 @@ export const resumeTimerRule: RuleDescriptor<TimerEngineContext> = defineRule({
 
     const now = Date.now();
     const timerData = state.context.timerData;
-    const pauseDuration = timerData.pausedAt && timerData.startTime ? now - timerData.pausedAt : 0;
-    const adjustedStartTime = timerData.startTime ? timerData.startTime + pauseDuration : now;
+    const adjustedStartTime = calculateAdjustedStartTime(timerData, now);
 
     state.context.timerState = 'running';
     state.context.timerData = {
@@ -116,9 +125,7 @@ export const activityPingRule: RuleDescriptor<TimerEngineContext> = defineRule({
 
     // If paused, resume the timer
     if (timerState === 'paused') {
-      const pauseDuration =
-        timerData.pausedAt && timerData.startTime ? now - timerData.pausedAt : 0;
-      const adjustedStartTime = timerData.startTime ? timerData.startTime + pauseDuration : now;
+      const adjustedStartTime = calculateAdjustedStartTime(timerData, now);
 
       state.context.timerState = 'running';
       state.context.timerData = {

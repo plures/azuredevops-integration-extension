@@ -139,7 +139,18 @@ export class PraxisTimerManager {
     if (!timerData) return undefined;
 
     const now = Date.now();
-    const elapsedMs = timerData.startTime ? now - timerData.startTime : 0;
+    // If paused, calculate elapsed time up to the pause point
+    // If running, calculate elapsed time from adjusted start time
+    let elapsedMs = 0;
+    if (timerData.startTime) {
+      if (timerData.isPaused && timerData.pausedAt) {
+        // When paused, elapsed time is from start to pause point
+        elapsedMs = timerData.pausedAt - timerData.startTime;
+      } else {
+        // When running, elapsed time is from adjusted start to now
+        elapsedMs = now - timerData.startTime;
+      }
+    }
 
     return {
       workItemId: timerData.workItemId,
