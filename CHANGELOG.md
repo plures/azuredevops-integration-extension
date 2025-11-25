@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.6.0] - 2025-11-25
+
+### Added
+
+- implement auto-update from GitHub releases (#101)
+
+
 ## [2.4.3] - 2025-11-23
 
 ### Developer Experience
