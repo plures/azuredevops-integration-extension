@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.10.0] - 2025-11-25
+
+### Added
+
+- Add Praxis logic engine authentication and connection modules (#105)
+
+
 ## [2.8.0] - 2025-11-25
 
 ### Added
