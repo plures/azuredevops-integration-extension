@@ -10,30 +10,32 @@
  *
  * LLM-GUARD:
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ *
+ * This module now uses Praxis logic engine instead of XState.
  */
 /**
  * Connection FSM Manager
  *
  * Manages connection state machines and integrates them with the existing
  * activation.ts connection management system.
+ *
+ * Now uses Praxis logic engine instead of XState.
  */
 
-import { createActor, ActorRefFrom } from 'xstate';
-import {
-  connectionMachine,
-  ConnectionContext as _ConnectionContext,
-  ConnectionEvent as _ConnectionEvent,
-  ProjectConnection,
-} from './machines/connectionMachine.js';
+import { PraxisConnectionManager } from '../praxis/connection/manager.js';
+import type { ProjectConnection as PraxisProjectConnection } from '../praxis/connection/types.js';
 import { createComponentLogger, FSMComponent } from './logging/FSMLogger.js';
 
+// Re-export ProjectConnection type for compatibility
+export type ProjectConnection = PraxisProjectConnection;
+
 export class ConnectionFSMManager {
-  private connectionActors = new Map<string, ActorRefFrom<typeof connectionMachine>>();
+  private connectionManagers = new Map<string, PraxisConnectionManager>();
   private isEnabled: boolean = false;
   private logger = createComponentLogger(FSMComponent.CONNECTION, 'ConnectionFSMManager');
 
   constructor() {
-    this.logger.info('ConnectionFSMManager created');
+    this.logger.info('ConnectionFSMManager created (Praxis-based)');
   }
 
   /**
@@ -45,83 +47,30 @@ export class ConnectionFSMManager {
   }
 
   /**
-   * Create or get connection actor for a specific connection
+   * Create or get connection manager for a specific connection
    */
-  getConnectionActor(connectionId: string): ActorRefFrom<typeof connectionMachine> {
-    if (!this.connectionActors.has(connectionId)) {
-      const actor = createActor(connectionMachine, {
-        input: {
-          connectionId,
-          config: {} as ProjectConnection,
-          authMethod: 'pat',
-          isConnected: false,
-          retryCount: 0,
-          refreshFailureCount: 0,
-          reauthInProgress: false,
-        },
+  getConnectionActor(connectionId: string): PraxisConnectionManager {
+    if (!this.connectionManagers.has(connectionId)) {
+      const manager = new PraxisConnectionManager({
+        id: connectionId,
+        organization: '',
+        project: '',
+        authMethod: 'pat',
       });
-
-      // REACTIVE: Subscribe to state changes for debugging and status bar updates
-      // No delays, no polling - pure event-driven reactivity
-      actor.subscribe((state) => {
-        this.logger.debug(`${connectionId} state: ${String(state.value)}`, {
-          state: String(state.value),
-          connectionId: connectionId,
-        });
-
-        // REACTIVE: Immediately update status bar when reaching terminal/visible states,
-        // to restore prior behavior and avoid excessive updates.
-        if (
-          state.matches('auth_failed') ||
-          state.matches('client_failed') ||
-          state.matches('provider_failed') ||
-          state.matches('connection_error') ||
-          state.matches('connected')
-        ) {
-          setImmediate(() => {
-            const globalRef = (globalThis as any).__updateAuthStatusBar;
-            if (typeof globalRef === 'function') {
-              globalRef().catch((err: any) => {
-                this.logger.warn(
-                  `Failed to update status bar: ${err instanceof Error ? err.message : String(err)}`
-                );
-              });
-            } else {
-              import('../../activation.js')
-                .then(({ updateAuthStatusBar }) => {
-                  updateAuthStatusBar().catch((err) => {
-                    this.logger.warn(
-                      `Failed to update status bar: ${err instanceof Error ? err.message : String(err)}`
-                    );
-                  });
-                })
-                .catch((err) => {
-                  this.logger.warn(
-                    `Failed to import updateAuthStatusBar: ${err instanceof Error ? err.message : String(err)}`
-                  );
-                });
-            }
-          });
-        }
-      });
-
-      // Start the actor
-      actor.start();
-      this.connectionActors.set(connectionId, actor);
+      manager.start();
+      this.connectionManagers.set(connectionId, manager);
     }
 
-    return this.connectionActors.get(connectionId)!;
+    return this.connectionManagers.get(connectionId)!;
   }
 
   /**
    * Get the actual state value of a connection machine (e.g., 'connected', 'auth_failed')
    */
   getConnectionState(connectionId: string): string | null {
-    const actor = this.connectionActors.get(connectionId);
-    if (!actor) return null;
-    const snapshot = actor.getSnapshot();
-    if (!snapshot) return null;
-    return String(snapshot.value);
+    const manager = this.connectionManagers.get(connectionId);
+    if (!manager) return null;
+    return manager.getConnectionState();
   }
 
   /**
@@ -132,10 +81,10 @@ export class ConnectionFSMManager {
     options: { refresh?: boolean; interactive?: boolean } = {}
   ): Promise<{
     success: boolean;
-    client?: any;
-    provider?: any;
+    client?: unknown;
+    provider?: unknown;
     error?: string;
-    state?: any;
+    state?: unknown;
   }> {
     if (!this.isEnabled) {
       throw new Error('Connection FSM not enabled');
@@ -149,21 +98,26 @@ export class ConnectionFSMManager {
       forceInteractive,
     });
 
-    const actor = this.getConnectionActor(config.id);
+    // Get or create manager for this connection
+    let manager = this.connectionManagers.get(config.id);
+    if (!manager) {
+      manager = new PraxisConnectionManager(config);
+      manager.start();
+      this.connectionManagers.set(config.id, manager);
+    }
 
-    // Send connect event
-    actor.send({ type: 'CONNECT', config, forceInteractive });
-    this.logger.logEvent('CONNECT', 'connecting', 'connectionMachine', {
+    // Initiate connection
+    manager.connect({ forceInteractive });
+    this.logger.logEvent('CONNECT', 'connecting', 'praxisConnectionManager', {
       connectionId: config.id,
       forceInteractive,
     });
 
     // Wait for connection to complete or fail
     // Extended timeout for device code authentication flow (15 minutes to match Azure)
-    // Device code flow is ALWAYS interactive - detect by checking if forceInteractive OR if using Entra auth
     const isEntraAuth = config.authMethod === 'entra';
     const isInteractiveAuth = options?.interactive || forceInteractive || isEntraAuth;
-    const timeoutMs = isInteractiveAuth ? 900000 : 30000; // 15 minutes for interactive auth, 30s for cached auth
+    const timeoutMs = isInteractiveAuth ? 900000 : 30000;
 
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
@@ -173,31 +127,65 @@ export class ConnectionFSMManager {
         });
       }, timeoutMs);
 
-      const subscription = actor.subscribe((state) => {
-        if (state.matches('connected')) {
+      // Poll for state changes (Praxis doesn't have built-in subscriptions)
+      const pollInterval = setInterval(() => {
+        const state = manager!.getConnectionState();
+
+        if (state === 'connected') {
           clearTimeout(timeout);
-          subscription.unsubscribe();
+          clearInterval(pollInterval);
+          const data = manager!.getConnectionData();
           resolve({
             success: true,
-            client: state.context.client,
-            provider: state.context.provider,
-            state: state.context,
+            client: data.client,
+            provider: data.provider,
+            state: data,
           });
-        } else if (
-          state.matches('auth_failed') ||
-          state.matches('client_failed') ||
-          state.matches('provider_failed') ||
-          state.matches('connection_error')
-        ) {
+          // Update status bar
+          this.updateStatusBar();
+        } else if (['auth_failed', 'client_failed', 'provider_failed', 'connection_error'].includes(state)) {
           clearTimeout(timeout);
-          subscription.unsubscribe();
+          clearInterval(pollInterval);
+          const data = manager!.getConnectionData();
           resolve({
             success: false,
-            error: state.context.lastError || 'Connection failed',
-            state: state.context,
+            error: data.lastError || 'Connection failed',
+            state: data,
           });
+          // Update status bar
+          this.updateStatusBar();
         }
-      });
+      }, 100);
+    });
+  }
+
+  /**
+   * Update status bar (called on terminal states)
+   */
+  private updateStatusBar(): void {
+    setImmediate(() => {
+      const globalRef = (globalThis as any).__updateAuthStatusBar;
+      if (typeof globalRef === 'function') {
+        globalRef().catch((err: any) => {
+          this.logger.warn(
+            `Failed to update status bar: ${err instanceof Error ? err.message : String(err)}`
+          );
+        });
+      } else {
+        import('../../activation.js')
+          .then(({ updateAuthStatusBar }) => {
+            updateAuthStatusBar().catch((err) => {
+              this.logger.warn(
+                `Failed to update status bar: ${err instanceof Error ? err.message : String(err)}`
+              );
+            });
+          })
+          .catch((err) => {
+            this.logger.warn(
+              `Failed to import updateAuthStatusBar: ${err instanceof Error ? err.message : String(err)}`
+            );
+          });
+      }
     });
   }
 
@@ -205,9 +193,9 @@ export class ConnectionFSMManager {
    * Disconnect from a specific connection
    */
   disconnectFromConnection(connectionId: string): void {
-    const actor = this.connectionActors.get(connectionId);
-    if (actor) {
-      actor.send({ type: 'DISCONNECT' });
+    const manager = this.connectionManagers.get(connectionId);
+    if (manager) {
+      manager.disconnect();
     }
   }
 
@@ -215,9 +203,9 @@ export class ConnectionFSMManager {
    * Retry connection for a specific connection
    */
   retryConnection(connectionId: string): void {
-    const actor = this.connectionActors.get(connectionId);
-    if (actor) {
-      actor.send({ type: 'RETRY' });
+    const manager = this.connectionManagers.get(connectionId);
+    if (manager) {
+      manager.retry();
     }
   }
 
@@ -225,9 +213,9 @@ export class ConnectionFSMManager {
    * Reset connection state
    */
   resetConnection(connectionId: string): void {
-    const actor = this.connectionActors.get(connectionId);
-    if (actor) {
-      actor.send({ type: 'RESET' });
+    const manager = this.connectionManagers.get(connectionId);
+    if (manager) {
+      manager.reset();
     }
   }
 
@@ -235,9 +223,9 @@ export class ConnectionFSMManager {
    * Handle token expiration
    */
   handleTokenExpired(connectionId: string): void {
-    const actor = this.connectionActors.get(connectionId);
-    if (actor) {
-      actor.send({ type: 'TOKEN_EXPIRED' });
+    const manager = this.connectionManagers.get(connectionId);
+    if (manager) {
+      manager.tokenExpired();
     }
   }
 
@@ -245,9 +233,9 @@ export class ConnectionFSMManager {
    * Refresh authentication for a connection
    */
   refreshAuth(connectionId: string): void {
-    const actor = this.connectionActors.get(connectionId);
-    if (actor) {
-      actor.send({ type: 'REFRESH_AUTH' });
+    const manager = this.connectionManagers.get(connectionId);
+    if (manager && manager.isConnected()) {
+      manager.tokenExpired(); // This triggers refresh flow
     }
   }
 
@@ -262,21 +250,19 @@ export class ConnectionFSMManager {
   /**
    * Get client for a connected connection
    */
-  getConnectionClient(connectionId: string): any {
-    const actor = this.connectionActors.get(connectionId);
-    if (!actor) return null;
-    const snapshot = actor.getSnapshot();
-    return snapshot?.context.client;
+  getConnectionClient(connectionId: string): unknown {
+    const manager = this.connectionManagers.get(connectionId);
+    if (!manager) return null;
+    return manager.getClient();
   }
 
   /**
    * Get provider for a connected connection
    */
-  getConnectionProvider(connectionId: string): any {
-    const actor = this.connectionActors.get(connectionId);
-    if (!actor) return null;
-    const snapshot = actor.getSnapshot();
-    return snapshot?.context.provider;
+  getConnectionProvider(connectionId: string): unknown {
+    const manager = this.connectionManagers.get(connectionId);
+    if (!manager) return null;
+    return manager.getProvider();
   }
 
   /**
@@ -285,14 +271,14 @@ export class ConnectionFSMManager {
   getAllConnectionStates(): Record<string, any> {
     const states: Record<string, any> = {};
 
-    for (const [connectionId, actor] of this.connectionActors.entries()) {
-      const snapshot = actor.getSnapshot();
+    for (const [connectionId, manager] of this.connectionManagers.entries()) {
+      const snapshot = manager.getSnapshot();
       states[connectionId] = {
-        state: snapshot.value,
-        isConnected: snapshot.context.isConnected,
-        lastError: snapshot.context.lastError,
-        retryCount: snapshot.context.retryCount,
-        authMethod: snapshot.context.authMethod,
+        state: snapshot.state,
+        isConnected: snapshot.isConnected,
+        lastError: snapshot.error,
+        retryCount: snapshot.retryCount,
+        authMethod: snapshot.authMethod,
       };
     }
 
@@ -300,23 +286,23 @@ export class ConnectionFSMManager {
   }
 
   /**
-   * Clean up connection actors
+   * Clean up connection managers
    */
   cleanup(): void {
-    this.logger.info(`Cleaning up ${this.connectionActors.size} connection actors`);
+    this.logger.info(`Cleaning up ${this.connectionManagers.size} connection managers`);
 
-    for (const [connectionId, actor] of this.connectionActors.entries()) {
+    for (const [connectionId, manager] of this.connectionManagers.entries()) {
       try {
-        actor.send({ type: 'DISCONNECT' });
-        actor.stop();
+        manager.disconnect();
+        manager.stop();
       } catch (error) {
         this.logger.error(
-          `Error stopping actor for ${connectionId}: ${error instanceof Error ? error.message : String(error)}`
+          `Error stopping manager for ${connectionId}: ${error instanceof Error ? error.message : String(error)}`
         );
       }
     }
 
-    this.connectionActors.clear();
+    this.connectionManagers.clear();
   }
 
   /**
@@ -325,7 +311,7 @@ export class ConnectionFSMManager {
   getDebugInfo() {
     return {
       isEnabled: this.isEnabled,
-      activeConnections: this.connectionActors.size,
+      activeConnections: this.connectionManagers.size,
       connectionStates: this.getAllConnectionStates(),
     };
   }

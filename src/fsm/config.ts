@@ -10,39 +10,34 @@
  *
  * LLM-GUARD:
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ *
+ * This module now uses Praxis logic engine instead of XState.
+ * The inspector functionality has been removed as Praxis uses different debugging approaches.
  */
-import { createBrowserInspector } from '@statelyai/inspect';
 import { createComponentLogger, FSMComponent } from './logging/FSMLogger';
 
 // Create logger for FSM configuration
 const logger = createComponentLogger(FSMComponent.APPLICATION, 'fsmConfig');
 
-export const setupFSMInspector = (): any => {
-  // Only enable inspector in development mode
+/**
+ * Setup function for FSM debugging.
+ * Previously used @statelyai/inspect for XState visualization.
+ * Now returns undefined as Praxis uses different debugging approaches.
+ */
+export const setupFSMInspector = (): undefined => {
+  // Praxis logic engine uses different debugging approaches
+  // (structured logging, trace sessions, context inspection)
   if (process.env.NODE_ENV === 'development' || process.env.ENABLE_FSM_INSPECTOR === 'true') {
-    try {
-      // Create inspector for visual debugging
-      const inspector = createBrowserInspector({
-        url: 'https://stately.ai/registry/editor/e13bef2b-bb13-4465-96ac-0bc25340688e?machineId=e8c673d6-40e0-459a-af48-ba8a69db9d89',
-      });
-
-      logger.info(
-        'FSM Inspector enabled. Visit https://stately.ai/inspect to visualize state machines.'
-      );
-      return inspector;
-    } catch (error) {
-      logger.warn(
-        'Failed to setup FSM inspector: ' + (error instanceof Error ? error.message : String(error))
-      );
-      return undefined;
-    }
+    logger.info(
+      'FSM debugging enabled. Use FSM logging and tracing for state machine inspection.'
+    );
   }
   return undefined;
 };
 
 export const FSM_CONFIG = {
   // Development settings - TRACING ENABLED BY DEFAULT
-  enableInspector: true, // Always enable for debugging
+  enableInspector: false, // Praxis doesn't use XState inspector
   enableLogging: true, // Always enable for debugging
 
   // Timer settings
