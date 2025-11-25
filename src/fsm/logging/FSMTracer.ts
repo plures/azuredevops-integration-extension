@@ -10,6 +10,8 @@
  *
  * LLM-GUARD:
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ *
+ * This module now uses Praxis logic engine instead of XState.
  */
 /**
  * FSM Tracing and Replay System
@@ -20,9 +22,10 @@
  * - Exports/imports trace files for sharing and analysis
  * - Visual timeline and state machine visualization
  * - Performance analysis and bottleneck detection
+ *
+ * Now compatible with Praxis logic engine (no XState dependency).
  */
 
-import { Actor, AnyStateMachine, EventObject, Snapshot } from 'xstate';
 import { fsmLogger, FSMComponent } from './FSMLogger.js';
 
 // ============================================================================
@@ -38,7 +41,7 @@ export interface FSMTraceEntry {
   component: FSMComponent;
 
   // Event information
-  event: EventObject;
+  event: { type: string; payload?: unknown };
   eventType: string;
 
   // State information
@@ -46,8 +49,8 @@ export interface FSMTraceEntry {
   toState: string;
 
   // Context snapshots
-  contextBefore: any;
-  contextAfter: any;
+  contextBefore: unknown;
+  contextAfter: unknown;
 
   // Metadata
   duration?: number;
@@ -65,7 +68,7 @@ export interface FSMTraceSession {
     extensionVersion?: string;
     vscodeVersion?: string;
     userAgent?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -77,6 +80,19 @@ export interface FSMReplayOptions {
   skipErrors?: boolean;
   onStateChange?: (entry: FSMTraceEntry) => void;
   onError?: (entry: FSMTraceEntry, error: Error) => void;
+}
+
+// Generic event type for logging
+interface LogEventData {
+  component: FSMComponent;
+  machineId: string;
+  eventType: string;
+  timestamp: number;
+  fromState?: string;
+  toState?: string;
+  context?: unknown;
+  data?: unknown;
+  error?: string;
 }
 
 // ============================================================================
@@ -170,11 +186,16 @@ export class FSMTracer {
   }
 
   // ============================================================================
-  // ACTOR INSTRUMENTATION
+  // PRAXIS-COMPATIBLE ACTOR INSTRUMENTATION
   // ============================================================================
 
-  public instrumentActor<T extends AnyStateMachine>(
-    actor: Actor<T>,
+  /**
+   * Instrument a Praxis manager or engine for tracing.
+   * This is a no-op that returns a cleanup function for compatibility.
+   * For actual tracing, use logEvent() directly.
+   */
+  public instrumentActor(
+    _actor: unknown,
     component: FSMComponent,
     machineId?: string
   ): () => void {
@@ -183,99 +204,49 @@ export class FSMTracer {
     }
 
     const actorId = `${component}_${machineId || 'default'}_${Date.now()}`;
-    let lastSnapshot: Snapshot<unknown> | undefined;
 
-    // Subscribe to actor state changes
-    const subscription = actor.subscribe({
-      next: (snapshot: Snapshot<unknown>): void => {
-        this.recordTransition(
-          actor,
-          component,
-          machineId || 'unknown',
-          actorId,
-          lastSnapshot,
-          snapshot
-        );
-        lastSnapshot = snapshot;
-      },
-      error: (error: unknown): void => {
-        this.recordError(component, machineId || 'unknown', actorId, error);
-      },
+    // For Praxis, we don't subscribe to the actor directly
+    // Instead, we provide the logEvent method for manual logging
+    fsmLogger.debug(FSMComponent.MACHINE, `Actor registered for tracing: ${actorId}`, {
+      component,
+      machineId,
     });
 
     // Store cleanup function
     const cleanup: () => void = () => {
-      subscription.unsubscribe();
       this.subscribedActors.delete(actorId);
     };
 
     this.subscribedActors.set(actorId, cleanup);
 
-    fsmLogger.debug(FSMComponent.MACHINE, `Actor instrumented: ${actorId}`, {
-      component,
-      machineId,
-    });
-
     return cleanup;
   }
 
-  private recordTransition<T extends AnyStateMachine>(
-    actor: Actor<T>,
-    component: FSMComponent,
-    machineId: string,
-    actorId: string,
-    fromSnapshot: Snapshot<unknown> | undefined,
-    toSnapshot: Snapshot<unknown>
-  ): void {
+  /**
+   * Log an event from a Praxis engine or manager.
+   * This is the main method for recording events in Praxis-based systems.
+   */
+  public logEvent(data: LogEventData): void {
     if (!this.isRecording || !this.currentSession) return;
 
     const entry: FSMTraceEntry = {
       id: `trace_${++this.traceCounter}`,
-      timestamp: Date.now(),
+      timestamp: data.timestamp,
       sessionId: this.currentSession.id,
-      machineId,
-      actorId,
-      component,
+      machineId: data.machineId,
+      actorId: `${data.component}_${data.machineId}`,
+      component: data.component,
 
-      event: (toSnapshot as any)._event || { type: 'unknown' },
-      eventType: (toSnapshot as any)._event?.type || 'unknown',
+      event: { type: data.eventType, payload: data.data },
+      eventType: data.eventType,
 
-      fromState: this.serializeState(fromSnapshot),
-      toState: this.serializeState(toSnapshot),
-
-      contextBefore: this.cloneObject((fromSnapshot as any)?.context),
-      contextAfter: this.cloneObject((toSnapshot as any).context),
-    };
-
-    this.addTraceEntry(entry);
-  }
-
-  private recordError(
-    component: FSMComponent,
-    machineId: string,
-    actorId: string,
-    error: any
-  ): void {
-    if (!this.isRecording || !this.currentSession) return;
-
-    const entry: FSMTraceEntry = {
-      id: `trace_${++this.traceCounter}`,
-      timestamp: Date.now(),
-      sessionId: this.currentSession.id,
-      machineId,
-      actorId,
-      component,
-
-      event: { type: 'ERROR' },
-      eventType: 'ERROR',
-
-      fromState: 'unknown',
-      toState: 'error',
+      fromState: data.fromState || 'unknown',
+      toState: data.toState || 'unknown',
 
       contextBefore: null,
-      contextAfter: null,
+      contextAfter: data.context,
 
-      error: error instanceof Error ? error.message : String(error),
+      error: data.error,
     };
 
     this.addTraceEntry(entry);
@@ -318,7 +289,7 @@ export class FSMTracer {
 
   public async replaySession(
     sessionId: string,
-    targetActor: Actor<any>,
+    _targetActor: unknown,
     options: FSMReplayOptions = {}
   ): Promise<void> {
     const session = this.sessions.get(sessionId);
@@ -356,12 +327,8 @@ export class FSMTracer {
       const entry = entriesToReplay[i];
 
       try {
-        // Send the event to the target actor
-        if (entry.event.type !== 'unknown' && entry.event.type !== 'ERROR') {
-          targetActor.send(entry.event);
-        }
-
-        // Callback for state change
+        // For Praxis, replay is informational only
+        // The actual state machine doesn't receive the events
         onStateChange?.(entry);
 
         // Wait if not in step mode
@@ -538,29 +505,6 @@ export class FSMTracer {
   // UTILITY METHODS
   // ============================================================================
 
-  private serializeState(snapshot: Snapshot<unknown> | undefined): string {
-    if (!snapshot) return 'initial';
-
-    const value = (snapshot as any).value;
-    if (typeof value === 'string') {
-      return value;
-    } else if (typeof value === 'object' && value !== null) {
-      return JSON.stringify(value);
-    } else {
-      return String(value);
-    }
-  }
-
-  private cloneObject(obj: any): any {
-    if (obj === null || obj === undefined) return obj;
-
-    try {
-      return JSON.parse(JSON.stringify(obj));
-    } catch {
-      return String(obj);
-    }
-  }
-
   public cleanup(): void {
     // Cleanup all subscriptions
     this.subscribedActors.forEach((cleanup) => cleanup());
@@ -602,8 +546,8 @@ export type SessionAnalysis = ReturnType<FSMTracer['analyzeSession']>;
 // CONVENIENCE FUNCTIONS
 // ============================================================================
 
-export function instrumentActor<T extends AnyStateMachine>(
-  actor: Actor<T>,
+export function instrumentActor(
+  actor: unknown,
   component: FSMComponent,
   machineId?: string
 ): () => void {
