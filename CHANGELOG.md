@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.8.0] - 2025-11-25
+
+### Added
+
+- Add Praxis logic engine for timer component (Phase 1 & 2) (#103)
+
+
 ## [2.6.0] - 2025-11-25
 
 ### Added
