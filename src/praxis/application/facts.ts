@@ -1,0 +1,299 @@
+/**
+ * Praxis Application Facts and Events
+ *
+ * Defines the facts (state) and events for the Application Orchestrator.
+ */
+
+import { defineFact, defineEvent } from '@plures/praxis';
+import type { ProjectConnection } from '../connection/types.js';
+import type { ViewMode, WorkItem, DeviceCodeSession, PendingWorkItems } from './types.js';
+
+// ============================================================================
+// Application State Facts
+// ============================================================================
+
+/**
+ * Application state fact
+ */
+export const ApplicationStateFact = defineFact<
+  'ApplicationState',
+  'inactive' | 'activating' | 'active' | 'error_recovery' | 'deactivating'
+>('ApplicationState');
+
+/**
+ * Application activated fact
+ */
+export const IsActivatedFact = defineFact<'IsActivated', boolean>('IsActivated');
+
+/**
+ * Application deactivating fact
+ */
+export const IsDeactivatingFact = defineFact<'IsDeactivating', boolean>('IsDeactivating');
+
+/**
+ * Connections fact
+ */
+export const ConnectionsFact = defineFact<'Connections', ProjectConnection[]>('Connections');
+
+/**
+ * Active connection ID fact
+ */
+export const ActiveConnectionIdFact = defineFact<'ActiveConnectionId', string | undefined>(
+  'ActiveConnectionId'
+);
+
+/**
+ * Active query fact
+ */
+export const ActiveQueryFact = defineFact<'ActiveQuery', string | undefined>('ActiveQuery');
+
+/**
+ * View mode fact
+ */
+export const ViewModeFact = defineFact<'ViewMode', ViewMode>('ViewMode');
+
+/**
+ * Pending work items fact
+ */
+export const PendingWorkItemsFact = defineFact<'PendingWorkItems', PendingWorkItems | undefined>(
+  'PendingWorkItems'
+);
+
+/**
+ * Device code session fact
+ */
+export const DeviceCodeSessionFact = defineFact<'DeviceCodeSession', DeviceCodeSession | undefined>(
+  'DeviceCodeSession'
+);
+
+/**
+ * Error recovery attempts fact
+ */
+export const ErrorRecoveryAttemptsFact = defineFact<'ErrorRecoveryAttempts', number>(
+  'ErrorRecoveryAttempts'
+);
+
+/**
+ * Last error fact
+ */
+export const LastErrorFact = defineFact<
+  'LastError',
+  { message: string; stack?: string; connectionId?: string } | undefined
+>('LastError');
+
+/**
+ * Debug logging enabled fact
+ */
+export const DebugLoggingEnabledFact = defineFact<'DebugLoggingEnabled', boolean>(
+  'DebugLoggingEnabled'
+);
+
+/**
+ * Debug view visible fact
+ */
+export const DebugViewVisibleFact = defineFact<'DebugViewVisible', boolean>('DebugViewVisible');
+
+// ============================================================================
+// Application Events
+// ============================================================================
+
+/**
+ * Activate application event
+ */
+export const ActivateEvent = defineEvent<'ACTIVATE', { extensionContext?: unknown }>('ACTIVATE');
+
+/**
+ * Activation complete event
+ */
+export const ActivationCompleteEvent = defineEvent<'ACTIVATION_COMPLETE', Record<string, never>>(
+  'ACTIVATION_COMPLETE'
+);
+
+/**
+ * Activation failed event
+ */
+export const ActivationFailedEvent = defineEvent<'ACTIVATION_FAILED', { error: string }>(
+  'ACTIVATION_FAILED'
+);
+
+/**
+ * Deactivate application event
+ */
+export const DeactivateEvent = defineEvent<'DEACTIVATE', Record<string, never>>('DEACTIVATE');
+
+/**
+ * Deactivation complete event
+ */
+export const DeactivationCompleteEvent = defineEvent<
+  'DEACTIVATION_COMPLETE',
+  Record<string, never>
+>('DEACTIVATION_COMPLETE');
+
+/**
+ * Connections loaded event
+ */
+export const ConnectionsLoadedEvent = defineEvent<
+  'CONNECTIONS_LOADED',
+  { connections: ProjectConnection[] }
+>('CONNECTIONS_LOADED');
+
+/**
+ * Connection selected event
+ */
+export const ConnectionSelectedEvent = defineEvent<'CONNECTION_SELECTED', { connectionId: string }>(
+  'CONNECTION_SELECTED'
+);
+
+/**
+ * Select connection event (alias for consistency with existing code)
+ */
+export const SelectConnectionEvent = defineEvent<'SELECT_CONNECTION', { connectionId: string }>(
+  'SELECT_CONNECTION'
+);
+
+/**
+ * Query changed event
+ */
+export const QueryChangedEvent = defineEvent<
+  'QUERY_CHANGED',
+  { query: string; connectionId?: string }
+>('QUERY_CHANGED');
+
+/**
+ * View mode changed event
+ */
+export const ViewModeChangedEvent = defineEvent<'VIEW_MODE_CHANGED', { viewMode: ViewMode }>(
+  'VIEW_MODE_CHANGED'
+);
+
+/**
+ * Work items loaded event
+ */
+export const WorkItemsLoadedEvent = defineEvent<
+  'WORK_ITEMS_LOADED',
+  { workItems: WorkItem[]; connectionId: string; query?: string }
+>('WORK_ITEMS_LOADED');
+
+/**
+ * Work items error event
+ */
+export const WorkItemsErrorEvent = defineEvent<
+  'WORK_ITEMS_ERROR',
+  { error: string; connectionId: string }
+>('WORK_ITEMS_ERROR');
+
+/**
+ * Refresh data event
+ */
+export const RefreshDataEvent = defineEvent<'REFRESH_DATA', { connectionId?: string }>(
+  'REFRESH_DATA'
+);
+
+/**
+ * Device code started event
+ */
+export const DeviceCodeStartedAppEvent = defineEvent<
+  'DEVICE_CODE_STARTED',
+  {
+    connectionId: string;
+    userCode: string;
+    verificationUri: string;
+    expiresInSeconds: number;
+  }
+>('DEVICE_CODE_STARTED');
+
+/**
+ * Device code completed event
+ */
+export const DeviceCodeCompletedAppEvent = defineEvent<
+  'DEVICE_CODE_COMPLETED',
+  { connectionId: string }
+>('DEVICE_CODE_COMPLETED');
+
+/**
+ * Device code cancelled event
+ */
+export const DeviceCodeCancelledEvent = defineEvent<
+  'DEVICE_CODE_CANCELLED',
+  { connectionId: string }
+>('DEVICE_CODE_CANCELLED');
+
+/**
+ * Application error event
+ */
+export const ApplicationErrorEvent = defineEvent<
+  'APPLICATION_ERROR',
+  { error: string; connectionId?: string }
+>('APPLICATION_ERROR');
+
+/**
+ * Retry event
+ */
+export const RetryApplicationEvent = defineEvent<'RETRY', Record<string, never>>('RETRY');
+
+/**
+ * Reset event
+ */
+export const ResetApplicationEvent = defineEvent<'RESET', Record<string, never>>('RESET');
+
+/**
+ * Toggle debug view event
+ */
+export const ToggleDebugViewEvent = defineEvent<
+  'TOGGLE_DEBUG_VIEW',
+  { debugViewVisible?: boolean }
+>('TOGGLE_DEBUG_VIEW');
+
+/**
+ * Open settings event
+ */
+export const OpenSettingsEvent = defineEvent<'OPEN_SETTINGS', Record<string, never>>(
+  'OPEN_SETTINGS'
+);
+
+/**
+ * Authentication reminder requested event
+ */
+export const AuthReminderRequestedEvent = defineEvent<
+  'AUTH_REMINDER_REQUESTED',
+  { connectionId: string; reason: string; detail?: string }
+>('AUTH_REMINDER_REQUESTED');
+
+/**
+ * Authentication reminder cleared event
+ */
+export const AuthReminderClearedEvent = defineEvent<
+  'AUTH_REMINDER_CLEARED',
+  { connectionId: string }
+>('AUTH_REMINDER_CLEARED');
+
+/**
+ * Sign in with Entra event
+ */
+export const SignInEntraEvent = defineEvent<
+  'SIGN_IN_ENTRA',
+  { connectionId: string; forceInteractive?: boolean }
+>('SIGN_IN_ENTRA');
+
+/**
+ * Sign out Entra event
+ */
+export const SignOutEntraEvent = defineEvent<'SIGN_OUT_ENTRA', { connectionId: string }>(
+  'SIGN_OUT_ENTRA'
+);
+
+/**
+ * Authentication success event
+ */
+export const AuthenticationSuccessEvent = defineEvent<
+  'AUTHENTICATION_SUCCESS',
+  { connectionId: string }
+>('AUTHENTICATION_SUCCESS');
+
+/**
+ * Authentication failed event
+ */
+export const AuthenticationFailedEvent = defineEvent<
+  'AUTHENTICATION_FAILED',
+  { connectionId: string; error: string }
+>('AUTHENTICATION_FAILED');

@@ -338,12 +338,115 @@ if (connection.isConnected()) {
 }
 ```
 
+### Application Orchestrator Module (`src/praxis/application/`)
+
+Coordinates all Praxis engines (Timer, Auth, Connection) using a multi-engine architecture with event bus pattern.
+
+- **Manager**: `PraxisApplicationManager`
+- **Engine**: `createApplicationEngine()`
+- **Event Bus**: `PraxisEventBus`
+- **Tests**: `tests/praxis/praxisApplication.test.ts` (46 tests)
+
+Supports:
+
+- Application lifecycle (activate, deactivate, error recovery)
+- Multi-connection management
+- Work items loading and caching per connection
+- Query and view mode per connection
+- Timer integration
+- Device code flow for OAuth
+- Auth reminders
+- Debug view toggling
+- Event-driven cross-engine coordination
+
+```typescript
+import { PraxisApplicationManager } from '../src/praxis/application/manager';
+
+const app = new PraxisApplicationManager();
+app.start();
+
+// Activate
+app.activate();
+app.activationComplete();
+
+// Load connections
+app.loadConnections([
+  { id: 'conn-1', organization: 'org', project: 'proj', authMethod: 'pat' },
+]);
+
+// Select connection
+app.selectConnection('conn-1');
+
+// Timer operations
+app.startTimer(123, 'My Work Item');
+app.pauseTimer();
+app.resumeTimer();
+const result = app.stopTimer();
+
+// Work items
+app.workItemsLoaded([{ id: 1, fields: {} }], 'conn-1', 'My Activity');
+
+// Device code flow
+app.deviceCodeStarted('conn-1', 'ABC123', 'https://microsoft.com/devicelogin', 900);
+
+// Event bus subscriptions
+const eventBus = app.getEventBus();
+eventBus.subscribe('timer:started', (msg) => console.log('Timer started'));
+```
+
+### Svelte Integration Module (`src/praxis/svelte/`)
+
+Provides Svelte 5 runes-compatible helpers for using Praxis engines in webview components.
+
+- **Hook**: `usePraxisEngine()` - Local engine hook
+- **Remote Hook**: `useRemotePraxisEngine()` - VS Code webview hook
+- **Adapter**: `createVSCodePraxisAdapter()` - Webview messaging adapter
+- **Tests**: `tests/praxis/praxisSvelte.test.ts` (14 tests)
+
+Supports:
+
+- Reactive state management with Svelte 5 runes
+- VS Code webview message passing
+- State matching helpers
+- Connection status tracking
+
+```svelte
+<script lang="ts">
+  import { usePraxisEngine } from '$lib/praxis/svelte';
+  import { createTimerEngine } from '$lib/praxis/timer';
+
+  const engine = createTimerEngine();
+  const { state, dispatch } = usePraxisEngine(
+    { state: $state, effect: $effect },
+    engine
+  );
+</script>
+
+<div>Timer: {state.context.timerState}</div>
+```
+
+For VS Code webview:
+
+```svelte
+<script lang="ts">
+  import { createVSCodePraxisAdapter, useRemotePraxisEngine } from '$lib/praxis/svelte';
+
+  const adapter = createVSCodePraxisAdapter<ApplicationContext>('application');
+  const { state, dispatch } = useRemotePraxisEngine(
+    { state: $state, effect: $effect },
+    adapter
+  );
+</script>
+
+<div>Connection: {state.context.activeConnectionId}</div>
+```
+
 ## Migration Roadmap
 
 - [x] Phase 1: Core Praxis infrastructure
 - [x] Phase 2: Timer Migration
 - [x] Phase 3: Authentication Migration
 - [x] Phase 4: Connection Migration
-- [ ] Phase 5: Application Orchestrator Migration
-- [ ] Phase 6: Webview Integration
+- [x] Phase 5: Application Orchestrator Migration
+- [x] Phase 6: Webview Integration
 - [ ] Phase 7: Cleanup and Documentation

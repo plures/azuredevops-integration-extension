@@ -14,6 +14,14 @@ export * from './auth/index.js';
 // Connection module
 export * from './connection/index.js';
 
+// Application Orchestrator module (Phase 5)
+export * from './application/index.js';
+
+// Svelte Integration module (Phase 6)
+// Note: This is exported separately to avoid bundling Svelte-specific
+// code in the extension host. Import from './svelte/index.js' in webview.
+// export * from './svelte/index.js';
+
 // Re-export commonly used Praxis types for convenience
 export {
   createPraxisEngine,
