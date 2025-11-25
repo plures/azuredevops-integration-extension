@@ -6,6 +6,17 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.12.2] - 2025-11-25
+
+### Developer Experience
+
+- update release workflow and version sync script
+
+### Other
+
+- Merge branch 'main' of https://github.com/plures/azuredevops-integration-extension
+
+
 ## [2.12.1] - 2025-11-25
 
 ### Other
