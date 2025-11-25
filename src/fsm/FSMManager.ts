@@ -10,25 +10,23 @@
  *
  * LLM-GUARD:
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ *
+ * This module now uses Praxis logic engine instead of XState.
  */
-import { createActor, Actor } from 'xstate';
-import { timerMachine } from './machines/timerMachine';
-import { TimerContext, TimerEvent as _TimerEvent } from './types';
-import { setupFSMInspector, FSM_CONFIG } from './config';
+import { PraxisTimerManager } from '../praxis/timer/manager.js';
+import type { TimerContext } from './types';
+import { FSM_CONFIG } from './config';
 import { createComponentLogger, FSMComponent } from './logging/FSMLogger.js';
 import { fsmTracer } from './logging/FSMTracer.js';
 
 export class FSMManager {
-  private timerActor: Actor<typeof timerMachine> | undefined;
-  private inspector: any;
+  private timerManager: PraxisTimerManager | undefined;
   private isStarted = false;
   private logger = createComponentLogger(FSMComponent.TIMER, 'FSMManager');
-  private traceCleanup: (() => void) | undefined;
+  private tickInterval: ReturnType<typeof setInterval> | undefined;
 
   constructor() {
-    this.logger.info('FSMManager created');
-    // Setup inspector for development
-    this.inspector = setupFSMInspector();
+    this.logger.info('FSMManager created (Praxis-based)');
   }
 
   start(): void {
@@ -38,31 +36,23 @@ export class FSMManager {
     }
 
     try {
-      // Initialize timer actor
-      this.timerActor = createActor(timerMachine);
+      // Initialize Praxis timer manager
+      this.timerManager = new PraxisTimerManager();
+      this.timerManager.start();
 
-      // Setup inspector if available
-      if (this.inspector) {
-        this.inspector.actor(this.timerActor);
-      }
-
-      // Setup FSM tracing for full replay capability
-      // Cast to any to bypass Actor vs ActorRef type mismatch in XState v5
-      this.traceCleanup = fsmTracer.instrumentActor(
-        this.timerActor as any,
-        FSMComponent.TIMER,
-        'timerMachine'
-      );
-      this.logger.info('Timer FSM instrumented for tracing and replay');
-
-      // Start the actors
-      this.timerActor.start();
+      // Log the transition
+      fsmTracer.logEvent({
+        component: FSMComponent.TIMER,
+        machineId: 'praxisTimerManager',
+        eventType: 'START',
+        timestamp: Date.now(),
+      });
 
       // Setup tick interval for timer
       this.setupTimerTick();
 
       this.isStarted = true;
-      this.logger.info('FSM Manager started successfully');
+      this.logger.info('FSM Manager started successfully (Praxis-based)');
     } catch (error) {
       this.logger.error(
         'Failed to start FSM Manager: ' + (error instanceof Error ? error.message : String(error))
@@ -76,16 +66,16 @@ export class FSMManager {
       return;
     }
 
-    // Cleanup tracing
-    if (this.traceCleanup) {
-      this.traceCleanup();
-      this.traceCleanup = undefined;
-    }
-
     try {
-      if (this.timerActor) {
-        this.timerActor.stop();
-        this.timerActor = undefined;
+      // Clear tick interval
+      if (this.tickInterval) {
+        clearInterval(this.tickInterval);
+        this.tickInterval = undefined;
+      }
+
+      if (this.timerManager) {
+        this.timerManager.stop();
+        this.timerManager = undefined;
       }
 
       this.isStarted = false;
@@ -98,25 +88,29 @@ export class FSMManager {
   }
 
   // Timer-specific methods
-  getTimerActor(): Actor<typeof timerMachine> | undefined {
-    return this.timerActor;
+  getTimerActor(): unknown {
+    // Return the Praxis timer manager for compatibility
+    return this.timerManager;
   }
 
   startTimer(workItemId: number, workItemTitle: string): boolean {
-    if (!this.timerActor) {
-      this.logger.error('Timer actor not initialized');
+    if (!this.timerManager) {
+      this.logger.error('Timer manager not initialized');
       return false;
     }
 
     try {
-      const currentState = this.timerActor.getSnapshot();
-      if (currentState.matches('idle')) {
-        this.timerActor.send({ type: 'START', workItemId, workItemTitle });
-        return true;
-      } else {
-        this.logger.warn('Timer is not idle, cannot start');
-        return false;
+      const result = this.timerManager.startTimer(workItemId, workItemTitle);
+      if (result) {
+        fsmTracer.logEvent({
+          component: FSMComponent.TIMER,
+          machineId: 'praxisTimerManager',
+          eventType: 'START_TIMER',
+          timestamp: Date.now(),
+          data: { workItemId, workItemTitle },
+        });
       }
+      return result;
     } catch (error) {
       this.logger.error(
         'Failed to start timer: ' + (error instanceof Error ? error.message : String(error))
@@ -125,21 +119,23 @@ export class FSMManager {
     }
   }
 
-  pauseTimer(manual = true): boolean {
-    if (!this.timerActor) {
-      this.logger.error('Timer actor not initialized');
+  pauseTimer(_manual = true): boolean {
+    if (!this.timerManager) {
+      this.logger.error('Timer manager not initialized');
       return false;
     }
 
     try {
-      const currentState = this.timerActor.getSnapshot();
-      if (currentState.matches('running')) {
-        this.timerActor.send({ type: 'PAUSE', manual });
-        return true;
-      } else {
-        this.logger.warn('Timer is not running, cannot pause');
-        return false;
+      const result = this.timerManager.pauseTimer();
+      if (result) {
+        fsmTracer.logEvent({
+          component: FSMComponent.TIMER,
+          machineId: 'praxisTimerManager',
+          eventType: 'PAUSE_TIMER',
+          timestamp: Date.now(),
+        });
       }
+      return result;
     } catch (error) {
       this.logger.error(
         'Failed to pause timer: ' + (error instanceof Error ? error.message : String(error))
@@ -148,21 +144,23 @@ export class FSMManager {
     }
   }
 
-  resumeTimer(fromActivity = false): boolean {
-    if (!this.timerActor) {
-      this.logger.error('Timer actor not initialized');
+  resumeTimer(_fromActivity = false): boolean {
+    if (!this.timerManager) {
+      this.logger.error('Timer manager not initialized');
       return false;
     }
 
     try {
-      const currentState = this.timerActor.getSnapshot();
-      if (currentState.matches('paused')) {
-        this.timerActor.send({ type: 'RESUME', fromActivity });
-        return true;
-      } else {
-        this.logger.warn('Timer is not paused, cannot resume');
-        return false;
+      const result = this.timerManager.resumeTimer();
+      if (result) {
+        fsmTracer.logEvent({
+          component: FSMComponent.TIMER,
+          machineId: 'praxisTimerManager',
+          eventType: 'RESUME_TIMER',
+          timestamp: Date.now(),
+        });
       }
+      return result;
     } catch (error) {
       this.logger.error(
         'Failed to resume timer: ' + (error instanceof Error ? error.message : String(error))
@@ -172,45 +170,23 @@ export class FSMManager {
   }
 
   stopTimer(): any {
-    if (!this.timerActor) {
-      this.logger.error('Timer actor not initialized');
+    if (!this.timerManager) {
+      this.logger.error('Timer manager not initialized');
       return null;
     }
 
     try {
-      const currentState = this.timerActor.getSnapshot();
-      if (!currentState.matches('idle')) {
-        const context = currentState.context;
-        const endTime = Date.now();
-
-        // Calculate elapsed seconds from startTime and pausedAt (if paused)
-        let elapsedSeconds = 0;
-        if (context.startTime) {
-          if (context.isPaused && context.pausedAt) {
-            // Timer is paused, calculate elapsed up to pause time
-            elapsedSeconds = Math.floor((context.pausedAt - context.startTime) / 1000);
-          } else {
-            // Timer is running, calculate elapsed up to now
-            elapsedSeconds = Math.floor((endTime - context.startTime) / 1000);
-          }
-        }
-
-        this.timerActor.send({ type: 'STOP' });
-
-        // Return timer stop result for compatibility
-        return {
-          workItemId: context.workItemId,
-          startTime: context.startTime,
-          endTime: endTime,
-          duration: elapsedSeconds,
-          hoursDecimal: Number((elapsedSeconds / 3600).toFixed(2)),
-          capApplied: elapsedSeconds > context.defaultElapsedLimitHours * 3600,
-          capLimitHours: context.defaultElapsedLimitHours,
-        };
-      } else {
-        this.logger.warn('Timer is already idle');
-        return null;
+      const result = this.timerManager.stopTimer();
+      if (result) {
+        fsmTracer.logEvent({
+          component: FSMComponent.TIMER,
+          machineId: 'praxisTimerManager',
+          eventType: 'STOP_TIMER',
+          timestamp: Date.now(),
+          data: result,
+        });
       }
+      return result;
     } catch (error) {
       this.logger.error(
         'Failed to stop timer: ' + (error instanceof Error ? error.message : String(error))
@@ -220,56 +196,25 @@ export class FSMManager {
   }
 
   activityPing(): void {
-    if (this.timerActor) {
-      this.timerActor.send({ type: 'ACTIVITY' });
+    if (this.timerManager) {
+      this.timerManager.activityPing();
     }
   }
 
   getTimerSnapshot(): any {
-    if (!this.timerActor) {
+    if (!this.timerManager) {
       return undefined;
     }
 
-    const currentState = this.timerActor.getSnapshot();
-    const context = currentState.context;
-
-    if (context.workItemId) {
-      // Calculate elapsed seconds from startTime and current/paused time
-      let elapsedSeconds = 0;
-      if (context.startTime) {
-        if (context.isPaused && context.pausedAt) {
-          // Timer is paused, calculate elapsed up to pause time
-          elapsedSeconds = Math.floor((context.pausedAt - context.startTime) / 1000);
-        } else {
-          // Timer is running, calculate elapsed up to now
-          elapsedSeconds = Math.floor((Date.now() - context.startTime) / 1000);
-        }
-      }
-
-      return {
-        workItemId: context.workItemId,
-        workItemTitle: context.workItemTitle,
-        elapsedSeconds: elapsedSeconds,
-        isPaused: context.isPaused,
-        startTime: context.startTime,
-        pomodoroCount: context.pomodoroCount,
-        running: !context.isPaused,
-      };
-    }
-
-    return undefined;
+    return this.timerManager.getTimerSnapshot();
   }
 
   // Private methods
   private setupTimerTick(): void {
-    // Setup periodic tick for timer updates
-    setInterval(() => {
-      if (this.timerActor) {
-        const currentState = this.timerActor.getSnapshot();
-        if (currentState.matches('running')) {
-          this.timerActor.send({ type: 'TICK' });
-        }
-      }
+    // Setup periodic tick for timer updates (for UI refresh)
+    this.tickInterval = setInterval(() => {
+      // Praxis doesn't need explicit tick events for state management,
+      // but we keep the interval for UI refresh purposes
     }, FSM_CONFIG.timer.tickIntervalMs);
   }
 
@@ -280,23 +225,33 @@ export class FSMManager {
     timerContext?: TimerContext;
     hasInspector: boolean;
   } {
-    const timerSnapshot = this.timerActor?.getSnapshot();
+    if (!this.timerManager) {
+      return {
+        isStarted: this.isStarted,
+        hasInspector: false,
+      };
+    }
+
+    const status = this.timerManager.getStatus();
 
     return {
       isStarted: this.isStarted,
-      timerState: timerSnapshot?.value as string,
-      timerContext: timerSnapshot?.context,
-      hasInspector: !!this.inspector,
+      timerState: status.timerState,
+      timerContext: status.timerContext as unknown as TimerContext,
+      hasInspector: false, // Praxis doesn't use inspector
     };
   }
 
   // Subscribe to state changes
-  subscribeToTimer(callback: (snapshot: any) => void): () => void {
-    if (!this.timerActor) {
-      throw new Error('Timer actor not initialized');
-    }
-
-    return this.timerActor.subscribe(callback).unsubscribe;
+  subscribeToTimer(_callback: (snapshot: any) => void): () => void {
+    // Praxis engines don't have built-in subscription, but we can
+    // provide a no-op unsubscribe for compatibility
+    this.logger.warn(
+      'Timer subscription not directly supported with Praxis. Consider using polling or webview messaging.'
+    );
+    return () => {
+      // No-op unsubscribe
+    };
   }
 }
 

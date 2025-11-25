@@ -2,7 +2,7 @@
   "name": "azuredevops-integration-extension",
   "displayName": "Azure DevOps Integration for VS Code",
   "description": "Integrate Azure DevOps work items, time tracking, and Git workflows directly in VS Code. Manage tasks, track time, create branches, and submit pull requests without leaving your editor.",
-  "version": "2.4.4",
+  "version": "2.12.1",
   "type": "module",
   "publisher": "PluresLLC",
   "icon": "media/icon.png",
@@ -706,6 +706,21 @@
           "default": false,
           "description": "Enable FSM visual inspector for development and debugging"
         },
+        "azureDevOpsIntegration.experimental.usePraxisTimer": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use Praxis logic engine for timer component (gradual migration from XState)"
+        },
+        "azureDevOpsIntegration.experimental.usePraxisAuth": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use Praxis logic engine for authentication (gradual migration from XState)"
+        },
+        "azureDevOpsIntegration.experimental.usePraxisConnection": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use Praxis logic engine for connection management (gradual migration from XState)"
+        },
         "azureDevOpsIntegration.logging.enabled": {
           "type": "boolean",
           "default": true,
@@ -928,14 +943,12 @@
   },
   "dependencies": {
     "@azure/msal-node": "^3.8.0",
-    "@statelyai/inspect": "^0.4.0",
-    "@xstate/svelte": "file:./src/fsm/xstate-svelte",
+    "@plures/praxis": "^1.0.0",
     "axios": "^1.12.2",
     "azure-devops-node-api": "^15.1.1",
     "openai": "^6.4.0",
     "punycode": "^2.3.1",
-    "sql.js": "^1.13.0",
-    "xstate": "^5.23.0"
+    "sql.js": "^1.13.0"
   },
   "volta": {
     "node": "24.10.0",

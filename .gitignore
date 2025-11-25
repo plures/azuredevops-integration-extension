@@ -339,6 +339,8 @@ update-*.ts
 generate-*.js
 generate-*.mjs
 generate-*.ts
+# Allow generate scripts in app-desktop scripts directory
+!apps/app-desktop/scripts/generate-*.js
 
 # Temporary serve files
 serve-*.js

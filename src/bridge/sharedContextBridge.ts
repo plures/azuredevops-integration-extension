@@ -11,11 +11,12 @@
  * LLM-GUARD:
  * - Post only syncState (or typed) messages; do not send partial context mutations
  * - Do not define new context types here
+ *
+ * This module now uses Praxis logic engine instead of XState.
  */
 import type { Disposable, Webview } from 'vscode';
-import type { ActorRefFrom, StateFrom } from 'xstate';
-import type { ApplicationContext, ProjectConnection } from '../fsm/machines/applicationMachine.js';
-import { applicationMachine } from '../fsm/machines/applicationMachine.js';
+import type { PraxisApplicationManager } from '../praxis/application/manager.js';
+import type { ProjectConnection } from '../praxis/connection/types.js';
 import {
   deriveTabViewModel,
   deriveTimerViewModel,
@@ -30,8 +31,30 @@ import {
 
 export type Logger = (message: string, meta?: Record<string, unknown>) => void;
 
+// Define ApplicationContext type for compatibility
+interface ApplicationContext {
+  isActivated?: boolean;
+  isDeactivating?: boolean;
+  connections?: ProjectConnection[];
+  activeConnectionId?: string;
+  connectionStates?: Map<string, unknown>;
+  pendingAuthReminders?:
+    | Map<string, { connectionId: string; reason: string; status: string }>
+    | Array<{
+        connectionId: string;
+        reason?: string;
+        status?: string;
+        detail?: string;
+        message?: string;
+        label?: string;
+        authMethod?: 'pat' | 'entra';
+      }>;
+  lastError?: { message: string; name?: string; stack?: string };
+  pendingWorkItems?: { workItems?: unknown[]; connectionId?: string };
+}
+
 export type SharedContextBridgeOptions = {
-  actor: ActorRefFrom<typeof applicationMachine>;
+  actor: PraxisApplicationManager | unknown;
   logger?: Logger;
   contextSelector?: (context: ApplicationContext) => SharedContextPayload;
 };
@@ -95,22 +118,16 @@ export interface SharedContextPayload {
   tab: TabViewModel;
 }
 
-type ApplicationActor = ActorRefFrom<typeof applicationMachine>;
-type ApplicationState = StateFrom<typeof applicationMachine>;
-
 export function createSharedContextBridge({
   actor,
   logger,
   contextSelector,
 }: SharedContextBridgeOptions): SharedContextBridge {
-  const applicationActor = actor as ApplicationActor;
+  const applicationManager = actor as PraxisApplicationManager;
   let currentWebview: Webview | undefined;
   let disposed = false;
   let lastSignature = '';
-
-  const subscription = applicationActor.subscribe((state) =>
-    maybePostContext(state as ApplicationState, 'state-change')
-  );
+  let pollInterval: ReturnType<typeof setInterval> | undefined;
 
   function log(message: string, meta?: Record<string, unknown>) {
     try {
@@ -123,6 +140,43 @@ export function createSharedContextBridge({
         error,
       });
     }
+  }
+
+  // Poll for state changes since Praxis doesn't have built-in subscriptions
+  function startPolling() {
+    if (pollInterval) return;
+    pollInterval = setInterval(() => {
+      maybePostContext('poll');
+    }, 100);
+  }
+
+  function stopPolling() {
+    if (pollInterval) {
+      clearInterval(pollInterval);
+      pollInterval = undefined;
+    }
+  }
+
+  function getApplicationContext(): ApplicationContext {
+    try {
+      // Check if actor is a PraxisApplicationManager
+      if (applicationManager && typeof applicationManager.getApplicationData === 'function') {
+        const data = applicationManager.getApplicationData();
+        return {
+          isActivated: data.isActivated,
+          isDeactivating: data.isDeactivating,
+          connections: data.connections,
+          activeConnectionId: data.activeConnectionId,
+          connectionStates: data.connectionStates,
+          pendingAuthReminders: data.pendingAuthReminders,
+          lastError: data.lastError,
+          pendingWorkItems: data.pendingWorkItems,
+        };
+      }
+    } catch (error) {
+      log('getApplicationContextFailed', { error: serializeError(error) });
+    }
+    return {};
   }
 
   function buildPayload(context: ApplicationContext): SharedContextPayload {
@@ -215,9 +269,9 @@ export function createSharedContextBridge({
       })
     );
 
-    const timerSnapshot = deriveTimerViewModel(augmentedContext);
+    const timerSnapshot = deriveTimerViewModel(augmentedContext as any);
     const tabView = deriveTabViewModel(
-      augmentedContext,
+      augmentedContext as any,
       augmentedContext.activeConnectionId ?? null
     );
 
@@ -225,8 +279,9 @@ export function createSharedContextBridge({
       augmentedContext.connectionStates
     );
 
-    const authReminders = Array.isArray(context.pendingAuthReminders)
-      ? context.pendingAuthReminders
+    const pendingReminders = augmentedContext.pendingAuthReminders;
+    const authReminders = Array.isArray(pendingReminders)
+      ? pendingReminders
           .filter(
             (reminder) =>
               reminder?.status !== 'dismissed' &&
@@ -243,16 +298,16 @@ export function createSharedContextBridge({
             })
           )
           .filter((reminder): reminder is NonNullable<typeof reminder> => reminder !== null)
-      : context.pendingAuthReminders instanceof Map
-        ? Array.from(context.pendingAuthReminders.entries())
+      : pendingReminders instanceof Map
+        ? Array.from(pendingReminders.entries())
             .filter(([, reminder]) => reminder?.status !== 'dismissed')
             .map(([connectionId, reminder]) =>
               normalizeReminder(connectionId, {
                 reason: reminder?.reason,
-                detail: reminder?.detail,
-                message: reminder?.message,
-                label: reminder?.label,
-                authMethod: reminder?.authMethod,
+                detail: (reminder as any)?.detail,
+                message: (reminder as any)?.message,
+                label: (reminder as any)?.label,
+                authMethod: (reminder as any)?.authMethod,
               })
             )
             .filter((reminder): reminder is NonNullable<typeof reminder> => reminder !== null)
@@ -303,28 +358,31 @@ export function createSharedContextBridge({
     }
   }
 
-  function maybePostContext(
-    state: StateFrom<typeof applicationMachine> | undefined,
-    reason: string
-  ) {
-    if (!currentWebview || !state) {
+  function maybePostContext(reason: string) {
+    if (!currentWebview) {
       return;
     }
 
     try {
-      const payload = buildPayload(state.context);
+      const context = getApplicationContext();
+      const payload = buildPayload(context);
       const signature = JSON.stringify(payload);
       if (signature === lastSignature) {
         return;
       }
       lastSignature = signature;
 
+      const state =
+        applicationManager && typeof applicationManager.getApplicationState === 'function'
+          ? applicationManager.getApplicationState()
+          : 'unknown';
+
       const message = {
         type: 'contextUpdate',
         context: payload,
         meta: {
           reason,
-          state: state.value,
+          state,
         },
       };
 
@@ -340,12 +398,7 @@ export function createSharedContextBridge({
   }
 
   function synchronizeImmediately(reason: string) {
-    const snapshot = applicationActor.getSnapshot?.();
-    if (!snapshot) {
-      log('snapshotUnavailable', { reason });
-      return;
-    }
-    maybePostContext(snapshot, reason);
+    maybePostContext(reason);
   }
 
   function normalizeConnectionStateSummaries(
@@ -505,6 +558,9 @@ export function createSharedContextBridge({
     return false;
   }
 
+  // Start polling when created
+  startPolling();
+
   return {
     attachWebview(webview: Webview) {
       currentWebview = webview;
@@ -522,11 +578,7 @@ export function createSharedContextBridge({
         return;
       }
       disposed = true;
-      try {
-        subscription.unsubscribe();
-      } catch (error) {
-        log('subscriptionDisposalFailed', { error: serializeError(error) });
-      }
+      stopPolling();
       currentWebview = undefined;
     },
   };

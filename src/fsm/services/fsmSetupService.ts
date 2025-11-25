@@ -10,22 +10,21 @@
  *
  * LLM-GUARD:
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ *
+ * This module now uses a simplified Praxis-compatible approach instead of XState.
  */
 /**
  * FSM-based Setup UI Integration
- * Handles VS Code UI interactions for the setup machine
+ * Handles VS Code UI interactions for the setup flow
+ *
+ * Note: This has been simplified to work without XState.
+ * The setup flow is now implemented directly without a state machine.
  */
 
 import * as vscode from 'vscode';
 import { createLogger } from '../../logging/unifiedLogger.js';
 
 const logger = createLogger('fsm-setup-service');
-import { createActor } from 'xstate';
-import {
-  setupMachine,
-  type FSMSetupResult,
-  type SetupMachineContext,
-} from '../machines/setupMachine.js';
 
 // Define the connection type locally since it's defined in activation.ts
 type ProjectConnection = {
@@ -42,6 +41,13 @@ type ProjectConnection = {
   clientId?: string;
   apiBaseUrl?: string;
 };
+
+// Result type for setup flow
+export interface FSMSetupResult {
+  status: 'success' | 'cancelled' | 'removed';
+  connectionId?: string;
+  removedConnectionId?: string;
+}
 
 export class FSMSetupService {
   private context: vscode.ExtensionContext;
@@ -67,161 +73,105 @@ export class FSMSetupService {
       })),
     });
 
-    // Create real implementations of saveConnections and ensureActiveConnection
-    const saveConnections = async (connections: ProjectConnection[]): Promise<void> => {
-      const configSettings = vscode.workspace.getConfiguration('azureDevOpsIntegration');
-      // Serialize connections, explicitly removing undefined values
-      const serialized = connections.map((entry) => {
-        const { patKey, ...rest } = entry;
-        // Only include patKey if it exists (for PAT connections)
-        return patKey ? { ...rest, patKey } : rest;
-      });
-      await configSettings.update('connections', serialized, vscode.ConfigurationTarget.Global);
-      logger.info('✅ Connections saved to VS Code settings', {
-        count: serialized.length,
-        connectionIds: serialized.map((c: any) => c.id),
-      });
+    try {
+      // Simplified setup flow without XState
+      const url = await this.showUrlInput();
+      if (!url) {
+        // Check if user wants to manage existing connections
+        const manageExisting = await vscode.window.showQuickPick(
+          ['Cancel', 'Manage Existing Connections'],
+          { placeHolder: 'What would you like to do?' }
+        );
 
-      // CRITICAL: Update bridge reader immediately so FSM can see the new connection
-      // This ensures the connection is available when ensureActiveConnection is called
+        if (manageExisting === 'Manage Existing Connections') {
+          return await this.manageExistingConnections(existingConnections);
+        }
+        return { status: 'cancelled' };
+      }
+
+      // Parse URL to extract connection info
+      const connectionInfo = this.parseWorkItemUrl(url);
+      if (!connectionInfo) {
+        await vscode.window.showErrorMessage(
+          'Invalid work item URL. Please provide a valid Azure DevOps work item URL.'
+        );
+        return { status: 'cancelled' };
+      }
+
+      // Select auth method
+      const authMethod = await this.showAuthMethodSelection();
+      if (!authMethod) {
+        return { status: 'cancelled' };
+      }
+
+      // Get credentials
+      let credentials: { token?: string; tenantId?: string; clientId?: string } | null = null;
+      if (authMethod === 'pat') {
+        const token = await this.showPATInput();
+        if (!token) {
+          return { status: 'cancelled' };
+        }
+        credentials = { token };
+      } else {
+        credentials = await this.showEntraConfig();
+        if (!credentials) {
+          return { status: 'cancelled' };
+        }
+      }
+
+      // Create connection
+      const connectionId = `${connectionInfo.organization}-${connectionInfo.project}-${Date.now()}`;
+      const newConnection: ProjectConnection = {
+        id: connectionId,
+        organization: connectionInfo.organization,
+        project: connectionInfo.project,
+        baseUrl: connectionInfo.baseUrl,
+        authMethod,
+        ...(authMethod === 'pat' && credentials.token ? { patKey: `pat-${connectionId}` } : {}),
+        ...(authMethod === 'entra' && credentials.tenantId
+          ? { tenantId: credentials.tenantId }
+          : {}),
+        ...(authMethod === 'entra' && credentials.clientId
+          ? { clientId: credentials.clientId }
+          : {}),
+      };
+
+      // Save PAT if using PAT auth
+      if (authMethod === 'pat' && credentials.token) {
+        await this.context.secrets.store(`pat-${connectionId}`, credentials.token);
+      }
+
+      // Save connection
+      const updatedConnections = [...existingConnections, newConnection];
+      await settings.update('connections', updatedConnections, vscode.ConfigurationTarget.Global);
+
+      // Update bridge reader
       try {
         const { setLoadedConnectionsReader } = await import('../services/extensionHostBridge.js');
-        setLoadedConnectionsReader(() => connections);
-        logger.debug('Bridge reader updated with saved connections', {
-          count: connections.length,
-        });
+        setLoadedConnectionsReader(() => updatedConnections);
       } catch (error) {
         logger.warn('Failed to update bridge reader', {
           error: error instanceof Error ? error.message : String(error),
         });
       }
-    };
 
-    const ensureActiveConnection = async (
-      context: vscode.ExtensionContext,
-      connectionId?: string,
-      options?: { refresh?: boolean; interactive?: boolean }
-    ): Promise<any> => {
-      // Import ConnectionAdapter and related modules dynamically to avoid circular dependencies
-      const { getConnectionFSMManager } = await import('../ConnectionFSMManager.js');
-      const { ConnectionAdapter } = await import('../adapters/ConnectionAdapter.js');
-      const fsmManager = getConnectionFSMManager();
-      if (!fsmManager) {
-        logger.warn('ConnectionFSMManager not available');
-        return undefined;
-      }
-      // Create ConnectionAdapter instance (same pattern as activation.ts)
-      const adapter = new ConnectionAdapter(fsmManager, async () => undefined, true);
-      adapter.setUseFSM(true);
-      return await adapter.ensureActiveConnection(context, connectionId, options);
-    };
+      logger.info('✅ Connection saved successfully', { connectionId });
+      vscode.window.showInformationMessage('Connection saved successfully!');
 
-    // Create and start the setup machine
-    const actor = createActor(setupMachine, {
-      input: {
-        extensionContext: this.context,
-        existingConnections,
-        activeConnectionId,
-        saveConnections,
-        ensureActiveConnection,
-      } as any,
-    });
-
-    actor.start();
-
-    // Send start event
-    actor.send({ type: 'START', skipInitialChoice: options?.skipInitialChoice });
-
-    return new Promise<FSMSetupResult>((resolve) => {
-      // Subscribe to state changes and handle UI interactions
-      actor.subscribe((state) => {
-        this.handleStateChange(state, actor, resolve);
+      return { status: 'success', connectionId };
+    } catch (error) {
+      logger.error('Setup failed', {
+        error: error instanceof Error ? error.message : String(error),
       });
-    });
-  }
-
-  private async handleStateChange(
-    state: any,
-    actor: any,
-    resolve: (result: FSMSetupResult) => void
-  ): Promise<void> {
-    const context = state.context as SetupMachineContext;
-
-    switch (state.value) {
-      case 'collectingUrl':
-        await this.showUrlInput(actor);
-        break;
-
-      case 'urlError':
-        await this.showUrlError(context.error!, actor);
-        break;
-
-      case 'selectingAuth':
-        await this.showAuthMethodSelection(actor);
-        break;
-
-      case 'collectingCredentials':
-        await this.showCredentialsInput(context, actor);
-        break;
-
-      case 'connectionError':
-        await this.showConnectionError(context.error!, actor);
-        break;
-
-      case 'saveError':
-        await this.showSaveError(context.error!, actor);
-        break;
-
-      case 'managingExisting':
-        await this.showExistingConnections(context, actor);
-        break;
-
-      case 'removeError':
-        await this.showRemoveError(context.error!, actor);
-        break;
-
-      case 'completed':
-        resolve({
-          status: 'success',
-          connectionId: context.connectionId,
-        });
-        break;
-
-      case 'removed':
-        resolve({
-          status: 'removed',
-          removedConnectionId: context.removedConnectionId,
-        });
-        break;
-
-      case 'cancelled':
-        resolve({ status: 'cancelled' });
-        break;
-
-      case 'testingConnection':
-        vscode.window.showInformationMessage('Testing connection...');
-        break;
-
-      case 'testingExistingConnection':
-        vscode.window.showInformationMessage('Testing connection...');
-        break;
-
-      case 'testingExistingResult':
-        await this.showExistingTestResult(context, actor);
-        break;
-
-      case 'savingConnection':
-        vscode.window.showInformationMessage('Saving connection...');
-        break;
-
-      case 'removingConnection':
-        vscode.window.showInformationMessage('Removing connection...');
-        break;
+      await vscode.window.showErrorMessage(
+        `Setup failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return { status: 'cancelled' };
     }
   }
 
-  private async showUrlInput(actor: any): Promise<void> {
-    const url = await vscode.window.showInputBox({
+  private async showUrlInput(): Promise<string | undefined> {
+    return await vscode.window.showInputBox({
       prompt: 'Enter an Azure DevOps work item URL to auto-configure your connection',
       placeHolder: 'https://dev.azure.com/myorg/myproject/_workitems/edit/123',
       validateInput: (value) => {
@@ -230,52 +180,56 @@ export class FSMSetupService {
         return null;
       },
     });
+  }
 
-    if (url) {
-      actor.send({ type: 'URL_PROVIDED', url });
-    } else {
-      // Check if user wants to manage existing connections
-      const manageExisting = await vscode.window.showQuickPick(
-        ['Cancel', 'Manage Existing Connections'],
-        { placeHolder: 'What would you like to do?' }
-      );
+  private parseWorkItemUrl(
+    url: string
+  ): { organization: string; project: string; baseUrl: string } | null {
+    try {
+      const parsed = new URL(url);
+      const pathParts = parsed.pathname.split('/').filter(Boolean);
 
-      if (manageExisting === 'Manage Existing Connections') {
-        actor.send({ type: 'MANAGE_EXISTING' });
-      } else {
-        actor.send({ type: 'CANCEL' });
+      // Handle dev.azure.com/org/project pattern
+      if (parsed.hostname === 'dev.azure.com') {
+        if (pathParts.length >= 2) {
+          return {
+            organization: pathParts[0],
+            project: pathParts[1],
+            baseUrl: `https://dev.azure.com/${pathParts[0]}`,
+          };
+        }
       }
+
+      // Handle org.visualstudio.com/project pattern
+      const vsMatch = parsed.hostname.match(/^(.+)\.visualstudio\.com$/);
+      if (vsMatch && pathParts.length >= 1) {
+        return {
+          organization: vsMatch[1],
+          project: pathParts[0],
+          baseUrl: `https://${vsMatch[1]}.visualstudio.com`,
+        };
+      }
+
+      return null;
+    } catch {
+      return null;
     }
   }
 
-  private async showUrlError(error: string, actor: any): Promise<void> {
-    const action = await vscode.window.showErrorMessage(
-      `Invalid URL: ${error}`,
-      'Try Again',
-      'Cancel'
-    );
-
-    if (action === 'Try Again') {
-      actor.send({ type: 'RETRY' });
-    } else {
-      actor.send({ type: 'CANCEL' });
-    }
-  }
-
-  private async showAuthMethodSelection(actor: any): Promise<void> {
+  private async showAuthMethodSelection(): Promise<'pat' | 'entra' | undefined> {
     const authMethod = await vscode.window.showQuickPick(
       [
         {
           label: 'Personal Access Token (PAT)',
           description: 'Use a Personal Access Token for authentication',
           detail: 'Recommended for most users. Generate a PAT from Azure DevOps settings.',
-          value: 'pat',
+          value: 'pat' as const,
         },
         {
           label: 'Microsoft Entra ID (OAuth)',
           description: 'Use your Microsoft account to sign in',
           detail: 'Enterprise authentication using your organizational account.',
-          value: 'entra',
+          value: 'entra' as const,
         },
       ],
       {
@@ -285,23 +239,11 @@ export class FSMSetupService {
       }
     );
 
-    if (authMethod) {
-      actor.send({ type: 'AUTH_METHOD_SELECTED', method: authMethod.value as 'pat' | 'entra' });
-    } else {
-      actor.send({ type: 'CANCEL' });
-    }
+    return authMethod?.value;
   }
 
-  private async showCredentialsInput(context: SetupMachineContext, actor: any): Promise<void> {
-    if (context.authMethod === 'pat') {
-      await this.showPATInput(actor);
-    } else if (context.authMethod === 'entra') {
-      await this.showEntraConfig(actor);
-    }
-  }
-
-  private async showPATInput(actor: any): Promise<void> {
-    const token = await vscode.window.showInputBox({
+  private async showPATInput(): Promise<string | undefined> {
+    return await vscode.window.showInputBox({
       prompt: 'Enter your Personal Access Token',
       password: true,
       placeHolder: 'Your PAT from Azure DevOps',
@@ -311,22 +253,14 @@ export class FSMSetupService {
         return null;
       },
     });
-
-    if (token) {
-      actor.send({ type: 'PAT_PROVIDED', token });
-    } else {
-      actor.send({ type: 'CANCEL' });
-    }
   }
 
-  private async showEntraConfig(actor: any): Promise<void> {
-    // For Entra ID, we need tenant ID and client ID
+  private async showEntraConfig(): Promise<{ tenantId: string; clientId: string } | null> {
     const tenantId = await vscode.window.showInputBox({
       prompt: 'Enter your Tenant ID (Directory ID)',
       placeHolder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
       validateInput: (value) => {
         if (!value) return 'Tenant ID is required';
-        // Basic UUID format validation
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
           return 'Invalid Tenant ID format';
         }
@@ -334,17 +268,13 @@ export class FSMSetupService {
       },
     });
 
-    if (!tenantId) {
-      actor.send({ type: 'CANCEL' });
-      return;
-    }
+    if (!tenantId) return null;
 
     const clientId = await vscode.window.showInputBox({
       prompt: 'Enter your Application (Client) ID',
       placeHolder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
       validateInput: (value) => {
         if (!value) return 'Client ID is required';
-        // Basic UUID format validation
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
           return 'Invalid Client ID format';
         }
@@ -352,58 +282,17 @@ export class FSMSetupService {
       },
     });
 
-    if (clientId) {
-      actor.send({ type: 'ENTRA_CONFIG', tenantId, clientId });
-    } else {
-      actor.send({ type: 'CANCEL' });
-    }
+    if (!clientId) return null;
+
+    return { tenantId, clientId };
   }
 
-  private async showConnectionError(error: string, actor: any): Promise<void> {
-    const action = await vscode.window.showErrorMessage(
-      `Connection test failed: ${error}`,
-      'Try Again',
-      'Go Back',
-      'Cancel'
-    );
-
-    switch (action) {
-      case 'Try Again':
-        actor.send({ type: 'RETRY' });
-        break;
-      case 'Go Back':
-        actor.send({ type: 'BACK' });
-        break;
-      default:
-        actor.send({ type: 'CANCEL' });
-        break;
-    }
-  }
-
-  private async showSaveError(error: string, actor: any): Promise<void> {
-    const action = await vscode.window.showErrorMessage(
-      `Failed to save connection: ${error}`,
-      'Try Again',
-      'Cancel'
-    );
-
-    if (action === 'Try Again') {
-      actor.send({ type: 'RETRY' });
-    } else {
-      actor.send({ type: 'CANCEL' });
-    }
-  }
-
-  private async showExistingConnections(context: SetupMachineContext, actor: any): Promise<void> {
-    const connections = this.context.globalState.get<ProjectConnection[]>(
-      'azureDevOpsInt.connections',
-      []
-    );
-
+  private async manageExistingConnections(
+    connections: ProjectConnection[]
+  ): Promise<FSMSetupResult> {
     if (connections.length === 0) {
       vscode.window.showInformationMessage('No existing connections found.');
-      actor.send({ type: 'CANCEL' });
-      return;
+      return { status: 'cancelled' };
     }
 
     const items = connections.map((conn) => ({
@@ -413,34 +302,16 @@ export class FSMSetupService {
       connection: conn,
     }));
 
-    items.push({
-      label: '$(add) Add New Connection',
-      description: 'Create a new Azure DevOps connection',
-      detail: 'Set up a new connection to Azure DevOps',
-      connection: null as any,
-    });
-
     const selected = await vscode.window.showQuickPick(items, {
-      placeHolder: 'Select a connection to manage or add a new one',
+      placeHolder: 'Select a connection to manage',
       matchOnDescription: true,
       matchOnDetail: true,
     });
 
     if (!selected) {
-      actor.send({ type: 'CANCEL' });
-      return;
+      return { status: 'cancelled' };
     }
 
-    if (!selected.connection) {
-      // Add new connection - restart the flow
-      actor.send({ type: 'CANCEL' });
-      // Start a new setup flow
-      const newSetup = new FSMSetupService(this.context);
-      await newSetup.startSetup();
-      return;
-    }
-
-    // Show connection management options
     const action = await vscode.window.showQuickPick(
       [
         { label: 'Remove Connection', value: 'remove', description: 'Delete this connection' },
@@ -463,66 +334,22 @@ export class FSMSetupService {
       );
 
       if (confirm === 'Yes, Remove') {
-        actor.send({ type: 'REMOVE_CONNECTION', connectionId: selected.connection.id });
-      } else {
-        actor.send({ type: 'CANCEL' });
+        const settings = vscode.workspace.getConfiguration('azureDevOpsIntegration');
+        const updatedConnections = connections.filter((c) => c.id !== selected.connection.id);
+        await settings.update('connections', updatedConnections, vscode.ConfigurationTarget.Global);
+
+        // Remove PAT if it exists
+        if (selected.connection.patKey) {
+          await this.context.secrets.delete(selected.connection.patKey);
+        }
+
+        vscode.window.showInformationMessage(`Connection "${selected.label}" removed.`);
+        return { status: 'removed', removedConnectionId: selected.connection.id };
       }
     } else if (action?.value === 'test') {
-      // TODO: Implement connection test
-      vscode.window.showInformationMessage('Connection test not yet implemented in FSM setup');
-      actor.send({ type: 'CANCEL' });
-    } else {
-      actor.send({ type: 'CANCEL' });
-    }
-  }
-
-  private async showExistingTestResult(context: SetupMachineContext, actor: any): Promise<void> {
-    const result = context.lastExistingTestResult;
-    const connection = context.testingExistingConnection;
-
-    if (!result || !connection) {
-      actor.send({ type: 'CONTINUE_MANAGING' });
-      return;
+      vscode.window.showInformationMessage('Connection test not yet implemented.');
     }
 
-    const connectionLabel =
-      connection.label ||
-      (connection.organization && connection.project
-        ? `${connection.organization}/${connection.project}`
-        : connection.id || 'connection');
-
-    if (result.success) {
-      await vscode.window.showInformationMessage(
-        `Connection "${connectionLabel}" succeeded. ${result.message}`
-      );
-      actor.send({ type: 'CONTINUE_MANAGING' });
-      return;
-    }
-
-    const choice = await vscode.window.showErrorMessage(
-      `Connection test failed for "${connectionLabel}". ${result.message}`,
-      'Retry',
-      'Back'
-    );
-
-    if (choice === 'Retry') {
-      actor.send({ type: 'RETRY' });
-    } else {
-      actor.send({ type: 'CONTINUE_MANAGING' });
-    }
-  }
-
-  private async showRemoveError(error: string, actor: any): Promise<void> {
-    const action = await vscode.window.showErrorMessage(
-      `Failed to remove connection: ${error}`,
-      'Try Again',
-      'Cancel'
-    );
-
-    if (action === 'Try Again') {
-      actor.send({ type: 'RETRY' });
-    } else {
-      actor.send({ type: 'CANCEL' });
-    }
+    return { status: 'cancelled' };
   }
 }

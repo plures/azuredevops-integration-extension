@@ -33,5 +33,15 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+   "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/plures/azuredevops-integration-extension/releases/download/latest/latest.json"
+      ],
+      "dialog": true,
+      "pubkey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFnNiIjnERSShwGe7PolUgnYZUCrpeNoEqyhfhh2qPWI code-signing plures.io"
+    }
   }
 }

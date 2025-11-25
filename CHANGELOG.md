@@ -6,19 +6,49 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.12.1] - 2025-11-25
+
+### Other
+
+- Update to plures/praxis 1.0.0 and remove xState (#110)
+
+
+## [2.12.0] - 2025-11-25
+
+### Added
+
+- implement Phase 5 application orchestrator and Phase 6 webview integration (#107)
+
+
+## [2.10.0] - 2025-11-25
+
+### Added
+
+- Add Praxis logic engine authentication and connection modules (#105)
+
+## [2.8.0] - 2025-11-25
+
+### Added
+
+- Add Praxis logic engine for timer component (Phase 1 & 2) (#103)
+
+## [2.6.0] - 2025-11-25
+
+### Added
+
+- implement auto-update from GitHub releases (#101)
+
 ## [2.4.3] - 2025-11-23
 
 ### Developer Experience
 
 - complexity fix
 
-
 ## [2.4.2] - 2025-11-23
 
 ### Developer Experience
 
 - fix create new wi
-
 
 ## [2.4.1] - 2025-11-23
 

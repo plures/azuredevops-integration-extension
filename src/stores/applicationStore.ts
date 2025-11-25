@@ -10,70 +10,174 @@
  *
  * LLM-GUARD:
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
+ *
+ * This module now uses Praxis logic engine instead of XState.
  */
 /**
- * Central Application Store - XState + Svelte Integration
+ * Central Application Store - Praxis + Svelte Integration
  *
  * This is the single source of truth for application state.
- * It wraps the XState application machine in Svelte stores,
+ * It wraps the Praxis application manager in Svelte stores,
  * providing reactive state to components without message passing.
  */
 
-import { readable, writable as _writable, derived, get as _get } from 'svelte/store';
-import { createActor, ActorRefFrom } from 'xstate';
-import {
-  applicationMachine,
-  type ApplicationContext,
-  type ApplicationEvent,
-} from '../fsm/machines/applicationMachine.js';
+import { readable, writable, derived } from 'svelte/store';
+import { PraxisApplicationManager } from '../praxis/application/manager.js';
+import type { ProjectConnection } from '../praxis/connection/types.js';
 import { setApplicationStoreBridge } from '../fsm/services/extensionHostBridge.js';
+
+// ============================================================================
+// TYPE DEFINITIONS FOR COMPATIBILITY
+// ============================================================================
+
+interface ApplicationContext {
+  isActivated: boolean;
+  isDeactivating: boolean;
+  connections: ProjectConnection[];
+  activeConnectionId?: string;
+  connectionStates: Map<string, unknown>;
+  pendingAuthReminders: Map<string, { connectionId: string; reason: string; status: string }>;
+  lastError?: { message: string; stack?: string; connectionId?: string };
+}
+
+interface ApplicationEvent {
+  type: string;
+  [key: string]: unknown;
+}
+
+// ============================================================================
+// EVENT HANDLING HELPER
+// ============================================================================
+
+/**
+ * Handle application events by dispatching to the appropriate manager method.
+ * Separated to reduce complexity in the main send function.
+ */
+function handleApplicationEvent(manager: PraxisApplicationManager, event: ApplicationEvent): void {
+  switch (event.type) {
+    case 'ACTIVATE':
+      manager.activate();
+      break;
+    case 'DEACTIVATE':
+      manager.deactivate();
+      break;
+    case 'CONNECTIONS_LOADED':
+      if (event.connections && Array.isArray(event.connections)) {
+        manager.loadConnections(event.connections as ProjectConnection[]);
+      }
+      break;
+    case 'CONNECTION_SELECTED':
+      if (event.connectionId) {
+        manager.selectConnection(event.connectionId as string);
+      }
+      break;
+    case 'AUTHENTICATION_REQUIRED':
+      if (event.connectionId) {
+        manager.authReminder(event.connectionId as string, 'Authentication required');
+      }
+      break;
+    case 'AUTHENTICATION_SUCCESS':
+      if (event.connectionId) {
+        manager.authCompleted(event.connectionId as string);
+      }
+      break;
+    case 'AUTHENTICATION_FAILED':
+      if (event.connectionId && event.error) {
+        manager.authFailed(event.connectionId as string, event.error as string);
+      }
+      break;
+    case 'WEBVIEW_READY':
+      // No direct mapping - handled at webview level
+      break;
+    case 'ERROR':
+      if (event.error) {
+        const err = event.error as Error;
+        manager.error(err.message, err.stack);
+      }
+      break;
+    case 'RETRY':
+      manager.retryError();
+      break;
+    case 'RESET':
+      manager.reset();
+      break;
+    default:
+      // Log unknown event types in debug mode for development
+      console.debug(`[applicationStore] Unknown event type: ${event.type}`);
+      break;
+  }
+}
 
 // ============================================================================
 // CORE APPLICATION STATE STORE
 // ============================================================================
 
 /**
- * Creates the main application actor and wraps it in Svelte stores
+ * Creates the main application manager and wraps it in Svelte stores
  */
 function createApplicationStore() {
-  // Eagerly create and start the actor to avoid timing issues
-  const applicationActor: ActorRefFrom<typeof applicationMachine> = createActor(applicationMachine);
-  applicationActor.start();
+  // Create and start the Praxis application manager
+  const applicationManager = new PraxisApplicationManager();
+  applicationManager.start();
 
-  // Application State Store (reactive to FSM state)
+  // Current state store (updated via polling since Praxis doesn't have built-in subscriptions)
+  const currentState = writable<{
+    value: string;
+    context: ApplicationContext;
+    matches: (state: string) => boolean;
+    can: (event: ApplicationEvent) => boolean;
+  } | null>(null);
+
+  // Poll for state changes (similar to how we handled it in ConnectionFSMManager)
+  const pollInterval = setInterval(() => {
+    const appState = applicationManager.getApplicationState();
+    const appData = applicationManager.getApplicationData();
+
+    currentState.set({
+      value: appState,
+      context: {
+        isActivated: appData.isActivated ?? false,
+        isDeactivating: appData.isDeactivating ?? false,
+        connections: appData.connections ?? [],
+        activeConnectionId: appData.activeConnectionId,
+        connectionStates: appData.connectionStates ?? new Map(),
+        pendingAuthReminders: appData.pendingAuthReminders ?? new Map(),
+        lastError: appData.lastError,
+      },
+      matches: (stateValue: string) => appState === stateValue || appState.includes(stateValue),
+      can: (_event: ApplicationEvent) => true, // Praxis handles validation internally
+    });
+  }, 100);
+
+  // Application State Store (readable wrapper)
   const applicationState = readable<{
     value: string;
     context: ApplicationContext;
     matches: (state: string) => boolean;
     can: (event: ApplicationEvent) => boolean;
   } | null>(null, (set) => {
-    // Subscribe to state changes and update the store
-    const subscription = applicationActor.subscribe((state) => {
-      set({
-        value: state.value as string,
-        context: state.context,
-        matches: (stateValue: string) => state.matches(stateValue),
-        can: (event: ApplicationEvent) => state.can(event),
-      });
-    });
+    // Subscribe to the writable store
+    const unsubscribe = currentState.subscribe(set);
 
     return () => {
-      subscription.unsubscribe();
-      applicationActor?.stop();
+      unsubscribe();
+      clearInterval(pollInterval);
+      applicationManager.stop();
     };
   });
 
-  // Send events to the FSM
+  // Send events to the application manager
   function send(event: ApplicationEvent) {
-    applicationActor.send(event);
+    // Map XState event types to Praxis manager methods
+    handleApplicationEvent(applicationManager, event);
   }
 
   return {
     applicationState,
     send,
-    // Expose actor for debugging
+    // Expose manager for debugging
     get actor() {
-      return applicationActor;
+      return applicationManager;
     },
   };
 }
@@ -82,7 +186,7 @@ function createApplicationStore() {
 const applicationStore = createApplicationStore();
 
 setApplicationStoreBridge({
-  getActor: () => applicationStore.actor,
+  getActor: () => applicationStore.actor as unknown,
   send: (event) => applicationStore.send(event as ApplicationEvent),
 });
 
@@ -176,11 +280,11 @@ export const isInErrorRecovery = derived(
  */
 export const actions = {
   // Extension Lifecycle
-  activate: (context: any) => applicationStore.send({ type: 'ACTIVATE', context }),
+  activate: (context: unknown) => applicationStore.send({ type: 'ACTIVATE', context }),
   deactivate: () => applicationStore.send({ type: 'DEACTIVATE' }),
 
   // Connection Management
-  loadConnections: (connections: any[]) =>
+  loadConnections: (connections: ProjectConnection[]) =>
     applicationStore.send({ type: 'CONNECTIONS_LOADED', connections }),
 
   selectConnection: async (connectionId: string) => {
@@ -212,7 +316,7 @@ export const actions = {
   // UI Events
   webviewReady: () => applicationStore.send({ type: 'WEBVIEW_READY' }),
 
-  webviewMessage: (message: any) => applicationStore.send({ type: 'WEBVIEW_MESSAGE', message }),
+  webviewMessage: (message: unknown) => applicationStore.send({ type: 'WEBVIEW_MESSAGE', message }),
 
   // Error Handling
   reportError: (error: Error) => applicationStore.send({ type: 'ERROR', error }),
@@ -290,8 +394,13 @@ export const selectors = {
 export const storeDebug = {
   // Get current state snapshot
   getSnapshot: () => {
-    const actor = applicationStore.actor;
-    return actor ? actor.getSnapshot() : null;
+    const manager = applicationStore.actor as PraxisApplicationManager;
+    return manager
+      ? {
+          value: manager.getApplicationState(),
+          context: manager.getApplicationData(),
+        }
+      : null;
   },
 
   // Get state as string for logging
