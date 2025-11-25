@@ -68,7 +68,13 @@ export class PraxisEventBus {
         try {
           subscriber(message);
         } catch (error) {
-          console.debug('[PraxisEventBus] Subscriber error:', error);
+          console.debug('[PraxisEventBus] Subscriber error:', {
+            messageType: message.type,
+            sourceEngine: message.sourceEngine,
+            connectionId: message.connectionId,
+            subscriberCount: typeSubscribers.size,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
     }
@@ -78,7 +84,12 @@ export class PraxisEventBus {
       try {
         subscriber(message);
       } catch (error) {
-        console.debug('[PraxisEventBus] All-subscriber error:', error);
+        console.debug('[PraxisEventBus] All-subscriber error:', {
+          messageType: message.type,
+          sourceEngine: message.sourceEngine,
+          allSubscriberCount: this.allSubscribers.size,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
   }

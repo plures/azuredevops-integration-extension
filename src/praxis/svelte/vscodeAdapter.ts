@@ -108,7 +108,11 @@ export function createVSCodePraxisAdapter<TContext>(
 
     sendEvent: (event: PraxisEvent<string, unknown>) => {
       if (!vscode) {
-        console.debug('[PraxisAdapter] VS Code API not available');
+        console.debug(
+          '[PraxisAdapter] VS Code API not available. ' +
+            'Ensure this code runs inside a VS Code webview with acquireVsCodeApi() called, ' +
+            'or window.__vscodeApi is set.'
+        );
         return;
       }
 
