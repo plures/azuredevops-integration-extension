@@ -12,20 +12,17 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Add Praxis logic engine authentication and connection modules (#105)
 
-
 ## [2.8.0] - 2025-11-25
 
 ### Added
 
 - Add Praxis logic engine for timer component (Phase 1 & 2) (#103)
 
-
 ## [2.6.0] - 2025-11-25
 
 ### Added
 
 - implement auto-update from GitHub releases (#101)
-
 
 ## [2.4.3] - 2025-11-23
 

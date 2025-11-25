@@ -5,6 +5,7 @@ This guide explains how to configure and use the auto-update feature in the Azur
 ## ⚠️ Required Pre-Distribution Setup
 
 Before distributing the application, you **MUST**:
+
 1. Generate a signing key pair (see [Setup Steps](#setup-steps) below)
 2. Add the public key to `tauri.conf.json`
 3. Sign all update bundles before uploading to releases
@@ -14,6 +15,7 @@ Before distributing the application, you **MUST**:
 ## 🎯 Overview
 
 The auto-update feature allows the application to:
+
 - ✅ Automatically check for updates (enabled by default)
 - ✅ Download and install updates automatically
 - ✅ Show update notifications to users
@@ -22,11 +24,13 @@ The auto-update feature allows the application to:
 ## 📋 Features
 
 ### Auto-Update Service
+
 - Checks for updates every hour (when enabled)
 - Automatically checks on app startup (if enabled)
 - Respects user preference (stored persistently)
 
 ### Settings Store
+
 - **Auto-Update Toggle**: Enable/disable automatic updates
 - Persistent settings using Tauri's store plugin
 
@@ -56,10 +60,12 @@ The application uses GitHub Releases for hosting updates. The project includes a
 #### Setup Steps
 
 1. **Generate Signing Key**
+
    ```bash
    npx tauri signer generate -w ~/.tauri/azuredevops-integration.key
    npx tauri signer generate -w ~/.tauri/azuredevops-integration.key --print-public-key
    ```
+
    Copy the public key and add it to `tauri.conf.json` as `pubkey`.
 
 2. **Create a GitHub Release**
@@ -77,6 +83,7 @@ The application uses GitHub Releases for hosting updates. The project includes a
 #### Update Manifest Format
 
 The generated manifest follows this format:
+
 ```json
 {
   "version": "0.1.1",
@@ -124,11 +131,12 @@ The generated manifest follows this format:
 #### Testing Auto-Update
 
 1. **Local Testing**
+
    ```bash
    # Build app
    cd apps/app-desktop
    npm run tauri build
-   
+
    # Serve update manifest locally (for testing)
    # Update endpoint in tauri.conf.json to point to local server
    ```
@@ -143,6 +151,7 @@ The generated manifest follows this format:
 #### Disable Auto-Update (Development)
 
 Set in `src-tauri/tauri.conf.json`:
+
 ```json
 {
   "plugins": {
@@ -214,6 +223,7 @@ apps/app-desktop/
 ### Automated Release Process
 
 1. **Build and Sign**
+
    ```bash
    cd apps/app-desktop
    npm run tauri build

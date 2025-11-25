@@ -35,7 +35,7 @@ export async function initializeAutoUpdate(): Promise<() => void> {
   const unsubscribe = settings.subscribe((s) => {
     const wasEnabled = autoUpdateEnabled;
     autoUpdateEnabled = s.autoUpdate;
-    
+
     // Only start/stop if state changed (avoid duplicate start on initial subscribe)
     if (autoUpdateEnabled && !wasEnabled) {
       startAutoUpdate();

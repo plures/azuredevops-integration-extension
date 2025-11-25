@@ -114,9 +114,7 @@ function createSettingsStore() {
   /**
    * Update settings with a callback function
    */
-  async function update(
-    updater: (current: Settings) => Settings
-  ): Promise<void> {
+  async function update(updater: (current: Settings) => Settings): Promise<void> {
     // Svelte stores call the callback immediately with current value
     let currentSettings: Settings = DEFAULT_SETTINGS;
     const unsubscribe = subscribe((s) => {

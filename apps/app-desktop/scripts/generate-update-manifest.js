@@ -110,9 +110,7 @@ const releaseNotes =
   (process.env.GITHUB_EVENT_PATH
     ? (() => {
         try {
-          const event = JSON.parse(
-            fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf-8')
-          );
+          const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf-8'));
           return event.release?.body || `Release ${version}`;
         } catch {
           return `Release ${version}`;
@@ -141,16 +139,13 @@ for (const [platform, config] of Object.entries(platformMap)) {
 }
 
 // Output manifest
-const outputPath =
-  process.argv[2] || path.join(__dirname, '../latest.json');
+const outputPath = process.argv[2] || path.join(__dirname, '../latest.json');
 fs.writeFileSync(outputPath, JSON.stringify(manifest, null, 2));
 
 console.log(`✅ Generated update manifest: ${outputPath}`);
 console.log(`📦 Version: ${version}`);
 console.log(`🔗 Repository: ${owner}/${repoName}`);
-console.log(
-  `🌐 Release URL: https://github.com/${owner}/${repoName}/releases/tag/v${version}`
-);
+console.log(`🌐 Release URL: https://github.com/${owner}/${repoName}/releases/tag/v${version}`);
 console.log(`\n⚠️  IMPORTANT: Signatures are empty and must be added after signing bundles.`);
 console.log(`\n📋 Next steps:`);
 console.log(`   1. Sign your update files: bash scripts/sign-update-files.sh`);
