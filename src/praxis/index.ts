@@ -8,6 +8,12 @@
 // Timer module
 export * from './timer/index.js';
 
+// Authentication module
+export * from './auth/index.js';
+
+// Connection module
+export * from './connection/index.js';
+
 // Re-export commonly used Praxis types for convenience
 export {
   createPraxisEngine,

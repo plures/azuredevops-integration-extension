@@ -6,6 +6,49 @@ This document describes the patterns for migrating from XState finite state mach
 
 The Praxis logic engine provides a declarative, functional approach to state management that is simpler to test, debug, and maintain than traditional state machines.
 
+## Implemented Modules
+
+The following Praxis modules have been implemented:
+
+### Timer Module (`src/praxis/timer/`)
+
+Manages work item time tracking with states: `idle`, `running`, `paused`.
+
+- **Manager**: `PraxisTimerManager`
+- **Engine**: `createTimerEngine()`
+- **Tests**: `tests/praxis/praxisTimer.test.ts` (22 tests)
+
+### Authentication Module (`src/praxis/auth/`)
+
+Manages authentication lifecycle with states: `idle`, `authenticating`, `authenticated`, `failed`.
+
+- **Manager**: `PraxisAuthManager`
+- **Engine**: `createAuthEngine()`
+- **Tests**: `tests/praxis/praxisAuth.test.ts` (27 tests)
+
+Supports:
+
+- PAT (Personal Access Token) authentication
+- Entra ID (Microsoft Entra) authentication with device code flow
+- Token expiration and refresh handling
+- Retry logic with configurable limits
+
+### Connection Module (`src/praxis/connection/`)
+
+Manages Azure DevOps connection lifecycle with states: `disconnected`, `authenticating`, `creating_client`, `creating_provider`, `connected`, `auth_failed`, `client_failed`, `provider_failed`, `connection_error`, `token_refresh`.
+
+- **Manager**: `PraxisConnectionManager`
+- **Engine**: `createConnectionEngine()`
+- **Tests**: `tests/praxis/praxisConnection.test.ts` (33 tests)
+
+Supports:
+
+- Full connection flow from disconnected to connected
+- Authentication integration (PAT and Entra ID)
+- Azure client and provider creation
+- Token refresh with exponential backoff
+- Error handling and retry logic
+
 ## Key Concepts
 
 ### XState vs Praxis Comparison
@@ -217,3 +260,90 @@ describe('Timer', () => {
 3. **Better debugging**: Context is always inspectable
 4. **Fewer dependencies**: No XState, @xstate/svelte, @statelyai/inspect
 5. **Functional approach**: Aligns with FSM-first architecture principles
+
+## Usage Examples
+
+### Timer Module
+
+```typescript
+import { PraxisTimerManager } from '../src/praxis/timer/manager';
+
+const timer = new PraxisTimerManager();
+timer.start();
+
+// Start a timer for a work item
+timer.startTimer(123, 'My Work Item');
+
+// Get timer snapshot
+const snapshot = timer.getTimerSnapshot();
+console.log(snapshot.elapsedSeconds);
+
+// Pause and resume
+timer.pauseTimer();
+timer.resumeTimer();
+
+// Stop and get result
+const result = timer.stopTimer();
+console.log(`Logged ${result.hoursDecimal} hours`);
+```
+
+### Authentication Module
+
+```typescript
+import { PraxisAuthManager } from '../src/praxis/auth/manager';
+
+const auth = new PraxisAuthManager('connection-1', 'pat');
+auth.start();
+
+// Initiate authentication
+auth.authenticate();
+
+// Handle success (called by auth provider)
+auth.authSuccess('my-token', Date.now() + 3600000);
+
+// Check state
+if (auth.isAuthenticated()) {
+  const token = auth.getToken();
+}
+```
+
+### Connection Module
+
+```typescript
+import { PraxisConnectionManager } from '../src/praxis/connection/manager';
+
+const connection = new PraxisConnectionManager({
+  id: 'my-connection',
+  organization: 'my-org',
+  project: 'my-project',
+  authMethod: 'pat',
+});
+connection.start();
+
+// Connect
+connection.connect();
+
+// Handle auth callback
+connection.authenticated('my-token');
+
+// Handle client creation
+connection.clientCreated(azureClient);
+
+// Handle provider creation
+connection.providerCreated(workItemsProvider);
+
+// Check state
+if (connection.isConnected()) {
+  const client = connection.getClient();
+}
+```
+
+## Migration Roadmap
+
+- [x] Phase 1: Core Praxis infrastructure
+- [x] Phase 2: Timer Migration
+- [x] Phase 3: Authentication Migration
+- [x] Phase 4: Connection Migration
+- [ ] Phase 5: Application Orchestrator Migration
+- [ ] Phase 6: Webview Integration
+- [ ] Phase 7: Cleanup and Documentation
