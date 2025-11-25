@@ -12,13 +12,11 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - complexity fix
 
-
 ## [2.4.2] - 2025-11-23
 
 ### Developer Experience
 
 - fix create new wi
-
 
 ## [2.4.1] - 2025-11-23
 
