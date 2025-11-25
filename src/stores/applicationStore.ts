@@ -102,7 +102,8 @@ function handleApplicationEvent(manager: PraxisApplicationManager, event: Applic
       manager.reset();
       break;
     default:
-      // Unknown event types are silently ignored
+      // Log unknown event types in debug mode for development
+      console.debug(`[applicationStore] Unknown event type: ${event.type}`);
       break;
   }
 }
