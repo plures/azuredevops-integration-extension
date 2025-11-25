@@ -19,6 +19,7 @@
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-os": "^2",
     "@tauri-apps/plugin-fs": "^2",
+    "@tauri-apps/plugin-updater": "^2",
     "xstate": "^5.23.0",
     "@xstate/svelte": "file:../../src/fsm/xstate-svelte",
     "axios": "^1.12.2",

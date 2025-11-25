@@ -167,12 +167,20 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_os::init());
+    
+    // Add updater plugin for desktop platforms only
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+    
+    builder
         .invoke_handler(tauri::generate_handler![
             greet,
             handle_webview_message,
