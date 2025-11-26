@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.12.3] - 2025-11-26
+
+### Changed
+
+- replace XState machines with Praxis managers and update documentation
+
+
 ## [2.12.2] - 2025-11-25
 
 ### Developer Experience
