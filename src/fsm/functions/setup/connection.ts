@@ -14,7 +14,7 @@
 import * as vscode from 'vscode';
 import { randomUUID } from 'crypto';
 import { parseAzureDevOpsUrl } from '../../../azureDevOpsUrlParser.js';
-import type { ProjectConnection } from '../../machines/applicationMachine.js';
+import type { ProjectConnection } from '../../machines/applicationTypes.js';
 import { AzureDevOpsIntClient } from '../../../azureClient.js';
 import { runEnhancedSetupWizard } from './enhanced-setup-wizard.js';
 import { sendApplicationStoreEvent } from '../../services/extensionHostBridge.js';

@@ -13,9 +13,10 @@ describe('WorkItemsProvider search/filter', () => {
     expect(res).to.equal(returned);
     expect(posted.some((p) => p.type === 'workItemsLoaded')).to.equal(true);
     expect(posted.every((p) => p.connectionId === 'connection')).to.equal(true);
-    const typeMessage = posted.find((p) => p.type === 'workItemTypeOptions');
-    expect(typeMessage).to.exist;
-    expect(typeMessage.types).to.include('User Story');
+    // workItemTypeOptions removed
+    // const typeMessage = posted.find((p) => p.type === 'workItemTypeOptions');
+    // expect(typeMessage).to.exist;
+    // expect(typeMessage.types).to.include('User Story');
   });
 
   it('filter calls client.filterWorkItems and shows items', async () => {
@@ -27,8 +28,9 @@ describe('WorkItemsProvider search/filter', () => {
     expect(res).to.equal(returned);
     expect(posted.some((p) => p.type === 'workItemsLoaded')).to.equal(true);
     expect(posted.every((p) => p.connectionId === 'connection')).to.equal(true);
-    const typeMessage = posted.find((p) => p.type === 'workItemTypeOptions');
-    expect(typeMessage).to.exist;
-    expect(typeMessage.types).to.include('Bug');
+    // workItemTypeOptions removed
+    // const typeMessage = posted.find((p) => p.type === 'workItemTypeOptions');
+    // expect(typeMessage).to.exist;
+    // expect(typeMessage.types).to.include('Bug');
   });
 });

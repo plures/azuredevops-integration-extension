@@ -19,7 +19,7 @@
  */
 
 import { createMachine, assign, type ActorRefFrom } from 'xstate';
-import { ApplicationContext } from './ApplicationContext';
+import type { ApplicationContext } from './ApplicationContext';
 
 /**
  * Connection Actor - Manages connection lifecycle and authentication
@@ -109,14 +109,14 @@ export const dataMachine = createMachine(
       idle: {
         on: {
           CONTEXT_CHANGED: [
-            {
-              guard: 'hasNewConnections',
-              actions: 'startDataLoadingForNewConnections',
-            },
-            {
-              guard: 'hasRemovedConnections',
-              actions: 'stopDataLoadingForRemovedConnections',
-            },
+            // {
+            //   guard: 'hasNewConnections',
+            //   actions: 'startDataLoadingForNewConnections',
+            // },
+            // {
+            //   guard: 'hasRemovedConnections',
+            //   actions: 'stopDataLoadingForRemovedConnections',
+            // },
           ],
           REFRESH_CONNECTION: {
             actions: 'refreshConnectionData',
@@ -130,27 +130,26 @@ export const dataMachine = createMachine(
   },
   {
     guards: {
-      hasNewConnections: (_context, _event: any) => {
-        // Check if shared context has new connections that need data loading
-        return false; // TODO: Implement
-      },
-
-      hasRemovedConnections: (_context, _event: any) => {
-        // Check if connections were removed and cleanup needed
-        return false; // TODO: Implement
-      },
+      // hasNewConnections: (_context, _event: any) => {
+      //   // Check if shared context has new connections that need data loading
+      //   return false; // TODO: Implement
+      // },
+      // hasRemovedConnections: (_context, _event: any) => {
+      //   // Check if connections were removed and cleanup needed
+      //   return false; // TODO: Implement
+      // },
     },
 
     actions: {
-      startDataLoadingForNewConnections: (_context, _event) => {
-        console.log('[DataActor] Starting data loading for new connections');
-        // For each new connection, start periodic refresh
-      },
+      // startDataLoadingForNewConnections: (_context, _event) => {
+      //   console.log('[DataActor] Starting data loading for new connections');
+      //   // For each new connection, start periodic refresh
+      // },
 
-      stopDataLoadingForRemovedConnections: (_context, _event) => {
-        console.log('[DataActor] Stopping data loading for removed connections');
-        // Clear timers and cleanup
-      },
+      // stopDataLoadingForRemovedConnections: (_context, _event) => {
+      //   console.log('[DataActor] Stopping data loading for removed connections');
+      //   // Clear timers and cleanup
+      // },
 
       refreshConnectionData: (_context, event: any) => {
         console.log('[DataActor] Refreshing data for connection:', event.connectionId);
@@ -185,11 +184,11 @@ export const timerMachine = createMachine(
       idle: {
         on: {
           CONTEXT_CHANGED: [
-            {
-              guard: 'timerShouldStart',
-              target: 'running',
-              actions: 'startTicking',
-            },
+            // {
+            //   guard: 'timerShouldStart',
+            //   target: 'running',
+            //   actions: 'startTicking',
+            // },
           ],
         },
       },
@@ -198,14 +197,14 @@ export const timerMachine = createMachine(
         exit: 'stopTicking',
         on: {
           CONTEXT_CHANGED: [
-            {
-              guard: 'timerShouldStop',
-              target: 'idle',
-            },
-            {
-              guard: 'timerShouldPause',
-              target: 'paused',
-            },
+            // {
+            //   guard: 'timerShouldStop',
+            //   target: 'idle',
+            // },
+            // {
+            //   guard: 'timerShouldPause',
+            //   target: 'paused',
+            // },
           ],
           TICK: {
             actions: 'updateElapsedTime',
@@ -215,14 +214,14 @@ export const timerMachine = createMachine(
       paused: {
         on: {
           CONTEXT_CHANGED: [
-            {
-              guard: 'timerShouldResume',
-              target: 'running',
-            },
-            {
-              guard: 'timerShouldStop',
-              target: 'idle',
-            },
+            // {
+            //   guard: 'timerShouldResume',
+            //   target: 'running',
+            // },
+            // {
+            //   guard: 'timerShouldStop',
+            //   target: 'idle',
+            // },
           ],
         },
       },
@@ -230,22 +229,19 @@ export const timerMachine = createMachine(
   },
   {
     guards: {
-      timerShouldStart: (_context, _event: any) => {
-        // Check shared context to see if timer should start
-        return false; // TODO: Implement
-      },
-
-      timerShouldStop: (_context, _event: any) => {
-        return false; // TODO: Implement
-      },
-
-      timerShouldPause: (_context, _event: any) => {
-        return false; // TODO: Implement
-      },
-
-      timerShouldResume: (_context, _event: any) => {
-        return false; // TODO: Implement
-      },
+      // timerShouldStart: (_context, _event: any) => {
+      //   // Check shared context to see if timer should start
+      //   return false; // TODO: Implement
+      // },
+      // timerShouldStop: (_context, _event: any) => {
+      //   return false; // TODO: Implement
+      // },
+      // timerShouldPause: (_context, _event: any) => {
+      //   return false; // TODO: Implement
+      // },
+      // timerShouldResume: (_context, _event: any) => {
+      //   return false; // TODO: Implement
+      // },
     },
 
     actions: {
@@ -295,7 +291,7 @@ export const applicationMachine = createMachine(
         entry: ['initializeContext', 'spawnActors'],
         always: {
           target: 'ready',
-          guard: 'allActorsSpawned',
+          // guard: 'allActorsSpawned',
         },
       },
       ready: {
@@ -313,9 +309,9 @@ export const applicationMachine = createMachine(
   },
   {
     guards: {
-      allActorsSpawned: ({ context }: any) => {
-        return !!(context.connectionActor && context.dataActor && context.timerActor);
-      },
+      // allActorsSpawned: ({ context }: any) => {
+      //   return !!(context.connectionActor && context.dataActor && context.timerActor);
+      // },
     },
 
     actions: {

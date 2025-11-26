@@ -165,8 +165,8 @@ apps/app-desktop/
 The desktop app reuses code from the parent repository:
 
 ```typescript
-// Import FSM machines
-import { createApplicationMachine } from '../../../src/fsm/machines/applicationMachine.js';
+// Import Praxis Manager
+import { PraxisApplicationManager } from '../../../src/praxis/application/manager.js';
 
 // Import business logic
 import { normalizeConnections } from '../../../src/fsm/functions/activation/connectionNormalization.js';

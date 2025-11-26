@@ -5,6 +5,7 @@ Adapted from src/webview/App.svelte for desktop environment
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { initializeFsm, getFsmManager, type FsmSnapshot } from '$lib/fsm-integration';
   // Dynamic invoke import guarded for browser runtime
   // Non-throwing initial stub; replaced if Tauri is available
   let invoke: (<T>(cmd: string, args?: any) => Promise<T>) = async () => undefined as any;
@@ -20,7 +21,7 @@ Adapted from src/webview/App.svelte for desktop environment
   // Get platform adapter (should be set up in main route)
   const vscodeApi = (window as any).__vscodeApi;
   
-  // Application state - will be managed by FSM in full implementation
+  // Application state - managed by Praxis
   let appState = $state<string>('initializing');
   let connections = $state<Array<{ id: string; label?: string }>>([]);
   let activeConnectionId = $state<string | undefined>(undefined);
@@ -28,7 +29,10 @@ Adapted from src/webview/App.svelte for desktop environment
   let viewMode = $state<'list' | 'kanban'>('list');
   let debugViewVisible = $state(false);
   
-  // Mock context for initial implementation
+  // Matches function from Praxis
+  let matches = $state<(state: string) => boolean>(() => false);
+
+  // Context for child components
   const context = $derived({
     connections,
     activeConnectionId,
@@ -38,89 +42,66 @@ Adapted from src/webview/App.svelte for desktop environment
     debugLoggingEnabled: true,
   });
   
-  // Mock matches for state checking
-  const matches = $derived({
-    inactive: appState === 'initializing',
-    activating: appState === 'activating',
-    activation_failed: appState === 'activation_failed',
-    'active.setup': appState === 'active.setup',
-    'active.ready.managingConnections': appState === 'managingConnections',
-    'active.ready': appState === 'active.ready',
-    active: appState.startsWith('active'),
-  });
-  
   // Helper to send events
   function sendEvent(event: any) {
     console.log('[Desktop App] Event:', event);
     
-    // Handle view mode toggle locally
+    // Handle view mode toggle locally (optional, can be handled by FSM)
     if (event.type === 'TOGGLE_VIEW_MODE') {
-      viewMode = event.viewMode || (viewMode === 'list' ? 'kanban' : 'list');
-      console.log('[Desktop App] View mode toggled to:', viewMode);
+      // FSM handles this via TOGGLE_VIEW
+      getFsmManager().send({ type: 'TOGGLE_VIEW' });
       return;
     }
     
-    // Local event handling for browser fallback
-    if (event.type === 'CONNECTION_ADDED') {
-      connections = [...connections, event.connection];
-      activeConnectionId = event.connection.id;
-      appState = 'active.ready';
-      return;
-    }
     if (event.type === 'CLOSE_SETTINGS') {
-      if (connections.length > 0 && activeConnectionId) {
-        appState = 'active.ready';
-      } else {
-        appState = 'active.setup';
-      }
+      // If we have connections, we are ready
+      // But FSM should handle state transitions.
+      // We might need to trigger a state check or just let FSM handle it.
+      // For now, just reload connections which might trigger state update
+      getFsmManager().reloadConnections();
       return;
     }
-    // Handle other events via vscodeApi if available
-    if (vscodeApi) {
-      vscodeApi.postMessage({ type: 'fsmEvent', event });
-    }
+
+    // Forward to FSM
+    getFsmManager().send(event);
   }
   
-  // Computed state flags
-  const isInactiveOrActivating = $derived(matches.inactive || matches.activating);
-  const isActivationFailed = $derived(matches.activation_failed);
-  const isActiveSetup = $derived(matches['active.setup']);
-  const isActiveReadyManaging = $derived(matches['active.ready.managingConnections']);
-  const isActiveReady = $derived(matches['active.ready']);
-  const isActive = $derived(matches.active);
+  // Computed state flags using matches function
+  const isInactiveOrActivating = $derived(matches('inactive') || matches('activating'));
+  const isActivationFailed = $derived(matches('error_recovery'));
+  const isActiveSetup = $derived(matches('active.setup') || (matches('active') && connections.length === 0));
+  const isActiveReadyManaging = $derived(matches('active.ready.managingConnections'));
+  const isActiveReady = $derived(matches('active.ready'));
+  const isActive = $derived(matches('active'));
   
   function toggleDebugView() {
     debugViewVisible = !debugViewVisible;
+    getFsmManager().send({ type: 'TOGGLE_DEBUG_VIEW' });
   }
   
   // Initialize app
-  onMount(async () => {
-    console.log('[Desktop App] App.svelte mounted');
-    
-    // Simulate initialization sequence
-    appState = 'activating';
-    
-    try {
-      if (!(window as any).__TAURI__) {
-        // Browser runtime: start in setup without invoking backend
-        appState = 'active.setup';
-        return;
-      }
-      // Check for saved connections via Tauri backend
-      const savedConnections = await invoke('get_connections').catch(() => []);
-      console.log('[Desktop App] Loaded connections:', savedConnections);
-      if (Array.isArray(savedConnections) && savedConnections.length > 0) {
-        connections = savedConnections;
-        activeConnectionId = savedConnections[0].id;
-        appState = 'active.ready';
-      } else {
-        appState = 'active.setup';
-      }
-    } catch (error) {
-      console.error('[Desktop App] Initialization error:', error);
-      lastError = { message: String(error) };
-      appState = 'activation_failed';
-    }
+  onMount(() => {
+    (async () => {
+      console.log('[Desktop App] App.svelte mounted');
+      
+      // Initialize FSM
+      const manager = await initializeFsm();
+      
+      const unsubscribe = manager.subscribe((snapshot: FsmSnapshot) => {
+          appState = snapshot.value;
+          connections = snapshot.context.connections || [];
+          activeConnectionId = snapshot.context.activeConnectionId;
+          lastError = snapshot.context.lastError;
+          viewMode = snapshot.context.viewMode || 'list';
+          debugViewVisible = snapshot.context.debugViewVisible || false;
+          matches = snapshot.matches;
+      });
+
+      return () => {
+          unsubscribe();
+          manager.stop();
+      };
+    })();
   });
   
   // Expose toggle for keyboard shortcut
@@ -137,7 +118,7 @@ Adapted from src/webview/App.svelte for desktop environment
     <div class="error-container">
       <h2>Activation Failed</h2>
       <p>{lastError?.message || 'Unknown error during activation'}</p>
-      <button onclick={() => { appState = 'activating'; }}>Retry</button>
+      <button onclick={() => { getFsmManager().send({ type: 'RETRY' }); }}>Retry</button>
     </div>
   {:else if isActiveSetup}
     <div class="setup-container">
@@ -182,10 +163,6 @@ Adapted from src/webview/App.svelte for desktop environment
         <pre class="debug-json">{JSON.stringify(
           {
             state: appState,
-            matchesActive: Object.keys(matches).filter((k) => {
-              const key = k as keyof typeof matches;
-              return matches[key];
-            }),
             activeConnectionId,
             viewMode,
             connectionsCount: connections.length,

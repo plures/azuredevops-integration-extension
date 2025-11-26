@@ -40,7 +40,7 @@ export interface TimerContext {
   startTime?: number;
   pausedAt?: number;
   isPaused: boolean;
-  pausedAt?: number;
+  stopTime?: number;
   lastActivity: number;
   connectionInfo?: {
     id?: string;
@@ -186,6 +186,13 @@ export interface ApplicationContext {
   branches: any[];
   pullRequests: any[];
   workItems: any[];
+  workItemTypes: string[];
+
+  // UI State
+  ui: {
+    notification: { type: 'success' | 'error' | 'info'; message: string } | null;
+    dialog: { type: 'composeComment'; workItemId: number; mode: string } | null;
+  };
 
   // Drafts for work items
   drafts: { [key: number]: any };

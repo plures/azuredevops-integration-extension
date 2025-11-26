@@ -6,22 +6,8 @@
  */
 
 import { createPraxisEngine, PraxisRegistry, type LogicEngine } from '@plures/praxis';
-import type {
-  PraxisTimerContext,
-  PraxisTimerState,
-  PraxisTimerSnapshot,
-  PraxisTimerStopResult,
-} from './types.js';
+import type { PraxisTimerContext, PraxisTimerState } from './types.js';
 import { DEFAULT_TIMER_CONFIG } from './types.js';
-import {
-  StartTimerEvent,
-  PauseTimerEvent,
-  ResumeTimerEvent,
-  StopTimerEvent,
-  ActivityPingEvent,
-  InactivityTimeoutEvent,
-  RestoreTimerEvent,
-} from './facts.js';
 import {
   startTimerRule,
   pauseTimerRule,

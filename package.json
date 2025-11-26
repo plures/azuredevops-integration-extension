@@ -861,7 +861,7 @@
     }
   },
   "scripts": {
-    "compile": "npm run type-check && npm run validate:machines && node esbuild.mjs",
+    "compile": "npm run type-check && node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "pretest": "npm run compile",
     "precommit": "npm run validate:all",
@@ -873,9 +873,7 @@
     "test:feature:watch": "vitest watch tests/features",
     "test:feature:ui": "vitest --ui tests/features",
     "type-check": "tsc --noEmit",
-    "validate:machines": "npx tsx scripts/validate-xstate-machines.ts",
-    "validate:machines:runtime": "npx tsx scripts/validate-xstate-machines-runtime.ts",
-    "validate:all": "npm run type-check && npm run validate:machines && npm run validate:machines:runtime",
+    "validate:all": "npm run type-check",
     "validate:all:strict": "npm run validate:all && npm run check:architecture",
     "check:architecture": "npx tsx scripts/intelligent-architecture-analysis.ts",
     "check:architecture:detailed": "npx tsx scripts/intelligent-architecture-analysis.ts --detailed",
@@ -935,6 +933,7 @@
     "pngjs": "^7.0.0",
     "prettier": "^3.6.2",
     "svelte": "^5.40.1",
+    "svelte-preprocess": "^6.0.3",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
@@ -943,7 +942,7 @@
   },
   "dependencies": {
     "@azure/msal-node": "^3.8.0",
-    "@plures/praxis": "^1.0.0",
+    "@plures/praxis": "^1.0.1",
     "axios": "^1.12.2",
     "azure-devops-node-api": "^15.1.1",
     "openai": "^6.4.0",

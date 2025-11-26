@@ -54,7 +54,7 @@ export const connectionMachine = createMachine(
     },
     states: {
       disconnected: {
-        entry: [actions.clearConnectionState],
+        entry: [actions.clearConnectionState as any],
         on: {
           CONNECT: {
             target: 'authenticating',
@@ -70,7 +70,7 @@ export const connectionMachine = createMachine(
           },
           RESET: {
             target: 'disconnected',
-            actions: actions.resetConnection,
+            actions: [actions.resetConnection as any],
           },
         },
       },
@@ -120,7 +120,7 @@ export const connectionMachine = createMachine(
               onDone: [
                 {
                   target: '#connection.creating_client',
-                  guard: guards.hasValidToken,
+                  guard: guards.hasValidToken as any,
                   actions: assign({
                     credential: ({ event }) => event.output.token,
                     accessToken: ({ event }) => event.output.token,
@@ -275,7 +275,7 @@ export const connectionMachine = createMachine(
     guards,
 
     // Actions
-    actions,
+    actions: actions as any,
 
     // Actors (services)
     actors: services,

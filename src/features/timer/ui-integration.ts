@@ -23,7 +23,7 @@
 import * as vscode from 'vscode';
 import { createActor } from 'xstate';
 import { timerMachine } from './machine';
-import { TimerContext } from './types';
+import type { TimerContext } from './types';
 import { saveTimerState, loadTimerState, clearTimerState, formatElapsedTime } from './persistence';
 
 export class TimerUI {

@@ -20,7 +20,7 @@ describe('WorkItemsProvider', () => {
     expect(items).to.be.an('array').with.length.greaterThan(0);
   });
 
-  it('refresh posts work item type options', async () => {
+  it('refresh updates work item types', async () => {
     const posted: any[] = [];
     const client = {
       getWorkItems: async () => [
@@ -33,9 +33,9 @@ describe('WorkItemsProvider', () => {
     } as any;
     const provider = new WorkItemsProvider('connection', client, (msg) => posted.push(msg), {});
     await provider.refresh('My Activity');
-    const typeMessage = posted.find((p) => p.type === 'workItemTypeOptions');
-    expect(typeMessage).to.exist;
-    expect(typeMessage.types).to.include('Task');
-    expect(typeMessage.types).to.include('Bug');
+    // workItemTypeOptions message removed, check internal state
+    const types = provider.getWorkItemTypeOptions();
+    expect(types).to.include('Task');
+    expect(types).to.include('Bug');
   });
 });

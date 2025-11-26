@@ -106,7 +106,7 @@ export function createVSCodePraxisAdapter<TContext>(
       };
     },
 
-    sendEvent: (event: PraxisEvent<string, unknown>) => {
+    sendEvent: (event: PraxisEvent) => {
       if (!vscode) {
         console.debug(
           '[PraxisAdapter] VS Code API not available. ' +
@@ -199,7 +199,7 @@ export function useRemotePraxisEngine<TContext>(
   });
 
   // Dispatch function
-  const dispatch = (event: PraxisEvent<string, unknown>): void => {
+  const dispatch = (event: PraxisEvent): void => {
     adapter.sendEvent(event);
   };
 

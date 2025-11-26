@@ -106,11 +106,11 @@ This allows Svelte components from `src/webview/` to work with minimal changes.
 
 ### What's Shared (Direct Import)
 
-1. **FSM State Machines** (`src/fsm/machines/`)
-   - `applicationMachine.ts` - Main application orchestration
-   - `connectionMachine.ts` - Connection management
-   - `timerMachine.ts` - Time tracking
-   - All business logic flows through FSM for consistency
+1. **Praxis Managers** (`src/praxis/`)
+   - `application/manager.ts` - Main application orchestration
+   - `connection/manager.ts` - Connection management
+   - `timer/manager.ts` - Time tracking
+   - All business logic flows through Praxis managers for consistency
 
 2. **Pure Business Functions** (`src/fsm/functions/`)
    - Connection normalization
@@ -162,18 +162,20 @@ This allows Svelte components from `src/webview/` to work with minimal changes.
 
 ```typescript
 // apps/app-desktop/src/lib/fsm-integration.ts
-import { createApplicationMachine } from '../../../src/fsm/machines/applicationMachine.js';
+import { PraxisApplicationManager } from '../../../src/praxis/application/manager.js';
 import { getPlatformAdapter } from './platform-adapter';
 
 const adapter = getPlatformAdapter();
-const machine = createApplicationMachine({
-  // Desktop-specific actors
-  storage: {
-    getSecret: adapter.getSecret.bind(adapter),
-    setSecret: adapter.setSecret.bind(adapter),
-  },
-  // ... other actors
-});
+const manager = new PraxisApplicationManager(
+  // Desktop-specific context/adapter
+  {
+    storage: {
+      getSecret: adapter.getSecret.bind(adapter),
+      setSecret: adapter.setSecret.bind(adapter),
+    },
+    // ... other context properties
+  }
+);
 ```
 
 ### Pattern 2: Adapting Svelte Components

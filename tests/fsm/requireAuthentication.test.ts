@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import type {
   ApplicationContext,
   ConnectionState,
-} from '../../src/fsm/machines/applicationMachine.js';
+} from '../../src/fsm/machines/applicationTypes.js';
 import {
   planRequireAuthentication,
   type RequireAuthenticationMessage,

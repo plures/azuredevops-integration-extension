@@ -15,7 +15,7 @@ import type {
   ApplicationContext,
   AuthReminderReason,
   AuthReminderState,
-} from '../../machines/applicationMachine.js';
+} from '../../machines/applicationTypes.js';
 import { buildAuthReminder } from './buildAuthReminder.js';
 
 export type AuthReminderActionMessage = {

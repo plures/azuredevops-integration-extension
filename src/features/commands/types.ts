@@ -13,14 +13,13 @@
  */
 import * as vscode from 'vscode';
 import type { WorkItemsProvider } from '../../provider.js';
-import type { ProjectConnection as _ProjectConnection } from '../../fsm/machines/applicationMachine.js';
+import type { ProjectConnection as _ProjectConnection } from '../../fsm/machines/applicationTypes.js';
 import type { BranchContext } from '../../fsm/functions/connection/branchEnrichment.js';
 
 export interface CommandContext {
   context: vscode.ExtensionContext;
   panel?: vscode.WebviewView;
   provider?: WorkItemsProvider;
-  timer?: any; // WorkItemTimer type
   sessionTelemetry?: any; // SessionTelemetryManager type
   client?: any; // AzureDevOpsIntClient type
   statusBarItem?: vscode.StatusBarItem;

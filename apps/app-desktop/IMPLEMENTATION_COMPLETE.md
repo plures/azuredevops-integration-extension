@@ -250,7 +250,7 @@ npm run check
 
 ```typescript
 // Currently commented out:
-import type { ApplicationContext } from '../../../src/fsm/machines/applicationMachine.js';
+import type { ApplicationContext } from '../../../src/praxis/application/types.js';
 ```
 
 **Impact**: Using stub FSM implementation

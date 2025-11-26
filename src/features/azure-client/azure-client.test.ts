@@ -22,11 +22,14 @@ vi.mock('axios', () => ({
 }));
 
 // Mock dependencies
-vi.mock('../../rateLimiter.js', () => ({
-  RateLimiter: vi.fn().mockImplementation(() => ({
-    wait: vi.fn().mockResolvedValue(undefined),
-  })),
-}));
+vi.mock('../../rateLimiter.js', () => {
+  return {
+    RateLimiter: class {
+      wait = vi.fn().mockResolvedValue(undefined);
+      acquire = vi.fn().mockResolvedValue(undefined);
+    },
+  };
+});
 
 vi.mock('../../cache.js', () => ({
   workItemCache: {

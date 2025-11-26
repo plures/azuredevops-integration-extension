@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { describe, it } from 'vitest';
 
 // Import directly from source paths using the esbuild ESM loader
 import { createMemoryRepository } from '../packages/core/src/memoryRepo.ts';
@@ -13,6 +14,7 @@ import {
 // Helper to collect the latest value from a store subscription
 function once<T>(fn: (cb: (v: T) => void) => () => void): Promise<T> {
   return new Promise<T>((resolve) => {
+    // eslint-disable-next-line prefer-const
     let unsub: undefined | (() => void);
     const cb = (v: T) => {
       // If subscribe calls back synchronously before unsub is assigned,
@@ -28,6 +30,7 @@ function once<T>(fn: (cb: (v: T) => void) => () => void): Promise<T> {
 function nextAfter<T>(fn: (cb: (v: T) => void) => () => void, trigger: () => void): Promise<T> {
   return new Promise<T>((resolve) => {
     let first = true;
+    // eslint-disable-next-line prefer-const
     let unsub: undefined | (() => void);
     const cb = (v: T) => {
       if (first) {
@@ -45,8 +48,7 @@ function nextAfter<T>(fn: (cb: (v: T) => void) => () => void, trigger: () => voi
 }
 
 describe('UI reactivity demo (memory repo + stores)', () => {
-  it('propagates repo changes and filter updates', async function () {
-    this.timeout(8000);
+  it('propagates repo changes and filter updates', async () => {
     const repo = createMemoryRepository() as unknown as CoreRepoProvider;
 
     // Seed a few work items
@@ -84,7 +86,7 @@ describe('UI reactivity demo (memory repo + stores)', () => {
 
     // Initial: all items visible
     const initial = await once<WorkItem[]>((cb) => visible.subscribe(cb));
-    console.log(
+    console.debug(
       '[ui-reactivity] initial visible ids =',
       initial.map((w) => w.id)
     );
@@ -97,7 +99,7 @@ describe('UI reactivity demo (memory repo + stores)', () => {
         filters.setValue({ assignee: 'Alex' });
       }
     );
-    console.log(
+    console.debug(
       '[ui-reactivity] after assignee filter ids =',
       afterAssignee.map((w) => w.id)
     );
@@ -112,7 +114,7 @@ describe('UI reactivity demo (memory repo + stores)', () => {
         ]);
       }
     );
-    console.log(
+    console.debug(
       '[ui-reactivity] after upsert ids =',
       afterUpsert.map((w) => w.id)
     );
@@ -125,7 +127,7 @@ describe('UI reactivity demo (memory repo + stores)', () => {
         filters.setValue({ assignee: 'Alex', tags: ['bug'] });
       }
     );
-    console.log(
+    console.debug(
       '[ui-reactivity] after tags filter ids =',
       afterTags.map((w) => w.id)
     );
@@ -134,5 +136,5 @@ describe('UI reactivity demo (memory repo + stores)', () => {
     // Cleanup
     visible.dispose();
     itemsView.dispose();
-  });
+  }, 8000);
 });

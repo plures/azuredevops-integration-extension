@@ -81,9 +81,9 @@ LLM-GUARD:
   function copyAndOpenDeviceCode() {
     if (!deviceCodeSession) return;
     // Delegate browser launch + clipboard to extension (webview sandbox limitations)
-    vscode?.postMessage({
-      type: 'openDeviceCodeBrowser',
-      payload: { connectionId: deviceCodeSession.connectionId },
+    sendEvent({
+      type: 'OPEN_DEVICE_CODE_BROWSER',
+      connectionId: deviceCodeSession.connectionId,
     });
   }
 

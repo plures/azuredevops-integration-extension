@@ -12,7 +12,7 @@
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
  */
 import { randomUUID } from 'crypto';
-import type { ProjectConnection } from '../../machines/applicationMachine.js';
+import type { ProjectConnection } from '../../machines/applicationTypes.js';
 
 export interface LegacyConnectionFallback {
   organization?: string;

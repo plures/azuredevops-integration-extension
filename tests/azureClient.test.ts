@@ -4,13 +4,13 @@ import { AzureDevOpsIntClient } from '../src/azureClient.ts';
 import { workItemCache } from '../src/cache.ts';
 
 // Tests for core client logic (WIQL build and basic fetch behaviors)
-describe('AzureDevOpsIntClient', function () {
+describe('AzureDevOpsIntClient', () => {
   afterEach(() => {
     nock.cleanAll();
     workItemCache.clear();
   });
 
-  it('buildWIQL returns expected string for "My Activity"', function () {
+  it('buildWIQL returns expected string for "My Activity"', () => {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
     const wiql = client.buildWIQL('My Activity');
     expect(wiql).to.match(/SELECT [\s\S]* FROM WorkItems/);
@@ -20,7 +20,7 @@ describe('AzureDevOpsIntClient', function () {
     expect(wiql).to.include('[System.ChangedBy] = @Me');
   });
 
-  it('buildWIQL returns expected string for "Assigned to me"', function () {
+  it('buildWIQL returns expected string for "Assigned to me"', () => {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
     const wiql = client.buildWIQL('Assigned to me');
     expect(wiql).to.match(/SELECT [\s\S]* FROM WorkItems/);
@@ -29,7 +29,7 @@ describe('AzureDevOpsIntClient', function () {
     expect(wiql).to.include('[System.AssignedTo] = @Me');
   });
 
-  it('buildWIQL returns expected string for "All Active"', function () {
+  it('buildWIQL returns expected string for "All Active"', () => {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
     const wiql = client.buildWIQL('All Active');
     expect(wiql).to.match(/SELECT[\s\S]*FROM WorkItems/);
@@ -37,7 +37,7 @@ describe('AzureDevOpsIntClient', function () {
     expect(wiql).to.include("[System.State] <> 'Removed'");
   });
 
-  it('buildWIQL returns expected string for "Recently Updated"', function () {
+  it('buildWIQL returns expected string for "Recently Updated"', () => {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
     const wiql = client.buildWIQL('Recently Updated');
     expect(wiql).to.match(/SELECT[\s\S]*FROM WorkItems/);
@@ -45,10 +45,10 @@ describe('AzureDevOpsIntClient', function () {
     expect(wiql).to.include('ORDER BY [System.ChangedDate] DESC');
   });
 
-  it('getWorkItems fetches followed work items via favorites API', async function () {
+  it('getWorkItems fetches followed work items via favorites API', async () => {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
     nock('https://dev.azure.com')
-      .get('/org/proj/_apis/work/workitems/favorites?api-version=7.0')
+      .get('/org/proj/_apis/work/workitems/favorites?api-version=7.1')
       .reply(200, { value: [{ workItemId: 101 }, { workItemId: 202 }] });
     nock('https://dev.azure.com')
       .get(/\/org\/proj\/_apis\/wit\/workitems\?ids=101,202.*$/)
@@ -69,7 +69,7 @@ describe('AzureDevOpsIntClient', function () {
     expect(items[0]).to.have.property('id', 101);
   });
 
-  it('getWorkItems builds mention query with authenticated identity', async function () {
+  it('getWorkItems builds mention query with authenticated identity', async () => {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
     nock('https://dev.azure.com')
       .get(/\/org\/_apis\/connectionData\?api-version=.*/)
@@ -99,7 +99,7 @@ describe('AzureDevOpsIntClient', function () {
     expect(items).to.have.length(1);
   });
 
-  it('getWorkItems handles empty WIQL response gracefully', async function () {
+  it('getWorkItems handles empty WIQL response gracefully', async () => {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
     // intercept WIQL POST
     nock('https://dev.azure.com')
@@ -115,7 +115,7 @@ describe('AzureDevOpsIntClient', function () {
     expect(items).to.be.an('array').that.is.empty;
   });
 
-  it('getWorkItems expands ids and returns mapped items', async function () {
+  it('getWorkItems expands ids and returns mapped items', async () => {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
     // WIQL response with refs
     nock('https://dev.azure.com')
@@ -130,7 +130,7 @@ describe('AzureDevOpsIntClient', function () {
     expect(items[0]).to.have.property('id', 123);
   });
 
-  it('Current Sprint uses explicit iteration path when team current iteration is available', async function () {
+  it('Current Sprint uses explicit iteration path when team current iteration is available', async () => {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat', { team: 'My Team' });
     // Mock team-scoped current iteration (regex to include query params)
     nock('https://dev.azure.com')
@@ -152,7 +152,7 @@ describe('AzureDevOpsIntClient', function () {
     expect(wiqlScope.isDone()).to.equal(true);
   });
 
-  it('Current Sprint falls back to @CurrentIteration when current iteration fetch fails', async function () {
+  it('Current Sprint falls back to @CurrentIteration when current iteration fetch fails', async () => {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat', { team: 'Unknown Team' });
     // Mock failing current iteration
     nock('https://dev.azuredevops.com');

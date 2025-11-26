@@ -4,17 +4,31 @@
  */
 
 // Dynamic Tauri core import; undefined in pure browser
-let invoke: <T>(cmd: string, args?: any) => Promise<T> = async () => {
-  throw new Error('Tauri invoke unavailable in browser');
-};
-try {
-  if ((window as any).__TAURI__) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    invoke = (await import('@tauri-apps/api/core')).invoke as any;
+let invokeFn: any = null;
+
+const getInvoke = async () => {
+  if (invokeFn) return invokeFn;
+  try {
+    if ((window as any).__TAURI__) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      invokeFn = invoke;
+    } else {
+      invokeFn = async () => {
+        throw new Error('Tauri invoke unavailable in browser');
+      };
+    }
+  } catch {
+    invokeFn = async () => {
+      throw new Error('Tauri invoke unavailable in browser');
+    };
   }
-} catch {
-  /* browser fallback */
-}
+  return invokeFn;
+};
+
+const invoke = async <T>(cmd: string, args?: any): Promise<T> => {
+  const fn = await getInvoke();
+  return fn(cmd, args);
+};
 let Store: any = class {
   async get() {
     return undefined;
@@ -69,7 +83,7 @@ export interface PlatformAdapter {
 
 // Tauri implementation
 class TauriPlatformAdapter implements PlatformAdapter {
-  private store: Store | null = null;
+  private store: any | null = null;
   private messageHandlers: ((message: any) => void)[] = [];
   private eventUnlisteners: (() => void)[] = [];
 
@@ -81,7 +95,7 @@ class TauriPlatformAdapter implements PlatformAdapter {
     });
   }
 
-  private async getStore(): Promise<Store> {
+  private async getStore(): Promise<any> {
     if (!this.store) {
       try {
         if ((window as any).__TAURI__) {
@@ -144,7 +158,7 @@ class TauriPlatformAdapter implements PlatformAdapter {
       // For production use, implement proper encryption for sensitive data like PATs.
       // Consider using OS-specific keyring services or implementing encryption layer.
       const store = await this.getStore();
-      const value = await store.get<string>(`secrets.${key}`);
+      const value = await store.get(`secrets.${key}`);
       return value || undefined;
     } catch (error) {
       console.error('Error getting secret:', error);
@@ -169,7 +183,7 @@ class TauriPlatformAdapter implements PlatformAdapter {
   async getConfiguration<T = any>(key: string, defaultValue?: T): Promise<T> {
     try {
       const store = await this.getStore();
-      const value = await store.get<T>(`config.${key}`);
+      const value = await store.get(`config.${key}`);
       return value !== null && value !== undefined ? value : (defaultValue as T);
     } catch (error) {
       console.error('Error getting configuration:', error);

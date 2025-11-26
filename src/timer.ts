@@ -11,7 +11,7 @@
  * LLM-GUARD:
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
  */
-import { WorkItemTimerState, TimeEntry } from './types';
+import type { WorkItemTimerState, TimeEntry } from './types';
 
 export interface TimerPersistPayload {
   state?: WorkItemTimerState;

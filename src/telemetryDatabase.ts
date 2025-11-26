@@ -110,7 +110,7 @@ export class TelemetryDatabase {
     try {
       // Lazy load sql.js only when needed
       const sqlJsModule = await import('sql.js');
-      const initSqlJs = sqlJsModule.default || sqlJsModule;
+      const initSqlJs = (sqlJsModule.default || sqlJsModule) as any;
       this.sqlJs = await initSqlJs();
       const bytes = await this.loadFromDisk();
       this.db = this.sqlJs ? new this.sqlJs.Database(bytes ?? undefined) : undefined;

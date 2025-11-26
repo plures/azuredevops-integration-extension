@@ -43,6 +43,9 @@ import {
   AuthReminderClearedEvent,
   AuthenticationSuccessEvent,
   AuthenticationFailedEvent,
+  RefreshDataEvent,
+  SignInEntraEvent,
+  SignOutEntraEvent,
 } from './facts.js';
 
 /**
@@ -375,6 +378,16 @@ export class PraxisApplicationManager {
   }
 
   /**
+   * Toggle view mode
+   */
+  toggleViewMode(): void {
+    if (!this.isStarted) return;
+    const current = this.getViewMode();
+    const next = current === 'list' ? 'board' : 'list';
+    this.setViewMode(next);
+  }
+
+  /**
    * Get the current view mode
    */
   getViewMode(): ViewMode {
@@ -687,5 +700,29 @@ export class PraxisApplicationManager {
    */
   getEventBus(): PraxisEventBus {
     return this.eventBus;
+  }
+
+  /**
+   * Refresh data
+   */
+  refreshData(connectionId?: string): void {
+    if (!this.isStarted) return;
+    this.engine.step([RefreshDataEvent.create({ connectionId })]);
+  }
+
+  /**
+   * Sign in with Entra
+   */
+  signInEntra(connectionId: string, forceInteractive?: boolean): void {
+    if (!this.isStarted) return;
+    this.engine.step([SignInEntraEvent.create({ connectionId, forceInteractive })]);
+  }
+
+  /**
+   * Sign out Entra
+   */
+  signOutEntra(connectionId: string): void {
+    if (!this.isStarted) return;
+    this.engine.step([SignOutEntraEvent.create({ connectionId })]);
   }
 }

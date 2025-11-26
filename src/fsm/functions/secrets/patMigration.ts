@@ -12,7 +12,7 @@
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
  */
 import type * as vscode from 'vscode';
-import type { ProjectConnection } from '../../machines/applicationMachine.js';
+import type { ProjectConnection } from '../../machines/applicationTypes.js';
 import { fsmLogger, FSMComponent } from '../../logging/FSMLogger.js';
 import { GLOBAL_PAT_SECRET_KEY } from '../../../config/constants.js';
 

@@ -14,15 +14,15 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@plures/praxis": "^1.0.1",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-fs": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-store": "^2",
     "@tauri-apps/plugin-updater": "^2",
-    "xstate": "^5.23.0",
-    "@xstate/svelte": "file:../../src/fsm/xstate-svelte",
     "axios": "^1.12.2",
-    "azure-devops-node-api": "^15.1.1",
-    "xstate": "^5.23.0"
+    "azure-devops-node-api": "^15.1.1"
   },
   "devDependencies": {
     "@babel/core": "^7.28.5",
@@ -32,6 +32,7 @@
     "@tauri-apps/cli": "^2",
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",
+    "svelte-preprocess": "^5.1.4",
     "typescript": "~5.6.2",
     "vite": "^6.0.3"
   }

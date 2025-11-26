@@ -12,7 +12,7 @@ import {
   clearErrorState,
   type DetectedError,
 } from '../../../../src/fsm/functions/ui/error-handling.js';
-import type { ApplicationContext } from '../../../../src/fsm/machines/applicationMachine.js';
+import type { ApplicationContext } from '../../../../src/fsm/machines/applicationTypes.js';
 
 describe('Error Handling Functions', () => {
   describe('detectErrorType', () => {

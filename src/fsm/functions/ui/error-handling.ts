@@ -18,7 +18,7 @@
  * failures, network errors, and other connection issues.
  */
 
-import type { ApplicationContext, UIState } from '../../machines/applicationMachine.js';
+import type { ApplicationContext, UIState } from '../../machines/applicationTypes.js';
 
 /**
  * Error types that can occur in the extension
@@ -73,19 +73,19 @@ export function detectErrorType(error: Error | string, statusCode?: number): Det
         suggestedAction: 'Refresh',
       };
     }
-    if (statusCode >= 500) {
-      return {
-        type: 'server',
-        recoverable: true,
-        message: 'Server error occurred. Please try again later.',
-        suggestedAction: 'Retry',
-      };
-    }
     if (statusCode === 408 || statusCode === 504) {
       return {
         type: 'network',
         recoverable: true,
         message: 'Request timed out. Check your network connection.',
+        suggestedAction: 'Retry',
+      };
+    }
+    if (statusCode >= 500) {
+      return {
+        type: 'server',
+        recoverable: true,
+        message: 'Server error occurred. Please try again later.',
         suggestedAction: 'Retry',
       };
     }

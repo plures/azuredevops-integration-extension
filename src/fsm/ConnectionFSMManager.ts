@@ -174,9 +174,10 @@ export class ConnectionFSMManager {
           );
         });
       } else {
+        // @ts-ignore
         import('../../activation.js')
           .then(({ updateAuthStatusBar }) => {
-            updateAuthStatusBar().catch((err) => {
+            updateAuthStatusBar().catch((err: any) => {
               this.logger.warn(
                 `Failed to update status bar: ${err instanceof Error ? err.message : String(err)}`
               );

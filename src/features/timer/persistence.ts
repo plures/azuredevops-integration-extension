@@ -18,7 +18,7 @@
  * Provides pure functions for timer state management.
  */
 
-import { TimerContext, TimerPersistenceData } from './types';
+import type { TimerContext, TimerPersistenceData } from './types';
 
 const TIMER_STATE_KEY = 'azureDevOpsIntegration.timer.state';
 

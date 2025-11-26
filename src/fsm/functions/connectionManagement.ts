@@ -11,7 +11,7 @@
  * LLM-GUARD:
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
  */
-import type { ApplicationContext, ProjectConnection } from '../machines/applicationMachine.js';
+import type { ApplicationContext, ProjectConnection } from '../machines/applicationTypes.js';
 
 export function saveConnection(
   context: ApplicationContext,

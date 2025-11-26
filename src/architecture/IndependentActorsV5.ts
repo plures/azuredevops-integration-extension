@@ -19,7 +19,7 @@
  */
 
 import { createMachine, assign, fromPromise, type ActorRefFrom } from 'xstate';
-import { ApplicationContext, type Connection, type WorkItem } from './ApplicationContext';
+import type { ApplicationContext, Connection, WorkItem } from './ApplicationContext';
 
 // Types for actor context
 interface ConnectionActorContext {
@@ -318,7 +318,7 @@ export const applicationMachine = createMachine(
         entry: 'initializeContext',
         always: {
           target: 'ready',
-          guard: 'contextInitialized',
+          guard: ({ context }) => context.appContext !== null,
         },
       },
       ready: {
@@ -389,7 +389,7 @@ export const applicationMachine = createMachine(
       },
     },
     guards: {
-      contextInitialized: ({ context }) => context.appContext !== null,
+      // contextInitialized: ({ context }) => context.appContext !== null,
     },
   }
 );

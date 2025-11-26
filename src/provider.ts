@@ -349,11 +349,6 @@ export class WorkItemsProvider {
       kanbanView: this._kanbanView,
       types: [...this._workItemTypes],
     });
-
-    // Send supplementary data
-    this._postWorkItemTypeOptions();
-    if (Object.keys(this._currentFilters).length > 0)
-      this._post({ type: 'restoreFilters', filters: this._currentFilters });
   }
   private _post(msg: any) {
     if (!this.postMessage) return;
@@ -428,10 +423,6 @@ export class WorkItemsProvider {
       })
       .filter((name: string) => name.length > 0);
     this._mergeWorkItemTypesFromNames(names);
-  }
-
-  private _postWorkItemTypeOptions() {
-    this._post({ type: 'workItemTypeOptions', types: [...this._workItemTypes] });
   }
 
   private async _applyTransform(items: WorkItem[]): Promise<WorkItem[]> {

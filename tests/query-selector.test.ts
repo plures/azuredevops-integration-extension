@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { describe, it, expect } from 'vitest';
 
 // Mock the query options and functions from main.ts
 const QUERY_OPTIONS = [
@@ -74,115 +74,91 @@ function validateQuery(query: string): { isValid: boolean; error?: string } {
   return { isValid: true };
 }
 
-// Test query validation
-console.log('Testing query validation...');
+describe('Query Selector', () => {
+  it('should validate known query options', () => {
+    const knownQueries = ['My Activity', 'My Work Items', 'Assigned to me', 'Current Sprint'];
+    knownQueries.forEach((query) => {
+      const result = validateQuery(query);
+      expect(result.isValid, `Expected query "${query}" to be valid`).toBe(true);
+    });
+  });
 
-// Test known query options
-const knownQueries = ['My Activity', 'My Work Items', 'Assigned to me', 'Current Sprint'];
-knownQueries.forEach((query) => {
-  const result = validateQuery(query);
-  if (!result.isValid) {
-    throw new Error(`Expected query "${query}" to be valid, but got error: ${result.error}`);
-  }
+  it('should invalidate empty queries', () => {
+    const emptyQueries = ['', '   ', null as any, undefined as any];
+    emptyQueries.forEach((query) => {
+      const result = validateQuery(query);
+      expect(result.isValid, `Expected query "${query}" to be invalid`).toBe(false);
+      expect(result.error).toContain('empty');
+    });
+  });
+
+  it('should invalidate short queries', () => {
+    const shortQueries = ['a', 'ab', 'xy'];
+    shortQueries.forEach((query) => {
+      const result = validateQuery(query);
+      expect(result.isValid, `Expected query "${query}" to be invalid`).toBe(false);
+      expect(result.error).toContain('too short');
+    });
+  });
+
+  it('should invalidate dangerous SQL patterns', () => {
+    const dangerousQueries = [
+      'DROP TABLE WorkItems',
+      'DELETE FROM WorkItems',
+      'TRUNCATE TABLE WorkItems',
+      'ALTER TABLE WorkItems',
+      'CREATE TABLE WorkItems',
+      'INSERT INTO WorkItems',
+      'UPDATE WorkItems SET',
+    ];
+    dangerousQueries.forEach((query) => {
+      const result = validateQuery(query);
+      expect(result.isValid, `Expected query "${query}" to be invalid`).toBe(false);
+      expect(result.error).toContain('dangerous operations');
+    });
+  });
+
+  it('should validate valid custom queries', () => {
+    const validCustomQueries = [
+      'SELECT * FROM WorkItems WHERE State = "Active"',
+      'My Custom Query',
+      'Work Items for Sprint 1',
+      'SELECT [System.Id] FROM WorkItems',
+    ];
+    validCustomQueries.forEach((query) => {
+      const result = validateQuery(query);
+      expect(result.isValid, `Expected query "${query}" to be valid`).toBe(true);
+    });
+  });
+
+  it('should have all expected query options', () => {
+    const expectedValues = [
+      'My Activity',
+      'My Work Items',
+      'Assigned to me',
+      'Current Sprint',
+      'All Active',
+      'Recently Updated',
+      'Following',
+      'Mentioned',
+    ];
+
+    const actualValues = QUERY_OPTIONS.map((option) => option.value);
+    expectedValues.forEach((expectedValue) => {
+      expect(actualValues).toContain(expectedValue);
+    });
+  });
+
+  it('should have descriptions for all options', () => {
+    QUERY_OPTIONS.forEach((option) => {
+      expect(option.description).toBeDefined();
+      expect(option.description.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('should have unique values', () => {
+    const values = QUERY_OPTIONS.map((option) => option.value);
+    const uniqueValues = new Set(values);
+    expect(uniqueValues.size).toBe(values.length);
+  });
 });
-console.log('✓ Known query options validation passed');
-
-// Test empty queries
-const emptyQueries = ['', '   ', null as any, undefined as any];
-emptyQueries.forEach((query) => {
-  const result = validateQuery(query);
-  if (result.isValid) {
-    throw new Error(`Expected query "${query}" to be invalid, but it was valid`);
-  }
-  if (!result.error?.includes('empty')) {
-    throw new Error(`Expected error to mention "empty", but got: ${result.error}`);
-  }
-});
-console.log('✓ Empty query validation passed');
-
-// Test short queries
-const shortQueries = ['a', 'ab', 'xy'];
-shortQueries.forEach((query) => {
-  const result = validateQuery(query);
-  if (result.isValid) {
-    throw new Error(`Expected query "${query}" to be invalid, but it was valid`);
-  }
-  if (!result.error?.includes('too short')) {
-    throw new Error(`Expected error to mention "too short", but got: ${result.error}`);
-  }
-});
-console.log('✓ Short query validation passed');
-
-// Test dangerous SQL patterns
-const dangerousQueries = [
-  'DROP TABLE WorkItems',
-  'DELETE FROM WorkItems',
-  'TRUNCATE TABLE WorkItems',
-  'ALTER TABLE WorkItems',
-  'CREATE TABLE WorkItems',
-  'INSERT INTO WorkItems',
-  'UPDATE WorkItems SET',
-];
-dangerousQueries.forEach((query) => {
-  const result = validateQuery(query);
-  if (result.isValid) {
-    throw new Error(`Expected query "${query}" to be invalid, but it was valid`);
-  }
-  if (!result.error?.includes('dangerous operations')) {
-    throw new Error(`Expected error to mention "dangerous operations", but got: ${result.error}`);
-  }
-});
-console.log('✓ Dangerous SQL pattern validation passed');
-
-// Test valid custom queries
-const validCustomQueries = [
-  'SELECT * FROM WorkItems WHERE State = "Active"',
-  'My Custom Query',
-  'Work Items for Sprint 1',
-  'SELECT [System.Id] FROM WorkItems',
-];
-validCustomQueries.forEach((query) => {
-  const result = validateQuery(query);
-  if (!result.isValid) {
-    throw new Error(`Expected query "${query}" to be valid, but got error: ${result.error}`);
-  }
-});
-console.log('✓ Valid custom query validation passed');
-
-// Test query options structure
-const expectedValues = [
-  'My Activity',
-  'My Work Items',
-  'Assigned to me',
-  'Current Sprint',
-  'All Active',
-  'Recently Updated',
-  'Following',
-  'Mentioned',
-];
-
-const actualValues = QUERY_OPTIONS.map((option) => option.value);
-expectedValues.forEach((expectedValue) => {
-  if (!actualValues.includes(expectedValue)) {
-    throw new Error(`Expected query option "${expectedValue}" not found`);
-  }
-});
-console.log('✓ All expected query options present');
-
-// Test that all options have descriptions
-QUERY_OPTIONS.forEach((option) => {
-  if (typeof option.description !== 'string' || option.description.length === 0) {
-    throw new Error(`Query option "${option.value}" missing description`);
-  }
-});
-console.log('✓ All query options have descriptions');
-
-// Test unique values
-const values = QUERY_OPTIONS.map((option) => option.value);
-const uniqueValues = new Set(values);
-if (uniqueValues.size !== values.length) {
-  throw new Error('Query options have duplicate values');
-}
-console.log('✓ All query option values are unique');
-
-console.log('All query selector tests passed!');

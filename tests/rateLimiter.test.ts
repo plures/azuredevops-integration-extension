@@ -1,5 +1,6 @@
 import { RateLimiter } from '../src/rateLimiter.ts';
 import { expect } from 'chai';
+import { describe, it } from 'vitest';
 
 describe('RateLimiter', () => {
   it('allows immediate burst up to capacity then throttles', async () => {
@@ -16,7 +17,7 @@ describe('RateLimiter', () => {
     const elapsed = Date.now() - start;
     expect(acquired).to.equal(5);
     expect(elapsed).to.be.greaterThan(150); // allow timing variance
-  }).timeout(4000);
+  }, 4000);
 
   it('refills over time', async () => {
     const limiter = new RateLimiter(2, 2); // 2 rps
@@ -26,5 +27,5 @@ describe('RateLimiter', () => {
     await limiter.acquire(); // waits ~500ms
     const dt = Date.now() - t0;
     expect(dt).to.be.greaterThan(200);
-  }).timeout(4000);
+  }, 4000);
 });

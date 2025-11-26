@@ -16,7 +16,7 @@ import type {
   AuthReminderState,
   ConnectionState,
   ProjectConnection,
-} from '../machines/applicationMachine.js';
+} from '../machines/applicationTypes.js';
 
 export interface TabWorkItemViewModel {
   id: number;
@@ -81,7 +81,11 @@ export function deriveTabViewModel(
     workItems: deriveWorkItems(context, connectionId),
     timer: deriveTimerViewModel(context),
     status: deriveStatus(context, connectionId, connectionState),
-    authReminder: deriveAuthReminder(context.pendingAuthReminders, connectionId),
+    authReminder: deriveAuthReminder(
+      context.pendingAuthReminders,
+      connectionId,
+      context.connections
+    ),
   };
 }
 
@@ -172,7 +176,8 @@ function deriveStatus(
 
 function deriveAuthReminder(
   reminders: Map<string, AuthReminderState> | undefined,
-  connectionId: string | null
+  connectionId: string | null,
+  connections: ProjectConnection[] | undefined
 ): TabAuthReminderViewModel | null {
   if (!connectionId || !reminders?.size) {
     return null;
@@ -183,12 +188,29 @@ function deriveAuthReminder(
     return null;
   }
 
+  const connection = selectConnection(connections, connectionId);
+  const label = connection?.label ?? connection?.project ?? connectionId;
+  const authMethod = connection?.authMethod;
+
+  let message = 'Authentication required';
+  if (reminder.reason === 'tokenExpired') {
+    message = 'Session expired';
+  } else if (reminder.reason === 'authFailed') {
+    message = 'Authentication failed';
+  } else if (reminder.reason === 'refreshFailed') {
+    message = 'Could not refresh session';
+  }
+
+  if (reminder.detail) {
+    message += `: ${reminder.detail}`;
+  }
+
   return {
     reason: reminder.reason,
     detail: reminder.detail,
-    message: reminder.message,
-    label: reminder.label ?? connectionId ?? undefined,
-    authMethod: reminder.authMethod,
+    message,
+    label,
+    authMethod,
   };
 }
 

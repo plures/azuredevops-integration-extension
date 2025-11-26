@@ -15,39 +15,44 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { randomUUID as _randomUUID } from 'crypto';
-import { OpenAI } from 'openai';
+// import { randomUUID as _randomUUID } from 'crypto';
+// import { OpenAI } from 'openai';
 import { AzureDevOpsIntClient } from './azureClient.js';
-import {
-  parseAzureDevOpsUrl as _parseAzureDevOpsUrl,
-  isAzureDevOpsWorkItemUrl as _isAzureDevOpsWorkItemUrl,
-} from './azureDevOpsUrlParser.js';
+// import {
+//   parseAzureDevOpsUrl as _parseAzureDevOpsUrl,
+//   isAzureDevOpsWorkItemUrl as _isAzureDevOpsWorkItemUrl,
+// } from './azureDevOpsUrlParser.js';
 import type { WorkItemsProvider } from './provider.js';
-import { WorkItemTimer } from './timer.js';
 import { SessionTelemetryManager } from './sessionTelemetry.js';
+// import {
+//   clearConnectionCaches,
+//   getBranchEnrichmentState,
+//   updateBuildRefreshTimer,
+//   type BranchContext,
+// } from './fsm/functions/connection/branchEnrichment.js';
 import {
   clearConnectionCaches,
-  getBranchEnrichmentState,
+  // getBranchEnrichmentState,
   updateBuildRefreshTimer,
-  type BranchContext,
+  // type BranchContext,
 } from './fsm/functions/connection/branchEnrichment.js';
-import { getConnectionLabel } from './fsm/functions/connection/connectionLabel.js';
+// import { getConnectionLabel } from './fsm/functions/connection/connectionLabel.js';
 import {
   createBranchAwareTransform,
-  createConnectionProvider as _createConnectionProvider,
+  // createConnectionProvider as _createConnectionProvider,
 } from './fsm/functions/connection/providerFactory.js';
 import { createSharedContextBridge } from './bridge/sharedContextBridge.js';
 import {
   bridgeConsoleToOutputChannel,
   createScopedLogger,
-  getLogBufferSnapshot,
+  // getLogBufferSnapshot,
   getOutputChannel,
   logLine,
   setOutputChannel,
 } from './logging.js';
 
 import { startCacheCleanup, stopCacheCleanup } from './cache.js';
-import { performanceMonitor, MemoryOptimizer } from './performance.js';
+// import { performanceMonitor, MemoryOptimizer } from './performance.js';
 import {
   normalizeConnections,
   resolveActiveConnectionId,
@@ -56,37 +61,38 @@ import { migrateGlobalPATToConnections } from './fsm/functions/secrets/patMigrat
 import {
   getApplicationStoreActor,
   sendApplicationStoreEvent,
-  setActiveConnectionHandler as _setActiveConnectionHandler,
+  // setActiveConnectionHandler as _setActiveConnectionHandler,
   setActiveConnectionIdReader,
   setExtensionContextRef as setExtensionContextRefBridge,
-  setForwardProviderMessage as _setForwardProviderMessage,
+  // setForwardProviderMessage as _setForwardProviderMessage,
   setGetSecretPAT,
   setLoadedConnectionsReader,
   getLoadedConnections,
-  setRegisterAllCommands as _setRegisterAllCommands,
-  setWebviewMessageHandler as _setWebviewMessageHandler,
+  // setRegisterAllCommands as _setRegisterAllCommands,
+  // setWebviewMessageHandler as _setWebviewMessageHandler,
 } from './fsm/services/extensionHostBridge.js';
 import { registerCommands } from './features/commands/index.js';
 import { registerTraceCommands } from './fsm/commands/traceCommands.js';
 import { registerQuickDebugCommands } from './fsm/commands/quickDebugCommands.js';
-import { FSMSetupService } from './fsm/services/fsmSetupService.js';
-import { ConnectionAdapter } from './fsm/adapters/ConnectionAdapter.js';
+// import { FSMSetupService } from './fsm/services/fsmSetupService.js';
+// import { ConnectionAdapter } from './fsm/adapters/ConnectionAdapter.js';
 import { getConnectionFSMManager } from './fsm/ConnectionFSMManager.js';
 //import { initializeBridge } from './fsm/services/extensionHostBridge.js';
 import type {
-  AuthReminderReason,
+  // AuthReminderReason,
   AuthReminderState,
   ConnectionState,
   ProjectConnection,
-} from './fsm/machines/applicationMachine.js';
-import type { WorkItemTimerState, TimeEntry } from './types.js';
+} from './fsm/machines/applicationTypes.js';
+// import type { WorkItemTimerState, TimeEntry } from './types.js';
 
-type _AuthMethod = 'pat' | 'entra';
+// type _AuthMethod = 'pat' | 'entra';
 
 // Local lightweight type definitions for internal messaging helpers.
 // These were previously only present in a temporary bundle artifact.
 // Keeping them here avoids implicit any usage and preserves clarity.
-type LoggerFn = (message: string, meta?: any) => void;
+// type LoggerFn = (message: string, meta?: any) => void;
+/*
 type PostWorkItemsSnapshotParams = {
   panel?: vscode.WebviewView;
   logger?: LoggerFn;
@@ -98,39 +104,39 @@ type PostWorkItemsSnapshotParams = {
   query?: string;
   branchContext?: BranchContext | null;
 };
+*/
 
-const STATE_TIMER = 'azureDevOpsInt.timer.state';
-const STATE_TIME_ENTRIES = 'azureDevOpsInt.timer.entries';
-const STATE_LAST_SAVE = 'azureDevOpsInt.timer.lastSave';
-const STATE_TIMER_CONNECTION = 'azureDevOpsInt.timer.connection';
+// const STATE_TIMER = 'azureDevOpsInt.timer.state';
+// const STATE_TIME_ENTRIES = 'azureDevOpsInt.timer.entries';
+// const STATE_LAST_SAVE = 'azureDevOpsInt.timer.lastSave';
+// const STATE_TIMER_CONNECTION = 'azureDevOpsInt.timer.connection';
 const CONFIG_NS = 'azureDevOpsIntegration';
-const LEGACY_CONFIG_NS = 'azureDevOps';
+// const LEGACY_CONFIG_NS = 'azureDevOps';
 const CONNECTIONS_CONFIG_KEY = 'connections';
 const ACTIVE_CONNECTION_STATE_KEY = 'azureDevOpsInt.activeConnectionId';
 
 export let panel: vscode.WebviewView | undefined;
 let provider: WorkItemsProvider | undefined;
-let timer: WorkItemTimer | undefined;
 let sessionTelemetry: SessionTelemetryManager | undefined;
 let client: AzureDevOpsIntClient | undefined;
 let statusBarItem: vscode.StatusBarItem | undefined;
 let authStatusBarItem: vscode.StatusBarItem | undefined;
-const _PAT_KEY = 'azureDevOpsInt.pat';
-const OPENAI_SECRET_KEY = 'azureDevOpsInt.openai.apiKey';
+// const _PAT_KEY = 'azureDevOpsInt.pat';
+// const OPENAI_SECRET_KEY = 'azureDevOpsInt.openai.apiKey';
 let viewProviderRegistered = false;
 const initialRefreshedConnections = new Set<string>();
 let connections: ProjectConnection[] = [];
 const connectionStates = new Map<string, ConnectionState>();
-let connectionAdapterInstance: ConnectionAdapter | undefined;
+// let connectionAdapterInstance: ConnectionAdapter | undefined;
 let activeConnectionId: string | undefined;
 let tokenRefreshInterval: NodeJS.Timeout | undefined;
 let gcInterval: NodeJS.Timeout | undefined;
-let isDeactivating = false;
+// let isDeactivating = false;
 let rejectionHandler: ((reason: any, promise: Promise<any>) => void) | undefined;
 let sharedContextBridge: ReturnType<typeof createSharedContextBridge> | undefined;
 let extensionContextRef: vscode.ExtensionContext | undefined;
-let openAiClient: OpenAI | undefined;
-let cachedExtensionVersion: string | undefined; // cache package.json version for cache-busting
+// let openAiClient: OpenAI | undefined;
+// let cachedExtensionVersion: string | undefined; // cache package.json version for cache-busting
 // Track last applied query to avoid redundant provider refreshes
 let lastQueriedActiveConnectionId: string | undefined;
 let lastQueriedQuery: string | undefined;
@@ -152,12 +158,12 @@ export function __setTestContext(ctx: {
   panel?: any;
   provider?: any;
   client?: any;
-  timer?: any;
+  activeConnectionId?: string;
 }): void {
   if (ctx.panel) panel = ctx.panel;
   if (ctx.provider) provider = ctx.provider;
   if (ctx.client) client = ctx.client;
-  if (ctx.timer) timer = ctx.timer;
+  if (ctx.activeConnectionId) activeConnectionId = ctx.activeConnectionId;
 }
 
 export function handleMessage(message: any): void {
@@ -188,29 +194,12 @@ export function handleMessage(message: any): void {
     }
     case 'getWorkItems': {
       const items = provider?.getWorkItems?.() || [];
-      sendToWebview({
+      dispatchProviderMessage({
         type: 'workItemsLoaded',
         workItems: items,
         connectionId: activeConnectionId,
         query: getStoredQueryForConnection(activeConnectionId),
       });
-      const typeOptions = provider?.getWorkItemTypeOptions?.();
-      if (Array.isArray(typeOptions)) {
-        sendToWebview({ type: 'workItemTypeOptions', options: [...typeOptions] });
-      }
-      break;
-    }
-    case 'startTimer': {
-      const id = message.workItemId;
-      if (!timer || typeof timer.start !== 'function' || !provider) break;
-      const items = provider.getWorkItems?.() || [];
-      const match = items.find((i: any) => i.id === id);
-      const title = match?.fields?.['System.Title'] || `Work Item ${id}`;
-      try {
-        timer.start(id, title);
-      } catch {
-        /* ignore */
-      }
       break;
     }
     case 'refresh': {
@@ -251,17 +240,28 @@ export function handleMessage(message: any): void {
       break;
     }
     case 'addComment': {
-      const workItemId = message.workItemId;
       if (!message.comment) {
-        sendToWebview({ type: 'showComposeComment', mode: 'addComment', workItemId });
+        dispatchApplicationEvent({
+          type: 'SHOW_COMPOSE_COMMENT',
+          mode: 'addComment',
+          workItemId: message.workItemId,
+        });
         break;
       }
       // fallthrough to submitComposeComment logic if comment provided
+      handleMessage({ ...message, type: 'submitComposeComment' });
+      break;
     }
     case 'submitComposeComment': {
       const { workItemId, comment, mode, timerData } = message;
       if (!client) {
-        sendToWebview({ type: 'composeCommentResult', success: false, mode, workItemId });
+        dispatchApplicationEvent({
+          type: 'COMMENT_RESULT',
+          success: false,
+          mode,
+          workItemId,
+          error: 'No active client',
+        });
         break;
       }
       const hoursDecimal: number | undefined = timerData?.hoursDecimal;
@@ -290,21 +290,31 @@ export function handleMessage(message: any): void {
               ? `${comment} (Logged ${hoursStr}h)`
               : `Logged ${hoursStr}h via timer stop.`;
             await client.addWorkItemComment?.(workItemId, composed);
-            sendToWebview({
-              type: 'composeCommentResult',
+            dispatchApplicationEvent({
+              type: 'COMMENT_RESULT',
               success: true,
               mode,
               workItemId,
-              hours: hoursDecimal,
+              message: `Logged ${hoursStr}h and added comment`,
             });
             return;
           }
           if (mode === 'addComment') {
             if (comment) {
               await client.addWorkItemComment?.(workItemId, comment);
-              sendToWebview({ type: 'composeCommentResult', success: true, mode, workItemId });
+              dispatchApplicationEvent({
+                type: 'COMMENT_RESULT',
+                success: true,
+                mode,
+                workItemId,
+                message: 'Comment added successfully',
+              });
             } else {
-              sendToWebview({ type: 'showComposeComment', mode: 'addComment', workItemId });
+              dispatchApplicationEvent({
+                type: 'SHOW_COMPOSE_COMMENT',
+                mode: 'addComment',
+                workItemId,
+              });
             }
             return;
           }
@@ -312,18 +322,32 @@ export function handleMessage(message: any): void {
           if (comment) {
             await client.addWorkItemComment?.(workItemId, comment);
           }
-          sendToWebview({ type: 'composeCommentResult', success: true, mode, workItemId });
+          dispatchApplicationEvent({
+            type: 'COMMENT_RESULT',
+            success: true,
+            mode,
+            workItemId,
+            message: 'Comment added',
+          });
         } catch (err) {
-          sendToWebview({
-            type: 'composeCommentResult',
+          dispatchApplicationEvent({
+            type: 'COMMENT_RESULT',
             success: false,
             mode,
             workItemId,
             error: String(err),
           });
+          activationLogger.error('Error submitting comment', { meta: err });
         }
-      })().catch(() => {
-        sendToWebview({ type: 'composeCommentResult', success: false, mode, workItemId });
+      })().catch((err) => {
+        dispatchApplicationEvent({
+          type: 'COMMENT_RESULT',
+          success: false,
+          mode,
+          workItemId,
+          error: String(err),
+        });
+        activationLogger.error('Error in submitComposeComment', { meta: err });
       });
       break;
     }
@@ -393,25 +417,25 @@ const verbose = activationLogger.debug;
 
 // Self-test tracking (prove Svelte webview round-trip works)
 // Self-test pending promise handlers (typed loosely to avoid unused param lint churn)
-let selfTestPending:
-  | { nonce: string; resolve: Function; reject: Function; timeout: NodeJS.Timeout }
-  | undefined;
+// let selfTestPending:
+//   | { nonce: string; resolve: Function; reject: Function; timeout: NodeJS.Timeout }
+//   | undefined;
 
-type TimerConnectionInfo = {
-  id?: string;
-  label?: string;
-  organization?: string;
-  project?: string;
-};
+// type TimerConnectionInfo = {
+//   id?: string;
+//   label?: string;
+//   organization?: string;
+//   project?: string;
+// };
 
-let timerConnectionInfo: TimerConnectionInfo = {};
+// let timerConnectionInfo: TimerConnectionInfo = {};
 
 const DEFAULT_QUERY = 'My Activity';
 const activeQueryByConnection = new Map<string, string>();
 const ACTIVE_QUERY_STATE_KEY = 'azureDevOpsInt.activeQueryByConnection';
 
-let nextAuthConnectionIndex = 0;
-const INTERACTIVE_REAUTH_THROTTLE_MS = 5 * 60 * 1000;
+// let nextAuthConnectionIndex = 0;
+// const INTERACTIVE_REAUTH_THROTTLE_MS = 5 * 60 * 1000;
 
 function getApplicationActor():
   | { getSnapshot?: () => any; send?: (event: unknown) => void }
@@ -479,7 +503,7 @@ async function showEditDialog(item: any, client: any, provider: any): Promise<vo
 
   if (field.type === 'picklist') {
     // Show picklist for state field
-    const stateItems = field.options.map((option) => ({
+    const stateItems = (field.options || []).map((option) => ({
       label: option,
       picked: option === field.value,
     }));
@@ -663,22 +687,11 @@ export function dispatchApplicationEvent(event: unknown): void {
     const evt = event as any;
 
     switch (evt.type) {
-      case 'START_TIMER_INTERACTIVE':
-        // Route to legacy handler with correct message format
-        try {
-          handleMessage({ type: 'startTimer', workItemId: evt.workItemId });
-        } catch (error) {
-          activationLogger.error('Error starting timer', { meta: error });
-          vscode.window.showErrorMessage(
-            `Failed to start timer: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
-        break;
       case 'STOP_TIMER':
         // Show comment dialog for time entry
         (async () => {
           try {
-            const appActor = getApplicationStoreActor();
+            const appActor = getApplicationStoreActor() as any;
             const snapshot = appActor?.getSnapshot?.();
             const timerState = snapshot?.context?.timerState;
 
@@ -875,26 +888,27 @@ export function dispatchApplicationEvent(event: unknown): void {
   sendApplicationStoreEvent(event);
 }
 
-async function signInWithEntra(
-  context: vscode.ExtensionContext,
-  connectionId?: string,
-  options: { showSuccessMessage?: boolean; forceInteractive?: boolean } = {}
-): Promise<void> {
-  await ensureConnectionsInitialized(context);
-  const targetId = connectionId ?? activeConnectionId;
+// async function signInWithEntra(
+//   context: vscode.ExtensionContext,
+//   connectionId?: string,
+//   options: { showSuccessMessage?: boolean; forceInteractive?: boolean } = {}
+// ): Promise<void> {
+//   await ensureConnectionsInitialized(context);
+//   const targetId = connectionId ?? activeConnectionId;
 
-  if (!targetId) {
-    vscode.window.showWarningMessage('No active connection to sign in with.');
-    return;
-  }
+//   if (!targetId) {
+//     vscode.window.showWarningMessage('No active connection to sign in with.');
+//     return;
+//   }
 
-  dispatchApplicationEvent({
-    type: 'SIGN_IN_ENTRA',
-    connectionId: targetId,
-    forceInteractive: options.forceInteractive,
-  });
-}
+//   dispatchApplicationEvent({
+//     type: 'SIGN_IN_ENTRA',
+//     connectionId: targetId,
+//     forceInteractive: options.forceInteractive,
+//   });
+// }
 
+/*
 async function signOutEntra(
   context: vscode.ExtensionContext,
   connectionId?: string
@@ -909,7 +923,9 @@ async function signOutEntra(
 
   dispatchApplicationEvent({ type: 'SIGN_OUT_ENTRA', connectionId: targetId });
 }
+*/
 
+/*
 function safeCommandHandler<Args extends unknown[], Result>(
   handler: (...args: Args) => Result
 ): (...args: Args) => void {
@@ -938,6 +954,7 @@ function safeCommandHandler<Args extends unknown[], Result>(
     }
   };
 }
+*/
 
 async function ensureSharedContextBridge(
   context: vscode.ExtensionContext
@@ -1002,6 +1019,7 @@ function getPendingAuthReminderMap(): Map<string, AuthReminderState> {
   return new Map();
 }
 
+/*
 function getPendingAuthConnectionIds(): string[] {
   const pending = getPendingAuthReminderMap();
   const ordered: string[] = [];
@@ -1021,7 +1039,9 @@ function getPendingAuthConnectionIds(): string[] {
 
   return ordered;
 }
+*/
 
+/*
 async function cycleAuthSignIn(context: vscode.ExtensionContext): Promise<void> {
   const pendingIds = getPendingAuthConnectionIds();
 
@@ -1044,6 +1064,7 @@ async function cycleAuthSignIn(context: vscode.ExtensionContext): Promise<void> 
   clearAuthReminder(targetId);
   await signInWithEntra(context, targetId, { showSuccessMessage: true });
 }
+*/
 
 function describeConnection(connection: ProjectConnection): string {
   if (connection.label && connection.label.trim().length > 0) {
@@ -1062,7 +1083,7 @@ function describeConnection(connection: ProjectConnection): string {
 }
 
 // Global reference for reactive status bar updates
-let updateAuthStatusBarRef: (() => Promise<void>) | null = null;
+// let updateAuthStatusBarRef: (() => Promise<void>) | null = null;
 
 export async function updateAuthStatusBar(): Promise<void> {
   if (!authStatusBarItem) return;
@@ -1371,19 +1392,20 @@ function notifyConnectionsList(): void {
   }
 }
 
-function ensureAuthReminder(
-  connectionId: string,
-  reason: AuthReminderReason,
-  options: { detail?: string } = {}
-): void {
-  dispatchApplicationEvent({
-    type: 'AUTH_REMINDER_REQUESTED',
-    connectionId,
-    reason,
-    detail: options.detail,
-  });
-}
+// function ensureAuthReminder(
+//   connectionId: string,
+//   reason: AuthReminderReason,
+//   options: { detail?: string } = {}
+// ): void {
+//   dispatchApplicationEvent({
+//     type: 'AUTH_REMINDER_REQUESTED',
+//     connectionId,
+//     reason,
+//     detail: options.detail,
+//   });
+// }
 
+/*
 function triggerAuthReminderSignIn(
   connectionId: string,
   reason: AuthReminderReason,
@@ -1447,6 +1469,7 @@ function triggerAuthReminderSignIn(
     ensureAuthReminder(connectionId, reason, detail ? { detail } : {});
   });
 }
+*/
 
 function clearAuthReminder(connectionId: string | undefined): void {
   if (!connectionId) {
@@ -1455,15 +1478,8 @@ function clearAuthReminder(connectionId: string | undefined): void {
 
   dispatchApplicationEvent({ type: 'AUTH_REMINDER_CLEARED', connectionId });
 
-  if (panel) {
-    sendToWebview({
-      type: 'authReminderClear',
-      connectionId,
-    });
-  }
-
   if (getPendingAuthReminderMap().size === 0) {
-    nextAuthConnectionIndex = 0;
+    // nextAuthConnectionIndex = 0;
   }
 }
 
@@ -1519,6 +1535,7 @@ function setStoredQueryForConnection(connectionId: string, query?: string): stri
   return normalized;
 }
 
+/*
 function getQueryForProvider(
   targetProvider?: WorkItemsProvider,
   connectionId?: string | null
@@ -1532,7 +1549,9 @@ function getQueryForProvider(
       : undefined;
   return getStoredQueryForConnection(providerConnectionId, fallback);
 }
+*/
 
+/*
 function setTimerConnectionFrom(connection: ProjectConnection | undefined) {
   if (connection) {
     timerConnectionInfo = {
@@ -1545,7 +1564,9 @@ function setTimerConnectionFrom(connection: ProjectConnection | undefined) {
     timerConnectionInfo = {};
   }
 }
+*/
 
+/*
 function getActiveTimerConnectionLabel(): string | undefined {
   const info = timerConnectionInfo;
   if (!info) {
@@ -1575,6 +1596,7 @@ function getActiveTimerConnectionLabel(): string | undefined {
 
   return undefined;
 }
+*/
 
 type EnsureActiveConnectionOptions = {
   refresh?: boolean;
@@ -1593,20 +1615,23 @@ async function ensureActiveConnection(
   }
 
   const { connection } = prepared;
-  const adapter = getConnectionAdapterInstance();
+  const manager = getConnectionFSMManager();
+  manager.setEnabled(true);
 
-  const result = (await adapter.ensureActiveConnection(context, connection.id, options)) as
-    | ConnectionState
-    | undefined;
+  const result = await manager.connectToConnection(connection, {
+    refresh: options.refresh,
+    interactive: options.interactive,
+  });
 
-  if (result?.client && result?.provider) {
-    (result as any).id = connection.id;
-    result.config = connection;
-    result.authMethod = connection.authMethod || 'pat';
+  if (result.success && result.client && result.provider) {
+    const state = result.state as ConnectionState;
+    (state as any).id = connection.id;
+    state.config = connection;
+    state.authMethod = connection.authMethod || 'pat';
 
     const settings = getConfig();
-    await finalizeConnectionSuccess(connection, result, options, settings);
-    return result;
+    await finalizeConnectionSuccess(connection, state, options, settings);
+    return state;
   }
 
   verbose('[ensureActiveConnection] FSM connection did not produce a usable provider.', {
@@ -1614,20 +1639,21 @@ async function ensureActiveConnection(
     hasResult: !!result,
     hasClient: !!result?.client,
     hasProvider: !!result?.provider,
+    error: result.error,
   });
 
   return undefined;
 }
 
-function getConnectionAdapterInstance(): ConnectionAdapter {
-  if (!connectionAdapterInstance) {
-    const manager = getConnectionFSMManager();
-    // The fallback function is no longer needed as we are fully on FSM.
-    connectionAdapterInstance = new ConnectionAdapter(manager, async () => undefined, true);
-    connectionAdapterInstance.setUseFSM(true);
-  }
-  return connectionAdapterInstance;
-}
+// function getConnectionAdapterInstance(): ConnectionAdapter {
+//   if (!connectionAdapterInstance) {
+//     const manager = getConnectionFSMManager();
+//     // The fallback function is no longer needed as we are fully on FSM.
+//     connectionAdapterInstance = new ConnectionAdapter(manager, async () => undefined, true);
+//     connectionAdapterInstance.setUseFSM(true);
+//   }
+//   return connectionAdapterInstance;
+// }
 
 async function resolveActiveConnectionTarget(
   context: vscode.ExtensionContext,
@@ -1717,7 +1743,7 @@ async function finalizeConnectionSuccess(
   client = state.client;
   provider = state.provider;
 
-  setTimerConnectionFrom(connection);
+  // setTimerConnectionFrom(connection);
 
   await vscode.commands.executeCommand('setContext', 'azureDevOpsInt.connected', true);
   await updateAuthStatusBar();
@@ -1753,6 +1779,7 @@ async function finalizeConnectionSuccess(
   return state;
 }
 
+/*
 function getClientForConnectionInfo(info?: TimerConnectionInfo): AzureDevOpsIntClient | undefined {
   if (!info) {
     return client;
@@ -1796,6 +1823,7 @@ function getClientForConnectionInfo(info?: TimerConnectionInfo): AzureDevOpsIntC
 
   return client;
 }
+*/
 
 export async function loadConnectionsFromConfig(
   context: vscode.ExtensionContext
@@ -1909,6 +1937,7 @@ export async function loadConnectionsFromConfig(
   return connections;
 }
 
+/*
 async function saveConnectionsToConfig(
   context: vscode.ExtensionContext,
   nextConnections: ProjectConnection[]
@@ -1937,6 +1966,7 @@ async function saveConnectionsToConfig(
 
   notifyConnectionsList();
 }
+*/
 
 async function ensureConnectionsInitialized(context: vscode.ExtensionContext) {
   if (connections.length === 0) await loadConnectionsFromConfig(context);
@@ -1948,6 +1978,7 @@ async function ensureConnectionsInitialized(context: vscode.ExtensionContext) {
  * Device code callback for Entra ID authentication
  * Shows VS Code notification with device code and verification URL
  */
+/*
 const createDeviceCodeCallback =
   (_context: vscode.ExtensionContext, connection?: ProjectConnection): any =>
   async (_deviceCode: any, userCode: any, verificationUrl: any, expiresIn: any) => {
@@ -1974,7 +2005,9 @@ const createDeviceCodeCallback =
       );
     }
   };
+*/
 
+/*
 function ensureTimer(context: vscode.ExtensionContext) {
   if (timer) return timer;
   const config = getConfig();
@@ -1999,13 +2032,13 @@ function ensureTimer(context: vscode.ExtensionContext) {
           try {
             timer?.pause();
           } catch {
-            /* ignore pause error */
+            // ignore pause error
           }
           if (pomodoroBreakTimeout) {
             try {
               clearTimeout(pomodoroBreakTimeout);
             } catch {
-              /* ignore clear error */
+              // ignore clear error
             }
             pomodoroBreakTimeout = undefined;
           }
@@ -2014,7 +2047,7 @@ function ensureTimer(context: vscode.ExtensionContext) {
               try {
                 timer?.resume();
               } catch {
-                /* ignore resume error */
+                // ignore resume error
               }
               pomodoroBreakTimeout = undefined;
             },
@@ -2044,7 +2077,9 @@ function ensureTimer(context: vscode.ExtensionContext) {
   timer.loadFromPersisted();
   return timer;
 }
+*/
 
+/*
 function updateTimerContext(state: any) {
   vscode.commands.executeCommand('setContext', 'azureDevOpsInt.timerActive', state?.isActive);
   vscode.commands.executeCommand('setContext', 'azureDevOpsInt.timerPaused', state?.isPaused);
@@ -2072,6 +2107,7 @@ function restoreTimer(context: vscode.ExtensionContext): {
     connection: context.globalState.get(STATE_TIMER_CONNECTION),
   };
 }
+*/
 
 // Enable a minimal smoke-test mode for CI/integration tests to avoid heavy initialization
 // Primary signal: VSCODE_INTEGRATION_SMOKE=1
@@ -2104,15 +2140,19 @@ type ConfigInspection<T> = {
   workspaceFolderLanguageValue?: T;
 };
 
+/*
 type SendToWebviewOptions = {
   panel?: vscode.WebviewView;
   logger?: LoggerFn;
 };
+*/
 
+/*
 type SendWorkItemsSnapshotOptions = Omit<PostWorkItemsSnapshotParams, 'panel' | 'logger'> &
   SendToWebviewOptions;
+*/
 
-function sendToWebview(message: any): void {
+function dispatchProviderMessage(message: any): void {
   const messageType = message?.type;
 
   // Reactive Architecture: workItemsLoaded and workItemsError are handled via FSM context updates.
@@ -2120,7 +2160,7 @@ function sendToWebview(message: any): void {
   // We no longer post these partial messages directly to webview.
   if (messageType === 'workItemsLoaded') {
     const items = Array.isArray(message.workItems) ? [...message.workItems] : [];
-    verbose('[sendToWebview] Processing workItemsLoaded:', {
+    verbose('[dispatchProviderMessage] Processing workItemsLoaded:', {
       messageType,
       hasWorkItems: !!message.workItems,
       workItemsIsArray: Array.isArray(message.workItems),
@@ -2138,15 +2178,13 @@ function sendToWebview(message: any): void {
       types: Array.isArray(message.types) ? [...message.types] : undefined,
     });
 
-    verbose('[sendToWebview] Dispatched WORK_ITEMS_LOADED event to FSM (not posting to webview)');
-    // Return early - don't post partial message to webview
+    verbose('[dispatchProviderMessage] Dispatched WORK_ITEMS_LOADED event to FSM');
     return;
   }
 
   // workItemsError: Dispatch an authentication failure event so UI can react immediately.
-  // We still avoid posting the partial message directly to the webview.
   if (messageType === 'workItemsError') {
-    verbose('[sendToWebview] Processing workItemsError (not posting to webview):', {
+    verbose('[dispatchProviderMessage] Processing workItemsError:', {
       messageType,
       error: message.error,
       connectionId: message.connectionId,
@@ -2171,31 +2209,11 @@ function sendToWebview(message: any): void {
     } catch {
       // best-effort; ignore
     }
-    // Return early - don't post partial message to webview
     return;
   }
 
-  if (!panel) {
-    activationLogger.warn('[sendToWebview] Dropping message (no panel)', {
-      type: messageType,
-    });
-    verbose?.('[sendToWebview] dropping message (no panel)', { type: messageType });
-    return;
-  }
-
-  // Post other message types (e.g., restoreFilters, etc.) that aren't handled by FSM
-  try {
-    panel.webview.postMessage(message);
-  } catch (error) {
-    activationLogger.error('[sendToWebview] Failed to post message', {
-      type: messageType,
-      error: error instanceof Error ? error.message : error,
-    });
-    verbose?.(
-      '[sendToWebview] failed to post message',
-      error instanceof Error ? error.message : error
-    );
-  }
+  // Other messages are dropped as they are legacy/unused in the new architecture
+  verbose('[dispatchProviderMessage] Dropping unhandled message type', { type: messageType });
 }
 
 function forwardProviderMessage(connectionId: string, message: unknown) {
@@ -2211,13 +2229,13 @@ function forwardProviderMessage(connectionId: string, message: unknown) {
   });
 
   if (message && typeof message === 'object' && 'type' in message) {
-    sendToWebview({
+    dispatchProviderMessage({
       ...(message as any),
       connectionId,
     });
   } else {
     // Fallback for messages without type
-    sendToWebview({
+    dispatchProviderMessage({
       type: 'providerMessage',
       connectionId,
       message,
@@ -2225,6 +2243,7 @@ function forwardProviderMessage(connectionId: string, message: unknown) {
   }
 }
 
+/*
 function resolveSnapshotTypes(
   providerRef: WorkItemsProvider | undefined,
   explicit: string[] | undefined,
@@ -2272,7 +2291,9 @@ function enrichWorkItems(
   }
   return items.map((item) => ({ ...item, connectionId, branchContext }));
 }
+*/
 
+/*
 function sendWorkItemsSnapshot(options: SendWorkItemsSnapshotOptions): void {
   const connectionId = options.connectionId ?? activeConnectionId;
   const items = Array.isArray(options.items) ? options.items : [];
@@ -2291,6 +2312,7 @@ function sendWorkItemsSnapshot(options: SendWorkItemsSnapshotOptions): void {
     types,
   });
 }
+*/
 
 function hasConfigOverride<T>(metadata: ConfigInspection<T> | undefined): boolean {
   if (!metadata) return false;
@@ -2326,7 +2348,7 @@ export function resolveDefaultQuery(_config: vscode.WorkspaceConfiguration): str
       typeof _config?.inspect === 'function' ? _config.inspect.bind(_config) : undefined;
     if (!inspectFn) return workItemQuery;
     try {
-      const metadata = inspectFn<string>('workItemQuery');
+      const metadata = (inspectFn as any)('workItemQuery');
       if (hasConfigOverride(metadata)) return workItemQuery;
     } catch {
       // If inspect fails, assume the user intentionally set a custom query to avoid breaking legacy behavior.
@@ -2342,30 +2364,33 @@ function getDefaultQuery(config?: vscode.WorkspaceConfiguration): string {
   return resolveDefaultQuery(target);
 }
 
+/*
 async function setOpenAIApiKey(context: vscode.ExtensionContext) {
   const apiKey = await vscode.window.showInputBox({
     prompt: 'Enter your OpenAI API Key',
     password: true,
   });
   if (apiKey) {
-    await context.secrets.store(OPENAI_SECRET_KEY, apiKey);
+    // await context.secrets.store(OPENAI_SECRET_KEY, apiKey);
     vscode.window.showInformationMessage('OpenAI API Key saved successfully.');
-    openAiClient = new OpenAI({ apiKey });
+    // openAiClient = new OpenAI({ apiKey });
   }
 }
 
 function getExtensionVersion(context: vscode.ExtensionContext): string {
-  if (cachedExtensionVersion) return cachedExtensionVersion;
+  // if (cachedExtensionVersion) return cachedExtensionVersion;
   try {
     const pkgPath = path.join(context.extensionPath, 'package.json');
     const pkgRaw = fs.readFileSync(pkgPath, 'utf8');
     const pkg = JSON.parse(pkgRaw);
-    cachedExtensionVersion = String(pkg.version || 'dev');
+    // cachedExtensionVersion = String(pkg.version || 'dev');
+    return String(pkg.version || 'dev');
   } catch {
     // Swallow errors and fall back to 'dev'
-    cachedExtensionVersion = 'dev';
+    // cachedExtensionVersion = 'dev';
+    return 'dev';
   }
-  return cachedExtensionVersion;
+  // return cachedExtensionVersion;
 }
 async function migrateLegacyConfigIfNeeded() {
   try {
@@ -2381,6 +2406,7 @@ async function migrateLegacyConfigIfNeeded() {
     activationLogger.warn('migrateLegacyConfigIfNeeded failed', { meta: e });
   }
 }
+*/
 
 /**
  * Apply startup patches to fix user settings and configuration issues.
@@ -2571,16 +2597,15 @@ export async function activate(context: vscode.ExtensionContext) {
   authStatusBarItem.show();
 
   // Set global reference for reactive status bar updates
-  updateAuthStatusBarRef = updateAuthStatusBar;
+  // updateAuthStatusBarRef = updateAuthStatusBar;
   (globalThis as any).__updateAuthStatusBar = updateAuthStatusBar;
 
-  // LEGACY AUTH REMOVED - EntraAuthenticationProvider replaced by FSM authentication
-  const authenticationProviderOptions: vscode.AuthenticationProviderOptions & {
-    supportsAccountManagement?: boolean;
-  } = {
-    supportsMultipleAccounts: true,
-    supportsAccountManagement: true,
-  };
+  // const authenticationProviderOptions: vscode.AuthenticationProviderOptions & {
+  //   supportsAccountManagement?: boolean;
+  // } = {
+  //   supportsMultipleAccounts: true,
+  //   supportsAccountManagement: true,
+  // };
   // LEGACY AUTH REMOVED - Authentication provider registration replaced by FSM authentication
 
   // Ensure applicationStore is initialized before registering webview provider
@@ -2625,7 +2650,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Import FSM tracing modules
   import('./fsm/logging/FSMTracer.js')
-    .then(({ startTraceSession, fsmTracer }) => {
+    .then(({ startTraceSession /*, fsmTracer */ }) => {
       try {
         const sessionId = startTraceSession('Extension Activation - Auto Debug Session');
         verbose(`[ACTIVATION] FSM tracing started: ${sessionId}`);
@@ -2657,7 +2682,7 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
   // FSM and Bridge setup
-  const fsmSetupService = new FSMSetupService(context);
+  // const fsmSetupService = new FSMSetupService(context);
 
   const appActor = getApplicationStoreActor();
 
@@ -2694,8 +2719,8 @@ export async function activate(context: vscode.ExtensionContext) {
         // If the newly active connection is not connected, proactively ensure and, if needed, prompt
         try {
           if (extensionContextRef && activeConnectionId) {
-            const adapter = getConnectionAdapterInstance();
-            const stateValue = adapter.getConnectionState?.(activeConnectionId);
+            const manager = getConnectionFSMManager();
+            const stateValue = manager.getConnectionState(activeConnectionId);
             const targetState = connectionStates.get(activeConnectionId);
             const hasProvider = !!targetState?.provider;
             const isConnected =
@@ -2852,7 +2877,6 @@ export async function activate(context: vscode.ExtensionContext) {
     context,
     panel,
     provider,
-    timer,
     sessionTelemetry,
     client,
     statusBarItem,
@@ -2907,7 +2931,7 @@ export async function activate(context: vscode.ExtensionContext) {
   startCacheCleanup();
 
   // Start memory optimizer
-  const memoryOptimizer = new MemoryOptimizer();
+  // const memoryOptimizer = new MemoryOptimizer();
 
   // Start periodic token refresh
   if (tokenRefreshInterval) clearInterval(tokenRefreshInterval);
@@ -2939,7 +2963,7 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate(): Thenable<void> {
-  isDeactivating = true;
+  // isDeactivating = true;
   verbose('[deactivate] starting');
 
   // Stop periodic tasks
@@ -2996,14 +3020,14 @@ function getSerializableContext(context: any): Record<string, any> {
       const connectionActor = connectionManager.getConnectionActor(context.activeConnectionId);
       if (connectionActor && typeof connectionActor.getSnapshot === 'function') {
         const connectionSnapshot = connectionActor.getSnapshot();
-        if (connectionSnapshot?.context?.lastError) {
-          workItemsError = connectionSnapshot.context.lastError;
+        if (connectionSnapshot?.error) {
+          workItemsError = connectionSnapshot.error;
           workItemsErrorConnectionId = context.activeConnectionId;
           if (shouldLogDebug()) {
             verbose('[getSerializableContext] Extracted connection error', {
               error: workItemsError,
               connectionId: workItemsErrorConnectionId,
-              state: connectionSnapshot.value,
+              state: connectionSnapshot.state,
             });
           }
         }
@@ -3090,14 +3114,14 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
   private readonly extensionUri: vscode.Uri;
   private readonly fsm: ReturnType<typeof getApplicationActor>;
 
-  constructor(private readonly context: vscode.ExtensionContext) {
-    this.extensionUri = context.extensionUri;
+  constructor(_context: vscode.ExtensionContext) {
+    this.extensionUri = _context.extensionUri;
     this.fsm = getApplicationActor();
   }
 
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
-    context: vscode.WebviewViewResolveContext,
+    _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ) {
     this.view = webviewView;
@@ -3202,7 +3226,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
             .then(() => {
               verbose('[AzureDevOpsIntViewProvider] Setup command executed successfully');
             })
-            .catch((err) => {
+            .then(undefined, (err) => {
               activationLogger.error('[AzureDevOpsIntViewProvider] Failed to open settings', {
                 meta: err,
               });
@@ -3210,62 +3234,10 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
           return; // Don't dispatch to FSM
         }
 
-        // Forward other events to FSM
-        dispatchApplicationEvent(message.event);
-      } else if (message.type && typeof message.type === 'string') {
-        // Handle direct event format (e.g., { type: 'OPEN_SETTINGS' })
-        verbose('[AzureDevOpsIntViewProvider] Received direct event from webview', {
-          eventType: message.type,
-          event: message,
-        });
-
-        // Handle specific events
-        if (message.type === 'OPEN_SETTINGS') {
-          verbose('[AzureDevOpsIntViewProvider] Executing azureDevOpsInt.setup command...');
-          vscode.commands
-            .executeCommand('azureDevOpsInt.setup')
-            .then(() => {
-              verbose('[AzureDevOpsIntViewProvider] Setup command executed successfully');
-            })
-            .catch((err) => {
-              activationLogger.error('[AzureDevOpsIntViewProvider] Failed to open settings', {
-                meta: err,
-              });
-            });
-        } else if (message.type === 'REFRESH_DATA') {
-          verbose('[AzureDevOpsIntViewProvider] Dispatching REFRESH_DATA event...');
-          // Trigger refresh by dispatching REFRESH_DATA event
-          dispatchApplicationEvent({ type: 'REFRESH_DATA' });
-        } else if (message.type === 'TOGGLE_DEBUG_VIEW') {
-          verbose('[AzureDevOpsIntViewProvider] Received TOGGLE_DEBUG_VIEW from webview', {
-            debugViewVisible: message.debugViewVisible,
-          });
-          // Forward TOGGLE_DEBUG_VIEW to FSM (Svelte already toggled locally)
-          dispatchApplicationEvent({
-            type: 'TOGGLE_DEBUG_VIEW',
-            debugViewVisible: message.debugViewVisible,
-          });
-        } else if (message.type === 'EXECUTE_COMMAND') {
-          // Execute VS Code command from webview header
-          const command = message.command;
-          verbose('[AzureDevOpsIntViewProvider] Executing command from webview:', command);
-          if (command) {
-            vscode.commands
-              .executeCommand(command, ...(message.args || []))
-              .then(() => {
-                verbose('[AzureDevOpsIntViewProvider] Command executed successfully:', command);
-              })
-              .catch((err) => {
-                activationLogger.error('[AzureDevOpsIntViewProvider] Failed to execute command', {
-                  command,
-                  meta: err,
-                });
-              });
-          }
-        } else if (message.type === 'openDeviceCodeBrowser') {
+        if (message.event.type === 'OPEN_DEVICE_CODE_BROWSER') {
           // Handle device code browser opening from webview
-          verbose('[AzureDevOpsIntViewProvider] Received openDeviceCodeBrowser from webview', {
-            connectionId: message.payload?.connectionId,
+          verbose('[AzureDevOpsIntViewProvider] Received OPEN_DEVICE_CODE_BROWSER from webview', {
+            connectionId: message.event.connectionId,
           });
 
           // Get device code session from FSM context
@@ -3273,10 +3245,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
           const snapshot = actor?.getSnapshot?.();
           const deviceCodeSession = snapshot?.context?.deviceCodeSession;
 
-          if (
-            deviceCodeSession &&
-            deviceCodeSession.connectionId === message.payload?.connectionId
-          ) {
+          if (deviceCodeSession && deviceCodeSession.connectionId === message.event.connectionId) {
             // Copy code to clipboard and open browser
             vscode.env.clipboard
               .writeText(deviceCodeSession.userCode)
@@ -3289,13 +3258,13 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
                   .then(() => {
                     verbose('[AzureDevOpsIntViewProvider] Device code copied and browser opened');
                   })
-                  .catch((err) => {
+                  .then(undefined, (err) => {
                     activationLogger.error('[AzureDevOpsIntViewProvider] Failed to open browser', {
                       meta: err,
                     });
                   });
               })
-              .catch((err) => {
+              .then(undefined, (err) => {
                 activationLogger.error('[AzureDevOpsIntViewProvider] Failed to copy device code', {
                   meta: err,
                 });
@@ -3303,16 +3272,23 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
           } else {
             activationLogger.warn(
               '[AzureDevOpsIntViewProvider] Device code session not found for connection',
-              { meta: { connectionId: message.payload?.connectionId } }
+              { meta: { connectionId: message.event.connectionId } }
             );
           }
-        } else {
-          // Forward other events to FSM
-          verbose('[AzureDevOpsIntViewProvider] Forwarding event to FSM', {
-            meta: { type: message.type },
-          });
-          dispatchApplicationEvent(message);
+          return; // Don't dispatch to FSM
         }
+
+        // Forward other events to FSM
+        dispatchApplicationEvent(message.event);
+      } else {
+        // Log warning for legacy/unknown message types
+        activationLogger.warn(
+          '[AzureDevOpsIntViewProvider] Received unknown or legacy message type',
+          {
+            type: message.type,
+            message,
+          }
+        );
       }
     });
 
@@ -3379,6 +3355,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
   }
 }
 
+/*
 async function diagnoseWorkItemsIssue(context: vscode.ExtensionContext) {
   const log = (message: string) => getOutputChannel()?.appendLine(`[DIAGNOSTIC] ${message}`);
   log('Starting work items diagnostic...');
@@ -3428,3 +3405,4 @@ async function diagnoseWorkItemsIssue(context: vscode.ExtensionContext) {
   log('Diagnostic complete.');
   getOutputChannel()?.show();
 }
+*/

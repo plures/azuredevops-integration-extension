@@ -84,7 +84,7 @@ export const createAzureClient = fromPromise(async ({ input }: { input: Connecti
       input.config.organization,
       input.config.project,
       input.credential || '',
-      input.authMethod
+      input.authMethod === 'entra' ? 'bearer' : input.authMethod
     );
 
     return { client };
@@ -108,7 +108,7 @@ export const createWorkItemsProvider = fromPromise(
       const { WorkItemsProvider } = await import('../../provider.js');
 
       // Create provider with client
-      const provider = new WorkItemsProvider(input.client!);
+      const provider = new WorkItemsProvider(input.client!, () => {});
 
       return { provider };
     } catch (error) {

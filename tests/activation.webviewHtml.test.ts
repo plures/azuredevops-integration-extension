@@ -1,3 +1,64 @@
+import { vi } from 'vitest';
+
+vi.mock('vscode', () => {
+  return {
+    default: {
+      workspace: {
+        getConfiguration: () => ({
+          get: () => undefined,
+          update: () => Promise.resolve(),
+        }),
+        onDidChangeConfiguration: () => ({ dispose: () => {} }),
+      },
+      window: {
+        showErrorMessage: () => Promise.resolve(),
+        showInformationMessage: () => Promise.resolve(),
+        createOutputChannel: () => ({
+          append: () => {},
+          appendLine: () => {},
+          show: () => {},
+          dispose: () => {},
+        }),
+      },
+      commands: {
+        registerCommand: () => ({ dispose: () => {} }),
+        executeCommand: () => Promise.resolve(),
+      },
+      Uri: {
+        file: (path: string) => ({ fsPath: path }),
+        parse: (uri: string) => ({ toString: () => uri }),
+      },
+      ExtensionContext: class {},
+    },
+    workspace: {
+      getConfiguration: () => ({
+        get: () => undefined,
+        update: () => Promise.resolve(),
+      }),
+      onDidChangeConfiguration: () => ({ dispose: () => {} }),
+    },
+    window: {
+      showErrorMessage: () => Promise.resolve(),
+      showInformationMessage: () => Promise.resolve(),
+      createOutputChannel: () => ({
+        append: () => {},
+        appendLine: () => {},
+        show: () => {},
+        dispose: () => {},
+      }),
+    },
+    commands: {
+      registerCommand: () => ({ dispose: () => {} }),
+      executeCommand: () => Promise.resolve(),
+    },
+    Uri: {
+      file: (path: string) => ({ fsPath: path }),
+      parse: (uri: string) => ({ toString: () => uri }),
+    },
+  };
+});
+
+import { describe, it, beforeAll } from 'vitest';
 import { expect } from 'chai';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -39,11 +100,13 @@ describe('buildMinimalWebviewHtml', () => {
   const mediaSvelte = path.join(root, 'media', 'webview', 'svelte-main.js');
   const mediaIndex = path.join(root, 'media', 'webview', 'index.html');
 
-  before(function () {
-    // Ensure media files exist for the test
-    if (!fs.existsSync(mediaIndex)) this.skip();
-    if (!fs.existsSync(mediaSvelte)) this.skip();
-  });
+  // Skip if media files don't exist (e.g. in CI without build)
+  const shouldRun = fs.existsSync(mediaIndex) && fs.existsSync(mediaSvelte);
+
+  if (!shouldRun) {
+    it.skip('skipping webview tests because media files are missing', () => {});
+    return;
+  }
 
   it('selects svelte-main.js when the feature flag is enabled and bundle exists', () => {
     // Arrange a config getter that returns true for experimentalSvelteUI

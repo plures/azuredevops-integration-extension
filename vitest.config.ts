@@ -24,6 +24,7 @@ export default defineConfig({
       'tests/features/timer-integration.test.ts',
       // Exclude integration tests that require VS Code runtime
       'tests/integration-tests/**/*.test.ts',
+      'tests/integration/**/*.test.ts',
     ],
     coverage: {
       provider: 'v8',

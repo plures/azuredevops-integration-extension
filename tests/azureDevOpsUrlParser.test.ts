@@ -1,4 +1,4 @@
-import { describe, it } from 'mocha';
+import { describe, it } from 'vitest';
 import { expect } from 'chai';
 import {
   parseAzureDevOpsUrl,
@@ -8,9 +8,9 @@ import {
   testAzureDevOpsConnection,
 } from '../src/azureDevOpsUrlParser.ts';
 
-describe('Azure DevOps URL Parser', function () {
-  describe('parseAzureDevOpsUrl', function () {
-    it('should parse dev.azure.com URLs correctly', function () {
+describe('Azure DevOps URL Parser', () => {
+  describe('parseAzureDevOpsUrl', () => {
+    it('should parse dev.azure.com URLs correctly', () => {
       const url = 'https://dev.azure.com/myorg/myproject/_workitems/edit/12345';
       const result = parseAzureDevOpsUrl(url);
 
@@ -23,7 +23,7 @@ describe('Azure DevOps URL Parser', function () {
       expect(result.error).to.be.undefined;
     });
 
-    it('should parse visualstudio.com URLs correctly', function () {
+    it('should parse visualstudio.com URLs correctly', () => {
       const url = 'https://myorg.visualstudio.com/myproject/_workitems/edit/12345';
       const result = parseAzureDevOpsUrl(url);
 
@@ -36,7 +36,7 @@ describe('Azure DevOps URL Parser', function () {
       expect(result.error).to.be.undefined;
     });
 
-    it('should parse dev.azure.com subdomain URLs correctly', function () {
+    it('should parse dev.azure.com subdomain URLs correctly', () => {
       const url = 'https://myorg.dev.azure.com/myproject/_workitems/edit/12345';
       const result = parseAzureDevOpsUrl(url);
 
@@ -49,7 +49,7 @@ describe('Azure DevOps URL Parser', function () {
       expect(result.error).to.be.undefined;
     });
 
-    it('should parse vsrm.visualstudio.com URLs correctly', function () {
+    it('should parse vsrm.visualstudio.com URLs correctly', () => {
       const url = 'https://myorg.vsrm.visualstudio.com/myproject/_workitems/edit/12345';
       const result = parseAzureDevOpsUrl(url);
 
@@ -62,7 +62,7 @@ describe('Azure DevOps URL Parser', function () {
       expect(result.error).to.be.undefined;
     });
 
-    it('should handle URLs with additional path segments', function () {
+    it('should handle URLs with additional path segments', () => {
       const url =
         'https://dev.azure.com/myorg/myproject/_workitems/edit/12345/some/additional/path';
       const result = parseAzureDevOpsUrl(url);
@@ -73,7 +73,7 @@ describe('Azure DevOps URL Parser', function () {
       expect(result.workItemId).to.equal(12345);
     });
 
-    it('should handle URLs without work item ID', function () {
+    it('should handle URLs without work item ID', () => {
       const url = 'https://dev.azure.com/myorg/myproject/_workitems/edit/';
       const result = parseAzureDevOpsUrl(url);
 
@@ -81,7 +81,7 @@ describe('Azure DevOps URL Parser', function () {
       expect(result.error).to.include('Unsupported URL format');
     });
 
-    it('should reject invalid URLs', function () {
+    it('should reject invalid URLs', () => {
       const invalidUrls = [
         'not-a-url',
         'https://example.com/workitems/edit/123',
@@ -100,7 +100,7 @@ describe('Azure DevOps URL Parser', function () {
       }
     });
 
-    it('should handle URLs with special characters in org/project names', function () {
+    it('should handle URLs with special characters in org/project names', () => {
       const url = 'https://dev.azure.com/my-org_123/My%20Project/_workitems/edit/12345';
       const result = parseAzureDevOpsUrl(url);
 
@@ -109,7 +109,7 @@ describe('Azure DevOps URL Parser', function () {
       expect(result.project).to.equal('My%20Project');
     });
 
-    it('should parse on-premises Azure DevOps Server URLs correctly', function () {
+    it('should parse on-premises Azure DevOps Server URLs correctly', () => {
       const url = 'https://myserver/DefaultCollection/MyProject/_workitems/edit/12345';
       const result = parseAzureDevOpsUrl(url);
 
@@ -122,7 +122,7 @@ describe('Azure DevOps URL Parser', function () {
       expect(result.error).to.be.undefined;
     });
 
-    it('should parse on-premises URLs with ports', function () {
+    it('should parse on-premises URLs with ports', () => {
       const url = 'https://server:8080/tfs/MyProject/_workitems/edit/123';
       const result = parseAzureDevOpsUrl(url);
 
@@ -134,7 +134,7 @@ describe('Azure DevOps URL Parser', function () {
       expect(result.workItemId).to.equal(123);
     });
 
-    it('should parse on-premises URLs without work item ID', function () {
+    it('should parse on-premises URLs without work item ID', () => {
       const url = 'https://onprem-server/Collection/Project/_boards';
       const result = parseAzureDevOpsUrl(url);
 
@@ -146,7 +146,7 @@ describe('Azure DevOps URL Parser', function () {
       expect(result.workItemId).to.be.undefined;
     });
 
-    it('should parse simplified on-premises URLs (2-segment) correctly', function () {
+    it('should parse simplified on-premises URLs (2-segment) correctly', () => {
       // Edge case: https://server/collection should create API URL without duplicating collection
       const url = 'https://server/tfs/MyProject/_workitems/edit/123';
       const result = parseAzureDevOpsUrl(url);
@@ -160,7 +160,7 @@ describe('Azure DevOps URL Parser', function () {
       expect(result.workItemId).to.equal(123);
     });
 
-    it('should parse full on-premises URLs (3-segment) correctly', function () {
+    it('should parse full on-premises URLs (3-segment) correctly', () => {
       // Full format: https://server/collection/org/project
       const url = 'https://server/DefaultCollection/MyOrg/MyProject/_workitems/edit/456';
       const result = parseAzureDevOpsUrl(url);
@@ -175,8 +175,8 @@ describe('Azure DevOps URL Parser', function () {
     });
   });
 
-  describe('isAzureDevOpsWorkItemUrl', function () {
-    it('should identify valid Azure DevOps work item URLs', function () {
+  describe('isAzureDevOpsWorkItemUrl', () => {
+    it('should identify valid Azure DevOps work item URLs', () => {
       const validUrls = [
         'https://dev.azure.com/myorg/myproject/_workitems/edit/12345',
         'https://myorg.visualstudio.com/myproject/_workitems/edit/12345',
@@ -189,7 +189,7 @@ describe('Azure DevOps URL Parser', function () {
       }
     });
 
-    it('should reject non-Azure DevOps URLs', function () {
+    it('should reject non-Azure DevOps URLs', () => {
       const invalidUrls = [
         'https://example.com/workitems/edit/123',
         'https://github.com/user/repo/issues/123',
@@ -206,30 +206,30 @@ describe('Azure DevOps URL Parser', function () {
     });
   });
 
-  describe('generatePatCreationUrl', function () {
-    it('should generate correct PAT creation URL for dev.azure.com', function () {
+  describe('generatePatCreationUrl', () => {
+    it('should generate correct PAT creation URL for dev.azure.com', () => {
       const url = generatePatCreationUrl('myorg', 'https://dev.azure.com/myorg');
       expect(url).to.equal('https://dev.azure.com/myorg/_usersSettings/tokens');
     });
 
-    it('should generate correct PAT creation URL for visualstudio.com', function () {
+    it('should generate correct PAT creation URL for visualstudio.com', () => {
       const url = generatePatCreationUrl('myorg', 'https://myorg.visualstudio.com');
       expect(url).to.equal('https://myorg.visualstudio.com/_usersSettings/tokens');
     });
 
-    it('should generate correct PAT creation URL for on-premises', function () {
+    it('should generate correct PAT creation URL for on-premises', () => {
       const url = generatePatCreationUrl('collection', 'https://myserver/collection');
       expect(url).to.equal('https://myserver/collection/_usersSettings/tokens');
     });
   });
 
-  describe('generateWorkItemUrl', function () {
-    it('should generate correct work item URL for dev.azure.com', function () {
+  describe('generateWorkItemUrl', () => {
+    it('should generate correct work item URL for dev.azure.com', () => {
       const url = generateWorkItemUrl('myorg', 'myproject', 12345, 'https://dev.azure.com/myorg');
       expect(url).to.equal('https://dev.azure.com/myorg/myproject/_workitems/edit/12345');
     });
 
-    it('should generate correct work item URL for visualstudio.com', function () {
+    it('should generate correct work item URL for visualstudio.com', () => {
       const url = generateWorkItemUrl(
         'myorg',
         'myproject',
@@ -239,7 +239,7 @@ describe('Azure DevOps URL Parser', function () {
       expect(url).to.equal('https://myorg.visualstudio.com/myproject/_workitems/edit/12345');
     });
 
-    it('should generate correct work item URL for on-premises', function () {
+    it('should generate correct work item URL for on-premises', () => {
       const url = generateWorkItemUrl(
         'collection',
         'myproject',
@@ -250,8 +250,8 @@ describe('Azure DevOps URL Parser', function () {
     });
   });
 
-  describe('testAzureDevOpsConnection', function () {
-    it('should reject invalid URL configuration', async function () {
+  describe('testAzureDevOpsConnection', () => {
+    it('should reject invalid URL configuration', async () => {
       const invalidUrl = {
         isValid: false,
         organization: '',
@@ -265,7 +265,7 @@ describe('Azure DevOps URL Parser', function () {
       expect(result.error).to.include('Invalid URL configuration');
     });
 
-    it('should reject empty PAT', async function () {
+    it('should reject empty PAT', async () => {
       const validUrl = {
         isValid: true,
         organization: 'myorg',

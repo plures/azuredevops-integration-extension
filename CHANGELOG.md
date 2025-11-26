@@ -16,20 +16,17 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Merge branch 'main' of https://github.com/plures/azuredevops-integration-extension
 
-
 ## [2.12.1] - 2025-11-25
 
 ### Other
 
 - Update to plures/praxis 1.0.0 and remove xState (#110)
 
-
 ## [2.12.0] - 2025-11-25
 
 ### Added
 
 - implement Phase 5 application orchestrator and Phase 6 webview integration (#107)
-
 
 ## [2.10.0] - 2025-11-25
 

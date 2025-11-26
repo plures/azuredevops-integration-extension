@@ -11,7 +11,7 @@
  * LLM-GUARD:
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
  */
-import type { ApplicationContext } from '../../machines/applicationMachine.js';
+import type { ApplicationContext } from '../../machines/applicationTypes.js';
 
 export type KanbanColumn = { id: string; title: string; itemIds: number[] };
 

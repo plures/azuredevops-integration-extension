@@ -14,8 +14,8 @@
  * This module now uses Praxis logic engine instead of XState.
  */
 import { PraxisTimerManager } from '../praxis/timer/manager.js';
-import type { TimerContext } from './types';
-import { FSM_CONFIG } from './config';
+import type { TimerContext } from './types.js';
+import { FSM_CONFIG } from './config.js';
 import { createComponentLogger, FSMComponent } from './logging/FSMLogger.js';
 import { fsmTracer } from './logging/FSMTracer.js';
 
@@ -199,6 +199,47 @@ export class FSMManager {
     if (this.timerManager) {
       this.timerManager.activityPing();
     }
+  }
+
+  restoreTimer(
+    workItemId: number,
+    workItemTitle: string,
+    startTime: number,
+    isPaused: boolean
+  ): boolean {
+    if (!this.timerManager) {
+      this.logger.error('Timer manager not initialized');
+      return false;
+    }
+
+    try {
+      const result = this.timerManager.restoreTimer(workItemId, workItemTitle, startTime, isPaused);
+      if (result) {
+        fsmTracer.logEvent({
+          component: FSMComponent.TIMER,
+          machineId: 'praxisTimerManager',
+          eventType: 'RESTORE_TIMER',
+          timestamp: Date.now(),
+          data: { workItemId, workItemTitle, startTime, isPaused },
+        });
+      }
+      return result;
+    } catch (error) {
+      this.logger.error(
+        'Failed to restore timer: ' + (error instanceof Error ? error.message : String(error))
+      );
+      return false;
+    }
+  }
+
+  updateElapsedLimit(limit: number): void {
+    if (!this.timerManager) {
+      this.logger.error('Timer manager not initialized');
+      return;
+    }
+
+    // TODO: Implement updateElapsedLimit in PraxisTimerManager
+    this.logger.warn(`updateElapsedLimit(${limit}) not implemented in PraxisTimerManager yet`);
   }
 
   getTimerSnapshot(): any {

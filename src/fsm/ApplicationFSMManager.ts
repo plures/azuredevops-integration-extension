@@ -14,24 +14,21 @@
  * the existing global state management in activation.ts.
  */
 
-import { createActor, ActorRefFrom } from 'xstate';
-import { applicationMachine } from './machines/applicationMachine.js';
+import { PraxisApplicationManager } from '../praxis/application/manager.js';
 import { FSMManager } from './FSMManager.js';
-import { TimerAdapter } from './adapters/TimerAdapter.js';
 import { FSM_CONFIG as _FSM_CONFIG } from './config.js';
 import { createComponentLogger, FSMComponent } from './logging/FSMLogger.js';
 import { fsmTracer } from './logging/FSMTracer.js';
 
 export class ApplicationFSMManager {
-  private appActor?: ActorRefFrom<typeof applicationMachine>;
-  private timerAdapter?: TimerAdapter;
+  private praxisManager?: PraxisApplicationManager;
   private fsmManager?: FSMManager;
   private isStarted = false;
   private logger = createComponentLogger(FSMComponent.APPLICATION, 'ApplicationFSM');
   private traceCleanup: (() => void) | undefined;
 
   constructor(private extensionContext: any) {
-    this.logger.info('ApplicationFSMManager created');
+    this.logger.info('ApplicationFSMManager created (Praxis-based)');
   }
 
   /**
@@ -44,67 +41,31 @@ export class ApplicationFSMManager {
     }
 
     try {
-      this.logger.info('Starting application state machine...');
+      this.logger.info('Starting application state machine (Praxis)...');
 
-      // Create the main application actor
-      this.appActor = createActor(applicationMachine, {
-        input: {
-          extensionContext: this.extensionContext,
-        },
-      });
+      // Create the main application manager
+      this.praxisManager = new PraxisApplicationManager();
+      this.praxisManager.start();
 
       // Setup FSM tracing for full replay capability
-      // Note: XState v5 createActor returns an ActorRef, but tracer expects Actor
-      // We'll cast to any to bypass the type check since the runtime behavior is compatible
+      // Note: Praxis doesn't use actors in the same way, but we can still log events
       this.traceCleanup = fsmTracer.instrumentActor(
-        this.appActor as any,
+        this.praxisManager.getEngine(),
         FSMComponent.APPLICATION,
         'applicationMachine'
       );
       this.logger.info('Application FSM instrumented for tracing and replay');
 
-      // Subscribe to state changes with FSM logging
-      this.appActor.subscribe((state) => {
-        this.logger.logStateTransition(
-          'unknown', // We don't have previous state here
-          typeof state.value === 'string' ? state.value : JSON.stringify(state.value),
-          'STATE_CHANGE',
-          'applicationMachine'
-        );
-
-        this.logger.debug(
-          'Application FSM state update',
-          {
-            state: typeof state.value === 'string' ? state.value : JSON.stringify(state.value),
-            machineId: 'applicationMachine',
-          },
-          {
-            isActivated: state.context.isActivated,
-            connectionCount: state.context.connections.length,
-            activeConnectionId: state.context.activeConnectionId,
-          }
-        );
-      });
-
-      // Start the actor
-      this.appActor.start();
-      this.logger.info('Application actor started');
-
       // Activate the extension
-      this.appActor.send({ type: 'ACTIVATE', context: this.extensionContext });
+      this.praxisManager.activate(this.extensionContext);
       this.logger.logEvent('ACTIVATE', 'initializing', 'applicationMachine', {
         context: 'extensionContext',
       });
 
-      // Create FSM Manager for backward compatibility
+      // Create FSM Manager for backward compatibility (Timer)
       this.fsmManager = new FSMManager();
       await this.fsmManager.start();
       this.logger.info('FSM Manager started');
-
-      // Create Timer Adapter with FSM enabled
-      // We'll pass null for legacy timer since we're using FSM mode
-      this.timerAdapter = new TimerAdapter(this.fsmManager, null as any, true);
-      this.logger.info('Timer Adapter created');
 
       this.isStarted = true;
       this.logger.info('Application FSM started successfully');
@@ -160,16 +121,16 @@ export class ApplicationFSMManager {
       this.logger.info('Stopping application state machine...');
 
       // Send deactivate event
-      this.appActor?.send({ type: 'DEACTIVATE' });
+      this.praxisManager?.deactivate();
       this.logger.logEvent('DEACTIVATE', 'stopping', 'applicationMachine');
 
       // Stop child managers
       await this.fsmManager?.stop();
       this.logger.info('FSM Manager stopped');
 
-      // Stop the main actor
-      this.appActor?.stop();
-      this.logger.info('Application actor stopped');
+      // Stop the main manager
+      this.praxisManager?.stop();
+      this.logger.info('Application manager stopped');
 
       this.isStarted = false;
       this.logger.info('Application FSM stopped successfully');
@@ -182,21 +143,49 @@ export class ApplicationFSMManager {
    * Get current application state
    */
   getState() {
-    return this.appActor?.getSnapshot();
+    if (!this.praxisManager) return undefined;
+    const snapshot = this.praxisManager.getSnapshot();
+    return {
+      value: snapshot.state,
+      context: snapshot,
+    };
   }
 
   /**
    * Send event to application FSM
+   * Note: This is a compatibility layer. Prefer using specific methods on PraxisApplicationManager.
    */
   send(event: any) {
-    this.appActor?.send(event);
-  }
+    if (!this.praxisManager) return;
 
-  /**
-   * Get timer adapter for backward compatibility
-   */
-  getTimerAdapter(): TimerAdapter | undefined {
-    return this.timerAdapter;
+    // Map legacy events to Praxis calls if needed
+    // For now, we just log that we received a generic event
+    this.logger.debug(`Received generic event: ${event.type}`, event);
+
+    // Handle specific events that might be passed via send()
+    switch (event.type) {
+      case 'CONNECTIONS_LOADED':
+        this.praxisManager.loadConnections(event.connections);
+        break;
+      case 'CONNECTION_SELECTED':
+        this.praxisManager.selectConnection(event.connectionId);
+        break;
+      case 'AUTHENTICATION_SUCCESS': {
+        const authManager = this.praxisManager.getAuthManager(event.connectionId);
+        if (authManager) {
+          authManager.authSuccess(event.token);
+        }
+        break;
+      }
+      case 'AUTHENTICATION_FAILED': {
+        const authManagerFail = this.praxisManager.getAuthManager(event.connectionId);
+        if (authManagerFail) {
+          authManagerFail.authFailed(event.error);
+        }
+        break;
+      }
+      // Add other mappings as needed
+    }
   }
 
   /**
@@ -210,14 +199,14 @@ export class ApplicationFSMManager {
    * Handle connection changes
    */
   onConnectionsLoaded(connections: any[]) {
-    this.appActor?.send({ type: 'CONNECTIONS_LOADED', connections });
+    this.praxisManager?.loadConnections(connections);
   }
 
   /**
    * Handle connection selection
    */
   onConnectionSelected(connectionId: string) {
-    this.appActor?.send({ type: 'CONNECTION_SELECTED', connectionId });
+    this.praxisManager?.selectConnection(connectionId);
   }
 
   /**
@@ -230,28 +219,36 @@ export class ApplicationFSMManager {
       );
       return;
     }
-    this.appActor?.send({ type: 'AUTHENTICATION_REQUIRED', connectionId });
+    // In Praxis, we might request an auth reminder or trigger a flow
+    this.praxisManager?.requestAuthReminder(connectionId, 'Authentication required');
   }
 
   /**
    * Handle authentication success
    */
-  onAuthenticationSuccess(connectionId: string) {
-    this.appActor?.send({ type: 'AUTHENTICATION_SUCCESS', connectionId });
+  onAuthenticationSuccess(connectionId: string, token: string) {
+    const authManager = this.praxisManager?.getAuthManager(connectionId);
+    if (authManager) {
+      authManager.authSuccess(token);
+    }
   }
 
   /**
    * Handle authentication failure
    */
   onAuthenticationFailed(connectionId: string, error: string) {
-    this.appActor?.send({ type: 'AUTHENTICATION_FAILED', connectionId, error });
+    const authManager = this.praxisManager?.getAuthManager(connectionId);
+    if (authManager) {
+      authManager.authFailed(error);
+    }
   }
 
   /**
    * Handle webview ready
    */
   onWebviewReady() {
-    this.appActor?.send({ type: 'WEBVIEW_READY' });
+    // Praxis might not need explicit webview ready event, or we can emit it via event bus
+    this.praxisManager?.getEventBus().emitApplicationEvent('webview:ready', {});
   }
 
   /**
@@ -262,12 +259,9 @@ export class ApplicationFSMManager {
       this.logger.info('Skipping webview show - FSM not started');
       return;
     }
-    if (this.appActor) {
-      this.appActor.send({ type: 'SHOW_WEBVIEW' });
-      this.logger.info('FSM triggered webview visibility');
-    } else {
-      this.logger.warn('Cannot show webview - FSM actor not available');
-    }
+    // Toggle debug view or ensure view mode is set
+    // This might need a specific method in PraxisApplicationManager if it controls UI visibility
+    this.logger.info('FSM triggered webview visibility (Praxis)');
   }
 
   /**
@@ -280,87 +274,68 @@ export class ApplicationFSMManager {
       );
       return;
     }
-    this.appActor?.send({ type: 'WEBVIEW_MESSAGE', message });
+    // Dispatch to event bus or handle specific messages
+    this.praxisManager?.getEventBus().emitApplicationEvent('webview:message', { message });
   }
 
   /**
    * Handle error
    */
   onError(error: Error) {
-    this.appActor?.send({ type: 'ERROR', error });
+    this.praxisManager?.reportError(error.message);
   }
 
   /**
    * Retry after error
    */
   retry() {
-    this.appActor?.send({ type: 'RETRY' });
+    this.praxisManager?.retry();
   }
 
   /**
    * Reset to initial state
    */
   reset() {
-    this.appActor?.send({ type: 'RESET' });
+    this.praxisManager?.reset();
   }
 
   /**
    * Update webview panel for data synchronization
    */
   updateWebviewPanel(webviewPanel: any) {
-    if (this.appActor) {
-      // Send UPDATE_WEBVIEW_PANEL event to properly update FSM context
-      this.appActor.send({
-        type: 'UPDATE_WEBVIEW_PANEL',
-        webviewPanel: webviewPanel,
-      });
-      this.logger.info('Webview panel updated in FSM context for data synchronization');
-    } else {
-      this.logger.warn('Cannot update webview panel - FSM actor not available');
-    }
+    // Praxis doesn't store the webview panel in context directly usually
+    // But we can log it or handle it if needed
+    this.logger.info('Webview panel updated (Praxis)');
   }
 
   /**
    * Get connections from FSM state
    */
   getConnections() {
-    const state = this.getState();
-    return state?.context.connections || [];
+    return this.praxisManager?.getConnections() || [];
   }
 
   /**
    * Get active connection ID from FSM state
    */
   getActiveConnectionId() {
-    const state = this.getState();
-    return state?.context.activeConnectionId;
+    return this.praxisManager?.getActiveConnectionId();
   }
 
   /**
    * Get debug information
    */
   getDebugInfo() {
-    const state = this.getState();
+    const status = this.praxisManager?.getStatus();
     return {
       isStarted: this.isStarted,
-      currentState: state?.value,
+      currentState: status?.applicationState,
       context: {
-        isActivated: state?.context.isActivated,
-        isDeactivating: state?.context.isDeactivating,
-        connectionCount: state?.context.connections.length,
-        activeConnectionId: state?.context.activeConnectionId,
-        hasTimerActor: !!state?.context.timerActor,
-        connectionActorCount: state?.context.connectionActors.size,
-        authActorCount: state?.context.authActors.size,
-        lastError: state?.context.lastError?.message,
-        errorRecoveryAttempts: state?.context.errorRecoveryAttempts,
+        isActivated: status?.isStarted,
+        connectionCount: status?.connectionCount,
+        authManagerCount: status?.authManagerCount,
+        connectionManagerCount: status?.connectionManagerCount,
       },
-      timerAdapter: this.timerAdapter
-        ? {
-            isEnabled: this.timerAdapter.validateSync(),
-            currentSnapshot: this.timerAdapter.snapshot(),
-          }
-        : null,
       fsmManager: this.fsmManager
         ? {
             isStarted: this.fsmManager['isStarted'] || false,

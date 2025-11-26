@@ -20,13 +20,8 @@
  */
 
 import { writable, derived, type Readable } from 'svelte/store';
-import {
-  ApplicationContext,
-  contextSelectors,
-  type Connection,
-  type WorkItem,
-  type TimerState,
-} from './ApplicationContext';
+import type { ApplicationContext, Connection, WorkItem } from './ApplicationContext';
+import { contextSelectors } from './ApplicationContext';
 
 /**
  * Main application context store

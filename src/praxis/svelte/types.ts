@@ -38,7 +38,7 @@ export interface PraxisEngineState<TContext> {
 /**
  * Dispatch function type
  */
-export type DispatchFn = (event: PraxisEvent<string, unknown>) => void;
+export type DispatchFn = (event: PraxisEvent) => void;
 
 /**
  * Result of usePraxisEngine hook
@@ -97,7 +97,7 @@ export interface RemoteEngineAdapter<TContext> {
   /**
    * Send event to extension host
    */
-  sendEvent: (event: PraxisEvent<string, unknown>) => void;
+  sendEvent: (event: PraxisEvent) => void;
 
   /**
    * Check if connected to extension host
@@ -140,6 +140,6 @@ export interface PraxisStatePayload<TContext> {
  * Event message payload
  */
 export interface PraxisEventPayload {
-  event: PraxisEvent<string, unknown>;
+  event: PraxisEvent;
   engineId?: string;
 }

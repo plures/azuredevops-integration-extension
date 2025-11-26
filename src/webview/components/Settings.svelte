@@ -34,8 +34,8 @@ LLM-GUARD:
   import { createSelectConnection, webviewOwner } from '../selection.writer.internal.js';
   function handleSelectConnection(connectionId: string) {
     const evt = createSelectConnection(webviewOwner, connectionId);
-    // Maintain compatibility with existing sendEvent wrapper: forward fsmEvent envelope
-    sendEvent && sendEvent({ type: 'fsmEvent', event: evt });
+    // Use sendEvent wrapper which adds the fsmEvent envelope
+    sendEvent && sendEvent(evt);
   }
 
   function handleBack() {

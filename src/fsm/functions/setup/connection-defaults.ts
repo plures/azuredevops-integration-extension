@@ -22,7 +22,7 @@ import type { ParsedAzureDevOpsUrl } from '../../../azureDevOpsUrlParser.js';
 import { detectEnvironmentType } from './environment-detection.js';
 import { detectWindowsUser } from './user-detection.js';
 import { getRecommendedAuthMethod, type RecommendedAuthMethodId } from './auth-methods.js';
-import type { ProjectConnection } from '../../machines/applicationMachine.js';
+import type { ProjectConnection } from '../../machines/applicationTypes.js';
 
 export interface ConnectionDefaults {
   organization: string;

@@ -1,70 +1,112 @@
 /**
  * FSM Integration for Desktop Application
  *
- * This module provides a stub for integrating XState FSM machines from the parent
- * VS Code extension into the Tauri desktop application.
- *
- * NOTE: Full FSM integration is planned for future iterations.
- * For now, this is a stub implementation that provides the interface
- * without the actual FSM logic.
+ * This module integrates the Praxis FSM from the parent VS Code extension
+ * into the Tauri desktop application.
  */
 
-import { createActor, type AnyActorRef } from 'xstate';
+import { PraxisApplicationManager } from '@src/praxis/application/manager.ts';
+import { eventHandlers, type ApplicationEvent } from '@src/stores/eventHandlers.ts';
 import { getPlatformAdapter } from './platform-adapter';
-
-// Temporary type placeholder until FSM integration is complete
-type ApplicationContext = any;
+import type { ProjectConnection } from '@src/praxis/connection/types.ts';
 
 // Type for our FSM snapshot that will be sent to UI
 export interface FsmSnapshot {
   value: string;
-  context: ApplicationContext;
-  matches: Record<string, boolean>;
+  context: any;
+  matches: (state: string) => boolean;
 }
 
 /**
- * Desktop-specific FSM Manager (Stub Implementation)
- *
- * This provides the interface for FSM integration but currently
- * returns stub/mock data. Full integration pending.
+ * Desktop-specific Praxis Manager
  */
-export class DesktopFsmManager {
-  private actor: AnyActorRef | null = null;
+export class DesktopPraxisManager {
+  private manager: PraxisApplicationManager;
   private platformAdapter = getPlatformAdapter();
   private subscribers: ((snapshot: FsmSnapshot) => void)[] = [];
+  private pollInterval: any;
+
+  constructor() {
+    this.manager = new PraxisApplicationManager();
+  }
 
   /**
-   * Initialize the FSM with desktop-specific actors
-   *
-   * NOTE: This is a stub implementation. Full FSM integration pending.
+   * Initialize the Praxis manager
    */
   async initialize() {
-    console.log('[DesktopFSM] Stub initialization - FSM integration pending');
-    // TODO: Import and initialize actual FSM machines when ready
-    // const { applicationMachine } = await import('../../../src/fsm/machines/applicationMachine.js');
-    // this.actor = createActor(applicationMachine);
-    // this.actor.subscribe((state) => { ... });
-    // this.actor.start();
+    console.log('[DesktopPraxis] Initializing...');
+    this.manager.start();
+
+    // Load connections
+    try {
+      if ((window as any).__TAURI__) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const connections = await invoke<ProjectConnection[]>('get_connections');
+        console.log('[DesktopPraxis] Loaded connections:', connections);
+        this.manager.loadConnections(connections);
+      } else {
+        // Mock for browser
+        console.log('[DesktopPraxis] Browser mode - no connections loaded');
+        this.manager.loadConnections([]);
+      }
+    } catch (e) {
+      console.error('[DesktopPraxis] Failed to load connections', e);
+    }
+
+    // Activate the application
+    this.manager.activate();
+
+    // Start polling for state changes
+    this.pollInterval = setInterval(() => {
+      this.notifySubscribers();
+    }, 100);
+
     return Promise.resolve();
   }
 
   /**
-   * Send an event to the FSM
-   *
-   * NOTE: Stub implementation - logs but doesn't process
+   * Reload connections from backend
    */
-  send(event: any) {
-    console.log('[DesktopFSM] Stub send - event:', event.type);
-    // Events are currently ignored in stub implementation
+  async reloadConnections() {
+    try {
+      if ((window as any).__TAURI__) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const connections = await invoke<ProjectConnection[]>('get_connections');
+        console.log('[DesktopPraxis] Reloaded connections:', connections);
+        this.manager.loadConnections(connections);
+      }
+    } catch (e) {
+      console.error('[DesktopPraxis] Failed to reload connections', e);
+    }
   }
 
   /**
-   * Subscribe to FSM state changes
-   *
-   * NOTE: Stub implementation - accepts subscriptions but never fires them
+   * Send an event to the Praxis manager
+   */
+  send(event: ApplicationEvent) {
+    console.log('[DesktopPraxis] Event:', event.type, event);
+
+    // Handle desktop-specific events
+    if (event.type === 'CONNECTION_ADDED') {
+      this.reloadConnections();
+      return;
+    }
+
+    const handler = eventHandlers[event.type];
+    if (handler) {
+      handler(this.manager, event);
+      this.notifySubscribers(); // Immediate update
+    } else {
+      console.warn('[DesktopPraxis] Unknown event:', event.type);
+    }
+  }
+
+  /**
+   * Subscribe to state changes
    */
   subscribe(callback: (snapshot: FsmSnapshot) => void): () => void {
     this.subscribers.push(callback);
+    callback(this.getSnapshot());
     // Return unsubscribe function
     return () => {
       const index = this.subscribers.indexOf(callback);
@@ -74,46 +116,57 @@ export class DesktopFsmManager {
     };
   }
 
-  /**
-   * Get current FSM snapshot
-   *
-   * NOTE: Stub implementation returns null
-   */
-  getSnapshot(): FsmSnapshot | null {
-    return null;
+  private notifySubscribers() {
+    const snapshot = this.getSnapshot();
+    for (const sub of this.subscribers) {
+      sub(snapshot);
+    }
   }
 
   /**
-   * Stop the FSM
-   *
-   * NOTE: Stub implementation
+   * Get current snapshot
+   */
+  getSnapshot(): FsmSnapshot {
+    const state = this.manager.getApplicationState();
+    const context = this.manager.getContext();
+    return {
+      value: state,
+      context,
+      matches: (s: string) => state === s || state.includes(s),
+    };
+  }
+
+  /**
+   * Stop the manager
    */
   stop() {
-    console.log('[DesktopFSM] Stub stop');
-    this.actor = null;
+    console.log('[DesktopPraxis] Stopping...');
+    this.manager.stop();
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
   }
 
   /**
    * Cleanup and dispose resources
-   *
-   * NOTE: Stub implementation
    */
   dispose() {
     this.stop();
     this.subscribers = [];
-    console.log('[DesktopFSM] Disposed');
+    console.log('[DesktopPraxis] Disposed');
   }
 }
 
 // Singleton instance
-let fsmManager: DesktopFsmManager | null = null;
+let fsmManager: DesktopPraxisManager | null = null;
 
 /**
  * Get or create the singleton FSM manager
  */
-export function getFsmManager(): DesktopFsmManager {
+export function getFsmManager(): DesktopPraxisManager {
   if (!fsmManager) {
-    fsmManager = new DesktopFsmManager();
+    fsmManager = new DesktopPraxisManager();
   }
   return fsmManager;
 }

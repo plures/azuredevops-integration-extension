@@ -249,6 +249,43 @@ export const ProgressLocation = {
   Notification: 15,
 };
 
+export const ConfigurationTarget = {
+  Global: 1,
+  Workspace: 2,
+  WorkspaceFolder: 3,
+};
+
+export class ExtensionContext {
+  constructor() {
+    this.subscriptions = [];
+    this.workspaceState = {
+      get: () => undefined,
+      update: asyncNoop,
+    };
+    this.globalState = {
+      get: () => undefined,
+      update: asyncNoop,
+      setKeysForSync: asyncNoop,
+    };
+    this.secrets = new SecretStorage();
+    this.extensionUri = Uri.file('');
+    this.extensionPath = '';
+    this.environmentVariableCollection = {
+      replace: noop,
+      append: noop,
+      prepend: noop,
+      get: () => undefined,
+      forEach: noop,
+      delete: noop,
+      clear: noop,
+    };
+    this.storageUri = Uri.file('');
+    this.globalStorageUri = Uri.file('');
+    this.logUri = Uri.file('');
+    this.extensionMode = 1;
+  }
+}
+
 const vscode = {
   commands,
   window,
@@ -262,6 +299,8 @@ const vscode = {
   ThemeColor,
   StatusBarAlignment,
   ProgressLocation,
+  ConfigurationTarget,
+  ExtensionContext,
   version: 'test',
 };
 

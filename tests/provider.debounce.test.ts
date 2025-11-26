@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { describe, it } from 'vitest';
 import { WorkItemsProvider } from '../src/provider.ts';
 
 describe('WorkItemsProvider debounce/refresh behavior', () => {
@@ -19,5 +20,5 @@ describe('WorkItemsProvider debounce/refresh behavior', () => {
     // Wait for operations to complete
     await new Promise((r) => setTimeout(r, 700));
     expect(calls).to.equal(1);
-  }).timeout(2000);
+  }, 2000);
 });

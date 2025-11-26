@@ -3,9 +3,19 @@ import { sveltekit } from '@sveltejs/kit/vite';
 
 const host = process.env.TAURI_DEV_HOST;
 
+import { resolve } from 'path';
+
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [sveltekit()],
+  resolve: {
+    alias: {
+      'node:fs/promises': resolve(__dirname, './src/mocks/node-polyfills.js'),
+      'node:url': resolve(__dirname, './src/mocks/node-polyfills.js'),
+      child_process: resolve(__dirname, './src/mocks/node-polyfills.js'),
+      util: resolve(__dirname, './src/mocks/node-polyfills.js'),
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

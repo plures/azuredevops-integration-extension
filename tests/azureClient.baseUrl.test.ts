@@ -1,10 +1,10 @@
-import { describe, it } from 'mocha';
+import { describe, it } from 'vitest';
 import { expect } from 'chai';
 import { AzureDevOpsIntClient } from '../src/azureClient.js';
 
-describe('AzureDevOpsIntClient - baseUrl support', function () {
-  describe('constructor with custom baseUrl', function () {
-    it('should use custom baseUrl for API calls', function () {
+describe('AzureDevOpsIntClient - baseUrl support', () => {
+  describe('constructor with custom baseUrl', () => {
+    it('should use custom baseUrl for API calls', () => {
       const client = new AzureDevOpsIntClient('myorg', 'myproject', 'fake-pat', {
         baseUrl: 'https://myserver/collection',
       });
@@ -13,14 +13,14 @@ describe('AzureDevOpsIntClient - baseUrl support', function () {
       expect(client.axios.defaults.baseURL).to.equal('https://myserver/collection/myproject/_apis');
     });
 
-    it('should use dev.azure.com by default when no baseUrl provided', function () {
+    it('should use dev.azure.com by default when no baseUrl provided', () => {
       const client = new AzureDevOpsIntClient('myorg', 'myproject', 'fake-pat');
 
       expect(client.baseUrl).to.equal('https://dev.azure.com/myorg');
       expect(client.axios.defaults.baseURL).to.equal('https://dev.azure.com/myorg/myproject/_apis');
     });
 
-    it('should handle baseUrl with trailing slash', function () {
+    it('should handle baseUrl with trailing slash', () => {
       const client = new AzureDevOpsIntClient('myorg', 'myproject', 'fake-pat', {
         baseUrl: 'https://myserver/collection/',
       });
@@ -28,7 +28,7 @@ describe('AzureDevOpsIntClient - baseUrl support', function () {
       expect(client.axios.defaults.baseURL).to.equal('https://myserver/collection/myproject/_apis');
     });
 
-    it('should handle baseUrl with port', function () {
+    it('should handle baseUrl with port', () => {
       const client = new AzureDevOpsIntClient('myorg', 'myproject', 'fake-pat', {
         baseUrl: 'https://server:8080/tfs',
       });
@@ -37,8 +37,8 @@ describe('AzureDevOpsIntClient - baseUrl support', function () {
     });
   });
 
-  describe('buildFullUrl', function () {
-    it('should use custom baseUrl in buildFullUrl', function () {
+  describe('buildFullUrl', () => {
+    it('should use custom baseUrl in buildFullUrl', () => {
       const client = new AzureDevOpsIntClient('myorg', 'myproject', 'fake-pat', {
         baseUrl: 'https://myserver/collection',
       });
@@ -47,7 +47,7 @@ describe('AzureDevOpsIntClient - baseUrl support', function () {
       expect(url).to.equal('https://myserver/collection/myproject/_apis/wit/workitems/123');
     });
 
-    it('should use dev.azure.com in buildFullUrl when no custom baseUrl', function () {
+    it('should use dev.azure.com in buildFullUrl when no custom baseUrl', () => {
       const client = new AzureDevOpsIntClient('myorg', 'myproject', 'fake-pat');
 
       const url = client.buildFullUrl('/wit/workitems/123');
@@ -55,8 +55,8 @@ describe('AzureDevOpsIntClient - baseUrl support', function () {
     });
   });
 
-  describe('getBrowserUrl', function () {
-    it('should use custom baseUrl in getBrowserUrl', function () {
+  describe('getBrowserUrl', () => {
+    it('should use custom baseUrl in getBrowserUrl', () => {
       const client = new AzureDevOpsIntClient('myorg', 'myproject', 'fake-pat', {
         baseUrl: 'https://myserver/collection',
       });
@@ -65,7 +65,7 @@ describe('AzureDevOpsIntClient - baseUrl support', function () {
       expect(url).to.equal('https://myserver/collection/myproject/_workitems/edit/123');
     });
 
-    it('should use dev.azure.com in getBrowserUrl when no custom baseUrl', function () {
+    it('should use dev.azure.com in getBrowserUrl when no custom baseUrl', () => {
       const client = new AzureDevOpsIntClient('myorg', 'myproject', 'fake-pat');
 
       const url = client.getBrowserUrl('/_workitems/edit/123');
@@ -73,8 +73,8 @@ describe('AzureDevOpsIntClient - baseUrl support', function () {
     });
   });
 
-  describe('buildTeamApiUrl (private method accessed indirectly)', function () {
-    it('should construct team URLs with custom baseUrl', function () {
+  describe('buildTeamApiUrl (private method accessed indirectly)', () => {
+    it('should construct team URLs with custom baseUrl', () => {
       const client = new AzureDevOpsIntClient('myorg', 'myproject', 'fake-pat', {
         baseUrl: 'https://myserver/collection',
         team: 'myteam',
@@ -85,7 +85,7 @@ describe('AzureDevOpsIntClient - baseUrl support', function () {
       expect(client.encodedTeam).to.equal('myteam');
     });
 
-    it('should handle team URLs with on-premises server', function () {
+    it('should handle team URLs with on-premises server', () => {
       const client = new AzureDevOpsIntClient('myorg', 'myproject', 'fake-pat', {
         baseUrl: 'https://server:8080/tfs',
         team: 'Team Alpha',

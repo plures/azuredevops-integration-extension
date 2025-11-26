@@ -1,9 +1,9 @@
-import { describe, it } from 'mocha';
+import { describe, it } from 'vitest';
 import { expect } from 'chai';
 import type {
   ApplicationContext,
   AuthReminderState,
-} from '../../src/fsm/machines/applicationMachine.js';
+} from '../../src/fsm/machines/applicationTypes.js';
 import {
   handleAuthReminderAction,
   type AuthReminderActionMessage,

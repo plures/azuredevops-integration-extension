@@ -12,7 +12,7 @@
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
  */
 import * as vscode from 'vscode';
-import type { ProjectConnection } from '../../machines/applicationMachine.js';
+import type { ProjectConnection } from '../../machines/applicationTypes.js';
 import { addOrEditConnection } from './connection.js';
 
 export async function manageConnections(

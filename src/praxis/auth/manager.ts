@@ -11,7 +11,6 @@ import type {
   PraxisAuthContext,
   PraxisAuthState,
   PraxisAuthSnapshot,
-  PraxisAuthResult,
   AuthMethod,
 } from './types.js';
 import { DEFAULT_AUTH_CONFIG } from './types.js';

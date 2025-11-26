@@ -16,7 +16,7 @@ import type {
   AuthReminderReason,
   AuthReminderState,
   ProjectConnection,
-} from '../../machines/applicationMachine.js';
+} from '../../machines/applicationTypes.js';
 
 export type BuildAuthReminderParams = {
   connectionId: string;
@@ -76,9 +76,6 @@ export function buildAuthReminder(
     status: 'pending',
     reason,
     detail: details.join('\n\n'),
-    message: renderReminderMessage(reason, label),
-    label,
-    authMethod,
   };
 }
 

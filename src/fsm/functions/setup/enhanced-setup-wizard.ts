@@ -20,8 +20,8 @@
 
 import * as vscode from 'vscode';
 import type { ParsedAzureDevOpsUrl } from '../../../azureDevOpsUrlParser.js';
-import type { ProjectConnection } from '../../machines/applicationMachine.js';
-import { getEnvironmentLabel } from './environment-detection.js';
+import type { ProjectConnection } from '../../machines/applicationTypes.js';
+import { getEnvironmentLabel, type EnvironmentType } from './environment-detection.js';
 import { getAvailableAuthMethods } from './auth-methods.js';
 import { validateUsernameFormat, formatUsername } from './user-detection.js';
 import {
@@ -245,6 +245,26 @@ async function collectAdvancedBasicDetails(
 }
 
 /**
+ * Selects authentication method
+ */
+async function selectAuthMethod(
+  environment: EnvironmentType
+): Promise<'pat' | 'entra' | undefined> {
+  const availableMethods = getAvailableAuthMethods(environment);
+  const authItems = availableMethods.map((method) => ({
+    label: method.recommended ? `$(star) ${method.label}` : method.label,
+    description: method.description,
+    method: method.id,
+  }));
+
+  const selectedAuth = await vscode.window.showQuickPick(authItems, {
+    placeHolder: 'Choose authentication method',
+  });
+
+  return selectedAuth ? (selectedAuth.method === 'entra' ? 'entra' : 'pat') : undefined;
+}
+
+/**
  * Shows advanced setup dialog with all fields editable
  *
  * @param defaults - Auto-detected defaults
@@ -260,19 +280,8 @@ async function showAdvancedSetup(
   const { organization, project, baseUrl, apiBaseUrl } = basicDetails;
 
   // Auth method selection
-  const availableMethods = getAvailableAuthMethods(defaults.environment);
-  const authItems = availableMethods.map((method) => ({
-    label: method.recommended ? `$(star) ${method.label}` : method.label,
-    description: method.description,
-    method: method.id,
-  }));
-
-  const selectedAuth = await vscode.window.showQuickPick(authItems, {
-    placeHolder: 'Choose authentication method',
-  });
-  if (!selectedAuth) return undefined;
-
-  const authMethod = selectedAuth.method === 'entra' ? 'entra' : 'pat';
+  const authMethod = await selectAuthMethod(defaults.environment);
+  if (!authMethod) return undefined;
 
   // For OnPremises, always prompt for identityName in advanced mode
   const identityName =

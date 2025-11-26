@@ -8,17 +8,66 @@ import type { CommandContext } from './types.js';
 vi.mock('vscode', () => ({
   commands: {
     registerCommand: vi.fn(),
+    executeCommand: vi.fn(),
   },
   window: {
     showInformationMessage: vi.fn(),
     showErrorMessage: vi.fn(),
+    createOutputChannel: vi.fn().mockReturnValue({
+      append: vi.fn(),
+      appendLine: vi.fn(),
+      show: vi.fn(),
+      dispose: vi.fn(),
+    }),
+    showInputBox: vi.fn(),
   },
   workspace: {
-    getConfiguration: vi.fn(),
+    getConfiguration: vi.fn().mockReturnValue({
+      get: vi.fn(),
+      update: vi.fn(),
+    }),
+  },
+  env: {
+    clipboard: {
+      writeText: vi.fn(),
+    },
+    openExternal: vi.fn(),
   },
   ConfigurationTarget: {
     Global: 1,
   },
+  Uri: {
+    file: vi.fn(),
+  },
+}));
+
+// Mock FSMSetupService
+const mockStartSetup = vi.fn().mockResolvedValue(undefined);
+vi.mock('../../fsm/services/fsmSetupService.js', () => ({
+  FSMSetupService: class {
+    startSetup = mockStartSetup;
+  },
+}));
+
+// Mock logging
+const { mockChannel } = vi.hoisted(() => ({
+  mockChannel: {
+    show: vi.fn(),
+  },
+}));
+
+vi.mock('../../logging.js', () => ({
+  getOutputChannel: vi.fn().mockReturnValue(mockChannel),
+  setOutputChannel: vi.fn(),
+  logLine: vi.fn(),
+  getLogBufferSnapshot: vi.fn().mockReturnValue([]),
+  createScopedLogger: vi.fn().mockReturnValue({
+    log: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+  }),
 }));
 
 describe('Commands Module', () => {
@@ -28,11 +77,27 @@ describe('Commands Module', () => {
   beforeEach(() => {
     mockContext = {
       subscriptions: [],
+      globalState: {
+        get: vi.fn(),
+        update: vi.fn(),
+      },
+      secrets: {
+        get: vi.fn(),
+        store: vi.fn(),
+        delete: vi.fn(),
+      },
+      extension: {
+        packageJSON: {
+          version: '1.0.0',
+        },
+      },
     } as any;
 
     commandContext = {
       context: mockContext,
     };
+
+    vi.clearAllMocks();
   });
 
   describe('registerCommands', () => {
@@ -46,11 +111,13 @@ describe('Commands Module', () => {
     it('should handle command errors gracefully', async () => {
       const mockHandler = vi.fn().mockRejectedValue(new Error('Test error'));
 
-      vscode.commands.registerCommand('test.command', safeCommandHandler(mockHandler));
+      // We need to manually invoke the safeCommandHandler logic because we can't easily
+      // capture the wrapped function passed to registerCommand in this test structure
+      // without more complex mocking.
+      // Instead, let's test safeCommandHandler directly which is what wraps the commands.
 
-      // Simulate command execution
-      const handler = vi.mocked(vscode.commands.registerCommand).mock.calls[0][1];
-      await handler();
+      const safeHandler = safeCommandHandler(mockHandler);
+      await safeHandler();
 
       expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Command failed: Test error');
     });
@@ -78,34 +145,12 @@ describe('Commands Module', () => {
 
   describe('Command Handlers', () => {
     it('should execute setup command', async () => {
-      const mockSetupService = {
-        startSetup: vi.fn().mockResolvedValue(undefined),
-      };
-
-      // Mock the FSMSetupService
-      vi.doMock('../../fsm/services/fsmSetupService.js', () => ({
-        FSMSetupService: vi.fn().mockImplementation(() => mockSetupService),
-      }));
-
       await setupCommand(commandContext);
-
-      expect(mockSetupService.startSetup).toHaveBeenCalled();
+      expect(mockStartSetup).toHaveBeenCalled();
     });
 
     it('should execute open logs command', async () => {
-      const mockChannel = {
-        show: vi.fn(),
-      };
-
-      // Mock the logging functions
-      vi.doMock('../../logging.js', () => ({
-        getOutputChannel: vi.fn().mockReturnValue(mockChannel),
-        setOutputChannel: vi.fn(),
-        logLine: vi.fn(),
-      }));
-
       await openLogsCommand(commandContext);
-
       expect(mockChannel.show).toHaveBeenCalledWith(true);
     });
   });

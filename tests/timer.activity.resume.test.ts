@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import { WorkItemTimer } from '../src/timer.js';
 
-describe('WorkItemTimer activity resume', function () {
-  it('resumes timer after activity ping when paused due to inactivity', function (done) {
+describe('WorkItemTimer activity resume', () => {
+  it('resumes timer after activity ping when paused due to inactivity', (done) => {
     let state: any = undefined;
     const infoMessages: string[] = [];
 
@@ -37,9 +37,9 @@ describe('WorkItemTimer activity resume', function () {
         done();
       }, 100);
     }, 1300);
-  }).timeout(5000);
+  }, 5000);
 
-  it('does not resume timer after activity ping if paused manually', function (done) {
+  it('does not resume timer after activity ping if paused manually', (done) => {
     let state: any = undefined;
     const infoMessages: string[] = [];
 
@@ -73,5 +73,5 @@ describe('WorkItemTimer activity resume', function () {
         done();
       }, 100);
     }, 100);
-  }).timeout(2000);
+  }, 2000);
 });

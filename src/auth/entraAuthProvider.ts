@@ -90,10 +90,10 @@ export class EntraAuthProvider implements IAuthProvider {
   private tokenCacheKey: string;
 
   // Refresh failure tracking to prevent constant retry attempts
-  private refreshFailureCount = 0;
-  private lastRefreshFailure: Date | undefined;
-  private refreshBackoffUntil: Date | undefined;
-  private readonly maxRefreshFailures = 3;
+  // private refreshFailureCount = 0;
+  // private lastRefreshFailure: Date | undefined;
+  // private refreshBackoffUntil: Date | undefined;
+  // private readonly maxRefreshFailures = 3;
 
   constructor(options: EntraAuthProviderOptions) {
     this.config = options.config;
@@ -205,9 +205,9 @@ export class EntraAuthProvider implements IAuthProvider {
         const silentResult = await this.trySilentAuthentication(scopes);
         if (silentResult.success) {
           // Reset refresh failure tracking on successful authentication
-          this.refreshFailureCount = 0;
-          this.lastRefreshFailure = undefined;
-          this.refreshBackoffUntil = undefined;
+          // this.refreshFailureCount = 0;
+          // this.lastRefreshFailure = undefined;
+          // this.refreshBackoffUntil = undefined;
           return silentResult;
         }
       } else {
@@ -254,9 +254,9 @@ export class EntraAuthProvider implements IAuthProvider {
       }
 
       // Reset refresh failure tracking on successful authentication
-      this.refreshFailureCount = 0;
-      this.lastRefreshFailure = undefined;
-      this.refreshBackoffUntil = undefined;
+      // this.refreshFailureCount = 0;
+      // this.lastRefreshFailure = undefined;
+      // this.refreshBackoffUntil = undefined;
 
       return {
         success: true,
@@ -373,9 +373,9 @@ export class EntraAuthProvider implements IAuthProvider {
     this.cachedToken = undefined;
 
     // Reset failure tracking
-    this.refreshFailureCount = 0;
-    this.lastRefreshFailure = undefined;
-    this.refreshBackoffUntil = undefined;
+    // this.refreshFailureCount = 0;
+    // this.lastRefreshFailure = undefined;
+    // this.refreshBackoffUntil = undefined;
 
     // Clear MSAL cache completely
     try {
@@ -444,5 +444,20 @@ export class EntraAuthProvider implements IAuthProvider {
       logger.error('Failed to retrieve account', { meta: error });
       return undefined;
     }
+  }
+
+  /**
+   * Alias for getTokenInfo to satisfy IAuthProvider interface
+   */
+  async getToken(): Promise<TokenInfo | null> {
+    const info = await this.getTokenInfo();
+    return info || null;
+  }
+
+  /**
+   * Alias for signOut to satisfy IAuthProvider interface
+   */
+  async clearTokens(): Promise<void> {
+    await this.signOut();
   }
 }

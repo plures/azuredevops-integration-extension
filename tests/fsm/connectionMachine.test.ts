@@ -1,38 +1,24 @@
-import { describe, it } from 'mocha';
-import { expect } from 'chai';
-import { connectionMachine } from '../../src/fsm/machines/connectionMachine.js';
-import { createActor, fromPromise } from 'xstate';
-import type { ProjectConnection } from '../../src/fsm/machines/connectionTypes.js';
+import { describe, it, expect, vi } from 'vitest';
+import { PraxisConnectionManager } from '../../src/praxis/connection/manager.js';
+import type { ProjectConnection } from '../../src/praxis/connection/types.js';
 
-describe('connectionMachine', () => {
+// Mock dependencies
+vi.mock('../../src/features/azure/client.js', () => ({
+  createAzureClient: vi.fn().mockResolvedValue({
+    client: { id: 'client-stub' },
+    config: {},
+    context: {},
+  }),
+}));
+
+vi.mock('../../src/features/azure/provider.js', () => ({
+  createWorkItemsProvider: vi.fn().mockResolvedValue({
+    refresh: () => undefined,
+  }),
+}));
+
+describe('PraxisConnectionManager', () => {
   it('stores client and provider instances when connection succeeds', async () => {
-    const stubClient = { id: 'client-stub' };
-    const stubProvider = { refresh: () => undefined };
-    const machine = connectionMachine.provide({
-      actors: {
-        authenticateWithPAT: fromPromise(async () => ({ credential: 'test-pat' })),
-        createAzureClient: fromPromise(async () => ({
-          client: stubClient,
-          config: {
-            organization: 'org',
-            project: 'proj',
-            credential: 'test-pat',
-            options: {
-              authType: 'pat' as const,
-            },
-          },
-          context: {},
-        })),
-        createWorkItemsProvider: fromPromise(async () => stubProvider),
-      },
-      actions: {
-        notifyConnectionSuccess: () => {
-          // Skip legacy refresh logic in tests
-        },
-      },
-    });
-
-    const actor = createActor(machine);
     const connection: ProjectConnection = {
       id: 'conn-1',
       organization: 'org',
@@ -40,33 +26,32 @@ describe('connectionMachine', () => {
       authMethod: 'pat',
     };
 
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(
-        () => reject(new Error('Timed out waiting for connected state')),
-        2000
-      );
-      actor.subscribe((state) => {
-        if (state.matches('connected')) {
-          clearTimeout(timeout);
-          resolve();
-        } else if (
-          state.matches('auth_failed') ||
-          state.matches('client_failed') ||
-          state.matches('provider_failed')
-        ) {
-          clearTimeout(timeout);
-          reject(new Error(`Unexpected terminal state: ${String(state.value)}`));
-        }
-      });
+    const manager = new PraxisConnectionManager(connection);
+    manager.start();
 
-      actor.start();
-      actor.send({ type: 'CONNECT', config: connection });
+    // Wait for connection to complete (it starts automatically on start())
+    await new Promise<void>((resolve, reject) => {
+      const start = Date.now();
+      const check = () => {
+        const snapshot = manager.getSnapshot();
+        if (snapshot.state === 'connected') {
+          resolve();
+        } else if (snapshot.state.includes('failed') || snapshot.state === 'connection_error') {
+          reject(new Error(`Connection failed with state: ${snapshot.state}`));
+        } else if (Date.now() - start > 2000) {
+          reject(new Error('Timeout waiting for connection'));
+        } else {
+          setTimeout(check, 50);
+        }
+      };
+      check();
     });
 
-    const snapshot = actor.getSnapshot();
-    expect(snapshot?.context.client).to.equal(stubClient);
-    expect(snapshot?.context.provider).to.equal(stubProvider);
+    const ctx = manager.getContext();
+    expect(ctx.client).toBeDefined();
+    expect((ctx.client as any).id).toBe('client-stub');
+    expect(ctx.provider).toBeDefined();
 
-    actor.stop();
+    manager.stop();
   });
 });

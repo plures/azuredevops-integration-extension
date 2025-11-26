@@ -79,6 +79,7 @@ export interface FSMContext {
   state?: string;
   event?: string;
   machineId?: string;
+  [key: string]: any;
 }
 
 // ============================================================================
@@ -147,7 +148,7 @@ export class FSMLogger {
   private static instance: FSMLogger | undefined;
   private config: LoggingConfig = DEFAULT_CONFIG;
   private logBuffer: LogEntry[] = [];
-  private outputChannel?: any;
+  public outputChannel?: any;
   private logCounter = 0;
   private configListeners: Array<(config: LoggingConfig) => void> = [];
 

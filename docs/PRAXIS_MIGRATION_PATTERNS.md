@@ -370,9 +370,7 @@ app.activate();
 app.activationComplete();
 
 // Load connections
-app.loadConnections([
-  { id: 'conn-1', organization: 'org', project: 'proj', authMethod: 'pat' },
-]);
+app.loadConnections([{ id: 'conn-1', organization: 'org', project: 'proj', authMethod: 'pat' }]);
 
 // Select connection
 app.selectConnection('conn-1');

@@ -1,3 +1,63 @@
+import { vi } from 'vitest';
+
+vi.mock('vscode', () => {
+  return {
+    default: {
+      workspace: {
+        getConfiguration: () => ({
+          get: () => undefined,
+          update: () => Promise.resolve(),
+        }),
+        onDidChangeConfiguration: () => ({ dispose: () => {} }),
+      },
+      window: {
+        showErrorMessage: () => Promise.resolve(),
+        showInformationMessage: () => Promise.resolve(),
+        createOutputChannel: () => ({
+          append: () => {},
+          appendLine: () => {},
+          show: () => {},
+          dispose: () => {},
+        }),
+      },
+      commands: {
+        registerCommand: () => ({ dispose: () => {} }),
+        executeCommand: () => Promise.resolve(),
+      },
+      Uri: {
+        file: (path: string) => ({ fsPath: path }),
+        parse: (uri: string) => ({ toString: () => uri }),
+      },
+      ExtensionContext: class {},
+    },
+    workspace: {
+      getConfiguration: () => ({
+        get: () => undefined,
+        update: () => Promise.resolve(),
+      }),
+      onDidChangeConfiguration: () => ({ dispose: () => {} }),
+    },
+    window: {
+      showErrorMessage: () => Promise.resolve(),
+      showInformationMessage: () => Promise.resolve(),
+      createOutputChannel: () => ({
+        append: () => {},
+        appendLine: () => {},
+        show: () => {},
+        dispose: () => {},
+      }),
+    },
+    commands: {
+      registerCommand: () => ({ dispose: () => {} }),
+      executeCommand: () => Promise.resolve(),
+    },
+    Uri: {
+      file: (path: string) => ({ fsPath: path }),
+      parse: (uri: string) => ({ toString: () => uri }),
+    },
+  };
+});
+
 import { expect } from 'chai';
 import { migrateLegacyPAT } from '../src/activation.ts';
 import { makeMockContext } from './helpers/mockContext.ts';

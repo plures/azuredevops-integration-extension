@@ -16,8 +16,8 @@
  * - apiBaseUrl: ALWAYS used for REST API calls. Must include project and end with '/_apis'.
  * - baseUrl:    ONLY used for browser/UI links. Never used for REST calls.
  */
-import axios, { AxiosInstance } from 'axios';
-import { WorkItem, WorkItemBuildSummary } from './types.js';
+import axios, { type AxiosInstance } from 'axios';
+import type { WorkItem, WorkItemBuildSummary } from './types.js';
 import { RateLimiter } from './rateLimiter.js';
 import { workItemCache, WorkItemCache } from './cache.js';
 import { measureAsync } from './performance.js';

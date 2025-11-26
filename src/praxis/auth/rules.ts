@@ -6,7 +6,6 @@
  */
 
 import { defineRule, findEvent, type RuleDescriptor } from '@plures/praxis';
-import type { PraxisAuthContext } from './types.js';
 import { DEFAULT_AUTH_CONFIG } from './types.js';
 import {
   AuthenticateEvent,

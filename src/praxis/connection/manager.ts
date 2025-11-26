@@ -11,7 +11,6 @@ import type {
   PraxisConnectionContext,
   PraxisConnectionState,
   PraxisConnectionSnapshot,
-  PraxisConnectionResult,
   ProjectConnection,
 } from './types.js';
 import { DEFAULT_CONNECTION_CONFIG } from './types.js';

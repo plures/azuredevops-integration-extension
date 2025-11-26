@@ -21,6 +21,8 @@ LLM-GUARD:
   import ConnectionViews from './components/ConnectionViews.svelte';
   import AuthReminder from './components/AuthReminder.svelte';
   import WebviewHeader from './components/WebviewHeader.svelte';
+  import Notification from './components/Notification.svelte';
+  import ComposeCommentDialog from './components/ComposeCommentDialog.svelte';
   
   // ConnectionViews component uses export let syntax for proper TypeScript inference
 
@@ -117,12 +119,7 @@ LLM-GUARD:
   function toggleDebugView() {
     localDebugViewVisible = !localDebugViewVisible;
     // Notify FSM of the change (but don't wait for it - Svelte controls display)
-    if (vscode) {
-      vscode.postMessage({
-        type: 'TOGGLE_DEBUG_VIEW',
-        debugViewVisible: localDebugViewVisible
-      });
-    }
+    sendEvent({ type: 'TOGGLE_DEBUG_VIEW' });
   }
 
   // Expose function globally so it can be called from message handlers if needed
@@ -191,6 +188,24 @@ LLM-GUARD:
             2
           )}</pre>
       </div>
+    {/if}
+
+    <!-- Global UI Components -->
+    {#if context?.ui?.statusMessage}
+      <Notification
+        message={context.ui.statusMessage.text}
+        type={context.ui.statusMessage.type}
+        on:dismiss={() => sendEvent({ type: 'DISMISS_NOTIFICATION' })}
+      />
+    {/if}
+
+    {#if context?.ui?.modal?.type === 'composeComment'}
+      <ComposeCommentDialog
+        workItemId={context.ui.modal.workItemId}
+        mode={context.ui.modal.mode}
+        on:cancel={() => sendEvent({ type: 'DISMISS_DIALOG' })}
+        on:submit={(event) => sendEvent({ type: 'SUBMIT_COMMENT', ...event.detail })}
+      />
     {/if}
   {/if}
 </main>

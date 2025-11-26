@@ -1,3 +1,103 @@
+import { vi } from 'vitest';
+
+vi.mock('vscode', () => {
+  const listeners: ((doc: any) => void)[] = [];
+  const triggerDidSaveTextDocument = (doc: any) => {
+    listeners.forEach((l) => l(doc));
+  };
+
+  const mockVscode = {
+    workspace: {
+      getConfiguration: () => ({
+        get: () => undefined,
+        update: () => Promise.resolve(),
+      }),
+      onDidChangeConfiguration: () => ({ dispose: () => {} }),
+      workspaceFolders: [],
+      getWorkspaceFolder: () => ({ uri: { fsPath: '/tmp' } }),
+      asRelativePath: (uri: any) =>
+        uri.fsPath ? path.relative('/tmp', uri.fsPath) : 'relative/path',
+      fs: {
+        readFile: async (uri: any) => {
+          try {
+            return await fsp.readFile(uri.fsPath);
+          } catch (error) {
+            throw vscode.FileSystemError.FileNotFound(uri);
+          }
+        },
+        writeFile: async (uri: any, content: Uint8Array) => {
+          await fsp.mkdir(path.dirname(uri.fsPath), { recursive: true });
+          await fsp.writeFile(uri.fsPath, content);
+        },
+        createDirectory: async (uri: any) => {
+          await fsp.mkdir(uri.fsPath, { recursive: true });
+        },
+        stat: async (uri: any) => {
+          try {
+            const stats = await fsp.stat(uri.fsPath);
+            return {
+              type: stats.isDirectory() ? vscode.FileType.Directory : vscode.FileType.File,
+              ctime: stats.ctimeMs,
+              mtime: stats.mtimeMs,
+              size: stats.size,
+            };
+          } catch {
+            throw vscode.FileSystemError.FileNotFound(uri);
+          }
+        },
+      },
+      onDidSaveTextDocument: (listener: (doc: any) => void) => {
+        listeners.push(listener);
+        return { dispose: () => {} };
+      },
+      triggerDidSaveTextDocument,
+    },
+    window: {
+      showErrorMessage: () => Promise.resolve(),
+      showInformationMessage: () => Promise.resolve(),
+      createOutputChannel: () => ({
+        append: () => {},
+        appendLine: () => {},
+        show: () => {},
+        dispose: () => {},
+      }),
+    },
+    commands: {
+      registerCommand: () => ({ dispose: () => {} }),
+      executeCommand: () => Promise.resolve(),
+    },
+    Uri: {
+      file: (path: string) => ({ fsPath: path }),
+      parse: (uri: string) => ({ toString: () => uri }),
+    },
+    FileSystemError: {
+      FileNotFound: (uri: any) => new Error(`File not found: ${uri}`),
+    },
+    FileType: {
+      File: 1,
+      Directory: 2,
+    },
+    ExtensionContext: class {},
+    extensions: {
+      getExtension: () => ({
+        isActive: true,
+        activate: () => Promise.resolve(),
+        exports: {
+          getAPI: () => ({
+            getRepositories: () => [],
+            getRepository: () => null,
+          }),
+        },
+      }),
+    },
+  };
+
+  return {
+    default: mockVscode,
+    ...mockVscode,
+  };
+});
+
 import { expect } from 'chai';
 import * as os from 'node:os';
 import * as path from 'node:path';

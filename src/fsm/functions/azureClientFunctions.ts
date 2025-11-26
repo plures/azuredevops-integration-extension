@@ -21,7 +21,7 @@
  */
 
 import type { AzureDevOpsIntClient } from '../../azureClient.js';
-import type { ConnectionContext } from '../machines/connectionTypes.js';
+import type { ConnectionContext } from '../../features/connection/types.js';
 import type { FSMContext } from '../logging/FSMLogger.js';
 
 type LoggerModule = typeof import('../logging/FSMLogger.js');

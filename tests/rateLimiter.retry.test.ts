@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { describe, it } from 'vitest';
 import { withRetry } from '../src/rateLimiter.ts';
 
 describe('withRetry helper', () => {
@@ -12,7 +13,7 @@ describe('withRetry helper', () => {
     const res = await withRetry(fn, () => true, { retries: 4, baseDelayMs: 10 });
     expect(res).to.equal('ok');
     expect(attempts).to.equal(3);
-  }).timeout(5000);
+  }, 5000);
 
   it('throws after max retries', async () => {
     let attempts = 0;
@@ -26,5 +27,5 @@ describe('withRetry helper', () => {
     } catch {
       expect(attempts).to.be.greaterThan(1);
     }
-  }).timeout(5000);
+  }, 5000);
 });

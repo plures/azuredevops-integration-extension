@@ -138,14 +138,16 @@ function formatMeta(meta: unknown): string | undefined {
  * ```
  */
 export function createLogger(scope: string) {
+  const wrap = (options?: any) => {
+    if (!options) return { scope };
+    if ('meta' in options) return { scope, ...options };
+    return { scope, meta: options };
+  };
+
   return {
-    debug: (message: string, options?: { meta?: unknown }) =>
-      log.debug(message, options ? { scope, ...options } : { scope }),
-    info: (message: string, options?: { meta?: unknown }) =>
-      log.info(message, options ? { scope, ...options } : { scope }),
-    warn: (message: string, options?: { meta?: unknown }) =>
-      log.warn(message, options ? { scope, ...options } : { scope }),
-    error: (message: string, options?: { meta?: unknown }) =>
-      log.error(message, options ? { scope, ...options } : { scope }),
+    debug: (message: string, options?: any) => log.debug(message, wrap(options)),
+    info: (message: string, options?: any) => log.info(message, wrap(options)),
+    warn: (message: string, options?: any) => log.warn(message, wrap(options)),
+    error: (message: string, options?: any) => log.error(message, wrap(options)),
   };
 }

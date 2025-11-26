@@ -59,7 +59,7 @@ export function usePraxisEngine<TContext>(
   });
 
   // Dispatch function that updates reactive state
-  const dispatch = (event: PraxisEvent<string, unknown>): void => {
+  const dispatch = (event: PraxisEvent): void => {
     // Step the engine
     engine.step([event]);
 

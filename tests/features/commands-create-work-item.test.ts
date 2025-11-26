@@ -5,6 +5,64 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+vi.mock('vscode', () => {
+  return {
+    default: {
+      workspace: {
+        getConfiguration: () => ({
+          get: () => undefined,
+          update: () => Promise.resolve(),
+        }),
+        onDidChangeConfiguration: () => ({ dispose: () => {} }),
+      },
+      window: {
+        showErrorMessage: () => Promise.resolve(),
+        showInformationMessage: () => Promise.resolve(),
+        createOutputChannel: () => ({
+          append: () => {},
+          appendLine: () => {},
+          show: () => {},
+          dispose: () => {},
+        }),
+      },
+      commands: {
+        registerCommand: () => ({ dispose: () => {} }),
+        executeCommand: () => Promise.resolve(),
+      },
+      Uri: {
+        file: (path: string) => ({ fsPath: path }),
+        parse: (uri: string) => ({ toString: () => uri }),
+      },
+      ExtensionContext: class {},
+    },
+    workspace: {
+      getConfiguration: () => ({
+        get: () => undefined,
+        update: () => Promise.resolve(),
+      }),
+      onDidChangeConfiguration: () => ({ dispose: () => {} }),
+    },
+    window: {
+      showErrorMessage: () => Promise.resolve(),
+      showInformationMessage: () => Promise.resolve(),
+      createOutputChannel: () => ({
+        append: () => {},
+        appendLine: () => {},
+        show: () => {},
+        dispose: () => {},
+      }),
+    },
+    commands: {
+      registerCommand: () => ({ dispose: () => {} }),
+      executeCommand: () => Promise.resolve(),
+    },
+    Uri: {
+      file: (path: string) => ({ fsPath: path }),
+      parse: (uri: string) => ({ toString: () => uri }),
+    },
+  };
+});
+
 describe('Create Work Item Command', () => {
   describe('Command Registration', () => {
     it('should register azureDevOpsInt.createWorkItem command', async () => {
@@ -48,10 +106,10 @@ describe('Create Work Item Command', () => {
   describe('FSM Event Type', () => {
     it('should include CREATE_WORK_ITEM in ApplicationEvent type', async () => {
       // This is a compile-time check - if the types are wrong, this test will fail to compile
-      const { applicationMachine } = await import('../../src/fsm/machines/applicationMachine.js');
+      const { eventHandlers } = await import('../../src/stores/eventHandlers.js');
 
-      // The machine should be defined and accept CREATE_WORK_ITEM events
-      expect(applicationMachine).toBeDefined();
+      // The handler should be defined
+      expect(eventHandlers.CREATE_WORK_ITEM).toBeDefined();
 
       // Type assertion to ensure CREATE_WORK_ITEM is a valid event
       const event: { type: 'CREATE_WORK_ITEM' } = { type: 'CREATE_WORK_ITEM' };
@@ -60,15 +118,15 @@ describe('Create Work Item Command', () => {
   });
 
   describe('Webview Integration', () => {
-    it('should trigger command when webview sends EXECUTE_COMMAND message', () => {
-      // This test validates the webview -> activation -> command flow
+    it('should trigger event when webview sends CREATE_WORK_ITEM message', () => {
+      // This test validates the webview -> activation -> event flow
       const message = {
-        type: 'EXECUTE_COMMAND',
-        command: 'azureDevOpsInt.createWorkItem',
+        type: 'fsmEvent',
+        event: { type: 'CREATE_WORK_ITEM' },
       };
 
-      expect(message.type).toBe('EXECUTE_COMMAND');
-      expect(message.command).toBe('azureDevOpsInt.createWorkItem');
+      expect(message.type).toBe('fsmEvent');
+      expect(message.event.type).toBe('CREATE_WORK_ITEM');
     });
   });
 });

@@ -20,9 +20,7 @@ Purpose: Custom header with action buttons matching VS Code header functionality
   function handleRefresh() {
     isRefreshing = true;
     // Send REFRESH_DATA message to extension
-    if (vscode) {
-      vscode.postMessage({ type: 'REFRESH_DATA' });
-    }
+    sendEvent?.({ type: 'REFRESH_DATA' });
     // Reset animation state after 500ms
     setTimeout(() => {
       isRefreshing = false;
@@ -30,27 +28,19 @@ Purpose: Custom header with action buttons matching VS Code header functionality
   }
   
   function handleToggleKanban() {
-    if (vscode) {
-      vscode.postMessage({ type: 'EXECUTE_COMMAND', command: 'azureDevOpsInt.toggleKanbanView' });
-    }
+    sendEvent?.({ type: 'TOGGLE_VIEW' });
   }
   
   function handleCreateWorkItem() {
-    if (vscode) {
-      vscode.postMessage({ type: 'EXECUTE_COMMAND', command: 'azureDevOpsInt.createWorkItem' });
-    }
+    sendEvent?.({ type: 'CREATE_WORK_ITEM' });
   }
   
   function handleSetup() {
-    if (vscode) {
-      vscode.postMessage({ type: 'OPEN_SETTINGS' });
-    }
+    sendEvent?.({ type: 'MANAGE_CONNECTIONS' });
   }
   
   function handleToggleDebug() {
-    if (vscode) {
-      vscode.postMessage({ type: 'TOGGLE_DEBUG_VIEW', debugViewVisible: !context?.debugViewVisible });
-    }
+    sendEvent?.({ type: 'TOGGLE_DEBUG_VIEW' });
   }
   
   // Show debug button only if debug logging is enabled

@@ -50,25 +50,6 @@ export interface WorkItem {
   branchMetadata?: WorkItemBranchMetadata;
 }
 
-export interface WorkItemTimerState {
-  workItemId: number;
-  workItemTitle: string;
-  startTime: number;
-  elapsedSeconds: number;
-  isPaused: boolean;
-  isPomodoro: boolean;
-  pomodoroCount: number;
-  pausedTime?: number;
-  pausedDueToInactivity?: boolean;
-}
-
-export interface TimeEntry {
-  workItemId: number;
-  startTime: number;
-  endTime: number;
-  duration: number; // seconds
-}
-
 export interface AzureDevOpsClientOptions {
   organization: string;
   project: string;

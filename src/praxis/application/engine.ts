@@ -66,6 +66,7 @@ function createInitialContext(
   config?: Partial<PraxisApplicationContext>
 ): ApplicationEngineContext {
   const merged = { ...DEFAULT_APPLICATION_CONFIG, ...config };
+  const maps = _createConnectionMaps(merged);
 
   return {
     applicationState: 'inactive',
@@ -86,11 +87,7 @@ function createInitialContext(
     debugViewVisible: merged.debugViewVisible ?? false,
 
     // Per-connection maps
-    connectionStates: merged.connectionStates ?? new Map(),
-    connectionQueries: merged.connectionQueries ?? new Map(),
-    connectionWorkItems: merged.connectionWorkItems ?? new Map(),
-    connectionFilters: merged.connectionFilters ?? new Map(),
-    connectionViewModes: merged.connectionViewModes ?? new Map(),
+    ...maps,
 
     // Auth reminders
     pendingAuthReminders: merged.pendingAuthReminders ?? new Map(),
@@ -100,6 +97,16 @@ function createInitialContext(
 
     // Kanban columns
     kanbanColumns: merged.kanbanColumns ?? [],
+  };
+}
+
+function _createConnectionMaps(merged: any) {
+  return {
+    connectionStates: merged.connectionStates ?? new Map(),
+    connectionQueries: merged.connectionQueries ?? new Map(),
+    connectionWorkItems: merged.connectionWorkItems ?? new Map(),
+    connectionFilters: merged.connectionFilters ?? new Map(),
+    connectionViewModes: merged.connectionViewModes ?? new Map(),
   };
 }
 

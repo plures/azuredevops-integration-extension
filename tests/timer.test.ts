@@ -5,8 +5,8 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-describe('WorkItemTimer (basic)', function () {
-  it('start -> stop produces a time entry', async function () {
+describe('WorkItemTimer (basic)', () => {
+  it('start -> stop produces a time entry', async () => {
     const persisted: any = { state: undefined, entries: [] };
     const timer = new WorkItemTimer({
       persist: (p) => {
@@ -23,9 +23,9 @@ describe('WorkItemTimer (basic)', function () {
     expect(res).to.have.property('duration').that.is.a('number');
     const entries = timer.getTimeEntries();
     expect(entries.length).to.be.greaterThan(0);
-  }).timeout(5000);
+  }, 5000);
 
-  it('timeReport Today includes entries spanning midnight with overlap only', function () {
+  it('timeReport Today includes entries spanning midnight with overlap only', () => {
     // Fixed clock just after midnight (use a fixed instant; timezone-insensitive expectation computed from report window)
     const jan2MidnightPlus1h = new Date('2025-01-02T01:00:00Z').getTime();
     const persisted: any = { state: undefined, entries: [] };
@@ -58,7 +58,7 @@ describe('WorkItemTimer (basic)', function () {
     expect(Math.round(bucket.total)).to.equal(Math.round(expectedOverlap));
   });
 
-  it('timeReport filters to period window using timer.now for week/month', function () {
+  it('timeReport filters to period window using timer.now for week/month', () => {
     // Set "now" to mid-month Wednesday
     const now = new Date('2025-05-14T12:00:00Z').getTime();
     const timer = new WorkItemTimer({ now: () => now, restorePersisted: () => ({}) as any });

@@ -1,11 +1,11 @@
-import { expect } from 'chai';
+import { describe, it, afterEach, expect } from 'vitest';
 import nock from 'nock';
 import { AzureDevOpsIntClient } from '../src/azureClient.ts';
 
-describe('AzureDevOpsIntClient retry behavior', function () {
+describe('AzureDevOpsIntClient retry behavior', () => {
   afterEach(() => nock.cleanAll());
 
-  it('retries on 429 and eventually succeeds', async function () {
+  it('retries on 429 and eventually succeeds', async () => {
     const client = new AzureDevOpsIntClient('org', 'proj', 'pat');
     // First call: WIQL returns 429, second attempt returns empty WIQL then 200
     const scope = nock('https://dev.azure.com')
@@ -19,7 +19,7 @@ describe('AzureDevOpsIntClient retry behavior', function () {
       .reply(200, { value: [{ id: 55, fields: {} }] });
 
     const items = await client.getWorkItems('My Activity');
-    expect(items).to.have.length.greaterThan(0);
-    expect(scope.isDone()).to.equal(true);
-  }).timeout(10000);
+    expect(items.length).toBeGreaterThan(0);
+    expect(scope.isDone()).toBe(true);
+  }, 10000);
 });

@@ -77,26 +77,41 @@ export class WIQLBuilder {
   private _buildFilterClauses(filter?: WorkItemFilter): string[] {
     const clauses: string[] = [];
 
-    if (filter?.sprint && filter.sprint !== 'All') {
-      clauses.push(this._getSprintClause(filter.sprint));
-    }
-
-    if (filter?.includeState) {
-      clauses.push(`[System.State] = '${this._escapeWIQL(filter.includeState)}'`);
-    }
-
-    if (filter?.type && filter.type !== 'All') {
-      clauses.push(`[System.WorkItemType] = '${this._escapeWIQL(filter.type)}'`);
-    }
-
-    if (filter?.assignedTo) {
-      const clause = this._getAssignedToClause(filter.assignedTo);
-      if (clause) clauses.push(clause);
+    if (filter) {
+      this._addSprintClause(clauses, filter.sprint);
+      this._addStateClause(clauses, filter.includeState);
+      this._addTypeClause(clauses, filter.type);
+      this._addAssignedToClause(clauses, filter.assignedTo);
     }
 
     if (clauses.length === 0) clauses.push('[System.State] <> "Removed"');
 
     return clauses;
+  }
+
+  private _addSprintClause(clauses: string[], sprint?: string): void {
+    if (sprint && sprint !== 'All') {
+      clauses.push(this._getSprintClause(sprint));
+    }
+  }
+
+  private _addStateClause(clauses: string[], state?: string): void {
+    if (state) {
+      clauses.push(`[System.State] = '${this._escapeWIQL(state)}'`);
+    }
+  }
+
+  private _addTypeClause(clauses: string[], type?: string): void {
+    if (type && type !== 'All') {
+      clauses.push(`[System.WorkItemType] = '${this._escapeWIQL(type)}'`);
+    }
+  }
+
+  private _addAssignedToClause(clauses: string[], assignedTo?: string): void {
+    if (assignedTo) {
+      const clause = this._getAssignedToClause(assignedTo);
+      if (clause) clauses.push(clause);
+    }
   }
 
   private _getSprintClause(sprint: string): string {

@@ -25,6 +25,7 @@ import { readable, writable, derived } from 'svelte/store';
 import { PraxisApplicationManager } from '../praxis/application/manager.js';
 import type { ProjectConnection } from '../praxis/connection/types.js';
 import { setApplicationStoreBridge } from '../fsm/services/extensionHostBridge.js';
+import { eventHandlers, type ApplicationEvent } from './eventHandlers.js';
 
 // ============================================================================
 // TYPE DEFINITIONS FOR COMPATIBILITY
@@ -40,11 +41,6 @@ interface ApplicationContext {
   lastError?: { message: string; stack?: string; connectionId?: string };
 }
 
-interface ApplicationEvent {
-  type: string;
-  [key: string]: unknown;
-}
-
 // ============================================================================
 // EVENT HANDLING HELPER
 // ============================================================================
@@ -54,57 +50,12 @@ interface ApplicationEvent {
  * Separated to reduce complexity in the main send function.
  */
 function handleApplicationEvent(manager: PraxisApplicationManager, event: ApplicationEvent): void {
-  switch (event.type) {
-    case 'ACTIVATE':
-      manager.activate();
-      break;
-    case 'DEACTIVATE':
-      manager.deactivate();
-      break;
-    case 'CONNECTIONS_LOADED':
-      if (event.connections && Array.isArray(event.connections)) {
-        manager.loadConnections(event.connections as ProjectConnection[]);
-      }
-      break;
-    case 'CONNECTION_SELECTED':
-      if (event.connectionId) {
-        manager.selectConnection(event.connectionId as string);
-      }
-      break;
-    case 'AUTHENTICATION_REQUIRED':
-      if (event.connectionId) {
-        manager.authReminder(event.connectionId as string, 'Authentication required');
-      }
-      break;
-    case 'AUTHENTICATION_SUCCESS':
-      if (event.connectionId) {
-        manager.authCompleted(event.connectionId as string);
-      }
-      break;
-    case 'AUTHENTICATION_FAILED':
-      if (event.connectionId && event.error) {
-        manager.authFailed(event.connectionId as string, event.error as string);
-      }
-      break;
-    case 'WEBVIEW_READY':
-      // No direct mapping - handled at webview level
-      break;
-    case 'ERROR':
-      if (event.error) {
-        const err = event.error as Error;
-        manager.error(err.message, err.stack);
-      }
-      break;
-    case 'RETRY':
-      manager.retryError();
-      break;
-    case 'RESET':
-      manager.reset();
-      break;
-    default:
-      // Log unknown event types in debug mode for development
-      console.debug(`[applicationStore] Unknown event type: ${event.type}`);
-      break;
+  const handler = eventHandlers[event.type];
+  if (handler) {
+    handler(manager, event);
+  } else {
+    // Log unknown event types in debug mode for development
+    console.debug(`[applicationStore] Unknown event type: ${event.type}`);
   }
 }
 
@@ -131,7 +82,7 @@ function createApplicationStore() {
   // Poll for state changes (similar to how we handled it in ConnectionFSMManager)
   const pollInterval = setInterval(() => {
     const appState = applicationManager.getApplicationState();
-    const appData = applicationManager.getApplicationData();
+    const appData = applicationManager.getContext();
 
     currentState.set({
       value: appState,
@@ -398,7 +349,7 @@ export const storeDebug = {
     return manager
       ? {
           value: manager.getApplicationState(),
-          context: manager.getApplicationData(),
+          context: manager.getContext(),
         }
       : null;
   },

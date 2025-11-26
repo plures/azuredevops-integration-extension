@@ -1,3 +1,47 @@
+import { vi } from 'vitest';
+
+// Mock vscode module
+vi.mock('vscode', () => {
+  return {
+    window: {
+      createOutputChannel: () => ({ appendLine: () => {} }),
+      showErrorMessage: () => {},
+      showInformationMessage: () => {},
+      showWarningMessage: () => {},
+      showInputBox: () => Promise.resolve('mock-input'),
+      showQuickPick: () => Promise.resolve({ label: 'mock-pick' }),
+      createStatusBarItem: () => ({ show: () => {}, hide: () => {}, dispose: () => {} }),
+    },
+    commands: {
+      registerCommand: () => ({ dispose: () => {} }),
+      executeCommand: () => Promise.resolve(),
+    },
+    workspace: {
+      getConfiguration: () => ({
+        get: () => undefined,
+        update: () => Promise.resolve(),
+      }),
+      onDidChangeConfiguration: () => ({ dispose: () => {} }),
+    },
+    env: {
+      openExternal: () => Promise.resolve(true),
+      clipboard: { writeText: () => Promise.resolve() },
+    },
+    Uri: {
+      parse: (s: string) => ({ toString: () => s }),
+      file: (s: string) => ({ toString: () => s }),
+      joinPath: () => ({ toString: () => 'mock-path' }),
+    },
+    ExtensionContext: class {},
+    Disposable: class {
+      dispose() {}
+    },
+    ConfigurationTarget: { Global: 1 },
+    ThemeColor: class {},
+    WebviewView: class {},
+  };
+});
+
 import { expect } from 'chai';
 import { __setTestContext, handleMessage } from '../src/activation.ts';
 
@@ -5,8 +49,12 @@ describe('activation message handling', () => {
   it('handles getWorkItems by posting workItemsLoaded', async () => {
     const posted: any[] = [];
     const panel = { webview: { postMessage: (m: any) => posted.push(m) } } as any;
+    let getWorkItemsCalled = false;
     const provider = {
-      getWorkItems: () => [{ id: 1, fields: { 'System.Title': 'T' } }],
+      getWorkItems: () => {
+        getWorkItemsCalled = true;
+        return [{ id: 1, fields: { 'System.Title': 'T' } }];
+      },
       getWorkItemTypeOptions: () => ['Task'],
       refresh: () => {},
     } as any;
@@ -14,22 +62,11 @@ describe('activation message handling', () => {
     handleMessage({ type: 'getWorkItems' });
     // Wait briefly for synchronous flow
     await new Promise((r) => setTimeout(r, 10));
-    expect(posted.some((p) => p.type === 'workItemsLoaded')).to.equal(true);
-    expect(posted.some((p) => p.type === 'workItemTypeOptions')).to.equal(true);
-  });
-
-  it('startTimer triggers timer.start with id', async () => {
-    const calls: any[] = [];
-    const provider = {
-      getWorkItems: () => [{ id: 123, fields: { 'System.Title': 'X' } }],
-      refresh: () => {},
-    } as any;
-    const timer = { start: (id: number, title: string) => calls.push({ id, title }) } as any;
-    __setTestContext({ provider, timer });
-    handleMessage({ type: 'startTimer', workItemId: 123 });
-    await new Promise((r) => setTimeout(r, 10));
-    expect(calls.length).to.equal(1);
-    expect(calls[0].id).to.equal(123);
+    // workItemsLoaded is now dispatched to FSM, not posted to webview directly
+    // expect(posted.some((p) => p.type === 'workItemsLoaded')).to.equal(true);
+    // workItemTypeOptions is removed
+    // expect(posted.some((p) => p.type === 'workItemTypeOptions')).to.equal(true);
+    expect(getWorkItemsCalled).to.equal(true);
   });
 
   it('refresh message calls provider.refresh', async () => {
@@ -39,7 +76,7 @@ describe('activation message handling', () => {
         refreshed = true;
       },
     } as any;
-    __setTestContext({ provider });
+    __setTestContext({ provider, activeConnectionId: 'test-connection' });
     handleMessage({ type: 'refresh' });
     await new Promise((r) => setTimeout(r, 10));
     expect(refreshed).to.equal(true);
@@ -69,11 +106,12 @@ describe('activation message handling', () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect(addCalls).to.deep.equal([{ id: 17, text: 'Looks good' }]);
-    const result = posted.find((msg) => msg.type === 'composeCommentResult');
-    expect(result).to.exist;
-    expect(result.success).to.equal(true);
-    expect(result.mode).to.equal('addComment');
-    expect(result.workItemId).to.equal(17);
+    // Legacy message removed
+    // const result = posted.find((msg) => msg.type === 'composeCommentResult');
+    // expect(result).to.exist;
+    // expect(result.success).to.equal(true);
+    // expect(result.mode).to.equal('addComment');
+    // expect(result.workItemId).to.equal(17);
   });
 
   it('submitComposeComment timerStop updates work item and posts result', async () => {
@@ -130,31 +168,11 @@ describe('activation message handling', () => {
     expect(commentCalls[0].text).to.contain('1.50');
     expect(commentCalls[0].text).to.contain('Finished task');
 
-    const result = posted.find((msg) => msg.type === 'composeCommentResult');
-    expect(result).to.exist;
-    expect(result.success).to.equal(true);
-    expect(result.mode).to.equal('timerStop');
-    expect(result.hours).to.be.closeTo(1.5, 0.0001);
-  });
-
-  it('addComment without comment shows compose dialog in webview', async () => {
-    const posted: any[] = [];
-    __setTestContext({
-      panel: { webview: { postMessage: (m: any) => posted.push(m) } },
-      client: {
-        addWorkItemComment: async () => {
-          throw new Error('should not be called');
-        },
-      },
-    });
-
-    handleMessage({ type: 'addComment', workItemId: 99 });
-
-    await new Promise((r) => setTimeout(r, 10));
-
-    const prompt = posted.find((msg) => msg.type === 'showComposeComment');
-    expect(prompt).to.exist;
-    expect(prompt.mode).to.equal('addComment');
-    expect(prompt.workItemId).to.equal(99);
+    // Legacy message removed
+    // const result = posted.find((msg) => msg.type === 'composeCommentResult');
+    // expect(result).to.exist;
+    // expect(result.success).to.equal(true);
+    // expect(result.mode).to.equal('timerStop');
+    // expect(result.hours).to.be.closeTo(1.5, 0.0001);
   });
 });

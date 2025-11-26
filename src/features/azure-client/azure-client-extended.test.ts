@@ -20,11 +20,13 @@ vi.mock('axios', () => ({
 }));
 
 // Mock dependencies
-vi.mock('../../rateLimiter.js', () => ({
-  RateLimiter: vi.fn().mockImplementation(() => ({
-    wait: vi.fn().mockResolvedValue(undefined),
-  })),
-}));
+vi.mock('../../rateLimiter.js', () => {
+  return {
+    RateLimiter: class {
+      wait = vi.fn().mockResolvedValue(undefined);
+    },
+  };
+});
 
 vi.mock('../../cache.js', () => ({
   workItemCache: {
@@ -44,6 +46,7 @@ describe('AzureDevOpsIntClient Authentication', () => {
   beforeEach(() => {
     client = new AzureDevOpsIntClient('test-org', 'test-project', 'test-token', 'pat');
     mockHttpClient = client['httpClient'];
+    vi.spyOn(mockHttpClient, 'get');
   });
 
   it('should get authenticated identity', async () => {
@@ -54,11 +57,11 @@ describe('AzureDevOpsIntClient Authentication', () => {
       descriptor: 'test-descriptor',
     };
 
-    mockHttpClient.get.mockResolvedValue({
+    vi.spyOn(mockHttpClient, 'get').mockResolvedValue({
       data: {
         authenticatedUser: mockIdentity,
       },
-    });
+    } as any);
 
     const result = await client.getAuthenticatedIdentity();
 
@@ -91,6 +94,7 @@ describe('AzureDevOpsIntClient Repositories', () => {
   beforeEach(() => {
     client = new AzureDevOpsIntClient('test-org', 'test-project', 'test-token', 'pat');
     mockHttpClient = client['httpClient'];
+    vi.spyOn(mockHttpClient, 'get');
   });
 
   it('should get repositories', async () => {
@@ -103,7 +107,7 @@ describe('AzureDevOpsIntClient Repositories', () => {
       },
     ];
 
-    mockHttpClient.get.mockResolvedValue({
+    vi.spyOn(mockHttpClient, 'get').mockResolvedValue({
       data: {
         value: [
           {
@@ -114,7 +118,7 @@ describe('AzureDevOpsIntClient Repositories', () => {
           },
         ],
       },
-    });
+    } as any);
 
     const result = await client.getRepositories();
 

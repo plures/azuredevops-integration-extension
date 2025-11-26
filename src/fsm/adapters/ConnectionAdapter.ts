@@ -19,7 +19,7 @@
  */
 
 import { ConnectionFSMManager, getConnectionFSMManager } from '../ConnectionFSMManager.js';
-import { ProjectConnection } from '../machines/connectionMachine.js';
+import type { ProjectConnection } from '../machines/connectionTypes.js';
 import { createComponentLogger, FSMComponent } from '../logging/FSMLogger.js';
 import {
   getLoadedConnections as getLoadedConnectionsFromBridge,

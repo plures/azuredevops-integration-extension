@@ -53,48 +53,53 @@ export class WorkItemsService {
 
   private _mapWorkItems(rawItems: any[]): WorkItem[] {
     if (!Array.isArray(rawItems)) return [];
-    return rawItems
-      .map((item) => {
-        const mapped: WorkItem = {
-          id: item.id,
-          title: item.fields?.['System.Title'] || 'Untitled',
-          state: item.fields?.['System.State'] || 'Unknown',
-          assignedTo: item.fields?.['System.AssignedTo']?.displayName || 'Unassigned',
-          workItemType: item.fields?.['System.WorkItemType'] || 'Unknown',
-          changedDate: item.fields?.['System.ChangedDate'] || new Date().toISOString(),
-          url: item.url,
-          fields: item.fields || {},
-        };
+    return rawItems.map((item) => this._mapSingleWorkItem(item)).filter(Boolean) as WorkItem[];
+  }
 
-        // Handle relations
-        if (Array.isArray(item.relations) && item.relations.length > 0) {
-          const relations = item.relations
-            .map((rel: any) => {
-              if (
-                rel.rel === 'System.LinkType.Hierarchy-Forward' ||
-                rel.rel === 'System.LinkType.Hierarchy-Reverse'
-              ) {
-                const targetId = rel.url?.match(/\/(\d+)$/)?.[1];
-                if (targetId) {
-                  return {
-                    workItemId: parseInt(targetId),
-                    relationType: rel.rel,
-                    targetWorkItemUrl: rel.url,
-                  } as WorkItemRelationInfo;
-                }
-              }
-              return null;
-            })
-            .filter(Boolean);
+  private _mapSingleWorkItem(item: any): WorkItem | null {
+    if (!item) return null;
 
-          if (relations.length > 0) {
-            mapped.relations = relations;
+    const fields = item.fields || {};
+    const mapped: WorkItem = {
+      id: item.id,
+      title: fields['System.Title'] || 'Untitled',
+      state: fields['System.State'] || 'Unknown',
+      assignedTo: fields['System.AssignedTo']?.displayName || 'Unassigned',
+      workItemType: fields['System.WorkItemType'] || 'Unknown',
+      changedDate: fields['System.ChangedDate'] || new Date().toISOString(),
+      url: item.url,
+      fields: fields,
+    };
+
+    const relations = this._mapRelations(item.relations);
+    if (relations.length > 0) {
+      mapped.relations = relations;
+    }
+
+    return mapped;
+  }
+
+  private _mapRelations(rawRelations: any[]): WorkItemRelationInfo[] {
+    if (!Array.isArray(rawRelations) || rawRelations.length === 0) return [];
+
+    return rawRelations
+      .map((rel: any) => {
+        if (
+          rel.rel === 'System.LinkType.Hierarchy-Forward' ||
+          rel.rel === 'System.LinkType.Hierarchy-Reverse'
+        ) {
+          const targetId = rel.url?.match(/\/(\d+)$/)?.[1];
+          if (targetId) {
+            return {
+              workItemId: parseInt(targetId),
+              relationType: rel.rel,
+              targetWorkItemUrl: rel.url,
+            } as WorkItemRelationInfo;
           }
         }
-
-        return mapped;
+        return null;
       })
-      .filter(Boolean);
+      .filter(Boolean) as WorkItemRelationInfo[];
   }
 
   async getWorkItemsByIds(ids: number[]): Promise<WorkItem[]> {

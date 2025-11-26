@@ -11,7 +11,7 @@
  * LLM-GUARD:
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
  */
-import type { ApplicationContext, AuthReminderReason } from '../../machines/applicationMachine.js';
+import type { ApplicationContext, AuthReminderReason } from '../../machines/applicationTypes.js';
 
 export type RequireAuthenticationMessage = {
   type: 'requireAuthentication';

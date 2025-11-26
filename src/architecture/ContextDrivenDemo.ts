@@ -18,11 +18,8 @@
  * Focus on the patterns and flow rather than the implementation details.
  */
 
-import {
-  ApplicationContext,
-  contextActions,
-  createInitialContextFrozen,
-} from './ApplicationContext';
+import type { ApplicationContext } from './ApplicationContext';
+import { contextActions, createInitialContextFrozen } from './ApplicationContext';
 
 /**
  * Simple Actor Pattern - Focus on the concept

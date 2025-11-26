@@ -160,8 +160,8 @@ export function createSharedContextBridge({
   function getApplicationContext(): ApplicationContext {
     try {
       // Check if actor is a PraxisApplicationManager
-      if (applicationManager && typeof applicationManager.getApplicationData === 'function') {
-        const data = applicationManager.getApplicationData();
+      if (applicationManager && typeof applicationManager.getContext === 'function') {
+        const data = applicationManager.getContext();
         return {
           isActivated: data.isActivated,
           isDeactivating: data.isDeactivating,
@@ -536,7 +536,6 @@ export function createSharedContextBridge({
       apiBaseUrl: readString(value.apiBaseUrl) ?? undefined,
       identityName: readString(value.identityName) ?? undefined,
       tenantId: readString(value.tenantId) ?? undefined,
-      clientId: readString(value.clientId) ?? undefined,
     };
 
     return coerced;

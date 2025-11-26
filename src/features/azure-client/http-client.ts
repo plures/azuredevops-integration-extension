@@ -15,7 +15,7 @@
  * - apiBaseUrl: ALWAYS used for REST API calls. Must include project and end with '/_apis'.
  * - baseUrl:    ONLY used for browser/UI links. Never used for REST calls.
  */
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import { RateLimiter } from '../../rateLimiter.js';
 import { createLogger } from '../../logging/unifiedLogger.js';
 import type { AuthType, ClientOptions } from './types.js';
@@ -102,11 +102,11 @@ export class AzureHttpClient {
 
         // Add authentication
         if (this.authType === 'pat') {
-          config.headers = config.headers || {};
+          config.headers = (config.headers || {}) as any;
           config.headers['Authorization'] =
             `Basic ${Buffer.from(`:${this.credential}`).toString('base64')}`;
         } else if (this.authType === 'bearer') {
-          config.headers = config.headers || {};
+          config.headers = (config.headers || {}) as any;
           config.headers['Authorization'] = `Bearer ${this.credential}`;
         }
 
@@ -129,43 +129,46 @@ export class AzureHttpClient {
     const cfg = err.config || {};
     const url = cfg.url || 'unknown';
 
-    if (err.response) {
-      const { status, statusText, data } = err.response;
+    if (!err.response) return;
 
-      if (status === 404) {
-        logger.error('HTTP 404 Details', {
-          meta: {
-            url,
-            status,
-            statusText,
-            data: data ? JSON.stringify(data).substring(0, 200) : 'no data',
-          },
-        });
-      }
+    const { status, statusText, data } = err.response;
 
-      if (status === 401 && this.authType === 'bearer') {
-        logger.error('HTTP 401 Unauthorized - authentication required');
-      }
-
-      // Handle specific error cases
-      if (status === 400 && data) {
-        let snippet: string;
-        try {
-          snippet = JSON.stringify(data).substring(0, 200);
-        } catch {
-          snippet = 'Unable to stringify data';
-        }
-
-        logger.error('HTTP 400 Details', {
-          meta: {
-            url,
-            status,
-            statusText,
-            data: snippet,
-          },
-        });
-      }
+    if (status === 404) {
+      this._log404Error(url, status, statusText, data);
+    } else if (status === 401 && this.authType === 'bearer') {
+      logger.error('HTTP 401 Unauthorized - authentication required');
+    } else if (status === 400 && data) {
+      this._log400Error(url, status, statusText, data);
     }
+  }
+
+  private _log404Error(url: string, status: number, statusText: string, data: any): void {
+    logger.error('HTTP 404 Details', {
+      meta: {
+        url,
+        status,
+        statusText,
+        data: data ? JSON.stringify(data).substring(0, 200) : 'no data',
+      },
+    });
+  }
+
+  private _log400Error(url: string, status: number, statusText: string, data: any): void {
+    let snippet: string;
+    try {
+      snippet = JSON.stringify(data).substring(0, 200);
+    } catch {
+      snippet = 'Unable to stringify data';
+    }
+
+    logger.error('HTTP 400 Details', {
+      meta: {
+        url,
+        status,
+        statusText,
+        data: snippet,
+      },
+    });
   }
 
   updateCredential(newCredential: string): void {

@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import { WorkItemTimer } from '../src/timer.ts';
 
-describe('WorkItemTimer inactivity auto-pause', function () {
-  it('pauses due to inactivity after timeout', function (done) {
+describe('WorkItemTimer inactivity auto-pause', () => {
+  it('pauses due to inactivity after timeout', (done) => {
     // configure short timeout and frequent checks for test
     let warnCalled = false;
     const timer = new WorkItemTimer({
@@ -22,5 +22,5 @@ describe('WorkItemTimer inactivity auto-pause', function () {
         done(e);
       }
     }, 1600);
-  }).timeout(5000);
+  }, 5000);
 });

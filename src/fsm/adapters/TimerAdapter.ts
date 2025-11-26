@@ -13,7 +13,10 @@
  */
 import { FSMManager } from '../FSMManager';
 import { WorkItemTimer } from '../../timer';
-import { TimerStopResult, LegacyTimerSnapshot } from '../types';
+import type {
+  PraxisTimerStopResult as TimerStopResult,
+  PraxisTimerSnapshot as LegacyTimerSnapshot,
+} from '../../praxis/timer/types.js';
 import { createComponentLogger, FSMComponent } from '../logging/FSMLogger';
 
 /**
@@ -110,6 +113,7 @@ export class TimerAdapter {
           startTime: fsmSnapshot.startTime,
           elapsedSeconds: fsmSnapshot.elapsedSeconds,
           isPaused: fsmSnapshot.isPaused,
+          running: !!fsmSnapshot.startTime && !fsmSnapshot.isPaused,
           isPomodoro: fsmSnapshot.isPomodoro || false,
           pomodoroCount: fsmSnapshot.pomodoroCount || 0,
         };
@@ -117,7 +121,14 @@ export class TimerAdapter {
 
       return undefined;
     } else {
-      return this.legacyTimer.snapshot();
+      const snapshot = this.legacyTimer.snapshot();
+      if (snapshot) {
+        return {
+          ...snapshot,
+          running: !!snapshot.startTime && !snapshot.isPaused,
+        };
+      }
+      return undefined;
     }
   }
 
@@ -133,53 +144,44 @@ export class TimerAdapter {
   }
 
   loadFromPersisted(): void {
+    // Always load legacy first to get the data from storage (since legacyTimer has the context callbacks)
+    this.legacyTimer.loadFromPersisted();
+
     if (this.useFSM) {
-      // FSM persistence loading implementation
       try {
-        // Get timer actor from FSM manager
-        const timerActor = this.fsmManager.getTimerActor();
-        if (timerActor) {
-          // Send restore event to timer state machine
-          timerActor.send({ type: 'RESTORE' });
-          this.logger.debug('FSM timer state restored from persistence');
-        } else {
-          this.logger.warn('No FSM timer actor available for persistence loading, using legacy');
-          this.legacyTimer.loadFromPersisted();
+        const snapshot = this.legacyTimer.snapshot();
+        if (snapshot) {
+          this.fsmManager.restoreTimer(
+            snapshot.workItemId,
+            snapshot.workItemTitle,
+            snapshot.startTime,
+            snapshot.isPaused
+          );
+          this.logger.debug('FSM timer state restored from legacy persistence');
         }
       } catch (error) {
         this.logger.error(
-          'FSM persistence loading failed, falling back to legacy: ' +
+          'FSM persistence loading failed: ' +
             (error instanceof Error ? error.message : String(error))
         );
-        this.legacyTimer.loadFromPersisted();
       }
-    } else {
-      this.legacyTimer.loadFromPersisted();
     }
   }
 
   setDefaultElapsedLimitHours(hours: number): void {
+    // Always update legacy
+    this.legacyTimer.setDefaultElapsedLimitHours(hours);
+
     if (this.useFSM) {
-      // Update FSM timer context implementation
       try {
-        const timerActor = this.fsmManager.getTimerActor();
-        if (timerActor) {
-          // Send update elapsed limit event
-          timerActor.send({ type: 'UPDATE_ELAPSED_LIMIT', hours });
-          this.logger.debug(`FSM timer elapsed limit updated to ${hours} hours`);
-        } else {
-          this.logger.warn('No FSM timer actor available for elapsed limit update, using legacy');
-          this.legacyTimer.setDefaultElapsedLimitHours(hours);
-        }
+        this.fsmManager.updateElapsedLimit(hours);
+        this.logger.debug(`FSM timer elapsed limit updated to ${hours} hours`);
       } catch (error) {
         this.logger.error(
-          'FSM elapsed limit update failed, falling back to legacy: ' +
+          'FSM elapsed limit update failed: ' +
             (error instanceof Error ? error.message : String(error))
         );
-        this.legacyTimer.setDefaultElapsedLimitHours(hours);
       }
-    } else {
-      this.legacyTimer.setDefaultElapsedLimitHours(hours);
     }
   }
 

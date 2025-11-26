@@ -12,7 +12,7 @@
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
  */
 import { fsmLogger, FSMComponent } from '../../logging/FSMLogger.js';
-import type { ApplicationContext } from '../../machines/applicationMachine.js';
+import type { ApplicationContext } from '../../machines/applicationTypes.js';
 
 /**
  * Pure function to toggle debug view visibility.

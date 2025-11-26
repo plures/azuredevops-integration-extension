@@ -13,7 +13,7 @@
  */
 import * as vscode from 'vscode';
 import { sendApplicationStoreEvent } from '../../services/extensionHostBridge.js';
-import type { ProjectConnection } from '../../machines/applicationMachine.js';
+import type { ProjectConnection } from '../../machines/applicationTypes.js';
 
 function dispatchApplicationEvent(event: unknown): void {
   sendApplicationStoreEvent(event);

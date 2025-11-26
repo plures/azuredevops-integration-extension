@@ -10,8 +10,36 @@
     "sourceMap": true,
     "strict": false,
     "moduleResolution": "bundler",
-    "types": ["node"]
-  }
+    "baseUrl": ".",
+    "verbatimModuleSyntax": true,
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "paths": {
+      "$lib/*": ["src/lib/*"],
+      "@src/*": ["../../src/*"],
+      "xstate": ["./node_modules/xstate"],
+      "@plures/praxis": ["./node_modules/@plures/praxis"],
+      "vscode": ["../../vscode-stub"]
+    }
+  },
+  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.js", "src/**/*.svelte"],
+  "exclude": [
+    "../../src/fsm/xstate-svelte/test",
+    "../../src/**/*.test.ts",
+    "../../src/**/*.spec.ts",
+    "../../src/fsm/ConnectionFSMManager.ts",
+    "../../src/activation.ts",
+    "../../src/fsm/adapters/ConnectionAdapter.ts",
+    "../../src/fsm/machines/applicationMachine.ts",
+    "../../src/fsm/machines/authMachine.ts",
+    "../../src/fsm/machines/dataMachine.ts",
+    "../../src/features/connection/actions.ts",
+    "../../src/features/connection/services.ts",
+    "../../src/features/timer/ui-integration.ts",
+    "../../src/features/timer/index.ts",
+    "../../src/fsm/services/reactiveServices.ts"
+  ]
   // Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
   // except $lib which is handled by https://svelte.dev/docs/kit/configuration#files
   //

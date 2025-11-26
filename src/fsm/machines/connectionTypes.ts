@@ -57,6 +57,9 @@ export type AuthReminderState = {
   reason: AuthReminderReason;
   detail?: string;
   snoozeUntil?: number;
+  message?: string;
+  label?: string;
+  authMethod?: 'pat' | 'entra';
 };
 
 export type ConnectionEvent =

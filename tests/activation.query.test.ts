@@ -1,3 +1,63 @@
+import { vi } from 'vitest';
+
+vi.mock('vscode', () => {
+  return {
+    default: {
+      workspace: {
+        getConfiguration: () => ({
+          get: () => undefined,
+          update: () => Promise.resolve(),
+        }),
+        onDidChangeConfiguration: () => ({ dispose: () => {} }),
+      },
+      window: {
+        showErrorMessage: () => Promise.resolve(),
+        showInformationMessage: () => Promise.resolve(),
+        createOutputChannel: () => ({
+          append: () => {},
+          appendLine: () => {},
+          show: () => {},
+          dispose: () => {},
+        }),
+      },
+      commands: {
+        registerCommand: () => ({ dispose: () => {} }),
+        executeCommand: () => Promise.resolve(),
+      },
+      Uri: {
+        file: (path: string) => ({ fsPath: path }),
+        parse: (uri: string) => ({ toString: () => uri }),
+      },
+      ExtensionContext: class {},
+    },
+    workspace: {
+      getConfiguration: () => ({
+        get: () => undefined,
+        update: () => Promise.resolve(),
+      }),
+      onDidChangeConfiguration: () => ({ dispose: () => {} }),
+    },
+    window: {
+      showErrorMessage: () => Promise.resolve(),
+      showInformationMessage: () => Promise.resolve(),
+      createOutputChannel: () => ({
+        append: () => {},
+        appendLine: () => {},
+        show: () => {},
+        dispose: () => {},
+      }),
+    },
+    commands: {
+      registerCommand: () => ({ dispose: () => {} }),
+      executeCommand: () => Promise.resolve(),
+    },
+    Uri: {
+      file: (path: string) => ({ fsPath: path }),
+      parse: (uri: string) => ({ toString: () => uri }),
+    },
+  };
+});
+
 import { expect } from 'chai';
 import { resolveDefaultQuery } from '../src/activation.ts';
 
@@ -53,7 +113,7 @@ const DEFAULT_WORK_ITEM_QUERY =
 describe('resolveDefaultQuery', () => {
   it('returns defaultQuery when provided', () => {
     const cfg = makeConfig({ defaultQuery: 'Current Sprint', workItemQuery: 'Legacy query' });
-    expect(resolveDefaultQuery(cfg)).to.equal('Current Sprint');
+    expect(resolveDefaultQuery(cfg as any)).to.equal('Current Sprint');
   });
 
   it('falls back to workItemQuery when defaultQuery missing', () => {
@@ -61,12 +121,12 @@ describe('resolveDefaultQuery', () => {
       { defaultQuery: '', workItemQuery: 'SELECT * FROM WorkItems' },
       { customKeys: ['workItemQuery'] }
     );
-    expect(resolveDefaultQuery(cfg)).to.equal('SELECT * FROM WorkItems');
+    expect(resolveDefaultQuery(cfg as any)).to.equal('SELECT * FROM WorkItems');
   });
 
   it('returns My Activity when no overrides provided', () => {
     const cfg = makeConfig({}, { defaults: { workItemQuery: DEFAULT_WORK_ITEM_QUERY } });
-    expect(resolveDefaultQuery(cfg)).to.equal('My Activity');
+    expect(resolveDefaultQuery(cfg as any)).to.equal('My Activity');
   });
 
   it('falls back to workItemQuery when inspect not available', () => {
@@ -76,6 +136,6 @@ describe('resolveDefaultQuery', () => {
         return undefined;
       },
     };
-    expect(resolveDefaultQuery(cfg)).to.equal('SELECT * FROM Legacy');
+    expect(resolveDefaultQuery(cfg as any)).to.equal('SELECT * FROM Legacy');
   });
 });
