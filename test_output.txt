@@ -1,0 +1,1191 @@
+
+> azuredevops-integration-extension@2.12.2 pretest
+> npm run compile
+
+
+> azuredevops-integration-extension@2.12.2 compile
+> npm run type-check && node esbuild.mjs
+
+
+> azuredevops-integration-extension@2.12.2 type-check
+> tsc --noEmit
+
+Γû▓ [WARNING] Using direct eval with a bundler is not recommended and may cause problems [direct-eval]
+
+    src/logging/unifiedLogger.ts:26:14:
+      26 Γöé   const req = eval('require') as any;
+         Γò╡               ~~~~
+
+  You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
+
+Γû▓ [WARNING] Using direct eval with a bundler is not recommended and may cause problems [direct-eval]
+
+    src/performance.ts:24:14:
+      24 Γöé   const req = eval('require') as any;
+         Γò╡               ~~~~
+
+  You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
+
+2 warnings
+
+  dist\extension.cjs      584.8kb
+  dist\extension.cjs.map    1.6mb
+
+Done in 75ms
+[esbuild] Built extension (CommonJS) -> dist/extension.cjs
+[esbuild] Building webview...
+[esbuild] Γ£ô Generated svelte.html for screenshots
+[esbuild] Γ£ô Webview built successfully
+
+> azuredevops-integration-extension@2.12.2 test
+> node scripts/run-esm-tests-cmd.mjs
+
+
+[1m[46m RUN [49m[22m [36mv4.0.4 [39m[90mC:/Projects/azuredevops-integration-extension[39m
+
+[90mstdout[2m | tests/query-selector.test.ts
+[22m[39mTesting query validation...
+Γ£ô Known query options validation passed
+Γ£ô Empty query validation passed
+Γ£ô Short query validation passed
+Γ£ô Dangerous SQL pattern validation passed
+Γ£ô Valid custom query validation passed
+Γ£ô All expected query options present
+Γ£ô All query options have descriptions
+Γ£ô All query option values are unique
+All query selector tests passed!
+
+stderr | tests/sessionTelemetry.persistence.test.ts > SessionTelemetryManager persistence > persists sessions to SQLite when storageMode is sqlite
+[AzureDevOpsInt][sessionTelemetry] Failed to acquire git API gitExt.activate is not a function
+TypeError: gitExt.activate is not a function
+    at SessionTelemetryManager.ensureGitApi (C:/Projects/azuredevops-integration-extension/src/sessionTelemetry.ts:129:25)
+    at SessionTelemetryManager.getPrimaryRepository (C:/Projects/azuredevops-integration-extension/src/sessionTelemetry.ts:399:28)
+    at SessionTelemetryManager.startSession (C:/Projects/azuredevops-integration-extension/src/sessionTelemetry.ts:152:29)
+    at C:/Projects/azuredevops-integration-extension/tests/sessionTelemetry.persistence.test.ts:145:19
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:157:11
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:753:26
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1636:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1602:10)
+    at runTest (file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1309:12)
+
+stderr | tests/sessionTelemetry.persistence.test.ts > SessionTelemetryManager persistence > falls back to workspaceState when storageMode is workspaceState
+[AzureDevOpsInt][sessionTelemetry] Failed to acquire git API gitExt.activate is not a function
+TypeError: gitExt.activate is not a function
+    at SessionTelemetryManager.ensureGitApi (C:/Projects/azuredevops-integration-extension/src/sessionTelemetry.ts:129:25)
+    at SessionTelemetryManager.getPrimaryRepository (C:/Projects/azuredevops-integration-extension/src/sessionTelemetry.ts:399:28)
+    at SessionTelemetryManager.startSession (C:/Projects/azuredevops-integration-extension/src/sessionTelemetry.ts:152:29)
+    at C:/Projects/azuredevops-integration-extension/tests/sessionTelemetry.persistence.test.ts:184:19
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:157:11
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:753:26
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1636:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1602:10)
+    at runTest (file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1309:12)
+
+ [31mΓ¥»[39m tests/sessionTelemetry.persistence.test.ts [2m([22m[2m2 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 31[2mms[22m[39m
+[31m     [31m├ù[31m persists sessions to SQLite when storageMode is sqlite[39m[32m 22[2mms[22m[39m
+     [32mΓ£ô[39m falls back to workspaceState when storageMode is workspaceState[32m 8[2mms[22m[39m
+ [31mΓ¥»[39m tests/fsm/functions/ui/error-handling.test.ts [2m([22m[2m31 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 21[2mms[22m[39m
+         [32mΓ£ô[39m should detect authentication error from 401 status code[32m 2[2mms[22m[39m
+         [32mΓ£ô[39m should detect authorization error from 403 status code[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should detect server error from 404 status code[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should detect server error from 500+ status codes[32m 0[2mms[22m[39m
+[31m         [31m├ù[31m should detect network error from timeout status codes[39m[32m 9[2mms[22m[39m
+         [32mΓ£ô[39m should detect PAT expiration from error message[32m 1[2mms[22m[39m
+         [32mΓ£ô[39m should detect token expiration from error message[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should detect invalid token from error message[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should detect unauthorized from error message[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should detect authentication failed from error message[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should detect 401 from error message string[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should detect authorization error from forbidden message[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should detect authorization error from permission message[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should detect authorization error from 403 in message[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should detect network error from network-related messages[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should detect server error from server-related messages[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should default to unknown for unrecognized errors[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should handle empty error message[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should extract message from Error object[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should handle Error objects with status codes[32m 0[2mms[22m[39m
+         [32mΓ£ô[39m should prioritize status code over error message[32m 0[2mms[22m[39m
+       [32mΓ£ô[39m should update UI state with error information[32m 1[2mms[22m[39m
+       [32mΓ£ô[39m should preserve lastSuccess if connection was previously healthy[32m 0[2mms[22m[39m
+       [32mΓ£ô[39m should not preserve lastSuccess if connection was not healthy[32m 0[2mms[22m[39m
+       [32mΓ£ô[39m should detect error type from message automatically[32m 0[2mms[22m[39m
+       [32mΓ£ô[39m should create refresh status for successful refresh[32m 0[2mms[22m[39m
+       [32mΓ£ô[39m should create refresh status for failed refresh with error message[32m 0[2mms[22m[39m
+       [32mΓ£ô[39m should include nextAutoRefresh timestamp when provided[32m 0[2mms[22m[39m
+       [32mΓ£ô[39m should set lastAttempt to current timestamp[32m 0[2mms[22m[39m
+       [32mΓ£ô[39m should clear error state and set status to healthy[32m 0[2mms[22m[39m
+       [32mΓ£ô[39m should set lastSuccess to current timestamp[32m 0[2mms[22m[39m
+ [31mΓ¥»[39m tests/ui-reactivity.test.ts [2m([22m[2m1 test[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 7[2mms[22m[39m
+[31m     [31m├ù[31m propagates repo changes and filter updates[39m[32m 6[2mms[22m[39m
+stderr | src/features/azure-client/azure-client-extended.test.ts > AzureDevOpsIntClient Authentication > should get authenticated identity
+[vitest] The vi.fn() mock did not use 'function' or 'class' in its implementation, see https://vitest.dev/api/vi#vi-spyon for examples.
+
+stderr | src/features/azure-client/azure-client.test.ts > AzureDevOpsIntClient > constructor > should initialize with correct parameters
+[vitest] The vi.fn() mock did not use 'function' or 'class' in its implementation, see https://vitest.dev/api/vi#vi-spyon for examples.
+
+stderr | src/features/azure-client/azure-client-extended.test.ts > AzureDevOpsIntClient Authentication > should return cached identity if available
+[vitest] The vi.fn() mock did not use 'function' or 'class' in its implementation, see https://vitest.dev/api/vi#vi-spyon for examples.
+
+stderr | src/features/azure-client/azure-client-extended.test.ts > AzureDevOpsIntClient Repositories > should get repositories
+[vitest] The vi.fn() mock did not use 'function' or 'class' in its implementation, see https://vitest.dev/api/vi#vi-spyon for examples.
+
+stderr | src/features/azure-client/azure-client.test.ts > AzureDevOpsIntClient > constructor > should create HTTP client and work items service
+[vitest] The vi.fn() mock did not use 'function' or 'class' in its implementation, see https://vitest.dev/api/vi#vi-spyon for examples.
+
+stderr | src/features/azure-client/azure-client-extended.test.ts > AzureDevOpsIntClient Repositories > should return cached repositories if available
+[vitest] The vi.fn() mock did not use 'function' or 'class' in its implementation, see https://vitest.dev/api/vi#vi-spyon for examples.
+
+stderr | src/features/azure-client/azure-client-extended.test.ts > AzureDevOpsIntClient Utility Methods > should update credential
+[vitest] The vi.fn() mock did not use 'function' or 'class' in its implementation, see https://vitest.dev/api/vi#vi-spyon for examples.
+
+stderr | src/features/azure-client/azure-client.test.ts > AzureDevOpsIntClient > work items operations > should delegate getWorkItems to work items service
+[vitest] The vi.fn() mock did not use 'function' or 'class' in its implementation, see https://vitest.dev/api/vi#vi-spyon for examples.
+
+stderr | src/features/azure-client/azure-client-extended.test.ts > AzureDevOpsIntClient Utility Methods > should build URLs correctly
+[vitest] The vi.fn() mock did not use 'function' or 'class' in its implementation, see https://vitest.dev/api/vi#vi-spyon for examples.
+
+stderr | src/features/azure-client/azure-client.test.ts > AzureDevOpsIntClient > work items operations > should delegate createWorkItem to work items service
+[vitest] The vi.fn() mock did not use 'function' or 'class' in its implementation, see https://vitest.dev/api/vi#vi-spyon for examples.
+
+stderr | src/features/azure-client/azure-client-extended.test.ts > AzureDevOpsIntClient Utility Methods > should set team
+[vitest] The vi.fn() mock did not use 'function' or 'class' in its implementation, see https://vitest.dev/api/vi#vi-spyon for examples.
+
+ [31mΓ¥»[39m src/features/azure-client/azure-client.test.ts [2m([22m[2m4 tests[22m[2m | [22m[31m4 failed[39m[2m)[22m[32m 12[2mms[22m[39m
+[31m       [31m├ù[31m should initialize with correct parameters[39m[32m 8[2mms[22m[39m
+[31m       [31m├ù[31m should create HTTP client and work items service[39m[32m 1[2mms[22m[39m
+[31m       [31m├ù[31m should delegate getWorkItems to work items service[39m[32m 1[2mms[22m[39m
+[31m       [31m├ù[31m should delegate createWorkItem to work items service[39m[32m 1[2mms[22m[39m
+ [31mΓ¥»[39m src/features/azure-client/azure-client-extended.test.ts [2m([22m[2m7 tests[22m[2m | [22m[31m7 failed[39m[2m)[22m[32m 14[2mms[22m[39m
+[31m     [31m├ù[31m should get authenticated identity[39m[32m 7[2mms[22m[39m
+[31m     [31m├ù[31m should return cached identity if available[39m[32m 1[2mms[22m[39m
+[31m     [31m├ù[31m should get repositories[39m[32m 1[2mms[22m[39m
+[31m     [31m├ù[31m should return cached repositories if available[39m[32m 1[2mms[22m[39m
+[31m     [31m├ù[31m should update credential[39m[32m 1[2mms[22m[39m
+[31m     [31m├ù[31m should build URLs correctly[39m[32m 1[2mms[22m[39m
+[31m     [31m├ù[31m should set team[39m[32m 1[2mms[22m[39m
+stderr | tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypes returns list of work item types
+[AzureDevOpsInt][azureClient] HTTP network error {"message":"Nock: No match for request {\n  \"method\": \"GET\",\n  \"url\": \"https://dev.azure.com/org/proj/_apis/wit/workitemtypes?api-version=7.1\",\n  \"headers\": {\n    \"accept\": \"application/json, text/plain, */*\",\n    \"accept-encoding\": \"gzip, compress, deflate, br\",\n    \"authorization\": \"Basic OnBhdA==\",\n    \"connection\": \"close\",\n    \"content-type\": \"application/json\",\n    \"user-agent\": \"axios/1.12.2\"\n  }\n}"}
+
+stderr | tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypes returns list of work item types
+[AzureDevOpsInt][azureClient] Error fetching work item types Nock: No match for request {
+  "method": "GET",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitemtypes?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-type": "application/json",
+    "user-agent": "axios/1.12.2"
+  }
+}
+Error: Nock: No match for request {
+  "method": "GET",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitemtypes?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-type": "application/json",
+    "user-agent": "axios/1.12.2"
+  }
+}
+    at AxiosError.from (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/core/AxiosError.js:96:14)
+    at RedirectableRequest.handleRequestError (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/adapters/http.js:638:25)
+    at RedirectableRequest.emit (node:events:520:35)
+    at ClientRequest.eventHandlers.<computed> (C:\Projects\azuredevops-integration-extension\node_modules\follow-redirects\index.js:49:24)
+    at ClientRequest.emit (node:events:508:28)
+    at emitErrorEvent (node:_http_client:107:11)
+    at MockHttpSocket.socketErrorListener (node:_http_client:574:5)
+    at MockHttpSocket.emit (node:events:508:28)
+    at MockHttpSocket.emit (C:\Projects\azuredevops-integration-extension\node_modules\@mswjs\interceptors\lib\node\chunk-N4ZZFE24.js:454:12)
+    at MockHttpSocket.destroy (C:\Projects\azuredevops-integration-extension\node_modules\@mswjs\interceptors\lib\node\chunk-N4ZZFE24.js:459:12)
+    at Axios.request (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/core/Axios.js:45:41)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at AzureDevOpsIntClient.getWorkItemTypes (C:/Projects/azuredevops-integration-extension/src/azureClient.ts:1376:20)
+    at C:/Projects/azuredevops-integration-extension/tests/azureClient.workItemTypes.test.ts:20:19
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:753:20
+
+stderr | tests/azureClient.addTimeEntry.test.ts > AzureDevOpsIntClient addTimeEntry > adds completed work and posts a comment when note provided
+[AzureDevOpsInt][azureClient] HTTP network error {"message":"Nock: No match for request {\n  \"method\": \"PATCH\",\n  \"url\": \"https://dev.azure.com/org/proj/_apis/wit/workitems/999?api-version=7.1\",\n  \"headers\": {\n    \"accept\": \"application/json, text/plain, */*\",\n    \"accept-encoding\": \"gzip, compress, deflate, br\",\n    \"authorization\": \"Basic OnBhdA==\",\n    \"connection\": \"close\",\n    \"content-length\": \"81\",\n    \"content-type\": \"application/json-patch+json\",\n    \"user-agent\": \"axios/1.12.2\"\n  },\n  \"body\": \"[{\\\"op\\\":\\\"add\\\",\\\"path\\\":\\\"/fields/Microsoft.VSTS.Scheduling.CompletedWork\\\",\\\"value\\\":2}]\"\n}"}
+
+stderr | tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypes returns empty array on error
+[AzureDevOpsInt][azureClient] HTTP network error {"message":"Nock: No match for request {\n  \"method\": \"GET\",\n  \"url\": \"https://dev.azure.com/org/proj/_apis/wit/workitemtypes?api-version=7.1\",\n  \"headers\": {\n    \"accept\": \"application/json, text/plain, */*\",\n    \"accept-encoding\": \"gzip, compress, deflate, br\",\n    \"authorization\": \"Basic OnBhdA==\",\n    \"connection\": \"close\",\n    \"content-type\": \"application/json\",\n    \"user-agent\": \"axios/1.12.2\"\n  }\n}"}
+
+stderr | tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypes returns empty array on error
+[AzureDevOpsInt][azureClient] Error fetching work item types Nock: No match for request {
+  "method": "GET",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitemtypes?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-type": "application/json",
+    "user-agent": "axios/1.12.2"
+  }
+}
+Error: Nock: No match for request {
+  "method": "GET",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitemtypes?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-type": "application/json",
+    "user-agent": "axios/1.12.2"
+  }
+}
+    at AxiosError.from (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/core/AxiosError.js:96:14)
+    at RedirectableRequest.handleRequestError (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/adapters/http.js:638:25)
+    at RedirectableRequest.emit (node:events:520:35)
+    at ClientRequest.eventHandlers.<computed> (C:\Projects\azuredevops-integration-extension\node_modules\follow-redirects\index.js:49:24)
+    at ClientRequest.emit (node:events:508:28)
+    at emitErrorEvent (node:_http_client:107:11)
+    at MockHttpSocket.socketErrorListener (node:_http_client:574:5)
+    at MockHttpSocket.emit (node:events:508:28)
+    at MockHttpSocket.emit (C:\Projects\azuredevops-integration-extension\node_modules\@mswjs\interceptors\lib\node\chunk-N4ZZFE24.js:454:12)
+    at MockHttpSocket.destroy (C:\Projects\azuredevops-integration-extension\node_modules\@mswjs\interceptors\lib\node\chunk-N4ZZFE24.js:459:12)
+    at Axios.request (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/core/Axios.js:45:41)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at AzureDevOpsIntClient.getWorkItemTypes (C:/Projects/azuredevops-integration-extension/src/azureClient.ts:1376:20)
+    at C:/Projects/azuredevops-integration-extension/tests/azureClient.workItemTypes.test.ts:34:19
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:753:20
+
+stderr | tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypeStates returns valid states for a work item type
+[AzureDevOpsInt][azureClient] HTTP network error {"message":"Nock: No match for request {\n  \"method\": \"GET\",\n  \"url\": \"https://dev.azure.com/org/proj/_apis/wit/workitemtypes/Task?api-version=7.1\",\n  \"headers\": {\n    \"accept\": \"application/json, text/plain, */*\",\n    \"accept-encoding\": \"gzip, compress, deflate, br\",\n    \"authorization\": \"Basic OnBhdA==\",\n    \"connection\": \"close\",\n    \"content-type\": \"application/json\",\n    \"user-agent\": \"axios/1.12.2\"\n  }\n}"}
+
+stderr | tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypeStates returns valid states for a work item type
+[AzureDevOpsInt][azureClient] Error fetching states for work item type Task Nock: No match for request {
+  "method": "GET",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitemtypes/Task?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-type": "application/json",
+    "user-agent": "axios/1.12.2"
+  }
+}
+Error: Nock: No match for request {
+  "method": "GET",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitemtypes/Task?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-type": "application/json",
+    "user-agent": "axios/1.12.2"
+  }
+}
+    at AxiosError.from (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/core/AxiosError.js:96:14)
+    at RedirectableRequest.handleRequestError (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/adapters/http.js:638:25)
+    at RedirectableRequest.emit (node:events:520:35)
+    at ClientRequest.eventHandlers.<computed> (C:\Projects\azuredevops-integration-extension\node_modules\follow-redirects\index.js:49:24)
+    at ClientRequest.emit (node:events:508:28)
+    at emitErrorEvent (node:_http_client:107:11)
+    at MockHttpSocket.socketErrorListener (node:_http_client:574:5)
+    at MockHttpSocket.emit (node:events:508:28)
+    at MockHttpSocket.emit (C:\Projects\azuredevops-integration-extension\node_modules\@mswjs\interceptors\lib\node\chunk-N4ZZFE24.js:454:12)
+    at MockHttpSocket.destroy (C:\Projects\azuredevops-integration-extension\node_modules\@mswjs\interceptors\lib\node\chunk-N4ZZFE24.js:459:12)
+    at Axios.request (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/core/Axios.js:45:41)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at AzureDevOpsIntClient.getWorkItemTypeStates (C:/Projects/azuredevops-integration-extension/src/azureClient.ts:1386:20)
+    at C:/Projects/azuredevops-integration-extension/tests/azureClient.workItemTypes.test.ts:46:20
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:753:20
+
+stderr | tests/azureClient.test.ts > AzureDevOpsIntClient > getWorkItems fetches followed work items via favorites API
+[AzureDevOpsInt][azureClient] HTTP network error {"message":"Nock: No match for request {\n  \"method\": \"GET\",\n  \"url\": \"https://dev.azure.com/org/proj/_apis/work/workitems/favorites?api-version=7.1\",\n  \"headers\": {\n    \"accept\": \"application/json, text/plain, */*\",\n    \"accept-encoding\": \"gzip, compress, deflate, br\",\n    \"authorization\": \"Basic OnBhdA==\",\n    \"connection\": \"close\",\n    \"content-type\": \"application/json\",\n    \"user-agent\": \"axios/1.12.2\"\n  }\n}"}
+
+ [31mΓ¥»[39m tests/azureClient.addTimeEntry.test.ts [2m([22m[2m1 test[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 76[2mms[22m[39m
+[31m     [31m├ù[31m adds completed work and posts a comment when note provided[39m[32m 75[2mms[22m[39m
+stderr | tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypeStates handles special characters in work item type name
+[AzureDevOpsInt][azureClient] HTTP network error {"message":"Nock: No match for request {\n  \"method\": \"GET\",\n  \"url\": \"https://dev.azure.com/org/proj/_apis/wit/workitemtypes/User%20Story?api-version=7.1\",\n  \"headers\": {\n    \"accept\": \"application/json, text/plain, */*\",\n    \"accept-encoding\": \"gzip, compress, deflate, br\",\n    \"authorization\": \"Basic OnBhdA==\",\n    \"connection\": \"close\",\n    \"content-type\": \"application/json\",\n    \"user-agent\": \"axios/1.12.2\"\n  }\n}"}
+
+stderr | tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypeStates handles special characters in work item type name
+[AzureDevOpsInt][azureClient] Error fetching states for work item type User Story Nock: No match for request {
+  "method": "GET",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitemtypes/User%20Story?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-type": "application/json",
+    "user-agent": "axios/1.12.2"
+  }
+}
+Error: Nock: No match for request {
+  "method": "GET",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitemtypes/User%20Story?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-type": "application/json",
+    "user-agent": "axios/1.12.2"
+  }
+}
+    at AxiosError.from (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/core/AxiosError.js:96:14)
+    at RedirectableRequest.handleRequestError (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/adapters/http.js:638:25)
+    at RedirectableRequest.emit (node:events:520:35)
+    at ClientRequest.eventHandlers.<computed> (C:\Projects\azuredevops-integration-extension\node_modules\follow-redirects\index.js:49:24)
+    at ClientRequest.emit (node:events:508:28)
+    at emitErrorEvent (node:_http_client:107:11)
+    at MockHttpSocket.socketErrorListener (node:_http_client:574:5)
+    at MockHttpSocket.emit (node:events:508:28)
+    at MockHttpSocket.emit (C:\Projects\azuredevops-integration-extension\node_modules\@mswjs\interceptors\lib\node\chunk-N4ZZFE24.js:454:12)
+    at MockHttpSocket.destroy (C:\Projects\azuredevops-integration-extension\node_modules\@mswjs\interceptors\lib\node\chunk-N4ZZFE24.js:459:12)
+    at Axios.request (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/core/Axios.js:45:41)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at AzureDevOpsIntClient.getWorkItemTypeStates (C:/Projects/azuredevops-integration-extension/src/azureClient.ts:1386:20)
+    at C:/Projects/azuredevops-integration-extension/tests/azureClient.workItemTypes.test.ts:66:20
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:753:20
+
+stderr | tests/azureClient.test.ts > AzureDevOpsIntClient > getWorkItems fetches followed work items via favorites API
+[AzureDevOpsInt][azureClient] Failed to fetch followed work items {"error":"Nock: No match for request {\n  \"method\": \"GET\",\n  \"url\": \"https://dev.azure.com/org/proj/_apis/work/workitems/favorites?api-version=7.1\",\n  \"headers\": {\n    \"accept\": \"application/json, text/plain, */*\",\n    \"accept-encoding\": \"gzip, compress, deflate, br\",\n    \"authorization\": \"Basic OnBhdA==\",\n    \"connection\": \"close\",\n    \"content-type\": \"application/json\",\n    \"user-agent\": \"axios/1.12.2\"\n  }\n}"}
+
+stderr | tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypeStates returns empty array on error
+[AzureDevOpsInt][azureClient] HTTP network error {"message":"Nock: No match for request {\n  \"method\": \"GET\",\n  \"url\": \"https://dev.azure.com/org/proj/_apis/wit/workitemtypes/InvalidType?api-version=7.1\",\n  \"headers\": {\n    \"accept\": \"application/json, text/plain, */*\",\n    \"accept-encoding\": \"gzip, compress, deflate, br\",\n    \"authorization\": \"Basic OnBhdA==\",\n    \"connection\": \"close\",\n    \"content-type\": \"application/json\",\n    \"user-agent\": \"axios/1.12.2\"\n  }\n}"}
+
+stderr | tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypeStates returns empty array on error
+[AzureDevOpsInt][azureClient] Error fetching states for work item type InvalidType Nock: No match for request {
+  "method": "GET",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitemtypes/InvalidType?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-type": "application/json",
+    "user-agent": "axios/1.12.2"
+  }
+}
+Error: Nock: No match for request {
+  "method": "GET",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitemtypes/InvalidType?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-type": "application/json",
+    "user-agent": "axios/1.12.2"
+  }
+}
+    at AxiosError.from (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/core/AxiosError.js:96:14)
+    at RedirectableRequest.handleRequestError (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/adapters/http.js:638:25)
+    at RedirectableRequest.emit (node:events:520:35)
+    at ClientRequest.eventHandlers.<computed> (C:\Projects\azuredevops-integration-extension\node_modules\follow-redirects\index.js:49:24)
+    at ClientRequest.emit (node:events:508:28)
+    at emitErrorEvent (node:_http_client:107:11)
+    at MockHttpSocket.socketErrorListener (node:_http_client:574:5)
+    at MockHttpSocket.emit (node:events:508:28)
+    at MockHttpSocket.emit (C:\Projects\azuredevops-integration-extension\node_modules\@mswjs\interceptors\lib\node\chunk-N4ZZFE24.js:454:12)
+    at MockHttpSocket.destroy (C:\Projects\azuredevops-integration-extension\node_modules\@mswjs\interceptors\lib\node\chunk-N4ZZFE24.js:459:12)
+    at Axios.request (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/core/Axios.js:45:41)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at AzureDevOpsIntClient.getWorkItemTypeStates (C:/Projects/azuredevops-integration-extension/src/azureClient.ts:1386:20)
+    at C:/Projects/azuredevops-integration-extension/tests/azureClient.workItemTypes.test.ts:81:20
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:753:20
+
+stderr | tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypeStates handles states as strings instead of objects
+[AzureDevOpsInt][azureClient] HTTP network error {"message":"Nock: No match for request {\n  \"method\": \"GET\",\n  \"url\": \"https://dev.azure.com/org/proj/_apis/wit/workitemtypes/Task?api-version=7.1\",\n  \"headers\": {\n    \"accept\": \"application/json, text/plain, */*\",\n    \"accept-encoding\": \"gzip, compress, deflate, br\",\n    \"authorization\": \"Basic OnBhdA==\",\n    \"connection\": \"close\",\n    \"content-type\": \"application/json\",\n    \"user-agent\": \"axios/1.12.2\"\n  }\n}"}
+
+stderr | tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypeStates handles states as strings instead of objects
+[AzureDevOpsInt][azureClient] Error fetching states for work item type Task Nock: No match for request {
+  "method": "GET",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitemtypes/Task?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-type": "application/json",
+    "user-agent": "axios/1.12.2"
+  }
+}
+Error: Nock: No match for request {
+  "method": "GET",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitemtypes/Task?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-type": "application/json",
+    "user-agent": "axios/1.12.2"
+  }
+}
+    at AxiosError.from (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/core/AxiosError.js:96:14)
+    at RedirectableRequest.handleRequestError (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/adapters/http.js:638:25)
+    at RedirectableRequest.emit (node:events:520:35)
+    at ClientRequest.eventHandlers.<computed> (C:\Projects\azuredevops-integration-extension\node_modules\follow-redirects\index.js:49:24)
+    at ClientRequest.emit (node:events:508:28)
+    at emitErrorEvent (node:_http_client:107:11)
+    at MockHttpSocket.socketErrorListener (node:_http_client:574:5)
+    at MockHttpSocket.emit (node:events:508:28)
+    at MockHttpSocket.emit (C:\Projects\azuredevops-integration-extension\node_modules\@mswjs\interceptors\lib\node\chunk-N4ZZFE24.js:454:12)
+    at MockHttpSocket.destroy (C:\Projects\azuredevops-integration-extension\node_modules\@mswjs\interceptors\lib\node\chunk-N4ZZFE24.js:459:12)
+    at Axios.request (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/core/Axios.js:45:41)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at AzureDevOpsIntClient.getWorkItemTypeStates (C:/Projects/azuredevops-integration-extension/src/azureClient.ts:1386:20)
+    at C:/Projects/azuredevops-integration-extension/tests/azureClient.workItemTypes.test.ts:93:20
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:753:20
+
+ [31mΓ¥»[39m tests/azureClient.workItemTypes.test.ts [2m([22m[2m6 tests[22m[2m | [22m[31m4 failed[39m[2m)[22m[32m 91[2mms[22m[39m
+[31m     [31m├ù[31m getWorkItemTypes returns list of work item types[39m[32m 60[2mms[22m[39m
+     [32mΓ£ô[39m getWorkItemTypes returns empty array on error[32m 8[2mms[22m[39m
+[31m     [31m├ù[31m getWorkItemTypeStates returns valid states for a work item type[39m[32m 8[2mms[22m[39m
+[31m     [31m├ù[31m getWorkItemTypeStates handles special characters in work item type name[39m[32m 5[2mms[22m[39m
+     [32mΓ£ô[39m getWorkItemTypeStates returns empty array on error[32m 4[2mms[22m[39m
+[31m     [31m├ù[31m getWorkItemTypeStates handles states as strings instead of objects[39m[32m 4[2mms[22m[39m
+stderr | tests/azureClient.createUpdate.test.ts > AzureDevOpsIntClient create/update > createWorkItem posts patch payload and returns created item
+[AzureDevOpsInt][azureClient] HTTP network error {"message":"Nock: No match for request {\n  \"method\": \"POST\",\n  \"url\": \"https://dev.azure.com/org/proj/_apis/wit/workitems/$Task?api-version=7.1\",\n  \"headers\": {\n    \"accept\": \"application/json, text/plain, */*\",\n    \"accept-encoding\": \"gzip, compress, deflate, br\",\n    \"authorization\": \"Basic OnBhdA==\",\n    \"connection\": \"close\",\n    \"content-length\": \"199\",\n    \"content-type\": \"application/json-patch+json\",\n    \"user-agent\": \"axios/1.12.2\"\n  },\n  \"body\": \"[{\\\"op\\\":\\\"add\\\",\\\"path\\\":\\\"/fields/System.Title\\\",\\\"value\\\":\\\"New Item\\\"},{\\\"op\\\":\\\"add\\\",\\\"path\\\":\\\"/fields/System.Description\\\",\\\"value\\\":\\\"desc\\\"},{\\\"op\\\":\\\"add\\\",\\\"path\\\":\\\"/fields/System.AreaPath\\\",\\\"value\\\":\\\"Contoso/Trusted\\\"}]\"\n}"}
+
+stderr | tests/azureClient.createUpdate.test.ts > AzureDevOpsIntClient create/update > createWorkItem posts patch payload and returns created item
+[AzureDevOpsInt][azureClient] Work item creation failed {}
+
+stderr | tests/azureClient.createUpdate.test.ts > AzureDevOpsIntClient create/update > updateWorkItem patches and returns updated
+[AzureDevOpsInt][azureClient] HTTP network error {"message":"Nock: No match for request {\n  \"method\": \"PATCH\",\n  \"url\": \"https://dev.azure.com/org/proj/_apis/wit/workitems/444?api-version=7.1\",\n  \"headers\": {\n    \"accept\": \"application/json, text/plain, */*\",\n    \"accept-encoding\": \"gzip, compress, deflate, br\",\n    \"authorization\": \"Basic OnBhdA==\",\n    \"connection\": \"close\",\n    \"content-length\": \"67\",\n    \"content-type\": \"application/json-patch+json\",\n    \"user-agent\": \"axios/1.12.2\"\n  },\n  \"body\": \"[{\\\"op\\\":\\\"replace\\\",\\\"path\\\":\\\"/fields/System.State\\\",\\\"value\\\":\\\"Resolved\\\"}]\"\n}"}
+
+ [31mΓ¥»[39m tests/azureClient.createUpdate.test.ts [2m([22m[2m2 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[32m 72[2mms[22m[39m
+[31m     [31m├ù[31m createWorkItem posts patch payload and returns created item[39m[32m 62[2mms[22m[39m
+[31m     [31m├ù[31m updateWorkItem patches and returns updated[39m[32m 8[2mms[22m[39m
+stderr | tests/azureClient.test.ts > AzureDevOpsIntClient > Current Sprint falls back to @CurrentIteration when current iteration fetch fails
+[AzureDevOpsInt][azureClient] HTTP 404 Details {"method":"GET","url":"https://dev.azure.com/org/proj/Unknown%20Team/_apis/work/teamsettings/iterations?$timeframe=current&api-version=7.1","fullUrl":"https://dev.azure.com/org/proj/_apishttps://dev.azure.com/org/proj/Unknown%20Team/_apis/work/teamsettings/iterations?$timeframe=current&api-version=7.1","status":404,"statusText":"Not Found","responseData":{"message":"Team not found"},"authType":"pat","organization":"org","project":"proj"}
+[AzureDevOpsInt][azureClient] HTTP error {"method":"GET","url":"https://dev.azure.com/org/proj/Unknown%20Team/_apis/work/teamsettings/iterations?$timeframe=current&api-version=7.1","status":404,"statusText":"Not Found","duration":"6ms"}
+[AzureDevOpsInt][azureClient] HTTP error body {"snippet":"{\"message\":\"Team not found\"}"}
+
+stderr | tests/azureClient.test.ts > AzureDevOpsIntClient > Current Sprint falls back to @CurrentIteration when current iteration fetch fails
+[AzureDevOpsInt][azureClient] Error fetching current iteration Request failed with status code 404
+AxiosError: Request failed with status code 404
+    at settle (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/core/settle.js:19:12)
+    at IncomingMessage.handleStreamEnd (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/adapters/http.js:617:11)
+    at IncomingMessage.emit (node:events:520:35)
+    at endReadableNT (node:internal/streams/readable:1701:12)
+    at processTicksAndRejections (node:internal/process/task_queues:90:21)
+    at Axios.request (file:///C:/Projects/azuredevops-integration-extension/node_modules/axios/lib/core/Axios.js:45:41)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at C:/Projects/azuredevops-integration-extension/src/azureClient.ts:1425:22
+    at measureAsync (C:/Projects/azuredevops-integration-extension/src/performance.ts:305:20)
+    at AzureDevOpsIntClient.getCurrentIteration (C:/Projects/azuredevops-integration-extension/src/azureClient.ts:1409:12)
+    at C:/Projects/azuredevops-integration-extension/src/azureClient.ts:879:25
+    at measureAsync (C:/Projects/azuredevops-integration-extension/src/performance.ts:305:20)
+    at AzureDevOpsIntClient.getWorkItems (C:/Projects/azuredevops-integration-extension/src/azureClient.ts:844:12)
+    at C:/Projects/azuredevops-integration-extension/tests/azureClient.test.ts:169:19
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:753:20
+
+[90mstdout[2m | tests/features/commands-create-work-item.test.ts[2m > [22m[2mCreate Work Item Command[2m > [22m[2mCommand Registration[2m > [22m[2mshould register azureDevOpsInt.createWorkItem command
+[22m[39m≡ƒƒó [AzureDevOpsInt][FSM][MACHINE] 2025-11-26T16:28:04.222Z INFO  [MACHINE]    {machine:session_1764174484222_lgx1r0ye4} New trace session started: session_1764174484222_lgx1r0ye4
+Γå│ 2025-11-26T16:28:04.222Z INFO  [MACHINE]    {machine:session_1764174484222_lgx1r0ye4} New trace session started: session_1764174484222_lgx1r0ye4
+
+[90mstdout[2m | tests/activation.messaging.test.ts
+[22m[39m≡ƒƒó [AzureDevOpsInt][FSM][MACHINE] 2025-11-26T16:28:04.223Z INFO  [MACHINE]    {machine:session_1764174484223_t8um9hzxx} New trace session started: session_1764174484223_t8um9hzxx
+Γå│ 2025-11-26T16:28:04.223Z INFO  [MACHINE]    {machine:session_1764174484223_t8um9hzxx} New trace session started: session_1764174484223_t8um9hzxx
+
+[90mstdout[2m | src/features/commands/commands.test.ts
+[22m[39m≡ƒƒó [AzureDevOpsInt][FSM][MACHINE] 2025-11-26T16:28:04.223Z INFO  [MACHINE]    {machine:session_1764174484223_99v3ctvj0} New trace session started: session_1764174484223_99v3ctvj0
+Γå│ 2025-11-26T16:28:04.223Z INFO  [MACHINE]    {machine:session_1764174484223_99v3ctvj0} New trace session started: session_1764174484223_99v3ctvj0
+
+ [31mΓ¥»[39m tests/azureClient.test.ts [2m([22m[2m10 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 417[2mms[22m[39m
+     [32mΓ£ô[39m buildWIQL returns expected string for "My Activity"[32m 4[2mms[22m[39m
+     [32mΓ£ô[39m buildWIQL returns expected string for "Assigned to me"[32m 1[2mms[22m[39m
+     [32mΓ£ô[39m buildWIQL returns expected string for "All Active"[32m 1[2mms[22m[39m
+     [32mΓ£ô[39m buildWIQL returns expected string for "Recently Updated"[32m 1[2mms[22m[39m
+[31m     [31m├ù[31m getWorkItems fetches followed work items via favorites API[39m[32m 69[2mms[22m[39m
+     [32mΓ£ô[39m getWorkItems builds mention query with authenticated identity[32m 88[2mms[22m[39m
+     [32mΓ£ô[39m getWorkItems handles empty WIQL response gracefully[32m 29[2mms[22m[39m
+     [32mΓ£ô[39m getWorkItems expands ids and returns mapped items[32m 71[2mms[22m[39m
+     [32mΓ£ô[39m Current Sprint uses explicit iteration path when team current iteration is available[32m 100[2mms[22m[39m
+     [32mΓ£ô[39m Current Sprint falls back to @CurrentIteration when current iteration fetch fails[32m 51[2mms[22m[39m
+stderr | src/features/commands/commands.test.ts > Commands Module > registerCommands > should handle command errors gracefully
+[AzureDevOpsInt][commands-registration] Error in command azureDevOpsInt.setup Cannot read properties of undefined (reading 'get')
+TypeError: Cannot read properties of undefined (reading 'get')
+    at FSMSetupService.startSetup (C:/Projects/azuredevops-integration-extension/src/fsm/services/fsmSetupService.ts:62:42)
+    at Object.setupCommand [as handler] (C:/Projects/azuredevops-integration-extension/src/features/commands/handlers.ts:69:22)
+    at C:/Projects/azuredevops-integration-extension/src/features/commands/registration.ts:101:37
+    at C:/Projects/azuredevops-integration-extension/src/features/commands/commands.test.ts:59:13
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:157:11
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:753:26
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1636:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1602:10)
+    at runTest (file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1309:12)
+
+stderr | src/features/commands/commands.test.ts > Commands Module > safeCommandHandler > should catch and display errors
+[AzureDevOpsInt][commands-registration] Command handler error Test error
+Error: Test error
+    at C:/Projects/azuredevops-integration-extension/src/features/commands/commands.test.ts:76:53
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:157:11
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:753:26
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1636:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1602:10)
+    at runTest (file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1309:12)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at runSuite (file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1468:8)
+    at runSuite (file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1468:8)
+
+stderr | src/features/commands/commands.test.ts > Commands Module > Command Handlers > should execute open logs command
+[AzureDevOpsInt][commands-handlers] openLogs error Cannot read properties of undefined (reading 'get')
+TypeError: Cannot read properties of undefined (reading 'get')
+    at Module.openLogsCommand (C:/Projects/azuredevops-integration-extension/src/features/commands/handlers.ts:94:24)
+    at C:/Projects/azuredevops-integration-extension/src/features/commands/commands.test.ts:113:13
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:157:11
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:753:26
+    at file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1636:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1602:10)
+    at runTest (file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1309:12)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at runSuite (file:///C:/Projects/azuredevops-integration-extension/node_modules/@vitest/runner/dist/index.js:1468:8)
+
+ [31mΓ¥»[39m src/features/commands/commands.test.ts [2m([22m[2m6 tests[22m[2m | [22m[31m3 failed[39m[2m)[22m[32m 21[2mms[22m[39m
+       [32mΓ£ô[39m should register all commands[32m 3[2mms[22m[39m
+[31m       [31m├ù[31m should handle command errors gracefully[39m[32m 9[2mms[22m[39m
+       [32mΓ£ô[39m should wrap handlers with error handling[32m 1[2mms[22m[39m
+       [32mΓ£ô[39m should catch and display errors[32m 2[2mms[22m[39m
+[31m       [31m├ù[31m should execute setup command[39m[32m 2[2mms[22m[39m
+[31m       [31m├ù[31m should execute open logs command[39m[32m 2[2mms[22m[39m
+ [31mΓ¥»[39m tests/activation.messaging.test.ts [2m([22m[2m5 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[32m 102[2mms[22m[39m
+[31m     [31m├ù[31m handles getWorkItems by posting workItemsLoaded[39m[32m 29[2mms[22m[39m
+[31m     [31m├ù[31m refresh message calls provider.refresh[39m[32m 25[2mms[22m[39m
+     [32mΓ£ô[39m submitComposeComment adds comment via client and reports success[32m 16[2mms[22m[39m
+     [32mΓ£ô[39m submitComposeComment timerStop updates work item and posts result[32m 17[2mms[22m[39m
+     [32mΓ£ô[39m addComment without comment shows compose dialog in webview[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m tests/rateLimiter.retry.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 88[2mms[22m[39m
+ [31mΓ¥»[39m tests/features/commands-create-work-item.test.ts [2m([22m[2m8 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 1230[2mms[22m[39m
+       [33m[2mΓ£ô[22m[39m should register azureDevOpsInt.createWorkItem command [33m 1119[2mms[22m[39m
+       [32mΓ£ô[39m should dispatch CREATE_WORK_ITEM event when handler is called[32m 4[2mms[22m[39m
+[31m       [31m├ù[31m should include CREATE_WORK_ITEM in ApplicationEvent type[39m[32m 99[2mms[22m[39m
+       [32mΓ£ô[39m should trigger command when webview sends EXECUTE_COMMAND message[32m 1[2mms[22m[39m
+       [32mΓ£ô[39m should register azureDevOpsInt.refreshWorkItems command[32m 2[2mms[22m[39m
+       [32mΓ£ô[39m should register azureDevOpsInt.toggleKanbanView command[32m 1[2mms[22m[39m
+       [32mΓ£ô[39m should register azureDevOpsInt.setup command[32m 1[2mms[22m[39m
+       [32mΓ£ô[39m should register azureDevOpsInt.toggleDebugView command[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/provider.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32mΓ£ô[39m tests/praxis/praxisConnectionAdvanced.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32mΓ£ô[39m tests/rateLimiter.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 796[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m refills over time [33m 565[2mms[22m[39m
+ [32mΓ£ô[39m tests/provider.debounce.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 717[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m prevents overlapping refreshes and respects debounce [33m 715[2mms[22m[39m
+ [32mΓ£ô[39m tests/praxis/praxisConnection.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m tests/praxis/praxisTimer.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+stderr | tests/azureClient.errorHandling.test.ts > AzureDevOpsIntClient error handling > getWorkItems surfaces detailed error on network failure
+[AzureDevOpsInt][azureClient] HTTP network error {"message":"network"}
+
+stderr | tests/azureClient.errorHandling.test.ts > AzureDevOpsIntClient error handling > getWorkItems surfaces detailed error on network failure
+[AzureDevOpsInt][azureClient] GETWI error {"error":"network"}
+
+ [32mΓ£ô[39m tests/azureClient.errorHandling.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 95[2mms[22m[39m
+ [32mΓ£ô[39m tests/azureClient.repos.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 138[2mms[22m[39m
+ [32mΓ£ô[39m tests/azureDevOpsUrlParser.test.ts [2m([22m[2m23 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m tests/fsm/functions/setup/auth-methods.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+stderr | tests/azureClient.retry.test.ts > AzureDevOpsIntClient retry behavior > retries on 429 and eventually succeeds
+[AzureDevOpsInt][azureClient] HTTP error {"method":"POST","url":"/wit/wiql?api-version=7.1","status":429,"statusText":"Too Many Requests","duration":"83ms"}
+[AzureDevOpsInt][azureClient] HTTP error body {"snippet":"rate limited"}
+[AzureDevOpsInt][azureClient] HTTP retry {"url":"/wit/wiql?api-version=7.1","status":429,"retryInMs":308,"attempt":2}
+
+ [32mΓ£ô[39m tests/fsm/functions/setup/connection-defaults.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32mΓ£ô[39m tests/praxis/praxisAuth.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32mΓ£ô[39m tests/fsm/functions/setup/environment-detection.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32mΓ£ô[39m tests/praxis/praxisSvelte.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m tests/provider.search.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32mΓ£ô[39m tests/fsm/functions/setup/user-detection.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m tests/workItemNormalize.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32mΓ£ô[39m tests/azureClient.retry.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 448[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m retries on 429 and eventually succeeds [33m 446[2mms[22m[39m
+[90mstdout[2m | tests/activation.query.test.ts
+[22m[39m≡ƒƒó [AzureDevOpsInt][FSM][MACHINE] 2025-11-26T16:28:05.828Z INFO  [MACHINE]    {machine:session_1764174485828_dl3qe8lc6} New trace session started: session_1764174485828_dl3qe8lc6
+Γå│ 2025-11-26T16:28:05.828Z INFO  [MACHINE]    {machine:session_1764174485828_dl3qe8lc6} New trace session started: session_1764174485828_dl3qe8lc6
+
+ [32mΓ£ô[39m tests/praxis/praxisApplication.test.ts [2m([22m[2m46 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32mΓ£ô[39m tests/webview/selection.writer.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m tests/gitUtils.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m tests/fsm/router.stamp.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m tests/activation.query.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m tests/provider.select.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m tests/azureClient.baseUrl.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+[90mstdout[2m | tests/activation.migration.test.ts
+[22m[39m≡ƒƒó [AzureDevOpsInt][FSM][MACHINE] 2025-11-26T16:28:05.946Z INFO  [MACHINE]    {machine:session_1764174485946_adgqnycth} New trace session started: session_1764174485946_adgqnycth
+Γå│ 2025-11-26T16:28:05.946Z INFO  [MACHINE]    {machine:session_1764174485946_adgqnycth} New trace session started: session_1764174485946_adgqnycth
+
+[90mstdout[2m | tests/activation.webviewHtml.test.ts
+[22m[39m≡ƒƒó [AzureDevOpsInt][FSM][MACHINE] 2025-11-26T16:28:05.958Z INFO  [MACHINE]    {machine:session_1764174485958_eohxum890} New trace session started: session_1764174485958_eohxum890
+Γå│ 2025-11-26T16:28:05.958Z INFO  [MACHINE]    {machine:session_1764174485958_eohxum890} New trace session started: session_1764174485958_eohxum890
+
+ [2m[90mΓåô[39m[22m tests/activation.webviewHtml.test.ts [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+ [32mΓ£ô[39m tests/activation.migration.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ» Failed Suites 7 ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»
+
+ FAIL  tests/query-selector.test.ts [ tests/query-selector.test.ts ]
+Error: No test suite found in file C:/Projects/azuredevops-integration-extension/tests/query-selector.test.ts
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[1/35]ΓÄ»
+
+ FAIL  tests/disabled/tokenLifecycleManager.test.ts [ tests/disabled/tokenLifecycleManager.test.ts ]
+Error: Cannot find module '../src/auth/tokenLifecycleManager.js' imported from 'C:/Projects/azuredevops-integration-extension/tests/disabled/tokenLifecycleManager.test.ts'
+ Γ¥» tests/disabled/tokenLifecycleManager.test.ts:2:1
+      1| import { expect } from 'chai';
+      2| import {
+       | ^
+      3|   TokenLifecycleManager,
+      4|   TokenInfo,
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[2/35]ΓÄ»
+
+ FAIL  tests/fsm/authFunctions.test.ts [ tests/fsm/authFunctions.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'describe')
+ Γ¥» exports.describe node_modules/mocha/lib/mocha.js:119:26
+ Γ¥» tests/fsm/authFunctions.test.ts:5:1
+      3| import { isTokenValid } from '../../src/fsm/functions/authFunctions';
+      4| 
+      5| describe('authFunctions.isTokenValid', () => {
+       | ^
+      6|   it('returns true for tokens expiring beyond the default buffer', () ΓÇª
+      7|     const future = new Date(Date.now() + 10 * 60 * 1000);
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[3/35]ΓÄ»
+
+ FAIL  tests/fsm/authReminderActions.test.ts [ tests/fsm/authReminderActions.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'describe')
+ Γ¥» exports.describe node_modules/mocha/lib/mocha.js:119:26
+ Γ¥» tests/fsm/authReminderActions.test.ts:13:1
+     11| } from '../../src/fsm/functions/auth/authReminderActions.js';
+     12| 
+     13| describe('authReminderActions.handleAuthReminderAction', () => {
+       | ^
+     14|   const buildContext = (overrides: Partial<ApplicationContext> = {}): ΓÇª
+     15|     const base = {
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[4/35]ΓÄ»
+
+ FAIL  tests/fsm/buildAuthReminder.test.ts [ tests/fsm/buildAuthReminder.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'describe')
+ Γ¥» exports.describe node_modules/mocha/lib/mocha.js:119:26
+ Γ¥» tests/fsm/buildAuthReminder.test.ts:67:1
+     65| }
+     66| 
+     67| describe('buildAuthReminder', () => {
+       | ^
+     68|   const reason: AuthReminderReason = 'tokenExpired';
+     69| 
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[5/35]ΓÄ»
+
+ FAIL  tests/fsm/kanbanColumns.test.ts [ tests/fsm/kanbanColumns.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'describe')
+ Γ¥» exports.describe node_modules/mocha/lib/mocha.js:119:26
+ Γ¥» tests/fsm/kanbanColumns.test.ts:8:1
+      6| // Verifies grouping logic, handling of missing ids/states, and empty ΓÇª
+      7| 
+      8| describe('computeKanbanColumns', () => {
+       | ^
+      9|   it('returns empty array for empty input', () => {
+     10|     const result = computeKanbanColumns([]);
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[6/35]ΓÄ»
+
+ FAIL  tests/integration/webview-roundtrip.test.ts [ tests/integration/webview-roundtrip.test.ts ]
+Error: No test suite found in file C:/Projects/azuredevops-integration-extension/tests/integration/webview-roundtrip.test.ts
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[7/35]ΓÄ»
+
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ» Failed Tests 28 ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»
+
+ FAIL  tests/activation.messaging.test.ts > activation message handling > handles getWorkItems by posting workItemsLoaded
+AssertionError: expected false to equal true
+
+- Expected
++ Received
+
+- true
++ false
+
+ Γ¥» tests/activation.messaging.test.ts:61:65
+     59|     // Wait briefly for synchronous flow
+     60|     await new Promise((r) => setTimeout(r, 10));
+     61|     expect(posted.some((p) => p.type === 'workItemsLoaded')).to.equal(ΓÇª
+       |                                                                 ^
+     62|     expect(posted.some((p) => p.type === 'workItemTypeOptions')).to.eqΓÇª
+     63|   });
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[8/35]ΓÄ»
+
+ FAIL  tests/activation.messaging.test.ts > activation message handling > refresh message calls provider.refresh
+AssertionError: expected false to equal true
+
+- Expected
++ Received
+
+- true
++ false
+
+ Γ¥» tests/activation.messaging.test.ts:75:26
+     73|     handleMessage({ type: 'refresh' });
+     74|     await new Promise((r) => setTimeout(r, 10));
+     75|     expect(refreshed).to.equal(true);
+       |                          ^
+     76|   });
+     77| 
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[9/35]ΓÄ»
+
+ FAIL  tests/azureClient.addTimeEntry.test.ts > AzureDevOpsIntClient addTimeEntry > adds completed work and posts a comment when note provided
+Error: Nock: No match for request {
+  "method": "PATCH",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitems/999?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-length": "81",
+    "content-type": "application/json-patch+json",
+    "user-agent": "axios/1.12.2"
+  },
+  "body": "[{\"op\":\"add\",\"path\":\"/fields/Microsoft.VSTS.Scheduling.CompletedWork\",\"value\":2}]"
+}
+ Γ¥» AxiosError.from node_modules/axios/lib/core/AxiosError.js:96:14
+ Γ¥» RedirectableRequest.handleRequestError node_modules/axios/lib/adapters/http.js:638:25
+ Γ¥» ClientRequest.eventHandlers.<computed> node_modules/follow-redirects/index.js:49:24
+ Γ¥» MockHttpSocket.emit node_modules/@mswjs/interceptors/lib/node/chunk-N4ZZFE24.js:454:12
+ Γ¥» MockHttpSocket.destroy node_modules/@mswjs/interceptors/lib/node/chunk-N4ZZFE24.js:459:12
+ Γ¥» Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ Γ¥» AzureDevOpsIntClient.updateWorkItem src/azureClient.ts:1352:18
+    1350| 
+    1351|   async updateWorkItem(id: number, patchOps: any[]): Promise<WorkItem>ΓÇª
+    1352|     const resp = await this.axios.patch(`/wit/workitems/${id}?api-versΓÇª
+       |                  ^
+    1353|       headers: { 'Content-Type': 'application/json-patch+json' },
+    1354|     });
+ Γ¥» AzureDevOpsIntClient.addTimeEntry src/azureClient.ts:1370:5
+ Γ¥» tests/azureClient.addTimeEntry.test.ts:20:5
+
+Caused by: Error: Nock: No match for request {
+  "method": "PATCH",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitems/999?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-length": "81",
+    "content-type": "application/json-patch+json",
+    "user-agent": "axios/1.12.2"
+  },
+  "body": "[{\"op\":\"add\",\"path\":\"/fields/Microsoft.VSTS.Scheduling.CompletedWork\",\"value\":2}]"
+}
+ Γ¥» InterceptedRequestRouter.startPlayback node_modules/nock/lib/intercepted_request_router.js:334:21
+ Γ¥» InterceptedRequestRouter.maybeStartPlayback node_modules/nock/lib/intercepted_request_router.js:263:12
+ Γ¥» InterceptedRequestRouter.handleEnd node_modules/nock/lib/intercepted_request_router.js:211:10
+ Γ¥» OverriddenClientRequest.req.end node_modules/nock/lib/intercepted_request_router.js:95:33
+ Γ¥» _Emitter.<anonymous> node_modules/nock/lib/intercept.js:425:23
+ Γ¥» emitAsync node_modules/@mswjs/interceptors/lib/node/chunk-72ZIHMEB.js:70:5
+ Γ¥» node_modules/@mswjs/interceptors/lib/node/chunk-72ZIHMEB.js:192:5
+ Γ¥» until node_modules/@open-draft/until/lib/index.js:29:18
+ Γ¥» handleRequest node_modules/@mswjs/interceptors/lib/node/chunk-72ZIHMEB.js:186:18
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»
+Serialized Error: { code: 'ERR_NOCK_NO_MATCH', status: 404, statusCode: 404 }
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[10/35]ΓÄ»
+
+ FAIL  tests/azureClient.createUpdate.test.ts > AzureDevOpsIntClient create/update > createWorkItem posts patch payload and returns created item
+Error: Nock: No match for request {
+  "method": "POST",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitems/$Task?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-length": "199",
+    "content-type": "application/json-patch+json",
+    "user-agent": "axios/1.12.2"
+  },
+  "body": "[{\"op\":\"add\",\"path\":\"/fields/System.Title\",\"value\":\"New Item\"},{\"op\":\"add\",\"path\":\"/fields/System.Description\",\"value\":\"desc\"},{\"op\":\"add\",\"path\":\"/fields/System.AreaPath\",\"value\":\"Contoso/Trusted\"}]"
+}
+ Γ¥» AxiosError.from node_modules/axios/lib/core/AxiosError.js:96:14
+ Γ¥» RedirectableRequest.handleRequestError node_modules/axios/lib/adapters/http.js:638:25
+ Γ¥» ClientRequest.eventHandlers.<computed> node_modules/follow-redirects/index.js:49:24
+ Γ¥» MockHttpSocket.emit node_modules/@mswjs/interceptors/lib/node/chunk-N4ZZFE24.js:454:12
+ Γ¥» MockHttpSocket.destroy node_modules/@mswjs/interceptors/lib/node/chunk-N4ZZFE24.js:459:12
+ Γ¥» Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ Γ¥» AzureDevOpsIntClient.createWorkItem src/azureClient.ts:1330:20
+    1328| 
+    1329|     try {
+    1330|       const resp = await this.axios.post(`/wit/workitems/$${type}?api-ΓÇª
+       |                    ^
+    1331|         headers: { 'Content-Type': 'application/json-patch+json' },
+    1332|       });
+ Γ¥» tests/azureClient.createUpdate.test.ts:25:21
+
+Caused by: Error: Nock: No match for request {
+  "method": "POST",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitems/$Task?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-length": "199",
+    "content-type": "application/json-patch+json",
+    "user-agent": "axios/1.12.2"
+  },
+  "body": "[{\"op\":\"add\",\"path\":\"/fields/System.Title\",\"value\":\"New Item\"},{\"op\":\"add\",\"path\":\"/fields/System.Description\",\"value\":\"desc\"},{\"op\":\"add\",\"path\":\"/fields/System.AreaPath\",\"value\":\"Contoso/Trusted\"}]"
+}
+ Γ¥» InterceptedRequestRouter.startPlayback node_modules/nock/lib/intercepted_request_router.js:334:21
+ Γ¥» InterceptedRequestRouter.maybeStartPlayback node_modules/nock/lib/intercepted_request_router.js:263:12
+ Γ¥» InterceptedRequestRouter.handleEnd node_modules/nock/lib/intercepted_request_router.js:211:10
+ Γ¥» OverriddenClientRequest.req.end node_modules/nock/lib/intercepted_request_router.js:95:33
+ Γ¥» _Emitter.<anonymous> node_modules/nock/lib/intercept.js:425:23
+ Γ¥» emitAsync node_modules/@mswjs/interceptors/lib/node/chunk-72ZIHMEB.js:70:5
+ Γ¥» node_modules/@mswjs/interceptors/lib/node/chunk-72ZIHMEB.js:192:5
+ Γ¥» until node_modules/@open-draft/until/lib/index.js:29:18
+ Γ¥» handleRequest node_modules/@mswjs/interceptors/lib/node/chunk-72ZIHMEB.js:186:18
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»
+Serialized Error: { code: 'ERR_NOCK_NO_MATCH', status: 404, statusCode: 404 }
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[11/35]ΓÄ»
+
+ FAIL  tests/azureClient.createUpdate.test.ts > AzureDevOpsIntClient create/update > updateWorkItem patches and returns updated
+Error: Nock: No match for request {
+  "method": "PATCH",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitems/444?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-length": "67",
+    "content-type": "application/json-patch+json",
+    "user-agent": "axios/1.12.2"
+  },
+  "body": "[{\"op\":\"replace\",\"path\":\"/fields/System.State\",\"value\":\"Resolved\"}]"
+}
+ Γ¥» AxiosError.from node_modules/axios/lib/core/AxiosError.js:96:14
+ Γ¥» RedirectableRequest.handleRequestError node_modules/axios/lib/adapters/http.js:638:25
+ Γ¥» ClientRequest.eventHandlers.<computed> node_modules/follow-redirects/index.js:49:24
+ Γ¥» MockHttpSocket.emit node_modules/@mswjs/interceptors/lib/node/chunk-N4ZZFE24.js:454:12
+ Γ¥» MockHttpSocket.destroy node_modules/@mswjs/interceptors/lib/node/chunk-N4ZZFE24.js:459:12
+ Γ¥» Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ Γ¥» AzureDevOpsIntClient.updateWorkItem src/azureClient.ts:1352:18
+    1350| 
+    1351|   async updateWorkItem(id: number, patchOps: any[]): Promise<WorkItem>ΓÇª
+    1352|     const resp = await this.axios.patch(`/wit/workitems/${id}?api-versΓÇª
+       |                  ^
+    1353|       headers: { 'Content-Type': 'application/json-patch+json' },
+    1354|     });
+ Γ¥» tests/azureClient.createUpdate.test.ts:38:21
+
+Caused by: Error: Nock: No match for request {
+  "method": "PATCH",
+  "url": "https://dev.azure.com/org/proj/_apis/wit/workitems/444?api-version=7.1",
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "authorization": "Basic OnBhdA==",
+    "connection": "close",
+    "content-length": "67",
+    "content-type": "application/json-patch+json",
+    "user-agent": "axios/1.12.2"
+  },
+  "body": "[{\"op\":\"replace\",\"path\":\"/fields/System.State\",\"value\":\"Resolved\"}]"
+}
+ Γ¥» InterceptedRequestRouter.startPlayback node_modules/nock/lib/intercepted_request_router.js:334:21
+ Γ¥» InterceptedRequestRouter.maybeStartPlayback node_modules/nock/lib/intercepted_request_router.js:263:12
+ Γ¥» InterceptedRequestRouter.handleEnd node_modules/nock/lib/intercepted_request_router.js:211:10
+ Γ¥» OverriddenClientRequest.req.end node_modules/nock/lib/intercepted_request_router.js:95:33
+ Γ¥» _Emitter.<anonymous> node_modules/nock/lib/intercept.js:425:23
+ Γ¥» emitAsync node_modules/@mswjs/interceptors/lib/node/chunk-72ZIHMEB.js:70:5
+ Γ¥» node_modules/@mswjs/interceptors/lib/node/chunk-72ZIHMEB.js:192:5
+ Γ¥» until node_modules/@open-draft/until/lib/index.js:29:18
+ Γ¥» handleRequest node_modules/@mswjs/interceptors/lib/node/chunk-72ZIHMEB.js:186:18
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»
+Serialized Error: { code: 'ERR_NOCK_NO_MATCH', status: 404, statusCode: 404 }
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[12/35]ΓÄ»
+
+ FAIL  tests/azureClient.test.ts > AzureDevOpsIntClient > getWorkItems fetches followed work items via favorites API
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ Γ¥» tests/azureClient.test.ts:68:27
+     66|       });
+     67|     const items = await client.getWorkItems('Following');
+     68|     expect(items).to.have.length(1);
+       |                           ^
+     69|     expect(items[0]).to.have.property('id', 101);
+     70|   });
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[13/35]ΓÄ»
+
+ FAIL  tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypes returns list of work item types
+AssertionError: expected [] to have a length of 3 but got +0
+
+- Expected
++ Received
+
+- 3
++ 0
+
+ Γ¥» tests/azureClient.workItemTypes.test.ts:21:27
+     19| 
+     20|     const types = await client.getWorkItemTypes();
+     21|     expect(types).to.have.length(3);
+       |                           ^
+     22|     expect(types[0]).to.have.property('name', 'Task');
+     23|     expect(types[1]).to.have.property('name', 'Bug');
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[14/35]ΓÄ»
+
+ FAIL  tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypeStates returns valid states for a work item type
+AssertionError: expected [] to have a length of 3 but got +0
+
+- Expected
++ Received
+
+- 3
++ 0
+
+ Γ¥» tests/azureClient.workItemTypes.test.ts:47:28
+     45| 
+     46|     const states = await client.getWorkItemTypeStates('Task');
+     47|     expect(states).to.have.length(3);
+       |                            ^
+     48|     expect(states).to.include('New');
+     49|     expect(states).to.include('Active');
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[15/35]ΓÄ»
+
+ FAIL  tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypeStates handles special characters in work item type name
+AssertionError: expected [] to have a length of 4 but got +0
+
+- Expected
++ Received
+
+- 4
++ 0
+
+ Γ¥» tests/azureClient.workItemTypes.test.ts:67:28
+     65| 
+     66|     const states = await client.getWorkItemTypeStates('User Story');
+     67|     expect(states).to.have.length(4);
+       |                            ^
+     68|     expect(states).to.include('New');
+     69|     expect(states).to.include('Active');
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[16/35]ΓÄ»
+
+ FAIL  tests/azureClient.workItemTypes.test.ts > AzureDevOpsIntClient work item types and states > getWorkItemTypeStates handles states as strings instead of objects
+AssertionError: expected [] to have a length of 3 but got +0
+
+- Expected
++ Received
+
+- 3
++ 0
+
+ Γ¥» tests/azureClient.workItemTypes.test.ts:94:28
+     92| 
+     93|     const states = await client.getWorkItemTypeStates('Task');
+     94|     expect(states).to.have.length(3);
+       |                            ^
+     95|     expect(states).to.include('New');
+     96|     expect(states).to.include('Active');
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[17/35]ΓÄ»
+
+ FAIL  tests/sessionTelemetry.persistence.test.ts > SessionTelemetryManager persistence > persists sessions to SQLite when storageMode is sqlite
+TypeError: __vite_ssr_import_5__.workspace.getWorkspaceFolder is not a function
+ Γ¥» asRelativePath src/sessionTelemetry.ts:99:38
+     97| function asRelativePath(uri: vscode.Uri | undefined): string | undefinΓÇª
+     98|   if (!uri) return undefined;
+     99|   const workspace = vscode.workspace.getWorkspaceFolder(uri);
+       |                                      ^
+    100|   if (workspace) {
+    101|     return vscode.workspace.asRelativePath(uri, false);
+ Γ¥» src/sessionTelemetry.ts:166:24
+ Γ¥» tests/sessionTelemetry.persistence.test.ts:6:30
+ Γ¥» Object.triggerDidSaveTextDocument tests/sessionTelemetry.persistence.test.ts:6:15
+ Γ¥» triggerSave tests/sessionTelemetry.persistence.test.ts:106:38
+ Γ¥» tests/sessionTelemetry.persistence.test.ts:147:5
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[18/35]ΓÄ»
+
+ FAIL  tests/ui-reactivity.test.ts > UI reactivity demo (memory repo + stores) > propagates repo changes and filter updates
+TypeError: Cannot read properties of undefined (reading 'timeout')
+ Γ¥» tests/ui-reactivity.test.ts:49:10
+     47| describe('UI reactivity demo (memory repo + stores)', () => {
+     48|   it('propagates repo changes and filter updates', async function () {
+     49|     this.timeout(8000);
+       |          ^
+     50|     const repo = createMemoryRepository() as unknown as CoreRepoProvidΓÇª
+     51| 
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[19/35]ΓÄ»
+
+ FAIL  tests/features/commands-create-work-item.test.ts > Create Work Item Command > FSM Event Type > should include CREATE_WORK_ITEM in ApplicationEvent type
+Error: Cannot find package 'xstate' imported from 'C:/Projects/azuredevops-integration-extension/src/fsm/machines/applicationMachine.ts'
+ Γ¥» src/fsm/machines/applicationMachine.ts:21:1
+     19|  */
+     20| 
+     21| import { createMachine, assign, fromPromise, createActor, Actor } fromΓÇª
+       | ^
+     22| import { computeKanbanColumns } from '../functions/workItems/kanbanColΓÇª
+     23| import * as vscode from 'vscode';
+ Γ¥» tests/features/commands-create-work-item.test.ts:109:38
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[20/35]ΓÄ»
+
+ FAIL  src/features/commands/commands.test.ts > Commands Module > registerCommands > should handle command errors gracefully
+AssertionError: expected "vi.fn()" to be called with arguments: [ 'Command failed: Test error' ]
+
+Number of calls: 0
+
+ Γ¥» src/features/commands/commands.test.ts:61:46
+     59|       await handler();
+     60| 
+     61|       expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('ComΓÇª
+       |                                              ^
+     62|     });
+     63|   });
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[21/35]ΓÄ»
+
+ FAIL  src/features/commands/commands.test.ts > Commands Module > Command Handlers > should execute setup command
+TypeError: Cannot read properties of undefined (reading 'get')
+ Γ¥» FSMSetupService.startSetup src/fsm/services/fsmSetupService.ts:62:42
+     60|     // Load connections from workspace configuration (not globalState!)
+     61|     const settings = vscode.workspace.getConfiguration('azureDevOpsIntΓÇª
+     62|     const existingConnections = settings.get<ProjectConnection[]>('conΓÇª
+       |                                          ^
+     63|     const activeConnectionId = this.context.globalState.get<string>(
+     64|       'azureDevOpsInt.activeConnectionId'
+ Γ¥» Module.setupCommand src/features/commands/handlers.ts:69:22
+ Γ¥» src/features/commands/commands.test.ts:96:13
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[22/35]ΓÄ»
+
+ FAIL  src/features/commands/commands.test.ts > Commands Module > Command Handlers > should execute open logs command
+AssertionError: expected "vi.fn()" to be called with arguments: [ true ]
+
+Number of calls: 0
+
+ Γ¥» src/features/commands/commands.test.ts:115:32
+    113|       await openLogsCommand(commandContext);
+    114| 
+    115|       expect(mockChannel.show).toHaveBeenCalledWith(true);
+       |                                ^
+    116|     });
+    117|   });
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[23/35]ΓÄ»
+
+ FAIL  src/features/azure-client/azure-client-extended.test.ts > AzureDevOpsIntClient Authentication > should get authenticated identity
+ FAIL  src/features/azure-client/azure-client-extended.test.ts > AzureDevOpsIntClient Authentication > should return cached identity if available
+TypeError: () => ({
+    wait: __vite_ssr_import_0__.vi.fn().mockResolvedValue(void 0)
+  }) is not a constructor
+ Γ¥» new AzureHttpClient src/features/azure-client/http-client.ts:54:24
+     52| 
+     53|     // Initialize rate limiter
+     54|     this.rateLimiter = new RateLimiter(options.ratePerSecond || 10, opΓÇª
+       |                        ^
+     55| 
+     56|     // Set up base URLs
+ Γ¥» new AzureDevOpsIntClient src/features/azure-client/azure-client.ts:49:23
+ Γ¥» src/features/azure-client/azure-client-extended.test.ts:45:14
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[24/35]ΓÄ»
+
+ FAIL  src/features/azure-client/azure-client-extended.test.ts > AzureDevOpsIntClient Repositories > should get repositories
+ FAIL  src/features/azure-client/azure-client-extended.test.ts > AzureDevOpsIntClient Repositories > should return cached repositories if available
+TypeError: () => ({
+    wait: __vite_ssr_import_0__.vi.fn().mockResolvedValue(void 0)
+  }) is not a constructor
+ Γ¥» new AzureHttpClient src/features/azure-client/http-client.ts:54:24
+     52| 
+     53|     // Initialize rate limiter
+     54|     this.rateLimiter = new RateLimiter(options.ratePerSecond || 10, opΓÇª
+       |                        ^
+     55| 
+     56|     // Set up base URLs
+ Γ¥» new AzureDevOpsIntClient src/features/azure-client/azure-client.ts:49:23
+ Γ¥» src/features/azure-client/azure-client-extended.test.ts:92:14
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[25/35]ΓÄ»
+
+ FAIL  src/features/azure-client/azure-client-extended.test.ts > AzureDevOpsIntClient Utility Methods > should update credential
+ FAIL  src/features/azure-client/azure-client-extended.test.ts > AzureDevOpsIntClient Utility Methods > should build URLs correctly
+ FAIL  src/features/azure-client/azure-client-extended.test.ts > AzureDevOpsIntClient Utility Methods > should set team
+TypeError: () => ({
+    wait: __vite_ssr_import_0__.vi.fn().mockResolvedValue(void 0)
+  }) is not a constructor
+ Γ¥» new AzureHttpClient src/features/azure-client/http-client.ts:54:24
+     52| 
+     53|     // Initialize rate limiter
+     54|     this.rateLimiter = new RateLimiter(options.ratePerSecond || 10, opΓÇª
+       |                        ^
+     55| 
+     56|     // Set up base URLs
+ Γ¥» new AzureDevOpsIntClient src/features/azure-client/azure-client.ts:49:23
+ Γ¥» src/features/azure-client/azure-client-extended.test.ts:149:14
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[26/35]ΓÄ»
+
+ FAIL  src/features/azure-client/azure-client.test.ts > AzureDevOpsIntClient > constructor > should initialize with correct parameters
+ FAIL  src/features/azure-client/azure-client.test.ts > AzureDevOpsIntClient > constructor > should create HTTP client and work items service
+ FAIL  src/features/azure-client/azure-client.test.ts > AzureDevOpsIntClient > work items operations > should delegate getWorkItems to work items service
+ FAIL  src/features/azure-client/azure-client.test.ts > AzureDevOpsIntClient > work items operations > should delegate createWorkItem to work items service
+TypeError: () => ({
+    wait: __vite_ssr_import_0__.vi.fn().mockResolvedValue(void 0)
+  }) is not a constructor
+ Γ¥» new AzureHttpClient src/features/azure-client/http-client.ts:54:24
+     52| 
+     53|     // Initialize rate limiter
+     54|     this.rateLimiter = new RateLimiter(options.ratePerSecond || 10, opΓÇª
+       |                        ^
+     55| 
+     56|     // Set up base URLs
+ Γ¥» new AzureDevOpsIntClient src/features/azure-client/azure-client.ts:49:23
+ Γ¥» src/features/azure-client/azure-client.test.ts:46:14
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[27/35]ΓÄ»
+
+ FAIL  tests/fsm/functions/ui/error-handling.test.ts > Error Handling Functions > detectErrorType > Status Code Detection > should detect network error from timeout status codes
+AssertionError: expected 'server' to be 'network' // Object.is equality
+
+Expected: "network"
+Received: "server"
+
+ Γ¥» tests/fsm/functions/ui/error-handling.test.ts:65:32
+     63| 
+     64|         const result504 = detectErrorType('Gateway timeout', 504);
+     65|         expect(result504.type).toBe('network');
+       |                                ^
+     66|         expect(result504.recoverable).toBe(true);
+     67|       });
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[28/35]ΓÄ»
+
+
+[2m Test Files [22m [1m[31m19 failed[39m[22m[2m | [22m[1m[32m27 passed[39m[22m[2m | [22m[33m1 skipped[39m[90m (47)[39m
+[2m      Tests [22m [1m[31m28 failed[39m[22m[2m | [22m[1m[32m304 passed[39m[22m[2m | [22m[33m1 skipped[39m[90m (333)[39m
+[2m   Start at [22m 08:28:02
+[2m   Duration [22m 3.68s[2m (transform 9.95s, setup 0ms, collect 17.08s, tests 4.60s, environment 10ms, prepare 1.30s)[22m
+

@@ -21,8 +21,8 @@
 export type { ConnectionContext, ConnectionEvent, ProjectConnection } from './types.js';
 
 // Utility exports
-export * from './constants.js';
-export * from './utils.js';
+// export * from './constants.js';
+// export * from './utils.js';
 
 // Internal exports (for testing and advanced usage)
 // export * as guards from './guards.js';
