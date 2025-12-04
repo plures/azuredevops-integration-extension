@@ -371,3 +371,6 @@ select-*.ts
 run-*.js
 run-*.mjs
 run-*.ts
+
+# Ignore Praxis
+praxis/
