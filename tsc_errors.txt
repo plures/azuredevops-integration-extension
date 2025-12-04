@@ -1,0 +1,13 @@
+src/features/commands/handlers.ts(58,10): error TS6133: '_getExtensionVersion' is declared but its value is never read.
+src/features/commands/registration.ts(93,3): error TS6133: 'context' is declared but its value is never read.
+src/fsm/functions/auth/authentication.ts(16,1): error TS6133: 'vscode' is declared but its value is never read.
+src/fsm/functions/auth/buildAuthReminder.ts(65,9): error TS6133: 'label' is declared but its value is never read.
+src/fsm/functions/auth/buildAuthReminder.ts(66,9): error TS6133: 'authMethod' is declared but its value is never read.
+src/fsm/functions/auth/buildAuthReminder.ts(82,10): error TS6133: 'renderReminderMessage' is declared but its value is never read.
+src/fsm/functions/connection/branchEnrichment.ts(150,10): error TS6133: 'formatMeta' is declared but its value is never read.
+src/fsm/functions/setup/convert.ts(23,3): error TS6133: 'context' is declared but its value is never read.
+src/fsm/functions/setup/convert.ts(43,3): error TS6133: 'saveFn' is declared but its value is never read.
+src/fsm/functions/setup/ui.ts(39,9): error TS6133: '_hasEntraConnections' is declared but its value is never read.
+src/fsm/services/fsmSetupService.ts(59,20): error TS6133: 'options' is declared but its value is never read.
+src/praxis/application/manager.ts(1044,22): error TS6133: 'hours' is declared but its value is never read.
+src/praxis/connection/manager.ts(41,20): error TS6133: 'connectionId' is declared but its value is never read.

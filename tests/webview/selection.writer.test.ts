@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { createSelectConnection, webviewOwner } from '../../src/webview/selection.writer.internal';
+import {
+  createSelectConnection,
+  webviewOwner,
+} from '../../src/webview/selection.writer.internal.js';
 
 describe('webview selection writer', () => {
   it('emits SELECT_CONNECTION with origin webview and payload id', () => {

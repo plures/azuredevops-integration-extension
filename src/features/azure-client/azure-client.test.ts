@@ -66,19 +66,20 @@ describe('AzureDevOpsIntClient', () => {
       const mockWorkItems: WorkItem[] = [
         {
           id: 1,
-          title: 'Test Work Item',
-          state: 'Active',
-          assignedTo: 'Test User',
-          workItemType: 'Bug',
-          changedDate: '2023-01-01T00:00:00Z',
           url: 'https://test.com/1',
-          fields: {},
+          fields: {
+            'System.Title': 'Test Work Item',
+            'System.State': 'Active',
+            'System.AssignedTo': 'Test User',
+            'System.WorkItemType': 'Bug',
+            'System.ChangedDate': '2023-01-01T00:00:00Z',
+          },
         },
       ];
 
       const getWorkItemsSpy = vi
         .spyOn(client['workItemsService'], 'getWorkItemsByQuery')
-        .mockResolvedValue(mockWorkItems);
+        .mockResolvedValue(mockWorkItems as any);
 
       const result = await client.getWorkItems('My Activity');
 
@@ -95,18 +96,19 @@ describe('AzureDevOpsIntClient', () => {
 
       const mockWorkItem: WorkItem = {
         id: 2,
-        title: 'New Work Item',
-        state: 'New',
-        assignedTo: 'Test User',
-        workItemType: 'Bug',
-        changedDate: '2023-01-01T00:00:00Z',
         url: 'https://test.com/2',
-        fields: {},
+        fields: {
+          'System.Title': 'New Work Item',
+          'System.State': 'New',
+          'System.AssignedTo': 'Test User',
+          'System.WorkItemType': 'Bug',
+          'System.ChangedDate': '2023-01-01T00:00:00Z',
+        },
       };
 
       const createWorkItemSpy = vi
         .spyOn(client['workItemsService'], 'createWorkItem')
-        .mockResolvedValue(mockWorkItem);
+        .mockResolvedValue(mockWorkItem as any);
 
       const result = await client.createWorkItem(createData);
 

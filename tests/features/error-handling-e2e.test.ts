@@ -7,7 +7,7 @@
  * - Multiple errors → Clear state → Recovery
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { PraxisApplicationManager } from '../../src/praxis/application/manager.js';
 import { resetPraxisEventBus } from '../../src/praxis/application/eventBus.js';
 

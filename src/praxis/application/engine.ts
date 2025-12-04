@@ -20,6 +20,7 @@ import type { ProjectConnection } from '../connection/types.js';
 import type { PraxisTimerSnapshot } from '../timer/types.js';
 import type { PraxisConnectionSnapshot } from '../connection/types.js';
 import { applicationRules } from './rules/index.js';
+import type { TimerEntry } from './features/timer.js';
 
 /**
  * Application engine context structure
@@ -27,6 +28,9 @@ import { applicationRules } from './rules/index.js';
 export interface ApplicationEngineContext {
   applicationState: PraxisApplicationState;
   applicationData: PraxisApplicationContext;
+
+  // Timer Feature
+  timerHistory: { entries: TimerEntry[] };
 
   // Shortcut properties for cleaner rule access
   isActivated: boolean;
@@ -71,6 +75,9 @@ function createInitialContext(
   return {
     applicationState: 'inactive',
     applicationData: merged as PraxisApplicationContext,
+
+    // Timer Feature
+    timerHistory: { entries: [] },
 
     // Shortcut properties
     isActivated: merged.isActivated ?? false,

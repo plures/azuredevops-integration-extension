@@ -55,6 +55,10 @@ async function buildWebview() {
       logOverride: {
         'invalid-source-mappings': 'silent',
       },
+      alias: {
+        'node:fs/promises': path.join(__dirname, 'src', 'webview', 'empty-stub.js'),
+        'node:url': path.join(__dirname, 'src', 'webview', 'empty-stub.js'),
+      },
       plugins: [
         sveltePlugin({
           compilerOptions: {

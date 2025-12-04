@@ -8,17 +8,21 @@ export { lifecycleRules } from './lifecycleRules.js';
 export { connectionRules } from './connectionRules.js';
 export { workItemRules } from './workItemRules.js';
 export { miscRules } from './miscRules.js';
+export { syncStateRule, SyncStateEvent } from './syncRules.js';
 
 // Re-export individual rules for direct access
 export * from './lifecycleRules.js';
 export * from './connectionRules.js';
 export * from './workItemRules.js';
 export * from './miscRules.js';
+export * from './syncRules.js';
 
 import { lifecycleRules } from './lifecycleRules.js';
 import { connectionRules } from './connectionRules.js';
 import { workItemRules } from './workItemRules.js';
 import { miscRules } from './miscRules.js';
+import { syncStateRule } from './syncRules.js';
+import { timerRules } from '../features/timer.js';
 
 /**
  * All application rules combined
@@ -28,4 +32,6 @@ export const applicationRules = [
   ...connectionRules,
   ...workItemRules,
   ...miscRules,
+  syncStateRule,
+  ...timerRules,
 ];

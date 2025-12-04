@@ -16,8 +16,9 @@ export type PraxisApplicationState =
   | 'inactive'
   | 'activating'
   | 'active'
-  | 'error_recovery'
-  | 'deactivating';
+  | 'activation_error'
+  | 'deactivating'
+  | 'error_recovery';
 
 /**
  * View modes for work item display

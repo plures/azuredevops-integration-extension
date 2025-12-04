@@ -56,7 +56,7 @@ export class FSMSetupService {
     this.context = context;
   }
 
-  async startSetup(options?: { skipInitialChoice?: boolean }): Promise<FSMSetupResult> {
+  async startSetup(_options?: { skipInitialChoice?: boolean }): Promise<FSMSetupResult> {
     // Load connections from workspace configuration (not globalState!)
     const settings = vscode.workspace.getConfiguration('azureDevOpsIntegration');
     const existingConnections = settings.get<ProjectConnection[]>('connections', []);

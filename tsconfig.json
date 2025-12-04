@@ -1,6 +1,13 @@
 {
   "files": [],
-  "references": [{ "path": "./src" }],
+  "references": [
+    {
+      "path": "./src"
+    }
+  ],
+  "rootDir": ".",
+  "composite": true,
+  "sourceMap": true,
   "compilerOptions": {
     "composite": true,
     "skipLibCheck": true

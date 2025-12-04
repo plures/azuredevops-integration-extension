@@ -151,6 +151,7 @@ export class FSMLogger {
   public outputChannel?: any;
   private logCounter = 0;
   private configListeners: Array<(config: LoggingConfig) => void> = [];
+  private logListeners: Array<(entry: LogEntry) => void> = [];
 
   private constructor() {
     void getVscode();
@@ -248,6 +249,27 @@ export class FSMLogger {
     }
   }
 
+  public onLogEntry(listener: (entry: LogEntry) => void): any {
+    this.logListeners.push(listener);
+    if (vscode && vscode.Disposable) {
+      return new vscode.Disposable(() => {
+        const index = this.logListeners.indexOf(listener);
+        if (index >= 0) {
+          this.logListeners.splice(index, 1);
+        }
+      });
+    } else {
+      return {
+        dispose: () => {
+          const index = this.logListeners.indexOf(listener);
+          if (index >= 0) {
+            this.logListeners.splice(index, 1);
+          }
+        },
+      };
+    }
+  }
+
   // ============================================================================
   // OUTPUT CHANNEL MANAGEMENT
   // ============================================================================
@@ -335,6 +357,15 @@ export class FSMLogger {
 
   private writeToDestinations(entry: LogEntry): void {
     const formatted = this.formatLogEntry(entry);
+
+    // Notify listeners
+    this.logListeners.forEach((listener) => {
+      try {
+        listener(entry);
+      } catch (e) {
+        console.debug('Error in log listener', e);
+      }
+    });
 
     // Console output with enhanced visibility for debug console
     if (this.config.destinations.console) {

@@ -59,19 +59,19 @@ export class PraxisTimerManager {
     return this.getTimerState() === 'running';
   }
 
-  pauseTimer(): boolean {
+  pauseTimer(manual = true): boolean {
     if (!this.isStarted) return false;
     if (this.getTimerState() !== 'running') return false;
 
-    this.engine.step([PauseTimerEvent.create({ manual: true })]);
+    this.engine.step([PauseTimerEvent.create({ manual })]);
     return this.getTimerState() === 'paused';
   }
 
-  resumeTimer(): boolean {
+  resumeTimer(fromActivity = false): boolean {
     if (!this.isStarted) return false;
     if (this.getTimerState() !== 'paused') return false;
 
-    this.engine.step([ResumeTimerEvent.create({ fromActivity: false })]);
+    this.engine.step([ResumeTimerEvent.create({ fromActivity })]);
     return this.getTimerState() === 'running';
   }
 

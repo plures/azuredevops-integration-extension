@@ -75,9 +75,6 @@ LLM-GUARD:
   const showDeviceCode = $derived(Boolean(canShowDeviceCodeBase));
   const showEntraAuthError = $derived(Boolean(entraAuthErrorEligible && !showDeviceCode));
 
-  // Get VS Code API instance
-  const vscode = (window as any).__vscodeApi;
-
   function copyAndOpenDeviceCode() {
     if (!deviceCodeSession) return;
     // Delegate browser launch + clipboard to extension (webview sandbox limitations)

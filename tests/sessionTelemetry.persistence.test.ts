@@ -71,7 +71,7 @@ vi.mock('vscode', () => {
       parse: (uri: string) => ({ toString: () => uri }),
     },
     FileSystemError: {
-      FileNotFound: (uri: any) => new Error(`File not found: ${uri}`),
+      FileNotFound: (uri: any) => new Error(`File not found: ${uri?.fsPath || uri}`),
     },
     FileType: {
       File: 1,

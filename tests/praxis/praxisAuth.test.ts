@@ -6,7 +6,7 @@
  */
 
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { PraxisAuthManager } from '../../src/praxis/auth/manager';
+import { PraxisAuthManager } from '../../src/praxis/auth/manager.js';
 
 describe('Praxis Authentication Manager', () => {
   let authManager: PraxisAuthManager;
@@ -301,8 +301,8 @@ describe('Praxis Authentication Manager', () => {
 
 describe('Praxis Auth Engine Direct Tests', () => {
   it('should work with createAuthEngine', async () => {
-    const { createAuthEngine } = await import('../../src/praxis/auth/engine');
-    const { AuthenticateEvent, AuthSuccessEvent } = await import('../../src/praxis/auth/facts');
+    const { createAuthEngine } = await import('../../src/praxis/auth/engine.js');
+    const { AuthenticateEvent, AuthSuccessEvent } = await import('../../src/praxis/auth/facts.js');
 
     const engine = createAuthEngine('test-connection', 'pat');
 

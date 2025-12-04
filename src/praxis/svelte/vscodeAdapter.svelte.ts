@@ -11,7 +11,6 @@ import type {
   PraxisWebviewMessage,
   PraxisStatePayload,
   PraxisEventPayload,
-  SvelteRunes,
   PraxisEngineState,
   UsePraxisEngineResult,
   UsePraxisEngineOptions,
@@ -140,7 +139,6 @@ export function createVSCodePraxisAdapter<TContext>(
  * This hook connects to a Praxis engine running in the extension host
  * via the VS Code webview messaging API.
  *
- * @param runes - Svelte 5 runes
  * @param adapter - Remote engine adapter
  * @param options - Configuration options
  * @returns Reactive state and dispatch function
@@ -151,29 +149,25 @@ export function createVSCodePraxisAdapter<TContext>(
  *   import { createVSCodePraxisAdapter, useRemotePraxisEngine } from '$lib/praxis/svelte';
  *
  *   const adapter = createVSCodePraxisAdapter<ApplicationContext>('application');
- *   const { state, dispatch } = useRemotePraxisEngine(
- *     { state: $state, effect: $effect },
- *     adapter
- *   );
+ *   const { state, dispatch } = useRemotePraxisEngine(adapter);
  * </script>
  * ```
  */
 export function useRemotePraxisEngine<TContext>(
-  runes: SvelteRunes,
   adapter: RemoteEngineAdapter<TContext>,
   options: UsePraxisEngineOptions<TContext> = {}
 ): UsePraxisEngineResult<TContext> {
   // Create reactive state
   const initialContext = (adapter.getContext() || options.initialContext || {}) as TContext;
 
-  const state = runes.state<PraxisEngineState<TContext>>({
+  const state = $state<PraxisEngineState<TContext>>({
     context: initialContext,
     connected: adapter.isConnected(),
     lastUpdate: Date.now(),
   });
 
   // Subscribe to context updates
-  runes.effect(() => {
+  $effect(() => {
     const unsubscribe = adapter.subscribe((context) => {
       state.context = context;
       state.connected = true;

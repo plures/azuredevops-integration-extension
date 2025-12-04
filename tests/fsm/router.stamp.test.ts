@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stampConnectionMeta } from '../../src/fsm/router/stamp';
+import { stampConnectionMeta } from '../../src/fsm/router/stamp.js';
 
 describe('router/stamp', () => {
   it('stamps atConnectionId, timestamp, correlationId for connection-shaped events', () => {

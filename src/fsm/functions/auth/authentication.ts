@@ -13,7 +13,6 @@
  */
 import type { ExtensionContext } from 'vscode';
 import * as msal from '@azure/msal-node';
-import * as vscode from 'vscode';
 
 export async function getPat(context: ExtensionContext, patKey?: string): Promise<string> {
   if (!patKey) {
@@ -33,24 +32,58 @@ const msalConfig = {
   },
 };
 
-export async function getEntraIdToken(
+function isTokenExpired(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      return true;
+    }
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+    // Give a 5-minute buffer
+    const now = Math.floor(Date.now() / 1000);
+    return payload.exp < now + 300;
+  } catch {
+    return true;
+  }
+}
+
+export async function clearEntraIdToken(
   context: ExtensionContext,
   tenantId?: string
+): Promise<void> {
+  if (!tenantId) {
+    return;
+  }
+  const secretKey = `entra:${tenantId}`;
+  await context.secrets.delete(secretKey);
+}
+
+export async function getEntraIdToken(
+  context: ExtensionContext,
+  tenantId?: string,
+  force?: boolean,
+  onDeviceCode?: (response: any) => void
 ): Promise<string> {
   if (!tenantId) {
     throw new Error('Tenant ID is not defined for this connection.');
   }
   const secretKey = `entra:${tenantId}`;
-  // Try to get cached token first
-  const cachedToken = await context.secrets.get(secretKey);
-  if (cachedToken) {
-    return cachedToken;
+
+  // Try to get cached token first, unless forced
+  if (!force) {
+    const cachedToken = await context.secrets.get(secretKey);
+    if (cachedToken && !isTokenExpired(cachedToken)) {
+      return cachedToken;
+    }
   }
 
   const pca = new msal.PublicClientApplication(msalConfig);
   const deviceCodeRequest = {
     deviceCodeCallback: (response: any) => {
-      vscode.window.showInformationMessage(response.message);
+      if (onDeviceCode) {
+        onDeviceCode(response);
+      }
+      // UI is handled by the Webview via onDeviceCode callback
     },
     scopes: ['499b84ac-1321-427f-aa17-267ca6975798/.default'], // Azure DevOps scope
   };

@@ -14,7 +14,7 @@ export {
   usePraxisSelector,
   matchesState,
   createStateMatchers,
-} from './usePraxisEngine.js';
+} from './usePraxisEngine.svelte.js';
 
 // VS Code webview adapter
 export {
@@ -22,4 +22,4 @@ export {
   useRemotePraxisEngine,
   getGlobalPraxisAdapter,
   resetGlobalPraxisAdapter,
-} from './vscodeAdapter.js';
+} from './vscodeAdapter.svelte.js';

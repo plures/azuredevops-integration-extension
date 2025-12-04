@@ -1,5 +1,5 @@
-import { expect } from 'chai';
-import { WorkItemTimer } from '../src/timer.ts';
+import { describe, it, expect } from 'vitest';
+import { WorkItemTimer } from '../src/timer.js';
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -23,7 +23,7 @@ describe('WorkItemTimer (basic)', () => {
     expect(res).to.have.property('duration').that.is.a('number');
     const entries = timer.getTimeEntries();
     expect(entries.length).to.be.greaterThan(0);
-  }, 5000);
+  });
 
   it('timeReport Today includes entries spanning midnight with overlap only', () => {
     // Fixed clock just after midnight (use a fixed instant; timezone-insensitive expectation computed from report window)

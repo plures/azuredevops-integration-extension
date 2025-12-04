@@ -27,9 +27,14 @@ function createConnectionState(
   overrides: Partial<ConnectionState> = {}
 ): ConnectionState {
   return {
-    id: connection.id,
+    connectionId: connection.id,
     config: connection,
     authMethod: connection.authMethod ?? 'pat',
+    isConnected: false,
+    retryCount: 0,
+    refreshFailureCount: 0,
+    reauthInProgress: false,
+    forceInteractive: false,
     ...overrides,
   };
 }

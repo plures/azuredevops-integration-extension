@@ -121,7 +121,8 @@ export class OutputChannelReader {
       }
 
       if (filter.level) {
-        logs = logs.filter((log) => log.includes(filter.level));
+        const level = filter.level;
+        logs = logs.filter((log) => log.includes(level));
       }
 
       if (filter.pattern) {

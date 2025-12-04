@@ -30,6 +30,9 @@ import {
 export const deviceCodeStartedRule = defineRule<ApplicationEngineContext>({
   id: 'application.deviceCodeStarted',
   description: 'Handle device code flow started',
+  meta: {
+    triggers: ['DEVICE_CODE_STARTED'],
+  },
   impl: (state, events) => {
     const startedEvent = findEvent(events, DeviceCodeStartedAppEvent);
     if (!startedEvent) return [];
@@ -56,6 +59,9 @@ export const deviceCodeStartedRule = defineRule<ApplicationEngineContext>({
 export const deviceCodeCompletedRule = defineRule<ApplicationEngineContext>({
   id: 'application.deviceCodeCompleted',
   description: 'Handle device code flow completed',
+  meta: {
+    triggers: ['DEVICE_CODE_COMPLETED'],
+  },
   impl: (state, events) => {
     const completedEvent = findEvent(events, DeviceCodeCompletedAppEvent);
     if (!completedEvent) return [];
@@ -74,6 +80,9 @@ export const deviceCodeCompletedRule = defineRule<ApplicationEngineContext>({
 export const deviceCodeCancelledRule = defineRule<ApplicationEngineContext>({
   id: 'application.deviceCodeCancelled',
   description: 'Handle device code flow cancelled',
+  meta: {
+    triggers: ['DEVICE_CODE_CANCELLED'],
+  },
   impl: (state, events) => {
     const cancelledEvent = findEvent(events, DeviceCodeCancelledEvent);
     if (!cancelledEvent) return [];
@@ -96,6 +105,10 @@ export const deviceCodeCancelledRule = defineRule<ApplicationEngineContext>({
 export const applicationErrorRule = defineRule<ApplicationEngineContext>({
   id: 'application.error',
   description: 'Handle application error',
+  meta: {
+    triggers: ['APPLICATION_ERROR'],
+    transition: { from: 'active', to: 'error_recovery' },
+  },
   impl: (state, events) => {
     const errorEvent = findEvent(events, ApplicationErrorEvent);
     if (!errorEvent) return [];
@@ -120,6 +133,10 @@ export const applicationErrorRule = defineRule<ApplicationEngineContext>({
 export const retryRule = defineRule<ApplicationEngineContext>({
   id: 'application.retry',
   description: 'Retry after error',
+  meta: {
+    triggers: ['RETRY'],
+    transition: { from: 'error_recovery', to: 'active' },
+  },
   impl: (state, events) => {
     const retryEvent = findEvent(events, RetryApplicationEvent);
     if (!retryEvent) return [];
@@ -139,6 +156,10 @@ export const retryRule = defineRule<ApplicationEngineContext>({
 export const resetRule = defineRule<ApplicationEngineContext>({
   id: 'application.reset',
   description: 'Reset application state',
+  meta: {
+    triggers: ['RESET'],
+    transition: { from: '*', to: 'inactive' },
+  },
   impl: (state, events) => {
     const resetEvent = findEvent(events, ResetApplicationEvent);
     if (!resetEvent) return [];
@@ -165,6 +186,9 @@ export const resetRule = defineRule<ApplicationEngineContext>({
 export const toggleDebugViewRule = defineRule<ApplicationEngineContext>({
   id: 'application.toggleDebugView',
   description: 'Toggle debug view visibility',
+  meta: {
+    triggers: ['TOGGLE_DEBUG_VIEW'],
+  },
   impl: (state, events) => {
     const toggleEvent = findEvent(events, ToggleDebugViewEvent);
     if (!toggleEvent) return [];
@@ -189,6 +213,9 @@ export const toggleDebugViewRule = defineRule<ApplicationEngineContext>({
 export const authReminderRequestedRule = defineRule<ApplicationEngineContext>({
   id: 'application.authReminderRequested',
   description: 'Handle authentication reminder request',
+  meta: {
+    triggers: ['AUTH_REMINDER_REQUESTED'],
+  },
   impl: (state, events) => {
     const reminderEvent = findEvent(events, AuthReminderRequestedEvent);
     if (!reminderEvent) return [];
@@ -211,6 +238,9 @@ export const authReminderRequestedRule = defineRule<ApplicationEngineContext>({
 export const authReminderClearedRule = defineRule<ApplicationEngineContext>({
   id: 'application.authReminderCleared',
   description: 'Handle authentication reminder cleared',
+  meta: {
+    triggers: ['AUTH_REMINDER_CLEARED'],
+  },
   impl: (state, events) => {
     const clearedEvent = findEvent(events, AuthReminderClearedEvent);
     if (!clearedEvent) return [];
@@ -227,6 +257,9 @@ export const authReminderClearedRule = defineRule<ApplicationEngineContext>({
 export const authenticationSuccessRule = defineRule<ApplicationEngineContext>({
   id: 'application.authenticationSuccess',
   description: 'Handle authentication success',
+  meta: {
+    triggers: ['AUTHENTICATION_SUCCESS'],
+  },
   impl: (state, events) => {
     const successEvent = findEvent(events, AuthenticationSuccessEvent);
     if (!successEvent) return [];
@@ -253,6 +286,9 @@ export const authenticationSuccessRule = defineRule<ApplicationEngineContext>({
 export const authenticationFailedRule = defineRule<ApplicationEngineContext>({
   id: 'application.authenticationFailed',
   description: 'Handle authentication failure',
+  meta: {
+    triggers: ['AUTHENTICATION_FAILED'],
+  },
   impl: (state, events) => {
     const failedEvent = findEvent(events, AuthenticationFailedEvent);
     if (!failedEvent) return [];

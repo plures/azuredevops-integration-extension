@@ -7,8 +7,8 @@
  */
 
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { PraxisConnectionManager } from '../../src/praxis/connection/manager';
-import type { ProjectConnection } from '../../src/praxis/connection/types';
+import { PraxisConnectionManager } from '../../src/praxis/connection/manager.js';
+import type { ProjectConnection } from '../../src/praxis/connection/types.js';
 
 describe('Praxis Connection Manager - Core', () => {
   let connectionManager: PraxisConnectionManager;

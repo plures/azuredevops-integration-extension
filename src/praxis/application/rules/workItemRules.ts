@@ -14,6 +14,10 @@ import { WorkItemsLoadedEvent, WorkItemsErrorEvent } from '../facts.js';
 export const workItemsLoadedRule = defineRule<ApplicationEngineContext>({
   id: 'application.workItemsLoaded',
   description: 'Handle work items loaded',
+  meta: {
+    triggers: ['WORK_ITEMS_LOADED'],
+    transition: { from: 'active', to: 'active' },
+  },
   impl: (state, events) => {
     const loadedEvent = findEvent(events, WorkItemsLoadedEvent);
     if (!loadedEvent) return [];
@@ -46,6 +50,10 @@ export const workItemsLoadedRule = defineRule<ApplicationEngineContext>({
 export const workItemsErrorRule = defineRule<ApplicationEngineContext>({
   id: 'application.workItemsError',
   description: 'Handle work items error',
+  meta: {
+    triggers: ['WORK_ITEMS_ERROR'],
+    transition: { from: 'active', to: 'error_recovery' },
+  },
   impl: (state, events) => {
     const errorEvent = findEvent(events, WorkItemsErrorEvent);
     if (!errorEvent) return [];

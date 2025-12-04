@@ -14,7 +14,7 @@
  * This module now uses Praxis logic engine instead of XState.
  * The inspector functionality has been removed as Praxis uses different debugging approaches.
  */
-import { createComponentLogger, FSMComponent } from './logging/FSMLogger';
+import { createComponentLogger, FSMComponent } from './logging/FSMLogger.js';
 
 // Create logger for FSM configuration
 const logger = createComponentLogger(FSMComponent.APPLICATION, 'fsmConfig');

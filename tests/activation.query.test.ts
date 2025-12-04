@@ -94,7 +94,7 @@ function makeConfig(values: Record<string, any>, options: ConfigStubOptions = {}
       }
       return undefined;
     },
-    inspect: <T>(section: string) => {
+    inspect: (section: string) => {
       const hasDefault = Object.prototype.hasOwnProperty.call(defaults, section);
       const hasCustom =
         customKeys.includes(section) && Object.prototype.hasOwnProperty.call(values, section);

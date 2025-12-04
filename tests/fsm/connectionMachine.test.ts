@@ -47,7 +47,7 @@ describe('PraxisConnectionManager', () => {
       check();
     });
 
-    const ctx = manager.getContext();
+    const ctx = manager.getConnectionData();
     expect(ctx.client).toBeDefined();
     expect((ctx.client as any).id).toBe('client-stub');
     expect(ctx.provider).toBeDefined();

@@ -14,8 +14,7 @@ LLM-GUARD:
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { get } from 'svelte/store';
-  import { applicationSnapshot, type ApplicationSnapshot } from './fsmSnapshotStore.js';
+  import { contextStore } from './praxis/store.js';
   import Settings from './components/Settings.svelte';
   import ConnectionTabs from './components/ConnectionTabs.svelte';
   import ConnectionViews from './components/ConnectionViews.svelte';
@@ -28,27 +27,27 @@ LLM-GUARD:
 
   console.debug('[webview] App.svelte initializing');
 
-  // Reactive FSM state from snapshot store (subscribe reactively in Svelte 5 runes)
-  let snapshot = $state<ApplicationSnapshot>(get(applicationSnapshot));
-  
-  // Subscribe to store updates
-  $effect(() => {
-    const unsubscribe = applicationSnapshot.subscribe((value) => {
-      snapshot = value;
-    });
-    return unsubscribe;
+  // Use the context store directly
+  const context = $contextStore;
+
+  // Derive matches from context for compatibility
+  const matches = $derived({
+    inactive: context?.applicationState === 'inactive',
+    activating: context?.applicationState === 'activating',
+    active: context?.applicationState === 'active',
+    activation_error: context?.applicationState === 'activation_error',
+    'active.setup': context?.applicationState === 'active' && (!context?.connections?.length),
+    'active.ready': context?.applicationState === 'active' && (context?.connections?.length > 0),
+    'active.ready.managingConnections': false, // TODO: Implement logic for managing connections view if needed
   });
-  
-  const context = $derived(snapshot.context);
-  const matches = $derived(snapshot.matches || {}); // Pre-computed state matches from extension
 
   // Debug snapshot reactivity
   $effect(() => {
-    console.debug('[AzureDevOpsInt][webview] App reactive - snapshot:', {
-      hasSnapshot: !!snapshot,
-      value: snapshot.value,
+    console.debug('[AzureDevOpsInt][webview] App reactive - context:', {
+      hasContext: !!context,
+      state: context?.applicationState,
       hasMatches: !!matches,
-      matchKeys: Object.keys(matches).filter((k) => matches[k]),
+      matchKeys: Object.keys(matches).filter((k) => matches[k as keyof typeof matches]),
       contextKeys: context ? Object.keys(context) : [],
       hasPendingWorkItems: !!context?.pendingWorkItems,
       workItemsCount: context?.pendingWorkItems?.workItems?.length || 0,
@@ -66,9 +65,9 @@ LLM-GUARD:
     }
   }
 
-  // Use pre-computed state matches - no need for custom isInState() helper!
+  // Use derived matches
   const isInactiveOrActivating = $derived(matches.inactive || matches.activating);
-  const isActivationFailed = $derived(matches.activation_failed);
+  const isActivationFailed = $derived(matches.activation_error);
   const isActiveSetup = $derived(matches['active.setup']);
   const isActiveReadyManaging = $derived(matches['active.ready.managingConnections']);
   const isActiveReady = $derived(matches['active.ready']);
@@ -94,7 +93,7 @@ LLM-GUARD:
       isActiveReadyManaging,
       isActiveReady,
       isActive,
-      activeMatches: Object.keys(matches).filter((k) => matches[k]),
+      activeMatches: Object.keys(matches).filter((k) => matches[k as keyof typeof matches]),
     };
     console.debug('[AzureDevOpsInt][webview] App state matching:', debugInfo);
   });
@@ -179,8 +178,8 @@ LLM-GUARD:
         <h3>Debug View</h3>
         <pre class="debug-json">{JSON.stringify(
             {
-              state: snapshot.value,
-              matches: Object.keys(matches).filter((k) => matches[k]),
+              state: context?.applicationState,
+              matches: Object.keys(matches).filter((k) => matches[k as keyof typeof matches]),
               activeConnectionId: context?.activeConnectionId,
               viewMode: context?.viewMode,
             },

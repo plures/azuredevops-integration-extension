@@ -9,12 +9,15 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "check:architecture": "praxis verify implementation",
+    "canvas": "praxis canvas",
+    "generate:schema": "praxis generate schema",
     "tauri": "tauri",
     "build:msi": "tauri build --bundles msi"
   },
   "license": "MIT",
   "dependencies": {
-    "@plures/praxis": "^1.0.1",
+    "@plures/praxis": "^1.0.3",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-fs": "^2",

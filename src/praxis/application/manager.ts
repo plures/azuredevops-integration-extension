@@ -15,12 +15,17 @@ import type {
   ViewMode,
   WorkItem,
 } from './types.js';
+import type { PraxisTimerSnapshot } from '../timer/types.js';
 import type { ProjectConnection } from '../connection/types.js';
 import { createApplicationEngine, type ApplicationEngineContext } from './engine.js';
 import { PraxisEventBus, getPraxisEventBus } from './eventBus.js';
 import { PraxisTimerManager } from '../timer/manager.js';
 import { PraxisAuthManager } from '../auth/manager.js';
 import { PraxisConnectionManager } from '../connection/manager.js';
+import { setApplicationStoreBridge } from '../../fsm/services/extensionHostBridge.js';
+import { eventHandlers } from '../../stores/eventHandlers.js';
+import { fsmTracer } from '../../fsm/logging/FSMTracer.js';
+import { FSMComponent } from '../../fsm/logging/FSMLogger.js';
 import {
   ActivateEvent,
   ActivationCompleteEvent,
@@ -46,6 +51,19 @@ import {
   RefreshDataEvent,
   SignInEntraEvent,
   SignOutEntraEvent,
+  CreateWorkItemEvent,
+  CreateBranchEvent,
+  CreatePullRequestEvent,
+  ShowPullRequestsEvent,
+  ShowBuildStatusEvent,
+  SelectTeamEvent,
+  ResetPreferredRepositoriesEvent,
+  SelfTestWebviewEvent,
+  BulkAssignEvent,
+  GenerateCopilotPromptEvent,
+  ShowTimeReportEvent,
+  WebviewReadyEvent,
+  type PraxisApplicationEvent,
 } from './facts.js';
 
 /**
@@ -66,6 +84,15 @@ export class PraxisApplicationManager {
 
   // Event bus unsubscribe functions
   private eventBusCleanup: (() => void)[] = [];
+
+  private static instance: PraxisApplicationManager;
+
+  static getInstance(): PraxisApplicationManager {
+    if (!PraxisApplicationManager.instance) {
+      PraxisApplicationManager.instance = new PraxisApplicationManager();
+    }
+    return PraxisApplicationManager.instance;
+  }
 
   constructor(config?: Partial<PraxisApplicationContext>) {
     this.engine = createApplicationEngine(config);
@@ -108,7 +135,7 @@ export class PraxisApplicationManager {
     this.eventBusCleanup.push(
       this.eventBus.subscribe('auth:success', (msg) => {
         if (msg.connectionId) {
-          this.engine.step([AuthenticationSuccessEvent.create({ connectionId: msg.connectionId })]);
+          this.dispatch([AuthenticationSuccessEvent.create({ connectionId: msg.connectionId })]);
         }
       })
     );
@@ -116,7 +143,7 @@ export class PraxisApplicationManager {
     this.eventBusCleanup.push(
       this.eventBus.subscribe('auth:failed', (msg) => {
         if (msg.connectionId) {
-          this.engine.step([
+          this.dispatch([
             AuthenticationFailedEvent.create({
               connectionId: msg.connectionId,
               error: String(msg.payload.error || 'Authentication failed'),
@@ -143,7 +170,7 @@ export class PraxisApplicationManager {
     this.eventBusCleanup.push(
       this.eventBus.subscribe('connection:error', (msg) => {
         if (msg.connectionId) {
-          this.engine.step([
+          this.dispatch([
             ApplicationErrorEvent.create({
               error: String(msg.payload.error || 'Connection error'),
               connectionId: msg.connectionId,
@@ -177,6 +204,39 @@ export class PraxisApplicationManager {
     ctx.connectionStates.set(connectionId, snapshot);
   }
 
+  public handleEvent(event: PraxisApplicationEvent): void {
+    this.dispatch([event]);
+  }
+
+  /**
+   * Dispatch typed events to the engine
+   */
+  public dispatch(events: PraxisApplicationEvent[]): void {
+    this.engine.step(events);
+    this.notifyListeners();
+  }
+
+  private listeners: ((snapshot: PraxisApplicationSnapshot) => void)[] = [];
+
+  public subscribe(listener: (snapshot: PraxisApplicationSnapshot) => void): {
+    unsubscribe: () => void;
+  } {
+    this.listeners.push(listener);
+    // Send immediate snapshot
+    listener(this.getSnapshot());
+
+    return {
+      unsubscribe: () => {
+        this.listeners = this.listeners.filter((l) => l !== listener);
+      },
+    };
+  }
+
+  private notifyListeners(): void {
+    const snapshot = this.getSnapshot();
+    this.listeners.forEach((l) => l(snapshot));
+  }
+
   /**
    * Start the application orchestrator
    */
@@ -184,9 +244,63 @@ export class PraxisApplicationManager {
     if (this.isStarted) return;
     this.isStarted = true;
 
+    // Register bridge for Webview
+    this.registerWebviewBridge();
+
+    // Instrument tracing
+    this.instrumentTracing();
+
     // Create timer manager (shared across all connections)
     this.timerManager = new PraxisTimerManager();
     this.timerManager.start();
+  }
+
+  /**
+   * Register the Webview bridge
+   */
+  private registerWebviewBridge(): void {
+    setApplicationStoreBridge({
+      getActor: () => ({
+        subscribe: (listener: any) =>
+          this.subscribe((snap) => {
+            // Fetch full context to satisfy XState bridge requirements
+            const ctx = this.getContext();
+            listener({
+              value: snap.state,
+              context: ctx,
+              matches: (snap as any).matches,
+            });
+          }),
+        getSnapshot: () => {
+          const snap = this.getSnapshot();
+          const ctx = this.getContext();
+          return {
+            value: snap.state,
+            context: ctx,
+            matches: (snap as any).matches,
+          };
+        },
+        send: (event: any) => {
+          const handler = eventHandlers[event.type];
+          if (handler) {
+            handler(this, event);
+          }
+        },
+      }),
+      send: (event: any) => {
+        const handler = eventHandlers[event.type];
+        if (handler) {
+          handler(this, event);
+        }
+      },
+    });
+  }
+
+  /**
+   * Instrument tracing
+   */
+  private instrumentTracing(): void {
+    fsmTracer.instrumentActor(this.engine, FSMComponent.APPLICATION, 'applicationMachine');
   }
 
   /**
@@ -228,7 +342,7 @@ export class PraxisApplicationManager {
     if (!this.isStarted) return false;
     if (this.getApplicationState() !== 'inactive') return false;
 
-    this.engine.step([ActivateEvent.create({ extensionContext })]);
+    this.dispatch([ActivateEvent.create({ extensionContext })]);
     return this.getApplicationState() === 'activating';
   }
 
@@ -239,7 +353,7 @@ export class PraxisApplicationManager {
     if (!this.isStarted) return false;
     if (this.getApplicationState() !== 'activating') return false;
 
-    this.engine.step([ActivationCompleteEvent.create({})]);
+    this.dispatch([ActivationCompleteEvent.create({})]);
     this.eventBus.emitApplicationEvent('app:activated', {});
     return this.getApplicationState() === 'active';
   }
@@ -251,8 +365,8 @@ export class PraxisApplicationManager {
     if (!this.isStarted) return false;
     if (this.getApplicationState() !== 'activating') return false;
 
-    this.engine.step([ActivationFailedEvent.create({ error })]);
-    return this.getApplicationState() === 'error_recovery';
+    this.dispatch([ActivationFailedEvent.create({ error })]);
+    return this.getApplicationState() === 'activation_error';
   }
 
   /**
@@ -264,7 +378,7 @@ export class PraxisApplicationManager {
     const state = this.getApplicationState();
     if (state === 'inactive' || state === 'deactivating') return false;
 
-    this.engine.step([DeactivateEvent.create({})]);
+    this.dispatch([DeactivateEvent.create({})]);
     return this.getApplicationState() === 'deactivating';
   }
 
@@ -275,7 +389,7 @@ export class PraxisApplicationManager {
     if (!this.isStarted) return false;
     if (this.getApplicationState() !== 'deactivating') return false;
 
-    this.engine.step([DeactivationCompleteEvent.create({})]);
+    this.dispatch([DeactivationCompleteEvent.create({})]);
     this.eventBus.emitApplicationEvent('app:deactivated', {});
     return this.getApplicationState() === 'inactive';
   }
@@ -290,7 +404,7 @@ export class PraxisApplicationManager {
   loadConnections(connections: ProjectConnection[]): void {
     if (!this.isStarted) return;
 
-    this.engine.step([ConnectionsLoadedEvent.create({ connections })]);
+    this.dispatch([ConnectionsLoadedEvent.create({ connections })]);
 
     // Create auth and connection managers for each connection
     for (const conn of connections) {
@@ -318,7 +432,7 @@ export class PraxisApplicationManager {
     const exists = ctx.connections.some((c) => c.id === connectionId);
     if (!exists) return false;
 
-    this.engine.step([ConnectionSelectedEvent.create({ connectionId })]);
+    this.dispatch([ConnectionSelectedEvent.create({ connectionId })]);
     return this.getActiveConnectionId() === connectionId;
   }
 
@@ -359,7 +473,7 @@ export class PraxisApplicationManager {
    */
   setQuery(query: string, connectionId?: string): void {
     if (!this.isStarted) return;
-    this.engine.step([QueryChangedEvent.create({ query, connectionId })]);
+    this.dispatch([QueryChangedEvent.create({ query, connectionId })]);
   }
 
   /**
@@ -374,7 +488,7 @@ export class PraxisApplicationManager {
    */
   setViewMode(viewMode: ViewMode): void {
     if (!this.isStarted) return;
-    this.engine.step([ViewModeChangedEvent.create({ viewMode })]);
+    this.dispatch([ViewModeChangedEvent.create({ viewMode })]);
   }
 
   /**
@@ -404,7 +518,7 @@ export class PraxisApplicationManager {
   workItemsLoaded(workItems: WorkItem[], connectionId: string, query?: string): void {
     if (!this.isStarted) return;
 
-    this.engine.step([WorkItemsLoadedEvent.create({ workItems, connectionId, query })]);
+    this.dispatch([WorkItemsLoadedEvent.create({ workItems, connectionId, query })]);
 
     this.eventBus.emitApplicationEvent(
       'workitems:loaded',
@@ -419,9 +533,30 @@ export class PraxisApplicationManager {
   workItemsError(error: string, connectionId: string): void {
     if (!this.isStarted) return;
 
-    this.engine.step([WorkItemsErrorEvent.create({ error, connectionId })]);
+    this.dispatch([WorkItemsErrorEvent.create({ error, connectionId })]);
 
     this.eventBus.emitApplicationEvent('workitems:error', { error }, connectionId);
+  }
+
+  /**
+   * Handle device code flow
+   */
+  handleDeviceCode(
+    connectionId: string,
+    userCode: string,
+    verificationUri: string,
+    expiresIn: number
+  ): void {
+    if (!this.isStarted) return;
+
+    this.dispatch([
+      DeviceCodeStartedAppEvent.create({
+        connectionId,
+        userCode,
+        verificationUri,
+        expiresInSeconds: expiresIn,
+      }),
+    ]);
   }
 
   /**
@@ -455,12 +590,12 @@ export class PraxisApplicationManager {
   /**
    * Pause the timer
    */
-  pauseTimer(): boolean {
+  pauseTimer(manual = true): boolean {
     if (!this.timerManager) return false;
 
-    const success = this.timerManager.pauseTimer();
+    const success = this.timerManager.pauseTimer(manual);
     if (success) {
-      this.eventBus.emitTimerEvent('timer:paused', {});
+      this.eventBus.emitTimerEvent('timer:paused', { manual });
     }
     return success;
   }
@@ -468,12 +603,12 @@ export class PraxisApplicationManager {
   /**
    * Resume the timer
    */
-  resumeTimer(): boolean {
+  resumeTimer(fromActivity = false): boolean {
     if (!this.timerManager) return false;
 
-    const success = this.timerManager.resumeTimer();
+    const success = this.timerManager.resumeTimer(fromActivity);
     if (success) {
-      this.eventBus.emitTimerEvent('timer:resumed', {});
+      this.eventBus.emitTimerEvent('timer:resumed', { fromActivity });
     }
     return success;
   }
@@ -516,7 +651,28 @@ export class PraxisApplicationManager {
   ): void {
     if (!this.isStarted) return;
 
-    this.engine.step([
+    this.dispatch([
+      DeviceCodeStartedAppEvent.create({
+        connectionId,
+        userCode,
+        verificationUri,
+        expiresInSeconds,
+      }),
+    ]);
+  }
+
+  /**
+   * Handle device code received
+   */
+  deviceCodeReceived(
+    connectionId: string,
+    userCode: string,
+    verificationUri: string,
+    expiresInSeconds: number
+  ): void {
+    if (!this.isStarted) return;
+
+    this.dispatch([
       DeviceCodeStartedAppEvent.create({
         connectionId,
         userCode,
@@ -532,7 +688,7 @@ export class PraxisApplicationManager {
   deviceCodeCompleted(connectionId: string): void {
     if (!this.isStarted) return;
 
-    this.engine.step([DeviceCodeCompletedAppEvent.create({ connectionId })]);
+    this.dispatch([DeviceCodeCompletedAppEvent.create({ connectionId })]);
   }
 
   /**
@@ -552,7 +708,7 @@ export class PraxisApplicationManager {
   reportError(error: string, connectionId?: string): void {
     if (!this.isStarted) return;
 
-    this.engine.step([ApplicationErrorEvent.create({ error, connectionId })]);
+    this.dispatch([ApplicationErrorEvent.create({ error, connectionId })]);
     this.eventBus.emitApplicationEvent('app:error', { error }, connectionId);
   }
 
@@ -561,9 +717,9 @@ export class PraxisApplicationManager {
    */
   retry(): boolean {
     if (!this.isStarted) return false;
-    if (this.getApplicationState() !== 'error_recovery') return false;
+    if (this.getApplicationState() !== 'activation_error') return false;
 
-    this.engine.step([RetryApplicationEvent.create({})]);
+    this.dispatch([RetryApplicationEvent.create({})]);
     return this.getApplicationState() === 'active';
   }
 
@@ -572,7 +728,7 @@ export class PraxisApplicationManager {
    */
   reset(): void {
     if (!this.isStarted) return;
-    this.engine.step([ResetApplicationEvent.create({})]);
+    this.dispatch([ResetApplicationEvent.create({})]);
   }
 
   /**
@@ -592,7 +748,7 @@ export class PraxisApplicationManager {
   requestAuthReminder(connectionId: string, reason: string, detail?: string): void {
     if (!this.isStarted) return;
 
-    this.engine.step([AuthReminderRequestedEvent.create({ connectionId, reason, detail })]);
+    this.dispatch([AuthReminderRequestedEvent.create({ connectionId, reason, detail })]);
   }
 
   /**
@@ -601,7 +757,7 @@ export class PraxisApplicationManager {
   clearAuthReminder(connectionId: string): void {
     if (!this.isStarted) return;
 
-    this.engine.step([AuthReminderClearedEvent.create({ connectionId })]);
+    this.dispatch([AuthReminderClearedEvent.create({ connectionId })]);
   }
 
   /**
@@ -621,7 +777,7 @@ export class PraxisApplicationManager {
   toggleDebugView(visible?: boolean): void {
     if (!this.isStarted) return;
 
-    this.engine.step([ToggleDebugViewEvent.create({ debugViewVisible: visible })]);
+    this.dispatch([ToggleDebugViewEvent.create({ debugViewVisible: visible })]);
   }
 
   /**
@@ -652,17 +808,25 @@ export class PraxisApplicationManager {
   /**
    * Get application snapshot
    */
-  getSnapshot(): PraxisApplicationSnapshot {
+  getSnapshot(): PraxisApplicationSnapshot & { matches: (state: string) => boolean } {
     const ctx = this.engine.getContext();
+    const currentState = ctx.applicationState;
 
     return {
-      state: ctx.applicationState,
+      state: currentState,
       isActivated: ctx.isActivated,
       connections: ctx.connections,
       activeConnectionId: ctx.activeConnectionId,
       hasActiveTimer: !!ctx.timerSnapshot?.running,
       connectionCount: ctx.connections.length,
       errorRecoveryAttempts: ctx.errorRecoveryAttempts,
+      // Compatibility with XState consumers
+      matches: (state: string) => {
+        if (state === currentState) return true;
+        // Map legacy states
+        if (state === 'activation_failed' && currentState === 'activation_error') return true;
+        return false;
+      },
     };
   }
 
@@ -707,7 +871,7 @@ export class PraxisApplicationManager {
    */
   refreshData(connectionId?: string): void {
     if (!this.isStarted) return;
-    this.engine.step([RefreshDataEvent.create({ connectionId })]);
+    this.dispatch([RefreshDataEvent.create({ connectionId })]);
   }
 
   /**
@@ -715,7 +879,7 @@ export class PraxisApplicationManager {
    */
   signInEntra(connectionId: string, forceInteractive?: boolean): void {
     if (!this.isStarted) return;
-    this.engine.step([SignInEntraEvent.create({ connectionId, forceInteractive })]);
+    this.dispatch([SignInEntraEvent.create({ connectionId, forceInteractive })]);
   }
 
   /**
@@ -723,6 +887,177 @@ export class PraxisApplicationManager {
    */
   signOutEntra(connectionId: string): void {
     if (!this.isStarted) return;
-    this.engine.step([SignOutEntraEvent.create({ connectionId })]);
+    this.dispatch([SignOutEntraEvent.create({ connectionId })]);
+  }
+
+  // =========================================================================
+  // UI Action Methods
+  // =========================================================================
+
+  /**
+   * Create work item
+   */
+  createWorkItem(connectionId: string): void {
+    if (!this.isStarted) return;
+    this.dispatch([CreateWorkItemEvent.create({ connectionId })]);
+  }
+
+  /**
+   * Create branch
+   */
+  createBranch(connectionId: string, workItemId?: number): void {
+    if (!this.isStarted) return;
+    this.dispatch([CreateBranchEvent.create({ connectionId, workItemId })]);
+  }
+
+  /**
+   * Create pull request
+   */
+  createPullRequest(connectionId: string, workItemId?: number): void {
+    if (!this.isStarted) return;
+    this.dispatch([CreatePullRequestEvent.create({ connectionId, workItemId })]);
+  }
+
+  /**
+   * Show pull requests
+   */
+  showPullRequests(connectionId: string): void {
+    if (!this.isStarted) return;
+    this.dispatch([ShowPullRequestsEvent.create({ connectionId })]);
+  }
+
+  /**
+   * Show build status
+   */
+  showBuildStatus(connectionId: string): void {
+    if (!this.isStarted) return;
+    this.dispatch([ShowBuildStatusEvent.create({ connectionId })]);
+  }
+
+  /**
+   * Select team
+   */
+  selectTeam(connectionId: string): void {
+    if (!this.isStarted) return;
+    this.dispatch([SelectTeamEvent.create({ connectionId })]);
+  }
+
+  /**
+   * Reset preferred repositories
+   */
+  resetPreferredRepositories(connectionId: string): void {
+    if (!this.isStarted) return;
+    this.dispatch([ResetPreferredRepositoriesEvent.create({ connectionId })]);
+  }
+
+  /**
+   * Self test webview
+   */
+  selfTestWebview(): void {
+    if (!this.isStarted) return;
+    this.dispatch([SelfTestWebviewEvent.create({})]);
+  }
+
+  /**
+   * Bulk assign
+   */
+  bulkAssign(connectionId: string, workItemIds: number[]): void {
+    if (!this.isStarted) return;
+    this.dispatch([BulkAssignEvent.create({ connectionId, workItemIds })]);
+  }
+
+  /**
+   * Generate Copilot prompt
+   */
+  generateCopilotPrompt(connectionId: string, workItemId: number): void {
+    if (!this.isStarted) return;
+    this.dispatch([GenerateCopilotPromptEvent.create({ connectionId, workItemId })]);
+  }
+
+  /**
+   * Show time report
+   */
+  showTimeReport(connectionId: string): void {
+    if (!this.isStarted) return;
+    this.dispatch([ShowTimeReportEvent.create({ connectionId })]);
+  }
+
+  /**
+   * Webview ready
+   */
+  webviewReady(): void {
+    if (!this.isStarted) return;
+    this.dispatch([WebviewReadyEvent.create({})]);
+  }
+
+  /**
+   * Authentication success
+   */
+  authenticationSuccess(connectionId: string): void {
+    if (!this.isStarted) return;
+    this.dispatch([AuthenticationSuccessEvent.create({ connectionId })]);
+  }
+
+  /**
+   * Authentication failed
+   */
+  authenticationFailed(connectionId: string, error: string): void {
+    if (!this.isStarted) return;
+    this.dispatch([AuthenticationFailedEvent.create({ connectionId, error })]);
+  }
+
+  // =========================================================================
+  // Timer Adapter Support Methods
+  // =========================================================================
+
+  /**
+   * Record activity ping
+   */
+  activityPing(): void {
+    this.timerManager?.activityPing();
+  }
+
+  /**
+   * Get timer snapshot
+   */
+  getTimerSnapshot(): PraxisTimerSnapshot | undefined {
+    return this.timerManager?.getTimerSnapshot();
+  }
+
+  /**
+   * Restore timer state
+   */
+  restoreTimer(
+    workItemId: number,
+    workItemTitle: string,
+    startTime: number,
+    isPaused: boolean
+  ): boolean {
+    return this.timerManager?.restoreTimer(workItemId, workItemTitle, startTime, isPaused) ?? false;
+  }
+
+  /**
+   * Update elapsed limit
+   */
+  updateElapsedLimit(_hours: number): void {
+    // TODO: Implement update elapsed limit in Praxis Timer
+    // This would require a new event in the timer engine
+  }
+
+  /**
+   * Subscribe to timer updates
+   */
+  subscribeToTimer(callback: (snapshot: PraxisTimerSnapshot | null) => void): () => void {
+    // Subscribe to all timer events
+    const unsubscribe = this.eventBus.subscribeAll((message) => {
+      if (message.type.startsWith('timer:')) {
+        callback(this.getTimerSnapshot() ?? null);
+      }
+    });
+
+    // Initial callback
+    callback(this.getTimerSnapshot() ?? null);
+
+    return unsubscribe;
   }
 }

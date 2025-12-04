@@ -15,13 +15,18 @@ describe('auth.requireAuthentication.planRequireAuthentication', () => {
     connectionOverrides: Partial<ConnectionState> = {}
   ): ApplicationContext => {
     const baseConnection: ConnectionState = {
-      id: 'conn-1',
+      connectionId: 'conn-1',
       config: {
         id: 'conn-1',
         organization: 'org',
         project: 'proj',
       } as any,
       authMethod: 'entra',
+      isConnected: false,
+      retryCount: 0,
+      refreshFailureCount: 0,
+      reauthInProgress: false,
+      forceInteractive: false,
     };
 
     const connectionState = { ...baseConnection, ...connectionOverrides };
@@ -30,14 +35,10 @@ describe('auth.requireAuthentication.planRequireAuthentication', () => {
       isActivated: true,
       isDeactivating: false,
       connections: [connectionState.config],
-      activeConnectionId: connectionState.id,
-      connectionStates: new Map([[connectionState.id, connectionState]]),
+      activeConnectionId: connectionState.connectionId,
+      connectionStates: new Map([[connectionState.connectionId, connectionState]]),
       pendingAuthReminders: new Map(),
       extensionContext: undefined,
-      webviewBridge: undefined,
-      outputChannel: undefined,
-      statusBarItem: undefined,
-      authStatusBarItem: undefined,
       webviewPanel: undefined,
       pendingWorkItems: undefined,
       timerActor: undefined,
@@ -75,7 +76,7 @@ describe('auth.requireAuthentication.planRequireAuthentication', () => {
   });
 
   it('warns when connection missing', () => {
-    const context = buildContext({}, { id: 'different' });
+    const context = buildContext({}, { connectionId: 'different' });
     const message: RequireAuthenticationMessage = {
       type: 'requireAuthentication',
       connectionId: 'conn-1',

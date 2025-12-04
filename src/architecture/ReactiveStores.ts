@@ -19,9 +19,9 @@
  * when the context changes.
  */
 
-import { writable, derived, type Readable } from 'svelte/store';
-import type { ApplicationContext, Connection, WorkItem } from './ApplicationContext';
-import { contextSelectors } from './ApplicationContext';
+import { writable, derived } from 'svelte/store';
+import type { ApplicationContext, Connection, WorkItem } from './ApplicationContext.js';
+import { contextSelectors } from './ApplicationContext.js';
 
 /**
  * Main application context store

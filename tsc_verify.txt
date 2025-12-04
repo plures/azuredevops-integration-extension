@@ -1,0 +1,2 @@
+src/fsm/functions/auth/buildAuthReminder.ts(18,3): error TS6196: 'ProjectConnection' is declared but never used.
+src/fsm/functions/auth/buildAuthReminder.ts(18,3): error TS6196: 'ProjectConnection' is declared but never used.

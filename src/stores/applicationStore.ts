@@ -24,22 +24,19 @@
 import { readable, writable, derived } from 'svelte/store';
 import { PraxisApplicationManager } from '../praxis/application/manager.js';
 import type { ProjectConnection } from '../praxis/connection/types.js';
+import type { PraxisApplicationContext } from '../praxis/application/types.js';
 import { setApplicationStoreBridge } from '../fsm/services/extensionHostBridge.js';
 import { eventHandlers, type ApplicationEvent } from './eventHandlers.js';
+import { createComponentLogger, FSMComponent } from '../fsm/logging/FSMLogger.js';
+
+const logger = createComponentLogger(FSMComponent.APPLICATION, 'applicationStore');
 
 // ============================================================================
 // TYPE DEFINITIONS FOR COMPATIBILITY
 // ============================================================================
 
-interface ApplicationContext {
-  isActivated: boolean;
-  isDeactivating: boolean;
-  connections: ProjectConnection[];
-  activeConnectionId?: string;
-  connectionStates: Map<string, unknown>;
-  pendingAuthReminders: Map<string, { connectionId: string; reason: string; status: string }>;
-  lastError?: { message: string; stack?: string; connectionId?: string };
-}
+// Use PraxisApplicationContext directly instead of local interface
+type ApplicationContext = PraxisApplicationContext;
 
 // ============================================================================
 // EVENT HANDLING HELPER
@@ -55,7 +52,11 @@ function handleApplicationEvent(manager: PraxisApplicationManager, event: Applic
     handler(manager, event);
   } else {
     // Log unknown event types in debug mode for development
-    console.debug(`[applicationStore] Unknown event type: ${event.type}`);
+    logger.warn(
+      `[applicationStore] Unknown event type: ${event.type}`,
+      { event: event.type },
+      event
+    );
   }
 }
 
@@ -80,24 +81,43 @@ function createApplicationStore() {
   } | null>(null);
 
   // Poll for state changes (similar to how we handled it in ConnectionFSMManager)
+  let lastSnapshot = '';
+
   const pollInterval = setInterval(() => {
     const appState = applicationManager.getApplicationState();
     const appData = applicationManager.getContext();
 
-    currentState.set({
-      value: appState,
-      context: {
-        isActivated: appData.isActivated ?? false,
-        isDeactivating: appData.isDeactivating ?? false,
-        connections: appData.connections ?? [],
-        activeConnectionId: appData.activeConnectionId,
-        connectionStates: appData.connectionStates ?? new Map(),
-        pendingAuthReminders: appData.pendingAuthReminders ?? new Map(),
-        lastError: appData.lastError,
-      },
-      matches: (stateValue: string) => appState === stateValue || appState.includes(stateValue),
-      can: (_event: ApplicationEvent) => true, // Praxis handles validation internally
+    // Create a fingerprint of the state to detect changes
+    // We include key UI-driving properties to avoid redundant updates
+    const currentSnapshot = JSON.stringify({
+      state: appState,
+      activeConnectionId: appData.activeConnectionId,
+      activeQuery: appData.activeQuery,
+      viewMode: appData.viewMode,
+      isActivated: appData.isActivated,
+      isDeactivating: appData.isDeactivating,
+      connectionsLen: appData.connections.length,
+      // Check map sizes to detect data changes
+      workItemsMapSize: appData.connectionWorkItems.size,
+      statesMapSize: appData.connectionStates.size,
+      // Check specific work items count for active connection
+      activeWorkItemsLen: appData.activeConnectionId
+        ? appData.connectionWorkItems.get(appData.activeConnectionId)?.length
+        : 0,
+      // Check last error to ensure error states are propagated
+      lastError: appData.lastError ? appData.lastError.message : null,
     });
+
+    if (currentSnapshot !== lastSnapshot) {
+      lastSnapshot = currentSnapshot;
+
+      currentState.set({
+        value: appState,
+        context: appData,
+        matches: (stateValue: string) => appState === stateValue || appState.includes(stateValue),
+        can: (_event: ApplicationEvent) => true, // Praxis handles validation internally
+      });
+    }
   }, 100);
 
   // Application State Store (readable wrapper)
@@ -136,8 +156,31 @@ function createApplicationStore() {
 // Create the singleton store instance
 const applicationStore = createApplicationStore();
 
+// Create a bridge actor that mimics XState actor but delegates to Praxis manager + Svelte store
+const bridgeActor = {
+  // Delegate Praxis methods to the manager
+  getApplicationState: () => applicationStore.actor.getApplicationState(),
+  getContext: () => applicationStore.actor.getContext(),
+  getSnapshot: () => applicationStore.actor.getSnapshot(),
+  start: () => applicationStore.actor.start(),
+  stop: () => applicationStore.actor.stop(),
+
+  // Implement XState-compatible subscribe using the Svelte store
+  subscribe: (callback: (snapshot: any) => void) => {
+    const unsubscribe = applicationStore.applicationState.subscribe((state) => {
+      if (state) {
+        callback(state);
+      }
+    });
+    return { unsubscribe };
+  },
+
+  // Delegate send
+  send: (event: any) => applicationStore.send(event as ApplicationEvent),
+};
+
 setApplicationStoreBridge({
-  getActor: () => applicationStore.actor as unknown,
+  getActor: () => bridgeActor as unknown,
   send: (event) => applicationStore.send(event as ApplicationEvent),
 });
 

@@ -3,7 +3,7 @@
  * Validates that the CREATE_WORK_ITEM event is properly dispatched and handled
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('vscode', () => {
   return {

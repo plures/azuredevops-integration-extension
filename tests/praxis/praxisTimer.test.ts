@@ -6,7 +6,7 @@
  */
 
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { PraxisTimerManager } from '../../src/praxis/timer/manager';
+import { PraxisTimerManager } from '../../src/praxis/timer/manager.js';
 
 describe('Praxis Timer Manager', () => {
   let timerManager: PraxisTimerManager;
@@ -251,8 +251,8 @@ describe('Praxis Timer Manager', () => {
 
 describe('Praxis Timer Engine Direct Tests', () => {
   it('should work with createTimerEngine', async () => {
-    const { createTimerEngine } = await import('../../src/praxis/timer/engine');
-    const { StartTimerEvent } = await import('../../src/praxis/timer/facts');
+    const { createTimerEngine } = await import('../../src/praxis/timer/engine.js');
+    const { StartTimerEvent } = await import('../../src/praxis/timer/facts.js');
 
     const engine = createTimerEngine();
 

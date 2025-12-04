@@ -8,6 +8,8 @@ import { defineFact, defineEvent } from '@plures/praxis';
 import type { ProjectConnection } from '../connection/types.js';
 import type { ViewMode, WorkItem, DeviceCodeSession, PendingWorkItems } from './types.js';
 
+import { StartTimerEvent, PauseTimerEvent, StopTimerEvent } from './features/timer.js';
+
 // ============================================================================
 // Application State Facts
 // ============================================================================
@@ -17,7 +19,7 @@ import type { ViewMode, WorkItem, DeviceCodeSession, PendingWorkItems } from './
  */
 export const ApplicationStateFact = defineFact<
   'ApplicationState',
-  'inactive' | 'activating' | 'active' | 'error_recovery' | 'deactivating'
+  'inactive' | 'activating' | 'active' | 'activation_error' | 'deactivating'
 >('ApplicationState');
 
 /**
@@ -112,8 +114,8 @@ export const ActivationCompleteEvent = defineEvent<'ACTIVATION_COMPLETE', Record
 /**
  * Activation failed event
  */
-export const ActivationFailedEvent = defineEvent<'ACTIVATION_FAILED', { error: string }>(
-  'ACTIVATION_FAILED'
+export const ActivationFailedEvent = defineEvent<'APP_ACTIVATION_FAILED', { error: string }>(
+  'APP_ACTIVATION_FAILED'
 );
 
 /**
@@ -297,3 +299,137 @@ export const AuthenticationFailedEvent = defineEvent<
   'AUTHENTICATION_FAILED',
   { connectionId: string; error: string }
 >('AUTHENTICATION_FAILED');
+
+/**
+ * Create work item event
+ */
+export const CreateWorkItemEvent = defineEvent<'CREATE_WORK_ITEM', { connectionId: string }>(
+  'CREATE_WORK_ITEM'
+);
+
+/**
+ * Create branch event
+ */
+export const CreateBranchEvent = defineEvent<
+  'CREATE_BRANCH',
+  { connectionId: string; workItemId?: number }
+>('CREATE_BRANCH');
+
+/**
+ * Create pull request event
+ */
+export const CreatePullRequestEvent = defineEvent<
+  'CREATE_PULL_REQUEST',
+  { connectionId: string; workItemId?: number }
+>('CREATE_PULL_REQUEST');
+
+/**
+ * Show pull requests event
+ */
+export const ShowPullRequestsEvent = defineEvent<'SHOW_PULL_REQUESTS', { connectionId: string }>(
+  'SHOW_PULL_REQUESTS'
+);
+
+/**
+ * Show build status event
+ */
+export const ShowBuildStatusEvent = defineEvent<'SHOW_BUILD_STATUS', { connectionId: string }>(
+  'SHOW_BUILD_STATUS'
+);
+
+/**
+ * Select team event
+ */
+export const SelectTeamEvent = defineEvent<'SELECT_TEAM', { connectionId: string }>('SELECT_TEAM');
+
+/**
+ * Reset preferred repositories event
+ */
+export const ResetPreferredRepositoriesEvent = defineEvent<
+  'RESET_PREFERRED_REPOSITORIES',
+  { connectionId: string }
+>('RESET_PREFERRED_REPOSITORIES');
+
+/**
+ * Self test webview event
+ */
+export const SelfTestWebviewEvent = defineEvent<'SELF_TEST_WEBVIEW', Record<string, never>>(
+  'SELF_TEST_WEBVIEW'
+);
+
+/**
+ * Bulk assign event
+ */
+export const BulkAssignEvent = defineEvent<
+  'BULK_ASSIGN',
+  { connectionId: string; workItemIds: number[] }
+>('BULK_ASSIGN');
+
+/**
+ * Generate Copilot prompt event
+ */
+export const GenerateCopilotPromptEvent = defineEvent<
+  'GENERATE_COPILOT_PROMPT',
+  { connectionId: string; workItemId: number }
+>('GENERATE_COPILOT_PROMPT');
+
+/**
+ * Show time report event
+ */
+export const ShowTimeReportEvent = defineEvent<'SHOW_TIME_REPORT', { connectionId: string }>(
+  'SHOW_TIME_REPORT'
+);
+
+/**
+ * Webview ready event
+ */
+export const WebviewReadyEvent = defineEvent<'WEBVIEW_READY', Record<string, never>>(
+  'WEBVIEW_READY'
+);
+
+/**
+ * Union type of all application events
+ */
+export type PraxisApplicationEvent =
+  | ReturnType<typeof ActivateEvent.create>
+  | ReturnType<typeof ActivationCompleteEvent.create>
+  | ReturnType<typeof ActivationFailedEvent.create>
+  | ReturnType<typeof DeactivateEvent.create>
+  | ReturnType<typeof DeactivationCompleteEvent.create>
+  | ReturnType<typeof ConnectionsLoadedEvent.create>
+  | ReturnType<typeof ConnectionSelectedEvent.create>
+  | ReturnType<typeof SelectConnectionEvent.create>
+  | ReturnType<typeof QueryChangedEvent.create>
+  | ReturnType<typeof ViewModeChangedEvent.create>
+  | ReturnType<typeof WorkItemsLoadedEvent.create>
+  | ReturnType<typeof WorkItemsErrorEvent.create>
+  | ReturnType<typeof RefreshDataEvent.create>
+  | ReturnType<typeof DeviceCodeStartedAppEvent.create>
+  | ReturnType<typeof DeviceCodeCompletedAppEvent.create>
+  | ReturnType<typeof DeviceCodeCancelledEvent.create>
+  | ReturnType<typeof ApplicationErrorEvent.create>
+  | ReturnType<typeof RetryApplicationEvent.create>
+  | ReturnType<typeof ResetApplicationEvent.create>
+  | ReturnType<typeof ToggleDebugViewEvent.create>
+  | ReturnType<typeof OpenSettingsEvent.create>
+  | ReturnType<typeof AuthReminderRequestedEvent.create>
+  | ReturnType<typeof AuthReminderClearedEvent.create>
+  | ReturnType<typeof SignInEntraEvent.create>
+  | ReturnType<typeof SignOutEntraEvent.create>
+  | ReturnType<typeof AuthenticationSuccessEvent.create>
+  | ReturnType<typeof AuthenticationFailedEvent.create>
+  | ReturnType<typeof CreateWorkItemEvent.create>
+  | ReturnType<typeof CreateBranchEvent.create>
+  | ReturnType<typeof CreatePullRequestEvent.create>
+  | ReturnType<typeof ShowPullRequestsEvent.create>
+  | ReturnType<typeof ShowBuildStatusEvent.create>
+  | ReturnType<typeof SelectTeamEvent.create>
+  | ReturnType<typeof ResetPreferredRepositoriesEvent.create>
+  | ReturnType<typeof SelfTestWebviewEvent.create>
+  | ReturnType<typeof BulkAssignEvent.create>
+  | ReturnType<typeof GenerateCopilotPromptEvent.create>
+  | ReturnType<typeof ShowTimeReportEvent.create>
+  | ReturnType<typeof WebviewReadyEvent.create>
+  | ReturnType<typeof StartTimerEvent.create>
+  | ReturnType<typeof PauseTimerEvent.create>
+  | ReturnType<typeof StopTimerEvent.create>;

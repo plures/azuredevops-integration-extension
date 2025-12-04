@@ -6,12 +6,7 @@
  */
 
 import type { LogicEngine, PraxisEvent } from '@plures/praxis';
-import type {
-  SvelteRunes,
-  PraxisEngineState,
-  UsePraxisEngineResult,
-  UsePraxisEngineOptions,
-} from './types.js';
+import type { PraxisEngineState, UsePraxisEngineResult, UsePraxisEngineOptions } from './types.js';
 
 /**
  * Create a reactive Praxis engine hook for Svelte 5
@@ -20,7 +15,6 @@ import type {
  * in Svelte components. It wraps the engine in reactive state that
  * updates automatically when events are dispatched.
  *
- * @param runes - Svelte 5 runes ($state, $effect)
  * @param engine - The Praxis logic engine to wrap
  * @param options - Configuration options
  * @returns Reactive state and dispatch function
@@ -32,17 +26,13 @@ import type {
  *   import { createTimerEngine } from '$lib/praxis/timer';
  *
  *   const engine = createTimerEngine();
- *   const { state, dispatch } = usePraxisEngine(
- *     { state: $state, effect: $effect },
- *     engine
- *   );
+ *   const { state, dispatch } = usePraxisEngine(engine);
  * </script>
  *
  * <div>Timer: {state.context.timerState}</div>
  * ```
  */
 export function usePraxisEngine<TContext>(
-  runes: SvelteRunes,
   engine: LogicEngine<TContext>,
   options: UsePraxisEngineOptions<TContext> = {}
 ): UsePraxisEngineResult<TContext> {
@@ -52,7 +42,7 @@ export function usePraxisEngine<TContext>(
     ...(options.initialContext || {}),
   } as TContext;
 
-  const state = runes.state<PraxisEngineState<TContext>>({
+  const state = $state<PraxisEngineState<TContext>>({
     context: initialContext,
     connected: true,
     lastUpdate: Date.now(),
@@ -96,7 +86,6 @@ export function usePraxisEngine<TContext>(
  * This helper creates a derived value from the Praxis context
  * that updates automatically when the context changes.
  *
- * @param runes - Svelte 5 runes
  * @param state - The Praxis engine state
  * @param selector - Function to select a value from context
  * @returns Derived value
@@ -104,9 +93,8 @@ export function usePraxisEngine<TContext>(
  * @example
  * ```svelte
  * <script lang="ts">
- *   const { state } = usePraxisEngine(runes, engine);
+ *   const { state } = usePraxisEngine(engine);
  *   const timerState = usePraxisSelector(
- *     runes,
  *     state,
  *     (ctx) => ctx.timerState
  *   );
@@ -116,14 +104,11 @@ export function usePraxisEngine<TContext>(
  * ```
  */
 export function usePraxisSelector<TContext, TSelected>(
-  _runes: SvelteRunes,
   state: PraxisEngineState<TContext>,
   selector: (context: TContext) => TSelected
 ): TSelected {
-  // In Svelte 5, derived values are handled differently
-  // This function is provided for API consistency
-  // Components should use $derived directly in most cases
-  return selector(state.context);
+  // In Svelte 5, we can use $derived to create a reactive derived value
+  return $derived(selector(state.context));
 }
 
 /**
@@ -140,7 +125,7 @@ export function usePraxisSelector<TContext, TSelected>(
  * @example
  * ```svelte
  * <script lang="ts">
- *   const { state } = usePraxisEngine(runes, engine);
+ *   const { state } = usePraxisEngine(engine);
  *   const isRunning = matchesState(state.context, 'timerState', 'running');
  * </script>
  * ```

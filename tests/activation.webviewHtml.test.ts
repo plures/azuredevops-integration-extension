@@ -58,7 +58,7 @@ vi.mock('vscode', () => {
   };
 });
 
-import { describe, it, beforeAll } from 'vitest';
+import { describe, it } from 'vitest';
 import { expect } from 'chai';
 import * as fs from 'node:fs';
 import * as path from 'node:path';

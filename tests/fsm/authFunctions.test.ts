@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
 import { expect } from 'chai';
-import { isTokenValid } from '../../src/fsm/functions/authFunctions';
+import { isTokenValid } from '../../src/fsm/functions/authFunctions.js';
 
 describe('authFunctions.isTokenValid', () => {
   it('returns true for tokens expiring beyond the default buffer', () => {

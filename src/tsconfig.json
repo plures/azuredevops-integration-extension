@@ -22,6 +22,9 @@
     "declaration": true,
     "outDir": "../dist"
   },
+  "rootDir": ".",
+  "composite": true,
+  "sourceMap": true,
   "include": ["./**/*.ts", "./**/*.d.ts", "./**/*.svelte"],
   "exclude": ["node_modules", "../dist"]
 }

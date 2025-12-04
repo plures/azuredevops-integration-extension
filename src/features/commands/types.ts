@@ -15,6 +15,7 @@ import * as vscode from 'vscode';
 import type { WorkItemsProvider } from '../../provider.js';
 import type { ProjectConnection as _ProjectConnection } from '../../fsm/machines/applicationTypes.js';
 import type { BranchContext } from '../../fsm/functions/connection/branchEnrichment.js';
+import type { WorkItemTimer } from '../../timer.js';
 
 export interface CommandContext {
   context: vscode.ExtensionContext;
@@ -24,6 +25,7 @@ export interface CommandContext {
   client?: any; // AzureDevOpsIntClient type
   statusBarItem?: vscode.StatusBarItem;
   authStatusBarItem?: vscode.StatusBarItem;
+  timer?: WorkItemTimer;
 }
 
 export interface CommandHandler {

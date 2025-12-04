@@ -4,13 +4,12 @@
  * Tests error detection, classification, and UI state updates.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   detectErrorType,
   updateUIStateForError,
   updateRefreshStatus,
   clearErrorState,
-  type DetectedError,
 } from '../../../../src/fsm/functions/ui/error-handling.js';
 import type { ApplicationContext } from '../../../../src/fsm/machines/applicationTypes.js';
 
@@ -211,7 +210,11 @@ describe('Error Handling Functions', () => {
         authActors: new Map(),
         errorRecoveryAttempts: 0,
         viewMode: 'list',
-      };
+        connectionQueries: new Map(),
+        connectionWorkItems: new Map(),
+        connectionFilters: new Map(),
+        connectionViewModes: new Map(),
+      } as ApplicationContext;
     });
 
     it('should update UI state with error information', () => {

@@ -14,6 +14,7 @@ Model Context Protocol style JSON-RPC 2.0 (one JSON object per line on stdio) se
 | `addComment`     | `{ workItemId: number, text: string }`                                        | Azure Comment Response          | Not flattened; original service shape                      |
 | `search`         | `{ term: string }`                                                            | `FlatWorkItem[]`                | Title substring OR exact ID match                          |
 | `filter`         | `{ sprint?, includeState?, excludeStates?, type?, assignedTo? }`              | `FlatWorkItem[]`                | Composes WIQL dynamically                                  |
+| `inspectLogic`   | `{}`                                                                          | `{ unhandledEvents: string[] }` | Static analysis of `eventHandlers.ts` for empty handlers   |
 
 ## Environment Variables
 

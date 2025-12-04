@@ -7,15 +7,6 @@
 import type { PraxisEvent } from '@plures/praxis';
 
 /**
- * Svelte 5 runes interface
- * Passed to usePraxisEngine to avoid import issues in webview context
- */
-export interface SvelteRunes {
-  state: <T>(value: T) => T;
-  effect: (fn: () => void | (() => void)) => void;
-}
-
-/**
  * Praxis engine state for Svelte components
  */
 export interface PraxisEngineState<TContext> {

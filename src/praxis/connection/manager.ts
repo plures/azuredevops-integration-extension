@@ -38,10 +38,8 @@ import { createConnectionEngine, type ConnectionEngineContext } from './engine.j
 export class PraxisConnectionManager {
   private engine: LogicEngine<ConnectionEngineContext>;
   private isStarted = false;
-  private readonly connectionId: string;
 
   constructor(config: ProjectConnection, initialConfig?: Partial<PraxisConnectionContext>) {
-    this.connectionId = config.id;
     this.engine = createConnectionEngine(config, initialConfig);
   }
 

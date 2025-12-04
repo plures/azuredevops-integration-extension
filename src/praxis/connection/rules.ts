@@ -35,7 +35,16 @@ export const connectRule: RuleDescriptor<ConnectionEngineContext> = defineRule({
   impl: (state, events) => {
     const connectEvent = findEvent(events, ConnectEvent);
     if (!connectEvent) return [];
-    if (state.context.connectionState !== 'disconnected') return [];
+
+    // Allow connection from disconnected or any failed state
+    const allowedStates = [
+      'disconnected',
+      'auth_failed',
+      'client_failed',
+      'provider_failed',
+      'connection_error',
+    ];
+    if (!allowedStates.includes(state.context.connectionState)) return [];
 
     state.context.connectionState = 'authenticating';
     state.context.connectionData = {

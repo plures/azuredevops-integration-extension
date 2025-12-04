@@ -20,7 +20,7 @@ const logger = createLogger('convert');
 // Import the actual save function from activation
 // This ensures we're using the real persistence mechanism, not a no-op
 async function saveConnectionsToConfig(
-  context: vscode.ExtensionContext,
+  _context: vscode.ExtensionContext,
   connections: ProjectConnection[]
 ): Promise<void> {
   const settings = vscode.workspace.getConfiguration('azureDevOpsIntegration');
@@ -40,7 +40,7 @@ async function saveConnectionsToConfig(
 export async function convertConnectionToEntra(
   context: vscode.ExtensionContext,
   connections: ProjectConnection[],
-  saveFn: (connections: ProjectConnection[]) => Promise<void>,
+  _saveFn: (connections: ProjectConnection[]) => Promise<void>,
   ensureActiveFn: (
     context: vscode.ExtensionContext,
     connectionId?: string,
@@ -207,12 +207,13 @@ export async function convertConnectionToEntra(
     // CRITICAL: Reset the connection actor so it starts fresh as Entra
     // Otherwise it stays in auth_failed state from PAT expiration
     // Do this AFTER updating the bridge reader so the reset reads the new config
-    const { getConnectionFSMManager } = await import('../../ConnectionFSMManager.js');
-    const fsmManager = getConnectionFSMManager();
-    if (fsmManager) {
+    const { PraxisApplicationManager } = await import('../../../praxis/application/manager.js');
+    const appManager = PraxisApplicationManager.getInstance();
+    const connManager = appManager.getConnectionManager(selectedConnection.id);
+    if (connManager) {
       // Small delay to ensure bridge reader update propagates
       await new Promise((resolve) => setTimeout(resolve, 100));
-      fsmManager.resetConnection(selectedConnection.id);
+      connManager.reset();
       logger.info('Reset connection actor to start fresh as Entra', {
         connectionId: selectedConnection.id,
       });
@@ -258,12 +259,15 @@ export async function convertConnectionToEntra(
         activeConnectionId: snapshot?.context?.activeConnectionId,
         connectionsCount: snapshot?.context?.connections?.length,
         connectionStates: Array.from(snapshot?.context?.connectionStates?.entries() || []).map(
-          ([id, state]: [string, any]) => ({
-            id,
-            authMethod: state?.authMethod || state?.config?.authMethod,
-            hasClient: !!state?.client,
-            hasProvider: !!state?.provider,
-          })
+          (entry: unknown) => {
+            const [id, state] = entry as [string, any];
+            return {
+              id,
+              authMethod: state?.authMethod || state?.config?.authMethod,
+              hasClient: !!state?.client,
+              hasProvider: !!state?.provider,
+            };
+          }
         ),
       });
     }

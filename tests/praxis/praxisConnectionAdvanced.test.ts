@@ -6,8 +6,8 @@
  */
 
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { PraxisConnectionManager } from '../../src/praxis/connection/manager';
-import type { ProjectConnection } from '../../src/praxis/connection/types';
+import { PraxisConnectionManager } from '../../src/praxis/connection/manager.js';
+import type { ProjectConnection } from '../../src/praxis/connection/types.js';
 
 describe('Praxis Connection Manager - Advanced', () => {
   let connectionManager: PraxisConnectionManager;
@@ -201,9 +201,9 @@ describe('Praxis Connection Manager - Advanced', () => {
 
 describe('Praxis Connection Engine Direct Tests', () => {
   it('should work with createConnectionEngine', async () => {
-    const { createConnectionEngine } = await import('../../src/praxis/connection/engine');
+    const { createConnectionEngine } = await import('../../src/praxis/connection/engine.js');
     const { ConnectEvent, AuthenticatedEvent, ClientCreatedEvent, ProviderCreatedEvent } =
-      await import('../../src/praxis/connection/facts');
+      await import('../../src/praxis/connection/facts.js');
 
     const config = { id: 'direct-test', organization: 'test-org', project: 'test-project' };
     const engine = createConnectionEngine(config);

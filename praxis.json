@@ -1,0 +1,359 @@
+{
+  "version": "1.0.0",
+  "name": "azure-devops-integration",
+  "description": "Generated from code-first rules",
+  "models": [],
+  "components": [],
+  "logic": [
+    {
+      "id": "application-logic",
+      "description": "Main application logic",
+      "rules": [
+        {
+          "id": "application.activate",
+          "description": "Activate the application",
+          "on": ["ACTIVATE"],
+          "then": "Implementation: src/praxis/application/rules/lifecycleRules.ts:21",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/lifecycleRules.ts:21",
+          "logic": {
+            "guards": ["!activateEvent", "state.context.applicationState !== 'inactive'"],
+            "mutations": [
+              "state.context.applicationState = 'activating'",
+              "state.context.isActivated = false",
+              "state.context.isDeactivating = false",
+              "state.context.errorRecoveryAttempts = 0",
+              "state.context.lastError = undefined"
+            ],
+            "events": ["ActivateEvent"]
+          }
+        },
+        {
+          "id": "application.activationComplete",
+          "description": "Complete application activation",
+          "on": ["ACTIVATION_COMPLETE"],
+          "then": "Implementation: src/praxis/application/rules/lifecycleRules.ts:46",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/lifecycleRules.ts:46",
+          "logic": {
+            "guards": ["!completeEvent", "state.context.applicationState !== 'activating'"],
+            "mutations": [
+              "state.context.applicationState = 'active'",
+              "state.context.isActivated = true"
+            ],
+            "events": ["ActivationCompleteEvent"]
+          }
+        },
+        {
+          "id": "application.activationFailed",
+          "description": "Handle activation failure",
+          "on": ["APP_ACTIVATION_FAILED"],
+          "then": "Implementation: src/praxis/application/rules/lifecycleRules.ts:68",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/lifecycleRules.ts:68",
+          "logic": {
+            "guards": ["!failedEvent", "state.context.applicationState !== 'activating'"],
+            "mutations": [
+              "state.context.applicationState = 'activation_error'",
+              "state.context.lastError = { message: failedEvent.payload.error }"
+            ],
+            "events": ["ActivationFailedEvent"]
+          }
+        },
+        {
+          "id": "application.deactivate",
+          "description": "Deactivate the application",
+          "on": ["DEACTIVATE"],
+          "then": "Implementation: src/praxis/application/rules/lifecycleRules.ts:91",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/lifecycleRules.ts:91",
+          "logic": {
+            "guards": [
+              "!deactivateEvent",
+              "state.context.applicationState === 'inactive'",
+              "state.context.applicationState === 'deactivating'"
+            ],
+            "mutations": [
+              "state.context.applicationState = 'deactivating'",
+              "state.context.isDeactivating = true"
+            ],
+            "events": ["DeactivateEvent"]
+          }
+        },
+        {
+          "id": "application.deactivationComplete",
+          "description": "Complete application deactivation",
+          "on": ["DEACTIVATION_COMPLETE"],
+          "then": "Implementation: src/praxis/application/rules/lifecycleRules.ts:114",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/lifecycleRules.ts:114",
+          "logic": {
+            "guards": ["!completeEvent", "state.context.applicationState !== 'deactivating'"],
+            "mutations": [
+              "state.context.applicationState = 'inactive'",
+              "state.context.isActivated = false",
+              "state.context.isDeactivating = false"
+            ],
+            "events": ["DeactivationCompleteEvent"]
+          }
+        },
+        {
+          "id": "application.connectionsLoaded",
+          "description": "Handle connections loaded",
+          "on": ["CONNECTIONS_LOADED"],
+          "then": "Implementation: src/praxis/application/rules/connectionRules.ts:21",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/connectionRules.ts:21",
+          "logic": {
+            "guards": ["!loadedEvent"],
+            "mutations": [
+              "state.context.connections = loadedEvent.payload.connections",
+              "state.context.activeConnectionId = state.context.connections[0].id"
+            ],
+            "events": ["ConnectionsLoadedEvent"]
+          }
+        },
+        {
+          "id": "application.connectionSelected",
+          "description": "Handle connection selection",
+          "on": ["CONNECTION_SELECTED", "SELECT_CONNECTION"],
+          "then": "Implementation: src/praxis/application/rules/connectionRules.ts:46",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/connectionRules.ts:46",
+          "logic": {
+            "guards": ["!selectedEvent", "!connectionExists"],
+            "mutations": [
+              "state.context.activeConnectionId = connectionId",
+              "state.context.activeQuery = savedQuery"
+            ],
+            "events": ["ConnectionSelectedEvent", "SelectConnectionEvent"]
+          }
+        },
+        {
+          "id": "application.queryChanged",
+          "description": "Handle query change",
+          "on": ["QUERY_CHANGED"],
+          "then": "Implementation: src/praxis/application/rules/connectionRules.ts:80",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/connectionRules.ts:80",
+          "logic": {
+            "guards": ["!queryEvent"],
+            "mutations": ["state.context.activeQuery = query"],
+            "events": ["QueryChangedEvent"]
+          }
+        },
+        {
+          "id": "application.viewModeChanged",
+          "description": "Handle view mode change",
+          "on": ["VIEW_MODE_CHANGED"],
+          "then": "Implementation: src/praxis/application/rules/connectionRules.ts:108",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/connectionRules.ts:108",
+          "logic": {
+            "guards": ["!modeEvent"],
+            "mutations": ["state.context.viewMode = modeEvent.payload.viewMode"],
+            "events": ["ViewModeChangedEvent"]
+          }
+        },
+        {
+          "id": "application.workItemsLoaded",
+          "description": "Handle work items loaded",
+          "on": ["WORK_ITEMS_LOADED"],
+          "then": "Implementation: src/praxis/application/rules/workItemRules.ts:15",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/workItemRules.ts:15",
+          "logic": {
+            "guards": ["!loadedEvent"],
+            "mutations": [
+              "state.context.pendingWorkItems = {\n      workItems,\n      connectionId,\n      query,\n      timestamp: Date.now(),\n    }",
+              "state.context.lastError = undefined"
+            ],
+            "events": ["WorkItemsLoadedEvent"]
+          }
+        },
+        {
+          "id": "application.workItemsError",
+          "description": "Handle work items error",
+          "on": ["WORK_ITEMS_ERROR"],
+          "then": "Implementation: src/praxis/application/rules/workItemRules.ts:51",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/workItemRules.ts:51",
+          "logic": {
+            "guards": ["!errorEvent"],
+            "mutations": [
+              "state.context.lastError = {\n      message: error,\n      connectionId,\n    }"
+            ],
+            "events": ["WorkItemsErrorEvent"]
+          }
+        },
+        {
+          "id": "application.deviceCodeStarted",
+          "description": "Handle device code flow started",
+          "on": ["DEVICE_CODE_STARTED"],
+          "then": "Implementation: src/praxis/application/rules/miscRules.ts:31",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/miscRules.ts:31",
+          "logic": {
+            "guards": ["!startedEvent"],
+            "mutations": [
+              "state.context.deviceCodeSession = {\n      connectionId,\n      userCode,\n      verificationUri,\n      startedAt: now,\n      expiresAt: now + expiresInSeconds * 1000,\n      expiresInSeconds,\n    }"
+            ],
+            "events": ["DeviceCodeStartedAppEvent"]
+          }
+        },
+        {
+          "id": "application.deviceCodeCompleted",
+          "description": "Handle device code flow completed",
+          "on": ["DEVICE_CODE_COMPLETED"],
+          "then": "Implementation: src/praxis/application/rules/miscRules.ts:60",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/miscRules.ts:60",
+          "logic": {
+            "guards": ["!completedEvent"],
+            "mutations": ["state.context.deviceCodeSession = undefined"],
+            "events": ["DeviceCodeCompletedAppEvent"]
+          }
+        },
+        {
+          "id": "application.deviceCodeCancelled",
+          "description": "Handle device code flow cancelled",
+          "on": ["DEVICE_CODE_CANCELLED"],
+          "then": "Implementation: src/praxis/application/rules/miscRules.ts:81",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/miscRules.ts:81",
+          "logic": {
+            "guards": ["!cancelledEvent"],
+            "mutations": ["state.context.deviceCodeSession = undefined"],
+            "events": ["DeviceCodeCancelledEvent"]
+          }
+        },
+        {
+          "id": "application.error",
+          "description": "Handle application error",
+          "on": ["APPLICATION_ERROR"],
+          "then": "Implementation: src/praxis/application/rules/miscRules.ts:106",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/miscRules.ts:106",
+          "logic": {
+            "guards": ["!errorEvent"],
+            "mutations": [
+              "state.context.lastError = {\n      message: errorEvent.payload.error,\n      connectionId: errorEvent.payload.connectionId,\n    }",
+              "state.context.applicationState = 'error_recovery'"
+            ],
+            "events": ["ApplicationErrorEvent"]
+          }
+        },
+        {
+          "id": "application.retry",
+          "description": "Retry after error",
+          "on": ["RETRY"],
+          "then": "Implementation: src/praxis/application/rules/miscRules.ts:134",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/miscRules.ts:134",
+          "logic": {
+            "guards": ["!retryEvent", "state.context.applicationState !== 'error_recovery'"],
+            "mutations": [
+              "state.context.lastError = undefined",
+              "state.context.applicationState = 'active'"
+            ],
+            "events": ["RetryApplicationEvent"]
+          }
+        },
+        {
+          "id": "application.reset",
+          "description": "Reset application state",
+          "on": ["RESET"],
+          "then": "Implementation: src/praxis/application/rules/miscRules.ts:157",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/miscRules.ts:157",
+          "logic": {
+            "guards": ["!resetEvent"],
+            "mutations": [
+              "state.context.applicationState = 'inactive'",
+              "state.context.isActivated = false",
+              "state.context.isDeactivating = false",
+              "state.context.lastError = undefined",
+              "state.context.errorRecoveryAttempts = 0",
+              "state.context.deviceCodeSession = undefined",
+              "state.context.pendingWorkItems = undefined"
+            ],
+            "events": ["ResetApplicationEvent"]
+          }
+        },
+        {
+          "id": "application.toggleDebugView",
+          "description": "Toggle debug view visibility",
+          "on": ["TOGGLE_DEBUG_VIEW"],
+          "then": "Implementation: src/praxis/application/rules/miscRules.ts:187",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/miscRules.ts:187",
+          "logic": {
+            "guards": ["!toggleEvent"],
+            "mutations": [
+              "state.context.debugViewVisible = toggleEvent.payload.debugViewVisible",
+              "state.context.debugViewVisible = !state.context.debugViewVisible"
+            ],
+            "events": ["ToggleDebugViewEvent"]
+          }
+        },
+        {
+          "id": "application.authReminderRequested",
+          "description": "Handle authentication reminder request",
+          "on": ["AUTH_REMINDER_REQUESTED"],
+          "then": "Implementation: src/praxis/application/rules/miscRules.ts:214",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/miscRules.ts:214",
+          "logic": {
+            "guards": ["!reminderEvent"],
+            "mutations": [],
+            "events": ["AuthReminderRequestedEvent"]
+          }
+        },
+        {
+          "id": "application.authReminderCleared",
+          "description": "Handle authentication reminder cleared",
+          "on": ["AUTH_REMINDER_CLEARED"],
+          "then": "Implementation: src/praxis/application/rules/miscRules.ts:239",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/miscRules.ts:239",
+          "logic": {
+            "guards": ["!clearedEvent"],
+            "mutations": [],
+            "events": ["AuthReminderClearedEvent"]
+          }
+        },
+        {
+          "id": "application.authenticationSuccess",
+          "description": "Handle authentication success",
+          "on": ["AUTHENTICATION_SUCCESS"],
+          "then": "Implementation: src/praxis/application/rules/miscRules.ts:258",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/miscRules.ts:258",
+          "logic": {
+            "guards": ["!successEvent"],
+            "mutations": [
+              "state.context.deviceCodeSession = undefined",
+              "state.context.lastError = undefined"
+            ],
+            "events": ["AuthenticationSuccessEvent"]
+          }
+        },
+        {
+          "id": "application.authenticationFailed",
+          "description": "Handle authentication failure",
+          "on": ["AUTHENTICATION_FAILED"],
+          "then": "Implementation: src/praxis/application/rules/miscRules.ts:287",
+          "priority": 0,
+          "sourceLink": "vscode://file/C:/Projects/azuredevops-integration-extension/src/praxis/application/rules/miscRules.ts:287",
+          "logic": {
+            "guards": ["!failedEvent"],
+            "mutations": [
+              "state.context.lastError = {\n      message: error,\n      connectionId,\n    }"
+            ],
+            "events": ["AuthenticationFailedEvent"]
+          }
+        }
+      ]
+    }
+  ]
+}

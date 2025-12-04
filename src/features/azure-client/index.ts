@@ -13,5 +13,6 @@
  */
 export * from './types.js';
 export * from './http-client.js';
-export * from './work-items-service.js';
+// Export WorkItem from types.js to avoid conflict with work-items-service.ts
+export { WorkItemsService } from './work-items-service.js';
 export * from './azure-client.js';

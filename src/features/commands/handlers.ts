@@ -55,10 +55,6 @@ function getConfig() {
   return vscode.workspace.getConfiguration('azureDevOpsIntegration');
 }
 
-function _getExtensionVersion(_context: vscode.ExtensionContext): string {
-  return _context.extension.packageJSON.version || 'dev';
-}
-
 // Import the dispatchApplicationEvent function from activation.ts
 // This ensures events are handled by the actual implementation with work item dialogs, etc.
 import { dispatchApplicationEvent } from '../../activation.js';

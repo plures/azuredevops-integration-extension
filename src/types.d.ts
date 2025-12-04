@@ -45,9 +45,33 @@ export interface WorkItemBranchMetadata {
 
 export interface WorkItem {
   id?: number; // sometimes id separate from fields
+  url?: string;
+  title?: string;
+  state?: string;
+  assignedTo?: string;
+  workItemType?: string;
   fields: WorkItemFields;
   relations?: WorkItemBranchLink[];
   branchMetadata?: WorkItemBranchMetadata;
+  changedDate?: string;
+}
+
+export interface TimeEntry {
+  workItemId: number;
+  startTime: number;
+  endTime: number;
+  duration: number;
+}
+
+export interface WorkItemTimerState {
+  workItemId: number;
+  workItemTitle: string;
+  startTime: number;
+  elapsedSeconds: number;
+  isPaused: boolean;
+  isPomodoro?: boolean;
+  pomodoroCount?: number;
+  __defaultElapsedLimitHours?: number;
 }
 
 export interface AzureDevOpsClientOptions {

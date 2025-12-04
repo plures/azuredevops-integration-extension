@@ -14,7 +14,8 @@
  */
 import { mount } from 'svelte';
 import App from './App.svelte';
-import { applicationSnapshot } from './fsmSnapshotStore.js';
+import { frontendEngine } from './praxis/frontendEngine.js';
+import { SyncStateEvent } from '../praxis/application/rules/syncRules.js';
 
 // This ensures that we only try to mount the Svelte app after the DOM is fully loaded.
 // This is a critical step to prevent race conditions where the script runs before the
@@ -53,45 +54,22 @@ if (typeof (globalThis as any).process === 'undefined') {
 }
 
 // -------------------------------------------------------------
-// FSM snapshot listener - minimal bridge
-// The extension posts { type: 'syncState', payload: { fsmState, context }}
-// We update a Svelte store so components can react without importing
-// Node-bound FSM implementations.
+// Praxis Sync Listener
+// The extension posts { type: 'contextUpdate', context: ... }
+// We dispatch a SyncStateEvent to the frontend Praxis engine.
+// The engine updates the store, which the UI subscribes to.
 // -------------------------------------------------------------
-function handleSyncState(msg: any) {
-  console.debug('[AzureDevOpsInt][webview] Processing syncState message:', {
-    fsmState: msg.payload.fsmState,
-    hasContext: !!msg.payload.context,
-    hasMatches: !!msg.payload.matches,
-    matches: msg.payload.matches,
-  });
-  try {
-    applicationSnapshot.set({
-      value: msg.payload.fsmState,
-      context: msg.payload.context,
-      matches: msg.payload.matches || {},
-    });
-    console.debug('[AzureDevOpsInt][webview] Successfully updated applicationSnapshot store');
-  } catch (e) {
-    console.debug('[AzureDevOpsInt][webview] Failed to apply FSM snapshot', e);
-  }
-}
-
 window.addEventListener('message', (event) => {
   const msg = event?.data;
   console.debug('[AzureDevOpsInt][webview] Received message:', {
     type: msg?.type,
-    hasPayload: !!msg?.payload,
-    hasError: !!msg?.error,
-    connectionId: msg?.connectionId,
-    fullMessage: msg,
+    hasContext: !!msg?.context,
   });
-  if (msg?.type === 'syncState' && msg?.payload) {
-    handleSyncState(msg);
+
+  if (msg?.type === 'contextUpdate' && msg?.context) {
+    // Dispatch to Praxis engine
+    frontendEngine.dispatch(new SyncStateEvent(msg.context));
   }
-  // Note: All state updates now come via syncState message (reactive architecture).
-  // Partial message handlers (syncTimerState, workItemsError, workItemsLoaded) have been removed.
-  // All UI-visible state is in FSM context and updates reactively through syncState.
 });
 
 // We prefer a stable dedicated root element but if it's missing (e.g. legacy HTML

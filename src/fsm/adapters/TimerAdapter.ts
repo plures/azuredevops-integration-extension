@@ -11,13 +11,13 @@
  * LLM-GUARD:
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
  */
-import { FSMManager } from '../FSMManager';
-import { WorkItemTimer } from '../../timer';
+import { PraxisApplicationManager } from '../../praxis/application/manager.js';
+import { WorkItemTimer } from '../../timer.js';
 import type {
   PraxisTimerStopResult as TimerStopResult,
   PraxisTimerSnapshot as LegacyTimerSnapshot,
 } from '../../praxis/timer/types.js';
-import { createComponentLogger, FSMComponent } from '../logging/FSMLogger';
+import { createComponentLogger, FSMComponent } from '../logging/FSMLogger.js';
 
 /**
  * TimerAdapter provides backward compatibility between the new FSM-based timer
@@ -25,12 +25,12 @@ import { createComponentLogger, FSMComponent } from '../logging/FSMLogger';
  * without breaking existing code.
  */
 export class TimerAdapter {
-  private fsmManager: FSMManager;
+  private fsmManager: PraxisApplicationManager;
   private legacyTimer: WorkItemTimer;
   private useFSM: boolean;
   private logger = createComponentLogger(FSMComponent.ADAPTER, 'TimerAdapter');
 
-  constructor(fsmManager: FSMManager, legacyTimer: WorkItemTimer, useFSM = false) {
+  constructor(fsmManager: PraxisApplicationManager, legacyTimer: WorkItemTimer, useFSM = false) {
     this.fsmManager = fsmManager;
     this.legacyTimer = legacyTimer;
     this.useFSM = useFSM;
@@ -263,7 +263,7 @@ export class TimerAdapter {
 
 // Factory function for creating adapters
 export function createTimerAdapter(
-  fsmManager: FSMManager,
+  fsmManager: PraxisApplicationManager,
   legacyTimer: WorkItemTimer,
   config: { useFSM?: boolean } = {}
 ): TimerAdapter {

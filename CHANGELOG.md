@@ -19,13 +19,11 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - remove legacy XState files and cleanup connection feature
 
-
 ## [2.12.3] - 2025-11-26
 
 ### Changed
 
 - replace XState machines with Praxis managers and update documentation
-
 
 ## [2.12.2] - 2025-11-25
 

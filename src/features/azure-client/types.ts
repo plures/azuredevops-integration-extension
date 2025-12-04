@@ -11,10 +11,12 @@
  * LLM-GUARD:
  * - Follow ownership boundaries; route events to Router; do not add UI logic here
  */
-import type {
+export type {
   WorkItem as _WorkItem,
   WorkItemBuildSummary as _WorkItemBuildSummary,
 } from '../../types.js';
+
+export type { WorkItem } from '../../types.js';
 
 export type AuthType = 'pat' | 'bearer';
 

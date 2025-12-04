@@ -20,6 +20,10 @@ import {
 export const connectionsLoadedRule = defineRule<ApplicationEngineContext>({
   id: 'application.connectionsLoaded',
   description: 'Handle connections loaded',
+  meta: {
+    triggers: ['CONNECTIONS_LOADED'],
+    transition: { from: 'active', to: 'active' },
+  },
   impl: (state, events) => {
     const loadedEvent = findEvent(events, ConnectionsLoadedEvent);
     if (!loadedEvent) return [];
@@ -41,6 +45,10 @@ export const connectionsLoadedRule = defineRule<ApplicationEngineContext>({
 export const connectionSelectedRule = defineRule<ApplicationEngineContext>({
   id: 'application.connectionSelected',
   description: 'Handle connection selection',
+  meta: {
+    triggers: ['CONNECTION_SELECTED', 'SELECT_CONNECTION'],
+    transition: { from: 'active', to: 'active' },
+  },
   impl: (state, events) => {
     // Handle both CONNECTION_SELECTED and SELECT_CONNECTION events
     const selectedEvent =
@@ -71,6 +79,10 @@ export const connectionSelectedRule = defineRule<ApplicationEngineContext>({
 export const queryChangedRule = defineRule<ApplicationEngineContext>({
   id: 'application.queryChanged',
   description: 'Handle query change',
+  meta: {
+    triggers: ['QUERY_CHANGED'],
+    transition: { from: 'active', to: 'active' },
+  },
   impl: (state, events) => {
     const queryEvent = findEvent(events, QueryChangedEvent);
     if (!queryEvent) return [];
@@ -95,6 +107,10 @@ export const queryChangedRule = defineRule<ApplicationEngineContext>({
 export const viewModeChangedRule = defineRule<ApplicationEngineContext>({
   id: 'application.viewModeChanged',
   description: 'Handle view mode change',
+  meta: {
+    triggers: ['VIEW_MODE_CHANGED'],
+    transition: { from: 'active', to: 'active' },
+  },
   impl: (state, events) => {
     const modeEvent = findEvent(events, ViewModeChangedEvent);
     if (!modeEvent) return [];

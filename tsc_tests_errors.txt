@@ -1,0 +1,10 @@
+src/fsm/functions/auth/buildAuthReminder.ts(28,7): error TS6133: 'REMINDER_MESSAGES' is declared but its value is never read.
+src/fsm/functions/auth/buildAuthReminder.ts(64,9): error TS6133: 'connectionConfig' is declared but its value is never read.
+src/fsm/functions/auth/buildAuthReminder.ts(89,10): error TS6133: 'formatConnectionLabel' is declared but its value is never read.
+tests/activation.query.test.ts(97,14): error TS6133: 'T' is declared but its value is never read.
+tests/activation.webviewHtml.test.ts(61,24): error TS6133: 'beforeAll' is declared but its value is never read.
+tests/features/commands-create-work-item.test.ts(6,32): error TS6133: 'beforeEach' is declared but its value is never read.
+tests/features/error-handling-e2e.test.ts(10,32): error TS6133: 'beforeEach' is declared but its value is never read.
+tests/fsm/functions/setup/auth-methods.test.ts(10,8): error TS6133: 'AuthMethodId' is declared but its value is never read.
+tests/fsm/functions/ui/error-handling.test.ts(7,44): error TS6133: 'vi' is declared but its value is never read.
+tests/fsm/functions/ui/error-handling.test.ts(13,8): error TS6133: 'DetectedError' is declared but its value is never read.

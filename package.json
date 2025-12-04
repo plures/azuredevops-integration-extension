@@ -875,8 +875,8 @@
     "type-check": "tsc --noEmit",
     "validate:all": "npm run type-check",
     "validate:all:strict": "npm run validate:all && npm run check:architecture",
-    "check:architecture": "npx tsx scripts/intelligent-architecture-analysis.ts",
-    "check:architecture:detailed": "npx tsx scripts/intelligent-architecture-analysis.ts --detailed",
+    "check:architecture": "praxis verify implementation",
+    "check:architecture:detailed": "praxis verify implementation --detailed",
     "headers:add": "node scripts/add-headers.mjs",
     "lint": "npx eslint src --ext ts",
     "lint:fix": "npx eslint src --ext ts --fix",
@@ -897,7 +897,11 @@
     "screenshots:build": "npm run build && npm run screenshots:capture",
     "screenshots:capture": "node scripts/screenshots/generate-screenshots.mjs",
     "screenshots:loading-gif": "node scripts/screenshots/generate-loading-sequence.mjs",
-    "screenshots:watch": "node scripts/watch-screenshots.mjs"
+    "screenshots:watch": "node scripts/watch-screenshots.mjs",
+    "generate:schema": "node praxis/dist/src/cli/index.js generate schema",
+    "scaffold:rules": "node praxis/dist/src/cli/index.js scaffold rules",
+    "canvas": "node praxis/dist/src/cli/index.js canvas praxis.json",
+    "canvas:custom": "node praxis/dist/src/cli/index.js canvas --custom"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.1.0",
@@ -942,12 +946,14 @@
   },
   "dependencies": {
     "@azure/msal-node": "^3.8.0",
-    "@plures/praxis": "^1.0.1",
+    "@plures/praxis": "^1.0.3",
+    "@types/ws": "^8.18.1",
     "axios": "^1.12.2",
     "azure-devops-node-api": "^15.1.1",
     "openai": "^6.4.0",
     "punycode": "^2.3.1",
-    "sql.js": "^1.13.0"
+    "sql.js": "^1.13.0",
+    "ws": "^8.18.3"
   },
   "volta": {
     "node": "24.10.0",

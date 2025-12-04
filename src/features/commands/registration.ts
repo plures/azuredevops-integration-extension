@@ -90,7 +90,7 @@ export const commandRegistrations: CommandRegistration[] = [
 ];
 
 export function registerCommands(
-  context: vscode.ExtensionContext,
+  _context: vscode.ExtensionContext,
   commandContext: CommandContext
 ): vscode.Disposable[] {
   const disposables: vscode.Disposable[] = [];
@@ -102,12 +102,12 @@ export function registerCommands(
         if (result instanceof Promise) {
           result.catch((error) => {
             logger.error(`Error in command ${registration.command}`, { meta: error });
-            vscode.window.showErrorMessage(`Command failed: ${error.message}`);
+            vscode.window.showErrorMessage(`Command failed: ${(error as any).message}`);
           });
         }
       } catch (error) {
         logger.error(`Error in command ${registration.command}`, { meta: error });
-        vscode.window.showErrorMessage(`Command failed: ${error.message}`);
+        vscode.window.showErrorMessage(`Command failed: ${(error as any).message}`);
       }
     });
     disposables.push(disposable);
@@ -122,7 +122,7 @@ export function safeCommandHandler(handler: (...args: any[]) => Promise<void> | 
       await handler(...args);
     } catch (error) {
       logger.error('Command handler error', { meta: error });
-      vscode.window.showErrorMessage(`Command failed: ${error.message}`);
+      vscode.window.showErrorMessage(`Command failed: ${(error as any).message}`);
     }
   };
 }

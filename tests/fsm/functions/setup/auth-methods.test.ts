@@ -7,7 +7,6 @@ import {
   getAvailableAuthMethods,
   getRecommendedAuthMethod,
   isAuthMethodAvailable,
-  type AuthMethodId,
 } from '../../../../src/fsm/functions/setup/auth-methods.js';
 
 describe('Authentication Methods', () => {

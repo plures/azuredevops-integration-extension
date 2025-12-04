@@ -18,8 +18,8 @@
  * Focus on the patterns and flow rather than the implementation details.
  */
 
-import type { ApplicationContext } from './ApplicationContext';
-import { contextActions, createInitialContextFrozen } from './ApplicationContext';
+import type { ApplicationContext } from './ApplicationContext.js';
+import { contextActions, createInitialContextFrozen } from './ApplicationContext.js';
 
 /**
  * Simple Actor Pattern - Focus on the concept

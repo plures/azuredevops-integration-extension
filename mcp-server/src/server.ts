@@ -3,7 +3,10 @@
  * Azure DevOps MCP Server
  * Minimal JSON-RPC 2.0 over stdio exposing core work item operations.
  */
-import { AzureDevOpsIntClient } from '../../src/azureClient';
+import { AzureDevOpsIntClient } from '../../src/azureClient.js';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 
 // ---- Types ----
 interface JsonRpcRequest<T = any> {
@@ -175,6 +178,80 @@ const methods: Record<string, (id: any, params: any) => Promise<void>> = {
       respond(ok(id, flattenArray(items)));
     } catch (e: any) {
       respond(err(id, -32007, 'Failed to filter work items', normalizeError(e)));
+    }
+  },
+
+  async inspectLogic(id, _params) {
+    try {
+      const __dirname = path.dirname(fileURLToPath(import.meta.url));
+      // Try dev path first (../../src/stores/eventHandlers.ts)
+      let handlersPath = path.resolve(__dirname, '../../src/stores/eventHandlers.ts');
+
+      if (!fs.existsSync(handlersPath)) {
+        // Try compiled path (../../../../src/stores/eventHandlers.ts)
+        handlersPath = path.resolve(__dirname, '../../../../src/stores/eventHandlers.ts');
+      }
+
+      if (!fs.existsSync(handlersPath)) {
+        return respond(err(id, -32008, 'eventHandlers.ts not found', { path: handlersPath }));
+      }
+
+      const content = fs.readFileSync(handlersPath, 'utf-8');
+
+      // Extract the eventHandlers object
+      // Relaxed regex to handle multi-line type definitions and generics
+      const objectMatch = content.match(/export const eventHandlers[\s\S]*?=\s*({[\s\S]*?});/);
+      if (!objectMatch) {
+        return respond(err(id, -32009, 'Could not find eventHandlers object'));
+      }
+
+      const objectBody = objectMatch[1];
+      const unhandledEvents: string[] = [];
+
+      // Regex to match key-value pairs in the object
+      // Key: (args) => { body }
+      const entryRegex = /([A-Z_]+):\s*(?:\([^)]*\)|[a-z_]+)\s*=>\s*({[\s\S]*?})(?:,|$)/g;
+
+      let match;
+      while ((match = entryRegex.exec(objectBody)) !== null) {
+        const eventName = match[1];
+        const body = match[2];
+
+        // Check if body is empty or only comments
+        const cleanBody = body.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '').replace(/\s/g, '');
+        if (cleanBody === '{}') {
+          unhandledEvents.push(eventName);
+        }
+      }
+
+      respond(ok(id, { unhandledEvents }));
+    } catch (e: any) {
+      respond(err(id, -32010, 'Failed to inspect logic', normalizeError(e)));
+    }
+  },
+
+  async get_application_graph(id, _params) {
+    try {
+      const __dirname = path.dirname(fileURLToPath(import.meta.url));
+      // Path to praxis.canvas.json relative to mcp-server/src/server.ts
+      // mcp-server/src/server.ts -> mcp-server/src -> mcp-server -> root -> praxis.canvas.json
+      let canvasPath = path.resolve(__dirname, '../../praxis.canvas.json');
+
+      if (!fs.existsSync(canvasPath)) {
+        // Try 4 levels up (for dist structure: dist/mcp-server/src/server.js)
+        canvasPath = path.resolve(__dirname, '../../../../praxis.canvas.json');
+      }
+
+      if (!fs.existsSync(canvasPath)) {
+        return respond(
+          err(id, -32011, 'praxis.canvas.json not found. Run npm run generate:schema first.')
+        );
+      }
+
+      const canvasData = JSON.parse(fs.readFileSync(canvasPath, 'utf-8'));
+      respond(ok(id, canvasData));
+    } catch (e: any) {
+      respond(err(id, -32012, 'Failed to get application graph', normalizeError(e)));
     }
   },
 };

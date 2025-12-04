@@ -10,6 +10,7 @@ export const eventHandlers: Record<
   (manager: PraxisApplicationManager, event: ApplicationEvent) => void
 > = {
   ACTIVATE: (manager) => manager.activate(),
+  ACTIVATION_COMPLETE: (manager) => manager.activationComplete(),
   DEACTIVATE: (manager) => manager.deactivate(),
   EXTENSION_DEACTIVATED: (manager) => manager.deactivate(),
   CONNECTIONS_LOADED: (manager, event) => {
@@ -22,24 +23,32 @@ export const eventHandlers: Record<
       manager.selectConnection(event.connectionId as string);
     }
   },
+  SELECT_CONNECTION: (manager, event) => {
+    if (event.connectionId) {
+      manager.selectConnection(event.connectionId as string);
+    }
+  },
   AUTHENTICATION_REQUIRED: (manager, event) => {
     if (event.connectionId) {
       manager.requestAuthReminder(event.connectionId as string, 'Authentication required');
     }
   },
-  AUTHENTICATION_SUCCESS: (_manager, _event) => {
-    // Auth success is usually handled via event bus, but we can trigger a step if needed
-    // manager.authenticationSuccess(event.connectionId as string);
-    // PraxisApplicationManager doesn't have authenticationSuccess exposed directly for this purpose
-    // but it listens to event bus.
-    // However, if this event comes from UI/Activation, we might want to ensure it propagates.
-    // For now, let's assume activation.ts handles the logic and this is just for tracing/consistency.
+  AUTHENTICATION_SUCCESS: (manager, event) => {
+    if (event.connectionId) {
+      manager.authenticationSuccess(event.connectionId as string);
+    }
   },
-  AUTHENTICATION_FAILED: (_manager, _event) => {
-    // Similar to success
+  AUTHENTICATION_FAILED: (manager, event) => {
+    if (event.connectionId && event.error) {
+      manager.authenticationFailed(event.connectionId as string, event.error as string);
+    }
   },
-  WEBVIEW_READY: () => {
-    // No direct mapping - handled at webview level
+  WEBVIEW_READY: (manager) => {
+    manager.webviewReady();
+  },
+  UPDATE_WEBVIEW_PANEL: (_manager, _event) => {
+    // Webview panel is managed externally in the new architecture
+    // We handle this event to suppress warnings from activation.ts
   },
   ERROR: (manager, event) => {
     if (event.error) {
@@ -64,15 +73,62 @@ export const eventHandlers: Record<
     }
   },
   // UI Events handled by activation.ts or webview, but passed through for tracing
-  CREATE_WORK_ITEM: () => {},
-  CREATE_BRANCH: () => {},
-  CREATE_PULL_REQUEST: () => {},
-  SHOW_PULL_REQUESTS: () => {},
-  SHOW_BUILD_STATUS: () => {},
-  SELECT_TEAM: () => {},
-  RESET_PREFERRED_REPOSITORIES: () => {},
-  SELF_TEST_WEBVIEW: () => {},
-  BULK_ASSIGN: () => {},
-  GENERATE_COPILOT_PROMPT: () => {},
-  SHOW_TIME_REPORT: () => {},
+  CREATE_WORK_ITEM: (manager, event) => {
+    if (event.connectionId) {
+      manager.createWorkItem(event.connectionId as string);
+    }
+  },
+  CREATE_BRANCH: (manager, event) => {
+    if (event.connectionId) {
+      manager.createBranch(event.connectionId as string, event.workItemId as number);
+    }
+  },
+  CREATE_PULL_REQUEST: (manager, event) => {
+    if (event.connectionId) {
+      manager.createPullRequest(event.connectionId as string, event.workItemId as number);
+    }
+  },
+  SHOW_PULL_REQUESTS: (manager, event) => {
+    if (event.connectionId) {
+      manager.showPullRequests(event.connectionId as string);
+    }
+  },
+  SHOW_BUILD_STATUS: (manager, event) => {
+    if (event.connectionId) {
+      manager.showBuildStatus(event.connectionId as string);
+    }
+  },
+  SELECT_TEAM: (manager, event) => {
+    if (event.connectionId) {
+      manager.selectTeam(event.connectionId as string);
+    }
+  },
+  RESET_PREFERRED_REPOSITORIES: (manager, event) => {
+    if (event.connectionId) {
+      manager.resetPreferredRepositories(event.connectionId as string);
+    }
+  },
+  SELF_TEST_WEBVIEW: (manager) => {
+    manager.selfTestWebview();
+  },
+  BULK_ASSIGN: (manager, event) => {
+    if (event.connectionId && Array.isArray(event.workItemIds)) {
+      manager.bulkAssign(event.connectionId as string, event.workItemIds as number[]);
+    }
+  },
+  GENERATE_COPILOT_PROMPT: (manager, event) => {
+    if (event.connectionId && event.workItemId) {
+      manager.generateCopilotPrompt(event.connectionId as string, event.workItemId as number);
+    }
+  },
+  SHOW_TIME_REPORT: (manager, event) => {
+    if (event.connectionId) {
+      manager.showTimeReport(event.connectionId as string);
+    }
+  },
+  SET_CONNECTION_QUERY: (manager, event) => {
+    if (event.query && typeof event.query === 'string') {
+      manager.setQuery(event.query, event.connectionId as string);
+    }
+  },
 };

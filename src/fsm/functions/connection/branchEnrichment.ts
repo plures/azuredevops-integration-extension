@@ -147,20 +147,6 @@ type ParsedBranchLink = {
   shortName?: string;
 };
 
-function formatMeta(meta: unknown): string | undefined {
-  if (meta === undefined || meta === null) {
-    return undefined;
-  }
-  if (typeof meta === 'string') {
-    return meta;
-  }
-  try {
-    return JSON.stringify(meta);
-  } catch {
-    return undefined;
-  }
-}
-
 async function getGitApi(): Promise<any | undefined> {
   if (cachedGitApi) {
     return cachedGitApi;

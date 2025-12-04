@@ -20,10 +20,6 @@ describe('authReminderActions.handleAuthReminderAction', () => {
       connectionStates: new Map(),
       pendingAuthReminders: new Map<string, AuthReminderState>(),
       extensionContext: undefined,
-      webviewBridge: undefined,
-      outputChannel: undefined,
-      statusBarItem: undefined,
-      authStatusBarItem: undefined,
       webviewPanel: undefined,
       pendingWorkItems: undefined,
       timerActor: undefined,
@@ -44,8 +40,6 @@ describe('authReminderActions.handleAuthReminderAction', () => {
       status: 'pending',
       reason: 'authFailed',
       detail: 'Re-auth required',
-      label: 'Conn 1',
-      authMethod: 'entra',
     };
 
     const context = buildContext({
@@ -77,7 +71,6 @@ describe('authReminderActions.handleAuthReminderAction', () => {
       status: 'pending',
       reason: 'authFailed',
       detail: 'Retry later',
-      authMethod: 'entra',
     };
 
     const context = buildContext({

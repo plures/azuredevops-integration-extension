@@ -18,7 +18,7 @@
  * the existing VS Code extension and Svelte webview.
  */
 
-import { ContextManager } from './ContextDrivenDemo';
+import { ContextManager } from './ContextDrivenDemo.js';
 import { writable, derived } from 'svelte/store';
 
 /**
