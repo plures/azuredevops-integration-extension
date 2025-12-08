@@ -107,7 +107,6 @@ export const applicationErrorRule = defineRule<ApplicationEngineContext>({
   description: 'Handle application error',
   meta: {
     triggers: ['APPLICATION_ERROR'],
-    transition: { from: 'active', to: 'error_recovery' },
   },
   impl: (state, events) => {
     const errorEvent = findEvent(events, ApplicationErrorEvent);
@@ -118,10 +117,11 @@ export const applicationErrorRule = defineRule<ApplicationEngineContext>({
       connectionId: errorEvent.payload.connectionId,
     };
 
-    if (state.context.applicationState === 'active') {
-      state.context.applicationState = 'error_recovery';
-      state.context.errorRecoveryAttempts++;
-    }
+    // Do not transition to error_recovery, just log the error
+    // if (state.context.applicationState === 'active') {
+    //   state.context.applicationState = 'error_recovery';
+    //   state.context.errorRecoveryAttempts++;
+    // }
 
     return [];
   },
@@ -135,13 +135,13 @@ export const retryRule = defineRule<ApplicationEngineContext>({
   description: 'Retry after error',
   meta: {
     triggers: ['RETRY'],
-    transition: { from: 'error_recovery', to: 'active' },
+    transition: { from: ['error_recovery', 'activation_error'], to: 'active' },
   },
   impl: (state, events) => {
     const retryEvent = findEvent(events, RetryApplicationEvent);
     if (!retryEvent) return [];
 
-    if (state.context.applicationState !== 'error_recovery') return [];
+    if (state.context.applicationState !== 'error_recovery' && state.context.applicationState !== 'activation_error') return [];
 
     state.context.lastError = undefined;
     state.context.applicationState = 'active';

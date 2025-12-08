@@ -4,7 +4,7 @@ Owner: webview
 Reads: syncState from extension (ApplicationContext serialized)
 Writes: UI-only events; selection via selection writer factory (webview-owned)
 Receives: syncState, host broadcasts
-Emits: fsmEvent envelopes (Router handles stamping)
+Emits: appEvent envelopes (Router handles stamping)
 Prohibitions: Do not import extension host modules; Do not define context types
 Rationale: Per-connection UI component containing all connection-specific controls and views
 

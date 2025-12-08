@@ -76,8 +76,17 @@ import { registerTraceCommands } from './fsm/commands/traceCommands.js';
 import { registerQuickDebugCommands } from './fsm/commands/quickDebugCommands.js';
 // import { FSMSetupService } from './fsm/services/fsmSetupService.js';
 // import { ConnectionAdapter } from './fsm/adapters/ConnectionAdapter.js';
+import { getConnectionFSMManager } from './fsm/ConnectionFSMManager.js';
 import { ConnectionService } from './praxis/connection/service.js';
 import { PraxisApplicationManager } from './praxis/application/manager.js';
+import { AuthenticationFailedEvent } from './praxis/application/facts.js';
+import {
+  engine as praxisEngine,
+  dispatch,
+  subscribe,
+  setLogger as setPraxisLogger,
+} from './praxis-core/engine.js';
+import './stores/applicationStore.js'; // Initialize application store and bridge
 //import { initializeBridge } from './fsm/services/extensionHostBridge.js';
 import type {
   // AuthReminderReason,
@@ -415,6 +424,10 @@ export function buildMinimalWebviewHtml(
 
 const activationLogger = createScopedLogger('activation', shouldLogDebug);
 const verbose = activationLogger.debug;
+
+// Configure Praxis Logger
+const praxisLogger = createScopedLogger('praxis-core', shouldLogDebug);
+setPraxisLogger((msg, meta) => praxisLogger.debug(msg, meta));
 
 // Self-test tracking (prove Svelte webview round-trip works)
 // Self-test pending promise handlers (typed loosely to avoid unused param lint churn)
@@ -1198,11 +1211,9 @@ export async function updateAuthStatusBar(): Promise<void> {
     // Get the actual connection machine state (e.g., 'connected', 'auth_failed')
     let connectionMachineState: string | null = null;
     try {
-      const appManager = PraxisApplicationManager.getInstance();
-      const connManager = appManager.getConnectionManager(activeConnectionId);
-      if (connManager) {
-        connectionMachineState = connManager.getConnectionState();
-      }
+      const { getConnectionFSMManager } = await import('./fsm/ConnectionFSMManager.js');
+      const fsmManager = getConnectionFSMManager();
+      connectionMachineState = fsmManager.getConnectionState(activeConnectionId);
     } catch (error) {
       // FSM might not be available yet
       console.debug('[AzureDevOpsInt] Could not get connection machine state:', error);
@@ -1618,21 +1629,25 @@ async function ensureActiveConnection(
   }
 
   const { connection } = prepared;
-  const manager = ConnectionService.getInstance();
-  manager.setContext(context);
+  const manager = getConnectionFSMManager();
+  manager.setEnabled(true);
 
-  const result = await manager.connect(connection, {
-    refresh: options.refresh,
-    interactive: options.interactive,
-    onDeviceCode: (response: any) => {
-      PraxisApplicationManager.getInstance().handleDeviceCode(
-        connection.id,
-        response.userCode,
-        response.verificationUri,
-        response.expiresIn
-      );
-    },
-  });
+  let result;
+  try {
+    result = await manager.connectToConnection(connection, {
+      refresh: options.refresh,
+      interactive: options.interactive,
+    });
+  } catch (error: any) {
+    verbose('[ensureActiveConnection] Connection attempt threw error:', error);
+    PraxisApplicationManager.getInstance().handleEvent(
+      AuthenticationFailedEvent({
+        connectionId: connection.id,
+        error: error.message || String(error),
+      })
+    );
+    return undefined;
+  }
 
   if (result.success && result.client && result.provider) {
     const state = result.state as ConnectionState;
@@ -1653,27 +1668,13 @@ async function ensureActiveConnection(
     error: result.error,
   });
 
-  if (options.notify !== false && result.error) {
-    const isAuthError =
-      result.error.includes('invalid_grant') ||
-      result.error.includes('interaction_required') ||
-      result.error.includes('sign_in_required') ||
-      result.error.includes('Entra ID token acquisition failed');
-
-    if (isAuthError) {
-      const signIn = 'Sign In';
-      const message = `Authentication failed for ${connection.label || connection.id}: ${result.error}`;
-      vscode.window.showErrorMessage(message, signIn).then((selection) => {
-        if (selection === signIn) {
-          ensureActiveConnection(context, connectionId, { ...options, interactive: true });
-        }
-      });
-    } else {
-      vscode.window.showErrorMessage(
-        `Connection failed for ${connection.label || connection.id}: ${result.error}`
-      );
-    }
-  }
+  // Dispatch failure event to application manager to ensure UI reflects the error
+  PraxisApplicationManager.getInstance().handleEvent(
+    AuthenticationFailedEvent({
+      connectionId: connection.id,
+      error: result.error || 'Connection failed',
+    })
+  );
 
   return undefined;
 }
@@ -1885,6 +1886,9 @@ export async function loadConnectionsFromConfig(
   } = normalizeConnections(rawConnections, legacyFallback);
   connections = normalized;
 
+  // Dispatch connections loaded event to update Praxis store
+  dispatchApplicationEvent({ type: 'CONNECTIONS_LOADED', connections: normalized });
+
   if (requiresSave) {
     try {
       await settings.update(
@@ -1941,6 +1945,15 @@ export async function loadConnectionsFromConfig(
   );
 
   activeConnectionId = resolvedActiveId;
+
+  // Sync with new Praxis Engine
+  dispatch({
+    type: 'CONNECTIONS_LOADED',
+    payload: {
+      connections: connections,
+      activeId: resolvedActiveId,
+    },
+  });
 
   if (requiresPersistence) {
     await context.globalState.update(ACTIVE_CONNECTION_STATE_KEY, resolvedActiveId);
@@ -2002,7 +2015,11 @@ async function saveConnectionsToConfig(
 */
 
 async function ensureConnectionsInitialized(context: vscode.ExtensionContext) {
-  if (connections.length === 0) await loadConnectionsFromConfig(context);
+  // Always load connections to ensure Praxis manager is in sync.
+  // The previous check (connections.length === 0) caused a race condition where
+  // early config changes (e.g. from patches) populated 'connections' but failed
+  // to update Praxis (bridge not ready), leaving Praxis empty.
+  await loadConnectionsFromConfig(context);
   return connections;
 }
 
@@ -2215,7 +2232,7 @@ function dispatchProviderMessage(message: any): void {
     return;
   }
 
-  // workItemsError: Dispatch an authentication
+  // workItemsError: Dispatch an authentication failure event so UI can react immediately.
   if (messageType === 'workItemsError') {
     verbose('[dispatchProviderMessage] Processing workItemsError:', {
       messageType,
@@ -2574,9 +2591,6 @@ export async function activate(context: vscode.ExtensionContext) {
   setExtensionContextRefBridge(context);
   ConnectionService.getInstance().setContext(context);
 
-  // Start Application FSM Manager (Praxis)
-  PraxisApplicationManager.getInstance().start();
-
   // Hydrate persisted per-connection query selections (if present)
   try {
     const persistedQueries =
@@ -2648,6 +2662,10 @@ export async function activate(context: vscode.ExtensionContext) {
   // Ensure applicationStore is initialized before registering webview provider
   // This prevents race conditions where the webview panel resolves before the FSM actor is available
   verbose('[activation] Ensuring application store is initialized before webview registration');
+
+  // Load connections from config to ensure Praxis has them before UI loads
+  await loadConnectionsFromConfig(context);
+
   await ensureSharedContextBridge(context);
   verbose('[activation] Application store initialized, FSM actor available');
 
@@ -2718,24 +2736,6 @@ export async function activate(context: vscode.ExtensionContext) {
       activationLogger.error('[ACTIVATION] Failed to import FSM tracing modules', { meta: error });
     });
 
-  // Import LiveCanvasBridge to enable the WebSocket connection to the live canvas
-  import('./fsm/logging/LiveCanvasBridge.js')
-    .then(({ LiveCanvasBridge }) => {
-      try {
-        // Initialize LiveCanvasBridge
-        const bridge = new LiveCanvasBridge(dispatchApplicationEvent);
-        context.subscriptions.push({ dispose: () => bridge.dispose() });
-        verbose('[ACTIVATION] LiveCanvasBridge initialized');
-      } catch (error) {
-        activationLogger.error('[ACTIVATION] Failed to initialize LiveCanvasBridge', {
-          meta: error,
-        });
-      }
-    })
-    .catch((error) => {
-      activationLogger.error('[ACTIVATION] Failed to import LiveCanvasBridge', { meta: error });
-    });
-
   // FSM and Bridge setup
   // const fsmSetupService = new FSMSetupService(context);
 
@@ -2745,35 +2745,6 @@ export async function activate(context: vscode.ExtensionContext) {
   if (appActor && typeof (appActor as any).send === 'function') {
     verbose('[activation] Sending ACTIVATE event to FSM');
     (appActor as any).send({ type: 'ACTIVATE', context });
-
-    // Drive the activation process
-    loadConnectionsFromConfig(context)
-      .then((loadedConnections) => {
-        verbose('[activation] Connections loaded, sending CONNECTIONS_LOADED');
-        (appActor as any).send({ type: 'CONNECTIONS_LOADED', connections: loadedConnections });
-
-        if (activeConnectionId) {
-          verbose('[activation] Selecting active connection', { activeConnectionId });
-          (appActor as any).send({ type: 'CONNECTION_SELECTED', connectionId: activeConnectionId });
-
-          // Proactively ensure connection on startup
-          ensureActiveConnection(context, activeConnectionId, {
-            refresh: true,
-            notify: true, // Ensure errors are shown on startup
-          }).catch((err) => {
-            verbose('[activation] Startup ensureActiveConnection failed', err);
-          });
-        }
-
-        verbose('[activation] Sending ACTIVATION_COMPLETE');
-        (appActor as any).send({ type: 'ACTIVATION_COMPLETE' });
-      })
-      .catch((error) => {
-        activationLogger.error('[activation] Failed to load connections during activation', {
-          meta: error,
-        });
-        (appActor as any).send({ type: 'ERROR', error });
-      });
   }
 
   // Track previous device code session to detect changes
@@ -2803,10 +2774,8 @@ export async function activate(context: vscode.ExtensionContext) {
         // If the newly active connection is not connected, proactively ensure and, if needed, prompt
         try {
           if (extensionContextRef && activeConnectionId) {
-            const appManager = PraxisApplicationManager.getInstance();
-            const connManager = appManager.getConnectionManager(activeConnectionId);
-            const stateValue = connManager?.getConnectionState();
-
+            const manager = getConnectionFSMManager();
+            const stateValue = manager.getConnectionState(activeConnectionId);
             const targetState = connectionStates.get(activeConnectionId);
             const hasProvider = !!targetState?.provider;
             const isConnected =
@@ -2853,69 +2822,34 @@ export async function activate(context: vscode.ExtensionContext) {
 
       if (panel && snapshot) {
         // Pre-compute all state matches since snapshot.matches() doesn't survive JSON serialization
-
-        // Helper for robust matching (copied from AzureDevOpsIntViewProvider)
-        const state = snapshot.value;
-        const matchesFn = (stateValue: any) => {
-          if (typeof stateValue === 'string') {
-            return (
-              state === stateValue || (typeof state === 'string' && state.includes(stateValue))
-            );
-          }
-          if (typeof stateValue === 'object' && stateValue !== null) {
-            const key = Object.keys(stateValue)[0];
-            const subValue = stateValue[key];
-            if (typeof state === 'string') {
-              if (state === key) return false;
-              if (typeof subValue === 'string') {
-                return state === `${key}.${subValue}` || state.startsWith(`${key}.${subValue}.`);
-              }
-              return false;
-            }
-            if (typeof state === 'object' && state !== null) {
-              const stateSubValue = state[key];
-              if (stateSubValue === subValue) return true;
-              if (
-                typeof subValue === 'string' &&
-                typeof stateSubValue === 'object' &&
-                stateSubValue !== null
-              ) {
-                return Object.keys(stateSubValue)[0] === subValue;
-              }
-              return false;
-            }
-          }
-          return false;
-        };
-
         const matches = {
           // Top-level states
-          inactive: matchesFn('inactive'),
-          activating: matchesFn('activating'),
-          activation_failed: matchesFn('activation_failed'),
-          active: matchesFn('active'),
-          error_recovery: matchesFn('error_recovery'),
-          deactivating: matchesFn('deactivating'),
+          inactive: snapshot.matches('inactive'),
+          activating: snapshot.matches('activating'),
+          activation_failed: snapshot.matches('activation_failed'),
+          active: snapshot.matches('active'),
+          error_recovery: snapshot.matches('error_recovery'),
+          deactivating: snapshot.matches('deactivating'),
 
           // Active sub-states
-          'active.setup': matchesFn({ active: 'setup' }),
-          'active.setup.loading_connections': matchesFn({
+          'active.setup': snapshot.matches({ active: 'setup' }),
+          'active.setup.loading_connections': snapshot.matches({
             active: { setup: 'loading_connections' },
           }),
-          'active.setup.waiting_for_panel': matchesFn({
+          'active.setup.waiting_for_panel': snapshot.matches({
             active: { setup: 'waiting_for_panel' },
           }),
-          'active.setup.panel_ready': matchesFn({ active: { setup: 'panel_ready' } }),
-          'active.setup.setup_error': matchesFn({ active: { setup: 'setup_error' } }),
+          'active.setup.panel_ready': snapshot.matches({ active: { setup: 'panel_ready' } }),
+          'active.setup.setup_error': snapshot.matches({ active: { setup: 'setup_error' } }),
 
           // Active.ready sub-states
-          'active.ready': matchesFn({ active: 'ready' }),
-          'active.ready.idle': matchesFn({ active: { ready: 'idle' } }),
-          'active.ready.loadingData': matchesFn({ active: { ready: 'loadingData' } }),
-          'active.ready.managingConnections': matchesFn({
+          'active.ready': snapshot.matches({ active: 'ready' }),
+          'active.ready.idle': snapshot.matches({ active: { ready: 'idle' } }),
+          'active.ready.loadingData': snapshot.matches({ active: { ready: 'loadingData' } }),
+          'active.ready.managingConnections': snapshot.matches({
             active: { ready: 'managingConnections' },
           }),
-          'active.ready.error': matchesFn({ active: { ready: 'error' } }),
+          'active.ready.error': snapshot.matches({ active: { ready: 'error' } }),
         };
 
         const serializableState = {
@@ -2929,7 +2863,6 @@ export async function activate(context: vscode.ExtensionContext) {
           verbose('[activation] Sending state to webview', {
             value: snapshot.value,
             matchesActive: matches.active,
-            matchesActiveSetup: matches['active.setup'],
             matchesActiveReady: matches['active.ready'],
             matchesActivating: matches.activating,
           });
@@ -3082,6 +3015,12 @@ export async function activate(context: vscode.ExtensionContext) {
       5 * 60 * 1000
     ); // every 5 minutes
   }
+
+  // Signal that activation is complete
+  if (appActor && typeof (appActor as any).send === 'function') {
+    verbose('[activation] Sending ACTIVATION_COMPLETE event to FSM');
+    (appActor as any).send({ type: 'ACTIVATION_COMPLETE' });
+  }
 }
 
 export function deactivate(): Thenable<void> {
@@ -3137,12 +3076,11 @@ function getSerializableContext(context: any): Record<string, any> {
 
   if (context.activeConnectionId) {
     try {
-      // Try to get connection error from Praxis
-      const appManager = PraxisApplicationManager.getInstance();
-      const connManager = appManager.getConnectionManager(context.activeConnectionId);
-
-      if (connManager) {
-        const connectionSnapshot = connManager.getSnapshot();
+      // Try to get connection error from ConnectionFSMManager
+      const connectionManager = getConnectionFSMManager();
+      const connectionActor = connectionManager.getConnectionActor(context.activeConnectionId);
+      if (connectionActor && typeof connectionActor.getSnapshot === 'function') {
+        const connectionSnapshot = connectionActor.getSnapshot();
         if (connectionSnapshot?.error) {
           workItemsError = connectionSnapshot.error;
           workItemsErrorConnectionId = context.activeConnectionId;
@@ -3169,8 +3107,8 @@ function getSerializableContext(context: any): Record<string, any> {
   const serialized = {
     isActivated: context.isActivated,
     isDeactivating: context.isDeactivating,
-    connections: context.connections || [],
-    activeConnectionId: context.activeConnectionId,
+    connections: context.connections || connections || [],
+    activeConnectionId: context.activeConnectionId || activeConnectionId,
     activeQuery: context.activeQuery,
     connectionStates: context.connectionStates ? Object.fromEntries(context.connectionStates) : {},
     pendingAuthReminders: context.pendingAuthReminders
@@ -3236,9 +3174,11 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
   public view?: vscode.WebviewView;
   private readonly extensionUri: vscode.Uri;
   private readonly fsm: ReturnType<typeof getApplicationActor>;
+  private readonly context: vscode.ExtensionContext;
 
   constructor(_context: vscode.ExtensionContext) {
     this.extensionUri = _context.extensionUri;
+    this.context = _context;
     this.fsm = getApplicationActor();
   }
 
@@ -3258,6 +3198,27 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
       enableScripts: true,
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
     };
+
+    // Bind Reactive Logic Engine State to Webview
+    // Subscribe to state changes and push them as props
+    const unsubscribe = subscribe((state) => {
+      const props = {
+        connections: state.connections,
+        activeConnectionId: state.activeConnectionId,
+        activeConnection: state.activeConnection,
+        hasConnections: state.hasConnections,
+        isAuthenticating: state.isAuthenticating,
+        errors: state.errors,
+      };
+      webview.postMessage({
+        command: 'UPDATE_STATE',
+        payload: props,
+      });
+    });
+
+    webviewView.onDidDispose(() => {
+      unsubscribe();
+    });
 
     const nonce = getNonce();
     const scriptUri = webview.asWebviewUri(
@@ -3289,138 +3250,9 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
       </html>
     `;
 
-    // Helper to send current state to webview
-    const sendCurrentState = () => {
-      const appActor = getApplicationStoreActor();
-      verbose('[AzureDevOpsIntViewProvider] Attempting to send state', {
-        hasActor: !!appActor,
-      });
-
-      if (appActor) {
-        let snapshot: any = undefined;
-        let matchesFn: ((state: any) => boolean) | undefined = undefined;
-
-        // Check if it's PraxisApplicationManager (has getApplicationState)
-        if (typeof (appActor as any).getApplicationState === 'function') {
-          const manager = appActor as any;
-          const state = manager.getApplicationState();
-          const context = manager.getContext();
-
-          snapshot = {
-            value: state,
-            context: context,
-          };
-
-          matchesFn = (stateValue: any) => {
-            if (typeof stateValue === 'string') {
-              return (
-                state === stateValue || (typeof state === 'string' && state.includes(stateValue))
-              );
-            }
-            if (typeof stateValue === 'object' && stateValue !== null) {
-              // Simple check for top-level key match for object patterns
-              const key = Object.keys(stateValue)[0];
-              const subValue = stateValue[key];
-
-              // If state is a string, it must match the specific substate (e.g. "active.setup")
-              // It should NOT match if state is just the parent (e.g. "active")
-              if (typeof state === 'string') {
-                if (state === key) {
-                  return false; // "active" does not match { active: 'setup' }
-                }
-                // Check for dot notation "active.setup"
-                if (typeof subValue === 'string') {
-                  return state === `${key}.${subValue}` || state.startsWith(`${key}.${subValue}.`);
-                }
-                return false;
-              }
-
-              // If state is object, check property match
-              if (typeof state === 'object' && state !== null) {
-                // Handle { active: 'setup' } matching { active: 'setup' } or { active: { setup: '...' } }
-                const stateSubValue = state[key];
-                if (stateSubValue === subValue) return true;
-                if (
-                  typeof subValue === 'string' &&
-                  typeof stateSubValue === 'object' &&
-                  stateSubValue !== null
-                ) {
-                  // If asking for 'setup', and state is { setup: 'loading' }, that's a match
-                  return Object.keys(stateSubValue)[0] === subValue; // Approximate
-                }
-                return false;
-              }
-            }
-            return false;
-          };
-        }
-        // Check if it's XState actor (has getSnapshot)
-        else if (typeof (appActor as any).getSnapshot === 'function') {
-          snapshot = (appActor as any).getSnapshot();
-          matchesFn = snapshot?.matches ? snapshot.matches.bind(snapshot) : () => false;
-        }
-
-        verbose('[AzureDevOpsIntViewProvider] Got snapshot', {
-          hasSnapshot: !!snapshot,
-          value: snapshot?.value,
-        });
-
-        if (snapshot && matchesFn) {
-          // Pre-compute state matches
-          const matches = {
-            inactive: matchesFn('inactive'),
-            activating: matchesFn('activating'),
-            activation_failed: matchesFn('activation_failed'),
-            active: matchesFn('active'),
-            error_recovery: matchesFn('error_recovery'),
-            deactivating: matchesFn('deactivating'),
-            'active.setup': matchesFn({ active: 'setup' }),
-            'active.setup.loading_connections': matchesFn({
-              active: { setup: 'loading_connections' },
-            }),
-            'active.setup.waiting_for_panel': matchesFn({
-              active: { setup: 'waiting_for_panel' },
-            }),
-            'active.setup.panel_ready': matchesFn({ active: { setup: 'panel_ready' } }),
-            'active.setup.setup_error': matchesFn({ active: { setup: 'setup_error' } }),
-            'active.ready': matchesFn({ active: 'ready' }),
-            'active.ready.idle': matchesFn({ active: { ready: 'idle' } }),
-            'active.ready.loadingData': matchesFn({ active: { ready: 'loadingData' } }),
-            'active.ready.managingConnections': matchesFn({
-              active: { ready: 'managingConnections' },
-            }),
-            'active.ready.error': matchesFn({ active: { ready: 'error' } }),
-          };
-
-          const serializableState = {
-            fsmState: snapshot.value,
-            context: getSerializableContext(snapshot.context),
-            matches,
-          };
-          verbose('[AzureDevOpsIntViewProvider] Posting syncState message with matches', {
-            workItemsCount: serializableState.context.workItems?.length || 0,
-            connectionWorkItemsKeys: Object.keys(
-              serializableState.context.connectionWorkItems || {}
-            ),
-            activeConnectionId: serializableState.context.activeConnectionId,
-          });
-          webview.postMessage({
-            type: 'syncState',
-            payload: serializableState,
-          });
-        }
-      }
-    };
-
     // Set up message handler to receive events from webview
     webview.onDidReceiveMessage(async (message) => {
-      if (message.type === 'webviewReady' || message.type === 'ready') {
-        verbose('[AzureDevOpsIntViewProvider] Received webviewReady, resending state');
-        sendCurrentState();
-        return;
-      }
-
-      if (message.type === 'fsmEvent' && message.event) {
+      if ((message.type === 'appEvent' || message.type === 'fsmEvent') && message.event) {
         // Forward webview events to the FSM (wrapped format)
         verbose('[AzureDevOpsIntViewProvider] Received event from webview', {
           eventType: message.event.type,
@@ -3441,6 +3273,15 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
             // Inline fallback (no-op)
           }
 
+          if (evtType === 'RETRY') {
+            verbose('[AzureDevOpsIntViewProvider] Handling RETRY event');
+            ensureActiveConnection(this.context, activeConnectionId, { refresh: true }).catch(
+              (error) => {
+                verbose('[AzureDevOpsIntViewProvider] Retry connection failed:', error);
+              }
+            );
+          }
+
           // Guard: selection must originate from webview when using new factory
           if (evtType === 'SELECT_CONNECTION') {
             if (message.event.origin !== 'webview') {
@@ -3456,6 +3297,12 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
                 type: 'SELECT_CONNECTION',
                 connectionId: targetId,
               });
+
+              // Sync with Praxis Engine
+              dispatch({
+                type: 'CONNECTION_SELECTED',
+                payload: { id: targetId },
+              });
               return;
             } else if (targetId === null) {
               // Handle null case (deselection) - translate to CONNECTION_SELECTED for backward compatibility
@@ -3463,6 +3310,11 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
                 type: 'CONNECTION_SELECTED',
                 connectionId: null as any,
               });
+
+              // Sync with Praxis Engine (Deselection)
+              // Note: We might need to handle null in CONNECTION_SELECTED or add a separate event
+              // For now, we'll skip dispatching if null, or we need to update the event definition.
+              // Checking events.ts: payload: { id: string } - so null is not allowed yet.
               return;
             }
           }
@@ -3532,6 +3384,50 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
 
         // Forward other events to FSM
         dispatchApplicationEvent(message.event);
+      } else if (message.type === 'webviewReady') {
+        verbose('[AzureDevOpsIntViewProvider] Received webviewReady signal - resending state');
+        const appActor = getApplicationStoreActor();
+        if (appActor && typeof (appActor as any).getSnapshot === 'function') {
+          const snapshot = (appActor as any).getSnapshot();
+          if (snapshot) {
+            const matches = {
+              inactive: snapshot.matches('inactive'),
+              activating: snapshot.matches('activating'),
+              activation_failed: snapshot.matches('activation_failed'),
+              active: snapshot.matches('active'),
+              error_recovery: snapshot.matches('error_recovery'),
+              deactivating: snapshot.matches('deactivating'),
+              'active.setup': snapshot.matches({ active: 'setup' }),
+              'active.setup.loading_connections': snapshot.matches({
+                active: { setup: 'loading_connections' },
+              }),
+              'active.setup.waiting_for_panel': snapshot.matches({
+                active: { setup: 'waiting_for_panel' },
+              }),
+              'active.setup.panel_ready': snapshot.matches({ active: { setup: 'panel_ready' } }),
+              'active.setup.setup_error': snapshot.matches({ active: { setup: 'setup_error' } }),
+              'active.ready': snapshot.matches({ active: 'ready' }),
+              'active.ready.idle': snapshot.matches({ active: { ready: 'idle' } }),
+              'active.ready.loadingData': snapshot.matches({ active: { ready: 'loadingData' } }),
+              'active.ready.managingConnections': snapshot.matches({
+                active: { ready: 'managingConnections' },
+              }),
+              'active.ready.error': snapshot.matches({ active: { ready: 'error' } }),
+            };
+
+            const serializableState = {
+              fsmState: snapshot.value,
+              context: getSerializableContext(snapshot.context),
+              matches,
+            };
+            webview.postMessage({
+              type: 'syncState',
+              state: serializableState.fsmState,
+              context: serializableState.context,
+              matches: serializableState.matches,
+            });
+          }
+        }
       } else {
         // Log warning for legacy/unknown message types
         activationLogger.warn(
@@ -3550,6 +3446,111 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
     // Send initial FSM state to webview
     // CRITICAL: When panel is created, immediately send current FSM state
     // This ensures work items loaded before panel creation are sent to webview
-    sendCurrentState();
+    const appActor = getApplicationStoreActor();
+    verbose('[AzureDevOpsIntViewProvider] Attempting to send initial state', {
+      hasActor: !!appActor,
+      hasGetSnapshot: typeof (appActor as any)?.getSnapshot === 'function',
+    });
+    if (appActor && typeof (appActor as any).getSnapshot === 'function') {
+      const snapshot = (appActor as any).getSnapshot();
+      verbose('[AzureDevOpsIntViewProvider] Got snapshot', {
+        hasSnapshot: !!snapshot,
+        value: snapshot?.value,
+      });
+      if (snapshot) {
+        // Pre-compute state matches
+        const matches = {
+          inactive: snapshot.matches('inactive'),
+          activating: snapshot.matches('activating'),
+          activation_failed: snapshot.matches('activation_failed'),
+          active: snapshot.matches('active'),
+          error_recovery: snapshot.matches('error_recovery'),
+          deactivating: snapshot.matches('deactivating'),
+          'active.setup': snapshot.matches({ active: 'setup' }),
+          'active.setup.loading_connections': snapshot.matches({
+            active: { setup: 'loading_connections' },
+          }),
+          'active.setup.waiting_for_panel': snapshot.matches({
+            active: { setup: 'waiting_for_panel' },
+          }),
+          'active.setup.panel_ready': snapshot.matches({ active: { setup: 'panel_ready' } }),
+          'active.setup.setup_error': snapshot.matches({ active: { setup: 'setup_error' } }),
+          'active.ready': snapshot.matches({ active: 'ready' }),
+          'active.ready.idle': snapshot.matches({ active: { ready: 'idle' } }),
+          'active.ready.loadingData': snapshot.matches({ active: { ready: 'loadingData' } }),
+          'active.ready.managingConnections': snapshot.matches({
+            active: { ready: 'managingConnections' },
+          }),
+          'active.ready.error': snapshot.matches({ active: { ready: 'error' } }),
+        };
+
+        const serializableState = {
+          fsmState: snapshot.value,
+          context: getSerializableContext(snapshot.context),
+          matches,
+        };
+        verbose('[AzureDevOpsIntViewProvider] Posting initial syncState message with matches', {
+          workItemsCount: serializableState.context.workItems?.length || 0,
+          connectionWorkItemsKeys: Object.keys(serializableState.context.connectionWorkItems || {}),
+          activeConnectionId: serializableState.context.activeConnectionId,
+        });
+        webview.postMessage({
+          type: 'syncState',
+          payload: serializableState,
+        });
+      }
+    }
   }
 }
+
+/*
+async function diagnoseWorkItemsIssue(context: vscode.ExtensionContext) {
+  const log = (message: string) => getOutputChannel()?.appendLine(`[DIAGNOSTIC] ${message}`);
+  log('Starting work items diagnostic...');
+
+  const config = getConfig();
+  const connections = config.get<ProjectConnection[]>('connections', []);
+  const activeId = context.globalState.get<string>(ACTIVE_CONNECTION_STATE_KEY);
+
+  log(`Found ${connections.length} connections.`);
+  log(`Active connection ID: ${activeId}`);
+
+  if (!activeId) {
+    log('No active connection. Aborting.');
+    getOutputChannel()?.show();
+    return;
+  }
+
+  const activeConn = connections.find((c) => c.id === activeId);
+  if (!activeConn) {
+    log('Active connection not found in config. Aborting.');
+    getOutputChannel()?.show();
+    return;
+  }
+
+  log(`Active connection: ${activeConn.label} (${activeConn.organization}/${activeConn.project})`);
+
+  const fsm = getApplicationActor();
+  if (!fsm) {
+    log('FSM actor not available. Aborting.');
+    return;
+  }
+
+  const snapshot = fsm.getSnapshot?.();
+  if (!snapshot) {
+    log('FSM snapshot not available. Aborting.');
+    return;
+  }
+  log('FSM state: ' + snapshot.value);
+
+  const webviewReady = snapshot.context.flags.isWebviewReady;
+  log('Webview ready state: ' + webviewReady);
+
+  if (!webviewReady) {
+    log('Webview is not ready. Cannot proceed with full diagnostic.');
+  }
+
+  log('Diagnostic complete.');
+  getOutputChannel()?.show();
+}
+*/

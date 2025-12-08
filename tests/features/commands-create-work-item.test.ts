@@ -121,11 +121,11 @@ describe('Create Work Item Command', () => {
     it('should trigger event when webview sends CREATE_WORK_ITEM message', () => {
       // This test validates the webview -> activation -> event flow
       const message = {
-        type: 'fsmEvent',
+        type: 'appEvent',
         event: { type: 'CREATE_WORK_ITEM' },
       };
 
-      expect(message.type).toBe('fsmEvent');
+      expect(message.type).toBe('appEvent');
       expect(message.event.type).toBe('CREATE_WORK_ITEM');
     });
   });

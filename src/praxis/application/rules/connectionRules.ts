@@ -12,7 +12,9 @@ import {
   SelectConnectionEvent,
   QueryChangedEvent,
   ViewModeChangedEvent,
+  ConnectionStateUpdatedEvent,
 } from '../facts.js';
+import type { PraxisConnectionSnapshot, PraxisConnectionState } from '../../connection/types.js';
 
 /**
  * Handle connections loaded
@@ -22,7 +24,6 @@ export const connectionsLoadedRule = defineRule<ApplicationEngineContext>({
   description: 'Handle connections loaded',
   meta: {
     triggers: ['CONNECTIONS_LOADED'],
-    transition: { from: 'active', to: 'active' },
   },
   impl: (state, events) => {
     const loadedEvent = findEvent(events, ConnectionsLoadedEvent);
@@ -47,7 +48,6 @@ export const connectionSelectedRule = defineRule<ApplicationEngineContext>({
   description: 'Handle connection selection',
   meta: {
     triggers: ['CONNECTION_SELECTED', 'SELECT_CONNECTION'],
-    transition: { from: 'active', to: 'active' },
   },
   impl: (state, events) => {
     // Handle both CONNECTION_SELECTED and SELECT_CONNECTION events
@@ -81,7 +81,6 @@ export const queryChangedRule = defineRule<ApplicationEngineContext>({
   description: 'Handle query change',
   meta: {
     triggers: ['QUERY_CHANGED'],
-    transition: { from: 'active', to: 'active' },
   },
   impl: (state, events) => {
     const queryEvent = findEvent(events, QueryChangedEvent);
@@ -129,9 +128,48 @@ export const viewModeChangedRule = defineRule<ApplicationEngineContext>({
   },
 });
 
+/**
+ * Handle connection state updated
+ */
+export const connectionStateUpdatedRule = defineRule<ApplicationEngineContext>({
+  id: 'application.connectionStateUpdated',
+  description: 'Update connection state from external source',
+  meta: {
+    triggers: ['CONNECTION_STATE_UPDATED'],
+  },
+  impl: (state, events) => {
+    const event = findEvent(events, ConnectionStateUpdatedEvent);
+    if (!event) return [];
+    const { connectionId, state: connState } = event.payload;
+
+    // Map legacy state to PraxisConnectionSnapshot
+    // Legacy state: { status: 'connected', connection: {...}, authMethod: '...', id: '...' }
+    // PraxisConnectionSnapshot: { state: PraxisConnectionState, connectionId: string, isConnected: boolean, ... }
+
+    const status = connState.status || 'disconnected';
+    const isConnected = status === 'connected';
+    const praxisState: PraxisConnectionState = isConnected ? 'connected' : 'disconnected';
+
+    const snapshot: PraxisConnectionSnapshot = {
+      state: praxisState,
+      connectionId: connectionId,
+      isConnected: isConnected,
+      authMethod: connState.authMethod || 'pat',
+      hasClient: !!connState.client,
+      hasProvider: !!connState.provider,
+      retryCount: 0,
+      error: undefined,
+    };
+
+    state.context.connectionStates.set(connectionId, snapshot);
+    return [];
+  },
+});
+
 export const connectionRules = [
   connectionsLoadedRule,
   connectionSelectedRule,
   queryChangedRule,
   viewModeChangedRule,
+  connectionStateUpdatedRule,
 ];

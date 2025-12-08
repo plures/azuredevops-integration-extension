@@ -22,8 +22,6 @@ import { PraxisEventBus, getPraxisEventBus } from './eventBus.js';
 import { PraxisTimerManager } from '../timer/manager.js';
 import { PraxisAuthManager } from '../auth/manager.js';
 import { PraxisConnectionManager } from '../connection/manager.js';
-import { setApplicationStoreBridge } from '../../fsm/services/extensionHostBridge.js';
-import { eventHandlers } from '../../stores/eventHandlers.js';
 import { fsmTracer } from '../../fsm/logging/FSMTracer.js';
 import { FSMComponent } from '../../fsm/logging/FSMLogger.js';
 import {
@@ -63,6 +61,7 @@ import {
   GenerateCopilotPromptEvent,
   ShowTimeReportEvent,
   WebviewReadyEvent,
+  ConnectionStateUpdatedEvent,
   type PraxisApplicationEvent,
 } from './facts.js';
 
@@ -85,6 +84,9 @@ export class PraxisApplicationManager {
   // Event bus unsubscribe functions
   private eventBusCleanup: (() => void)[] = [];
 
+  // State change listeners
+  private listeners: ((context: ApplicationEngineContext) => void)[] = [];
+
   private static instance: PraxisApplicationManager;
 
   static getInstance(): PraxisApplicationManager {
@@ -94,7 +96,23 @@ export class PraxisApplicationManager {
     return PraxisApplicationManager.instance;
   }
 
+  static resetInstance(): void {
+    if (PraxisApplicationManager.instance) {
+      PraxisApplicationManager.instance.stop();
+      // @ts-ignore
+      PraxisApplicationManager.instance = undefined;
+    }
+  }
+
   constructor(config?: Partial<PraxisApplicationContext>) {
+    if (PraxisApplicationManager.instance) {
+      // If an instance already exists, we should probably return it or warn.
+      // But since constructor returns 'this', we can't return the existing instance easily without a factory.
+      // For now, we'll just update the singleton reference if it's not set.
+      // console.warn('PraxisApplicationManager instantiated directly. Use getInstance() for singleton access.');
+    } else {
+      PraxisApplicationManager.instance = this;
+    }
     this.engine = createApplicationEngine(config);
     this.eventBus = getPraxisEventBus();
     this.setupEventBusListeners();
@@ -216,25 +234,15 @@ export class PraxisApplicationManager {
     this.notifyListeners();
   }
 
-  private listeners: ((snapshot: PraxisApplicationSnapshot) => void)[] = [];
-
-  public subscribe(listener: (snapshot: PraxisApplicationSnapshot) => void): {
-    unsubscribe: () => void;
-  } {
-    this.listeners.push(listener);
-    // Send immediate snapshot
-    listener(this.getSnapshot());
-
-    return {
-      unsubscribe: () => {
-        this.listeners = this.listeners.filter((l) => l !== listener);
-      },
-    };
-  }
-
   private notifyListeners(): void {
-    const snapshot = this.getSnapshot();
-    this.listeners.forEach((l) => l(snapshot));
+    const context = this.engine.getContext();
+    for (const listener of this.listeners) {
+      try {
+        listener(context);
+      } catch (error) {
+        console.debug('Error in PraxisApplicationManager listener:', error);
+      }
+    }
   }
 
   /**
@@ -244,9 +252,6 @@ export class PraxisApplicationManager {
     if (this.isStarted) return;
     this.isStarted = true;
 
-    // Register bridge for Webview
-    this.registerWebviewBridge();
-
     // Instrument tracing
     this.instrumentTracing();
 
@@ -255,45 +260,17 @@ export class PraxisApplicationManager {
     this.timerManager.start();
   }
 
+
+
+
   /**
-   * Register the Webview bridge
+   * Subscribe to state changes
    */
-  private registerWebviewBridge(): void {
-    setApplicationStoreBridge({
-      getActor: () => ({
-        subscribe: (listener: any) =>
-          this.subscribe((snap) => {
-            // Fetch full context to satisfy XState bridge requirements
-            const ctx = this.getContext();
-            listener({
-              value: snap.state,
-              context: ctx,
-              matches: (snap as any).matches,
-            });
-          }),
-        getSnapshot: () => {
-          const snap = this.getSnapshot();
-          const ctx = this.getContext();
-          return {
-            value: snap.state,
-            context: ctx,
-            matches: (snap as any).matches,
-          };
-        },
-        send: (event: any) => {
-          const handler = eventHandlers[event.type];
-          if (handler) {
-            handler(this, event);
-          }
-        },
-      }),
-      send: (event: any) => {
-        const handler = eventHandlers[event.type];
-        if (handler) {
-          handler(this, event);
-        }
-      },
-    });
+  subscribe(listener: (context: ApplicationEngineContext) => void): () => void {
+    this.listeners.push(listener);
+    return () => {
+      this.listeners = this.listeners.filter((l) => l !== listener);
+    };
   }
 
   /**
@@ -821,10 +798,14 @@ export class PraxisApplicationManager {
       connectionCount: ctx.connections.length,
       errorRecoveryAttempts: ctx.errorRecoveryAttempts,
       // Compatibility with XState consumers
-      matches: (state: string) => {
+      matches: (state: string | Record<string, any>) => {
+        if (typeof state !== 'string') return false;
         if (state === currentState) return true;
         // Map legacy states
         if (state === 'activation_failed' && currentState === 'activation_error') return true;
+        // Map hierarchical states for UI compatibility
+        if (currentState === 'active' && state.startsWith('active.')) return false; // Substates not supported yet
+        if (currentState === 'active' && state === 'active') return true;
         return false;
       },
     };
@@ -991,11 +972,21 @@ export class PraxisApplicationManager {
   }
 
   /**
+   * Update connection state from external source
+   */
+  updateConnectionState(connectionId: string, state: any): void {
+    if (!this.isStarted) return;
+    this.dispatch([ConnectionStateUpdatedEvent.create({ connectionId, state })]);
+  }
+
+  /**
    * Authentication success
    */
   authenticationSuccess(connectionId: string): void {
     if (!this.isStarted) return;
     this.dispatch([AuthenticationSuccessEvent.create({ connectionId })]);
+    // Also clear any pending auth reminders
+    this.dispatch([AuthReminderClearedEvent.create({ connectionId })]);
   }
 
   /**

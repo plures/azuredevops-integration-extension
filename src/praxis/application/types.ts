@@ -67,6 +67,24 @@ export interface PendingWorkItems {
 }
 
 /**
+ * UI State
+ */
+export interface UIState {
+  statusMessage?: {
+    text: string;
+    type: 'info' | 'error' | 'warning' | 'success';
+  };
+  modal?: {
+    type: string;
+    workItemId?: number;
+    mode?: string;
+    [key: string]: unknown;
+  };
+  notification?: unknown;
+  dialog?: unknown;
+}
+
+/**
  * Application context - shared data across all orchestrated engines
  */
 export interface PraxisApplicationContext {
@@ -111,6 +129,7 @@ export interface PraxisApplicationContext {
   // Debug and UI flags
   debugLoggingEnabled: boolean;
   debugViewVisible: boolean;
+  ui?: UIState;
 }
 
 /**
@@ -180,4 +199,8 @@ export const DEFAULT_APPLICATION_CONFIG: Partial<PraxisApplicationContext> = {
   errorRecoveryAttempts: 0,
   debugLoggingEnabled: false,
   debugViewVisible: false,
+  ui: {
+    notification: null,
+    dialog: null,
+  },
 };

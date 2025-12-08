@@ -946,7 +946,7 @@
   },
   "dependencies": {
     "@azure/msal-node": "^3.8.0",
-    "@plures/praxis": "^1.0.3",
+    "@plures/praxis": "file:praxis",
     "@types/ws": "^8.18.1",
     "axios": "^1.12.2",
     "azure-devops-node-api": "^15.1.1",

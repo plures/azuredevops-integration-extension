@@ -14,6 +14,7 @@ import type {
   KanbanColumn,
   DeviceCodeSession,
   PendingWorkItems,
+  UIState,
 } from './types.js';
 import { DEFAULT_APPLICATION_CONFIG } from './types.js';
 import type { ProjectConnection } from '../connection/types.js';
@@ -45,6 +46,7 @@ export interface ApplicationEngineContext {
   errorRecoveryAttempts: number;
   debugLoggingEnabled: boolean;
   debugViewVisible: boolean;
+  ui?: UIState;
 
   // Per-connection maps
   connectionStates: Map<string, PraxisConnectionSnapshot>;

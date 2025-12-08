@@ -15,6 +15,7 @@ describe('PraxisApplicationManager', () => {
 
   beforeEach(() => {
     resetPraxisEventBus();
+    PraxisApplicationManager.resetInstance();
     manager = new PraxisApplicationManager();
   });
 
@@ -51,7 +52,7 @@ describe('PraxisApplicationManager', () => {
 
       const result = manager.activationFailed('Test error');
       expect(result).toBe(true);
-      expect(manager.getApplicationState()).toBe('error_recovery');
+      expect(manager.getApplicationState()).toBe('activation_error');
     });
 
     it('should deactivate from active state', () => {
@@ -322,14 +323,18 @@ describe('PraxisApplicationManager', () => {
       expect(error?.message).toBe('Test error');
     });
 
-    it('should move to error recovery on error', () => {
+    it('should report error without changing state', () => {
       manager.reportError('Critical error');
 
-      expect(manager.getApplicationState()).toBe('error_recovery');
+      expect(manager.getApplicationState()).toBe('active');
     });
 
-    it('should retry after error', () => {
-      manager.reportError('Error');
+    it('should retry after activation error', () => {
+      // Setup activation error state
+      manager.reset();
+      manager.start();
+      manager.activate();
+      manager.activationFailed('Error');
 
       const result = manager.retry();
       expect(result).toBe(true);

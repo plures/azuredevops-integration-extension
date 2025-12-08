@@ -5,7 +5,7 @@
  * This engine runs in "Replica" mode, receiving state updates from the backend.
  */
 
-import { createPraxisEngine } from '@plures/praxis';
+import { createPraxisEngine, PraxisRegistry } from '@plures/praxis';
 import { applicationRules } from '../../praxis/application/rules/index.js';
 import type { ApplicationEngineContext } from '../../praxis/application/engine.js';
 import { DEFAULT_APPLICATION_CONFIG } from '../../praxis/application/types.js';
@@ -27,7 +27,12 @@ const initialContext: ApplicationEngineContext = {
   connectionWorkItems: new Map(),
 };
 
+const registry = new PraxisRegistry<ApplicationEngineContext>();
+for (const rule of applicationRules) {
+  registry.registerRule(rule);
+}
+
 export const frontendEngine = createPraxisEngine<ApplicationEngineContext>({
   initialContext,
-  rules: applicationRules,
+  registry,
 });

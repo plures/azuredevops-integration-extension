@@ -69,7 +69,8 @@ function handleApplicationEvent(manager: PraxisApplicationManager, event: Applic
  */
 function createApplicationStore() {
   // Create and start the Praxis application manager
-  const applicationManager = new PraxisApplicationManager();
+  // Use getInstance() to ensure we share the singleton with ConnectionFSMManager
+  const applicationManager = PraxisApplicationManager.getInstance();
   applicationManager.start();
 
   // Current state store (updated via polling since Praxis doesn't have built-in subscriptions)
@@ -288,7 +289,7 @@ export const actions = {
       try {
         const mod = await import('../webview/selection.writer.internal.js');
         const evt = mod.createSelectConnection(mod.webviewOwner, connectionId);
-        vscodeApi.postMessage({ type: 'fsmEvent', event: evt });
+        vscodeApi.postMessage({ type: 'appEvent', event: evt });
         return;
       } catch {
         // fall through to FSM event

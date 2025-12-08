@@ -79,28 +79,9 @@ export function createPraxisBridge(
   }
 
   // Subscribe to manager updates
-  // We need a way to know when state changes.
-  // The manager doesn't expose a generic "onStateChange" yet,
-  // but we can subscribe to the event bus.
-  // Ideally, the manager should emit a 'state:changed' event or similar.
-  // For now, we'll poll or hook into the event bus.
-
-  // Better approach: The manager's event bus emits events.
-  // We can trigger sync on any event that might change state.
-  const unsubscribeBus = manager.subscribeToTimer(() => {
-    // Timer updates happen frequently, maybe throttle this?
-    // For now, let's sync.
+  const subscription = manager.subscribe(() => {
     sync();
   });
-
-  // Also subscribe to general application events if possible
-  // Since subscribeToTimer only catches timer events, we might need a broader subscription.
-  // Let's assume for now we rely on the existing polling mechanism in the webview
-  // or add a polling interval here if the manager doesn't push updates.
-
-  const pollInterval = setInterval(() => {
-    sync();
-  }, 200); // 5Hz update rate
 
   return {
     attachWebview(webview: Webview) {
@@ -110,6 +91,9 @@ export function createPraxisBridge(
         if (message.type === 'PRAXIS_EVENT' && message.events) {
           // Dispatch events from webview to manager
           manager.dispatch(message.events as PraxisApplicationEvent[]);
+        } else if ((message.type === 'appEvent' || message.type === 'fsmEvent') && message.event) {
+          // Legacy support: Dispatch single event
+          manager.dispatch([message.event]);
         }
       });
 
@@ -126,8 +110,7 @@ export function createPraxisBridge(
     sync,
 
     dispose() {
-      clearInterval(pollInterval);
-      unsubscribeBus();
+      //subscription.unsubscribe();
       this.detachWebview();
     },
   };

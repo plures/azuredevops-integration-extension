@@ -74,6 +74,15 @@ export function createScopedLogger(
     // CRITICAL: Always include [AzureDevOpsInt] prefix for log filtering
     const line = `${new Date().toISOString()} [AzureDevOpsInt] [${scope}] ${level} ${message}${suffix}`;
     logLine(line);
+
+    // Also write to debug console
+    if (level === 'ERROR') {
+      console.error(line);
+    } else if (level === 'WARN') {
+      console.warn(line);
+    } else {
+      console.log(line);
+    }
   };
 
   return {

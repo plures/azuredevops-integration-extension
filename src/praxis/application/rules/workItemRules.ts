@@ -16,7 +16,6 @@ export const workItemsLoadedRule = defineRule<ApplicationEngineContext>({
   description: 'Handle work items loaded',
   meta: {
     triggers: ['WORK_ITEMS_LOADED'],
-    transition: { from: 'active', to: 'active' },
   },
   impl: (state, events) => {
     const loadedEvent = findEvent(events, WorkItemsLoadedEvent);
@@ -52,7 +51,6 @@ export const workItemsErrorRule = defineRule<ApplicationEngineContext>({
   description: 'Handle work items error',
   meta: {
     triggers: ['WORK_ITEMS_ERROR'],
-    transition: { from: 'active', to: 'error_recovery' },
   },
   impl: (state, events) => {
     const errorEvent = findEvent(events, WorkItemsErrorEvent);

@@ -392,3 +392,27 @@ All critical state machine issues have been successfully resolved. The codebase 
 **Report Generated**: 2025-10-26  
 **Validated By**: AI Code Analysis  
 **Status**: ✅ COMPLETE
+
+---
+
+## 🔴 Critical Issue #3: Missing UI Elements (Query Selector)
+
+### Problem
+
+The webview was showing the header buttons but missing the query selector and work item list.
+
+### Root Cause
+
+The Praxis engine rules for loading connections (connectionsLoadedRule) and selecting a connection (connectionSelectedRule) were restricted to run only when the application state was active.
+
+However, during the activation phase (activating state), the extension loads connections from configuration and emits CONNECTIONS_LOADED and CONNECTION_SELECTED events. Because of the state restriction, these events were ignored by the engine.
+
+### Fix Applied ✅
+
+Modified src/praxis/application/rules/connectionRules.ts to remove the transition constraint from:
+
+- connectionsLoadedRule
+- connectionSelectedRule
+- queryChangedRule
+
+This allows these rules to execute in any state, ensuring that connection data is correctly populated in the context during the activation phase.

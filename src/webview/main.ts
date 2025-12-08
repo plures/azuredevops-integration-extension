@@ -4,7 +4,7 @@
  * Reads: syncState messages from extension; ApplicationContext (serialized)
  * Writes: UI-only events; selection via selection writer factory (webview-owned)
  * Receives: syncState, commands from extension
- * Emits: fsmEvent wrapper messages to activation (Router handles stamping)
+ * Emits: appEvent wrapper messages to activation (Router handles stamping)
  * Prohibitions: Do not import extension host modules; Do not define context types
  * Rationale: Webview bootstrap and message bridge for UI
  *
@@ -15,7 +15,10 @@
 import { mount } from 'svelte';
 import App from './App.svelte';
 import { frontendEngine } from './praxis/frontendEngine.js';
+import { webviewEngine } from './praxis/webview/engine.js';
 import { SyncStateEvent } from '../praxis/application/rules/syncRules.js';
+import { SyncAppStateEvent } from './praxis/webview/facts.js';
+import { applicationSnapshot } from './fsmSnapshotStore.js';
 
 // This ensures that we only try to mount the Svelte app after the DOM is fully loaded.
 // This is a critical step to prevent race conditions where the script runs before the
@@ -64,11 +67,58 @@ window.addEventListener('message', (event) => {
   console.debug('[AzureDevOpsInt][webview] Received message:', {
     type: msg?.type,
     hasContext: !!msg?.context,
+    hasPayload: !!msg?.payload,
   });
 
-  if (msg?.type === 'contextUpdate' && msg?.context) {
+  let context = msg?.context;
+  let fsmState = msg?.fsmState;
+  let matches = msg?.matches;
+
+  if (msg?.type === 'syncState' && msg?.payload) {
+    context = msg.payload.context;
+    fsmState = msg.payload.fsmState;
+    matches = msg.payload.matches;
+  }
+
+  // Handle new Praxis Reactive State
+  if (msg?.command === 'UPDATE_STATE' && msg?.payload) {
+    console.debug('[webview] Received UPDATE_STATE', msg.payload);
+    // Map the new props to the legacy context structure for now
+    // so that existing components continue to work
+    context = {
+      ...context, // Keep existing context if any
+      connections: msg.payload.connections,
+      activeConnectionId: msg.payload.activeConnectionId,
+      // Map other props as needed
+    };
+    // Force update
+  }
+
+  if (context) {
+    console.debug('[webview] Dispatching SyncState to engines', {
+      hasConnections: context.connections?.length > 0,
+      appState: fsmState,
+    });
+
+    // Enrich context with FSM state to match ApplicationEngineContext structure
+    // The serialized context from activation.ts is flat and missing applicationState
+    const enrichedContext = {
+      ...context,
+      applicationState: fsmState || 'active',
+      // Ensure connections is an array
+      connections: Array.isArray(context.connections) ? context.connections : [],
+    };
+
     // Dispatch to Praxis engine
-    frontendEngine.dispatch(new SyncStateEvent(msg.context));
+    frontendEngine.step([SyncStateEvent.create(context)]);
+    webviewEngine.step([SyncAppStateEvent.create(enrichedContext)]);
+
+    // Update the snapshot store for the UI
+    applicationSnapshot.set({
+      value: fsmState || 'active',
+      context: context,
+      matches: matches || {},
+    });
   }
 });
 
@@ -117,7 +167,7 @@ window.addEventListener('DOMContentLoaded', () => {
     );
 
     if (vscode) {
-      vscode.postMessage({ type: 'ready' });
+      vscode.postMessage({ type: 'webviewReady' });
     }
   } catch (e) {
     console.debug('🔴 [AzureDevOpsInt][webview] Failed to mount Svelte component:', e);

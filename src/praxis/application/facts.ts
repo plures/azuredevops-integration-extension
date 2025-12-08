@@ -388,6 +388,14 @@ export const WebviewReadyEvent = defineEvent<'WEBVIEW_READY', Record<string, nev
 );
 
 /**
+ * Connection state updated event
+ */
+export const ConnectionStateUpdatedEvent = defineEvent<
+  'CONNECTION_STATE_UPDATED',
+  { connectionId: string; state: any }
+>('CONNECTION_STATE_UPDATED');
+
+/**
  * Union type of all application events
  */
 export type PraxisApplicationEvent =
@@ -432,4 +440,5 @@ export type PraxisApplicationEvent =
   | ReturnType<typeof WebviewReadyEvent.create>
   | ReturnType<typeof StartTimerEvent.create>
   | ReturnType<typeof PauseTimerEvent.create>
-  | ReturnType<typeof StopTimerEvent.create>;
+  | ReturnType<typeof StopTimerEvent.create>
+  | ReturnType<typeof ConnectionStateUpdatedEvent.create>;

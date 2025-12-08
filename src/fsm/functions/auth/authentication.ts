@@ -77,7 +77,29 @@ export async function getEntraIdToken(
     }
   }
 
-  const pca = new msal.PublicClientApplication(msalConfig);
+  const authority = tenantId
+    ? `https://login.microsoftonline.com/${tenantId}`
+    : 'https://login.microsoftonline.com/common';
+
+  // Use a persistent cache plugin if possible, but for now we just recreate PCA
+  // Note: In a real extension, you should use a persistent cache to avoid re-authenticating
+  // every time the extension reloads.
+  const pca = new msal.PublicClientApplication({
+    auth: {
+      clientId: msalConfig.auth.clientId,
+      authority,
+    },
+    system: {
+      loggerOptions: {
+        loggerCallback(loglevel, message, containsPii) {
+          // console.log(message);
+        },
+        piiLoggingEnabled: false,
+        logLevel: msal.LogLevel.Verbose,
+      },
+    },
+  });
+
   const deviceCodeRequest = {
     deviceCodeCallback: (response: any) => {
       if (onDeviceCode) {

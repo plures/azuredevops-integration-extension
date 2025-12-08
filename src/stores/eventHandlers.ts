@@ -43,6 +43,20 @@ export const eventHandlers: Record<
       manager.authenticationFailed(event.connectionId as string, event.error as string);
     }
   },
+  AUTH_REMINDER_CLEARED: (manager, event) => {
+    if (event.connectionId) {
+      manager.clearAuthReminder(event.connectionId as string);
+    }
+  },
+  CONNECTION_ESTABLISHED: (manager, event) => {
+    if (event.connectionId) {
+      if (event.connectionState) {
+        manager.updateConnectionState(event.connectionId as string, event.connectionState);
+      }
+      manager.selectConnection(event.connectionId as string);
+      manager.refreshData(event.connectionId as string);
+    }
+  },
   WEBVIEW_READY: (manager) => {
     manager.webviewReady();
   },
