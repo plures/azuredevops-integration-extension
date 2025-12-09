@@ -1,4 +1,3 @@
-import { ReactiveLogicEngine } from '@plures/praxis';
 import { AppState } from './state.js';
 import { processEvent } from './rules.js';
 import type { AppEvent } from './events.js';
@@ -6,9 +5,14 @@ import type { AppEvent } from './events.js';
 /**
  * The Global Logic Engine Instance
  */
-export const engine = new ReactiveLogicEngine<AppState>({
-  initialContext: new AppState(),
-});
+class SimpleEngine {
+  context: AppState;
+  constructor(context: AppState) {
+    this.context = context;
+  }
+}
+
+export const engine = new SimpleEngine(new AppState());
 
 // Subscription System
 const listeners = new Set<(state: AppState) => void>();
