@@ -1,4 +1,4 @@
-import type { AppState } from './state.js';
+import type { AppState } from './state.svelte.js';
 import type { AppEvent } from './events.js';
 
 /**

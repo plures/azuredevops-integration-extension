@@ -9,6 +9,10 @@ const isWatch = process.argv.includes('--watch');
 const isProd = process.argv.includes('--production');
 
 async function buildExtension() {
+  // Import the svelte plugin
+  const { default: sveltePlugin } = await import('esbuild-svelte');
+  const { default: sveltePreprocess } = await import('svelte-preprocess');
+
   // 1) Build the extension (Node CommonJS - required for VSCode/Cursor)
   const ext = await esbuild.build({
     entryPoints: [path.join(__dirname, 'src', 'activation.ts')],
@@ -22,11 +26,21 @@ async function buildExtension() {
     format: 'cjs',
     logLevel: 'info',
     mainFields: ['main', 'module'],
-    resolveExtensions: ['.ts', '.js', '.json'],
+    resolveExtensions: ['.ts', '.js', '.json', '.svelte.ts'],
     alias: {
       // Workaround for praxis 1.0.0 package structure issue
       '@plures/praxis': path.join(__dirname, 'node_modules/@plures/praxis/dist/src/index.js'),
     },
+    plugins: [
+      sveltePlugin({
+        preprocess: sveltePreprocess(),
+        compilerOptions: {
+          runes: true,
+          generate: 'server', // Generate code suitable for Node.js (no DOM)
+        },
+        include: /\.(svelte\.ts|svelte\.js)$/, // Target .svelte.ts and .svelte.js files
+      }),
+    ],
   });
   console.log(`[esbuild] Built extension (CommonJS${isProd ? ' prod' : ''}) -> dist/extension.cjs`);
   return ext;
