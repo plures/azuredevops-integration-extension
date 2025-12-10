@@ -27,10 +27,6 @@ async function buildExtension() {
     logLevel: 'info',
     mainFields: ['main', 'module'],
     resolveExtensions: ['.ts', '.js', '.json', '.svelte.ts'],
-    alias: {
-      // Workaround for praxis 1.0.0 package structure issue
-      '@plures/praxis': path.join(__dirname, 'node_modules/@plures/praxis/dist/src/index.js'),
-    },
     plugins: [
       sveltePlugin({
         preprocess: sveltePreprocess(),

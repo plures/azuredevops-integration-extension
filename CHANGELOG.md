@@ -12,7 +12,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - remove stale excludes from tsconfig
 
-
 ## [2.12.4] - 2025-11-27
 
 ### Developer Experience

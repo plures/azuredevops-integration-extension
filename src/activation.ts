@@ -988,6 +988,7 @@ async function ensureSharedContextBridge(
       logger: (message, meta) => {
         verbose(`[context-bridge] ${message}`, meta);
       },
+      contextSelector: (ctx) => getSerializableContext(ctx),
     });
 
     context.subscriptions.push(sharedContextBridge);
@@ -1640,12 +1641,18 @@ async function ensureActiveConnection(
     });
   } catch (error: any) {
     verbose('[ensureActiveConnection] Connection attempt threw error:', error);
+    const errorMessage = error.message || String(error);
     PraxisApplicationManager.getInstance().handleEvent(
       AuthenticationFailedEvent({
         connectionId: connection.id,
-        error: error.message || String(error),
+        error: errorMessage,
       })
     );
+    // Also dispatch to Praxis Core for UI
+    dispatch({
+      type: 'AUTH_FAILED',
+      payload: { reason: errorMessage },
+    });
     return undefined;
   }
 
@@ -1669,12 +1676,18 @@ async function ensureActiveConnection(
   });
 
   // Dispatch failure event to application manager to ensure UI reflects the error
+  const errorMessage = result.error || 'Connection failed';
   PraxisApplicationManager.getInstance().handleEvent(
     AuthenticationFailedEvent({
       connectionId: connection.id,
-      error: result.error || 'Connection failed',
+      error: errorMessage,
     })
   );
+  // Also dispatch to Praxis Core for UI
+  dispatch({
+    type: 'AUTH_FAILED',
+    payload: { reason: errorMessage },
+  });
 
   return undefined;
 }
@@ -3104,10 +3117,29 @@ function getSerializableContext(context: any): Record<string, any> {
   }
 
   // Extract only serializable properties, excluding VS Code API objects and actors
+  const resolvedConnections =
+    context.connections && context.connections.length > 0 ? context.connections : connections || [];
+
+  // FORCE LOGGING TO CONSOLE TO BYPASS VERBOSE FILTER
+  // console.log('[getSerializableContext] Resolving connections', {
+  //   contextConnectionsLen: context.connections?.length,
+  //   fallbackConnectionsLen: connections?.length,
+  //   resolvedLen: resolvedConnections.length,
+  // });
+
+  if (shouldLogDebug()) {
+    verbose('[getSerializableContext] Resolving connections', {
+      contextConnectionsLen: context.connections?.length,
+      fallbackConnectionsLen: connections?.length,
+      resolvedLen: resolvedConnections.length,
+    });
+  }
+
   const serialized = {
+    applicationState: context.applicationState,
     isActivated: context.isActivated,
     isDeactivating: context.isDeactivating,
-    connections: context.connections || connections || [],
+    connections: resolvedConnections,
     activeConnectionId: context.activeConnectionId || activeConnectionId,
     activeQuery: context.activeQuery,
     connectionStates: context.connectionStates ? Object.fromEntries(context.connectionStates) : {},
@@ -3275,11 +3307,13 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
 
           if (evtType === 'RETRY') {
             verbose('[AzureDevOpsIntViewProvider] Handling RETRY event');
-            ensureActiveConnection(this.context, activeConnectionId, { refresh: true }).catch(
-              (error) => {
-                verbose('[AzureDevOpsIntViewProvider] Retry connection failed:', error);
-              }
-            );
+            // Force interactive mode on explicit retry to handle expired tokens/device code flow
+            ensureActiveConnection(this.context, activeConnectionId, {
+              refresh: true,
+              interactive: true,
+            }).catch((error) => {
+              verbose('[AzureDevOpsIntViewProvider] Retry connection failed:', error);
+            });
           }
 
           // Guard: selection must originate from webview when using new factory
@@ -3384,8 +3418,10 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
 
         // Forward other events to FSM
         dispatchApplicationEvent(message.event);
-      } else if (message.type === 'webviewReady') {
-        verbose('[AzureDevOpsIntViewProvider] Received webviewReady signal - resending state');
+      } else if (message.type === 'webviewReady' || message.type === 'getContext') {
+        verbose('[AzureDevOpsIntViewProvider] Received webview signal - resending state', {
+          type: message.type,
+        });
         const appActor = getApplicationStoreActor();
         if (appActor && typeof (appActor as any).getSnapshot === 'function') {
           const snapshot = (appActor as any).getSnapshot();
@@ -3415,9 +3451,14 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
               'active.ready.error': snapshot.matches({ active: { ready: 'error' } }),
             };
 
+            const latestContext =
+              (appActor as any)?.getContext && typeof (appActor as any).getContext === 'function'
+                ? (appActor as any).getContext()
+                : snapshot.context;
+
             const serializableState = {
               fsmState: snapshot.value,
-              context: getSerializableContext(snapshot.context),
+              context: getSerializableContext(latestContext),
               matches,
             };
             webview.postMessage({
@@ -3484,9 +3525,14 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
           'active.ready.error': snapshot.matches({ active: { ready: 'error' } }),
         };
 
+        const latestContext =
+          (appActor as any)?.getContext && typeof (appActor as any).getContext === 'function'
+            ? (appActor as any).getContext()
+            : snapshot.context;
+
         const serializableState = {
           fsmState: snapshot.value,
-          context: getSerializableContext(snapshot.context),
+          context: getSerializableContext(latestContext),
           matches,
         };
         verbose('[AzureDevOpsIntViewProvider] Posting initial syncState message with matches', {

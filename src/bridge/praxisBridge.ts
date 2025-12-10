@@ -79,7 +79,7 @@ export function createPraxisBridge(
   }
 
   // Subscribe to manager updates
-  const subscription = manager.subscribe(() => {
+  const unsubscribe = manager.subscribe(() => {
     sync();
   });
 
@@ -110,7 +110,7 @@ export function createPraxisBridge(
     sync,
 
     dispose() {
-      //subscription.unsubscribe();
+      unsubscribe?.();
       this.detachWebview();
     },
   };

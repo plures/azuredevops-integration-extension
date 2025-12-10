@@ -189,6 +189,20 @@ LLM-GUARD:
       <div class="empty-state">
         <p>No connections configured.</p>
         <button onclick={() => sendEvent({ type: 'OPEN_SETTINGS' })}>Configure Connections</button>
+        
+        <!-- Debug Info for Troubleshooting -->
+        <div style="margin-top: 20px; font-size: 0.8em; color: var(--vscode-descriptionForeground); text-align: left;">
+          <details>
+            <summary>Debug Info (v2)</summary>
+            <pre>{JSON.stringify({
+              hasConnections,
+              connectionsLength: appContext?.connections?.length,
+              appState: appContext?.applicationState,
+              contextKeys: appContext ? Object.keys(appContext) : [],
+              rawConnections: appContext?.connections
+            }, null, 2)}</pre>
+          </details>
+        </div>
       </div>
     {/if}
   {/if}

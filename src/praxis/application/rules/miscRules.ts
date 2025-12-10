@@ -17,7 +17,6 @@ import {
   AuthReminderRequestedEvent,
   AuthReminderClearedEvent,
   AuthenticationSuccessEvent,
-  AuthenticationFailedEvent,
 } from '../facts.js';
 
 // ============================================================================
@@ -280,36 +279,6 @@ export const authenticationSuccessRule = defineRule<ApplicationEngineContext>({
   },
 });
 
-/**
- * Handle authentication failed
- */
-export const authenticationFailedRule = defineRule<ApplicationEngineContext>({
-  id: 'application.authenticationFailed',
-  description: 'Handle authentication failure',
-  meta: {
-    triggers: ['AUTHENTICATION_FAILED'],
-  },
-  impl: (state, events) => {
-    const failedEvent = findEvent(events, AuthenticationFailedEvent);
-    if (!failedEvent) return [];
-
-    const { connectionId, error } = failedEvent.payload;
-
-    state.context.lastError = {
-      message: error,
-      connectionId,
-    };
-
-    state.context.pendingAuthReminders.set(connectionId, {
-      connectionId,
-      reason: error,
-      status: 'pending',
-    });
-
-    return [];
-  },
-});
-
 export const miscRules = [
   // Device code
   deviceCodeStartedRule,
@@ -325,5 +294,4 @@ export const miscRules = [
   authReminderRequestedRule,
   authReminderClearedRule,
   authenticationSuccessRule,
-  authenticationFailedRule,
 ];

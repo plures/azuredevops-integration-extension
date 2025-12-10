@@ -15,9 +15,9 @@
 import { mount } from 'svelte';
 import App from './App.svelte';
 import { frontendEngine } from './praxis/frontendEngine.js';
-import { webviewEngine } from './praxis/webview/engine.js';
+import { webviewStore } from './praxis/webview/store.js';
 import { SyncStateEvent } from '../praxis/application/rules/syncRules.js';
-import { SyncAppStateEvent } from './praxis/webview/facts.js';
+import { SyncAppStateEvent, PartialAppStateUpdateEvent } from './praxis/webview/facts.js';
 import { applicationSnapshot } from './fsmSnapshotStore.js';
 
 // This ensures that we only try to mount the Svelte app after the DOM is fully loaded.
@@ -74,49 +74,73 @@ window.addEventListener('message', (event) => {
   let fsmState = msg?.fsmState;
   let matches = msg?.matches;
 
+  // Normalize payload-first sync messages (new) and direct context messages (legacy)
   if (msg?.type === 'syncState' && msg?.payload) {
     context = msg.payload.context;
     fsmState = msg.payload.fsmState;
     matches = msg.payload.matches;
   }
 
-  // Handle new Praxis Reactive State
+  // Support SharedContextBridge legacy messages
+  if (msg?.type === 'contextUpdate' && msg?.context) {
+    context = msg.context;
+    fsmState = msg.meta?.state ?? fsmState;
+  }
+
+  // Handle new Praxis Reactive State (Partial Update)
   if (msg?.command === 'UPDATE_STATE' && msg?.payload) {
     console.debug('[webview] Received UPDATE_STATE', msg.payload);
-    // Map the new props to the legacy context structure for now
-    // so that existing components continue to work
-    context = {
-      ...context, // Keep existing context if any
+
+    const partialUpdate = {
       connections: msg.payload.connections,
       activeConnectionId: msg.payload.activeConnectionId,
-      // Map other props as needed
+      lastError:
+        msg.payload.errors?.length > 0
+          ? { message: msg.payload.errors[msg.payload.errors.length - 1].message }
+          : undefined,
     };
-    // Force update
+
+    // Dispatch partial update via store so subscribers are notified
+    webviewStore.dispatch([PartialAppStateUpdateEvent.create(partialUpdate)] as any);
+
+    // We don't update 'context' variable here to avoid clobbering full sync logic below
+    // The webviewStore (subscribed to webviewEngine) will update the UI
+    return;
   }
 
   if (context) {
+    const connectionsLen = Array.isArray(context.connections) ? context.connections.length : 0;
+
     console.debug('[webview] Dispatching SyncState to engines', {
-      hasConnections: context.connections?.length > 0,
+      hasConnections: connectionsLen > 0,
+      connectionsLen,
       appState: fsmState,
     });
 
     // Enrich context with FSM state to match ApplicationEngineContext structure
-    // The serialized context from activation.ts is flat and missing applicationState
     const enrichedContext = {
       ...context,
-      applicationState: fsmState || 'active',
+      applicationState: fsmState || context.applicationState || 'active',
       // Ensure connections is an array
       connections: Array.isArray(context.connections) ? context.connections : [],
+      // Ensure UI state exists
+      ui: context.ui || { activeTab: 'connections' },
     };
 
-    // Dispatch to Praxis engine
-    frontendEngine.step([SyncStateEvent.create(context)]);
-    webviewEngine.step([SyncAppStateEvent.create(enrichedContext)]);
+    console.debug('[webview] Enriched context summary', {
+      connectionsLen: enrichedContext.connections.length,
+      activeConnectionId: enrichedContext.activeConnectionId,
+      appState: enrichedContext.applicationState,
+    });
+
+    // Dispatch to Praxis engines (use stores so subscribers are notified)
+    frontendEngine.step([SyncStateEvent.create(enrichedContext)]);
+    webviewStore.dispatch([SyncAppStateEvent.create(enrichedContext)] as any);
 
     // Update the snapshot store for the UI
     applicationSnapshot.set({
-      value: fsmState || 'active',
-      context: context,
+      value: enrichedContext.applicationState,
+      context: enrichedContext,
       matches: matches || {},
     });
   }
@@ -168,6 +192,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
     if (vscode) {
       vscode.postMessage({ type: 'webviewReady' });
+      // Fallback: explicitly request latest context in case initial syncState was missed
+      vscode.postMessage({ type: 'getContext' });
     }
   } catch (e) {
     console.debug('🔴 [AzureDevOpsInt][webview] Failed to mount Svelte component:', e);

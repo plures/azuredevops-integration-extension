@@ -4,7 +4,7 @@ This guide documents how to integrate **Praxis** (which uses Svelte 5 Runes) int
 
 ## The Challenge
 
-Praxis uses Svelte 5 Runes (`$state`, `$derived`, `$effect`) for fine-grained reactivity. These are **compile-time macros**. 
+Praxis uses Svelte 5 Runes (`$state`, `$derived`, `$effect`) for fine-grained reactivity. These are **compile-time macros**.
 
 The VS Code Extension Host runs **Node.js**, which does not understand `$state`. If you try to run Praxis code directly, you will get:
 `ReferenceError: $state is not defined`.
@@ -26,6 +26,7 @@ npm install --save-dev esbuild esbuild-svelte svelte svelte-preprocess
 You need to configure `esbuild` to handle `.svelte.ts` files.
 
 **Key Configuration Points:**
+
 1.  **Plugin**: Use `esbuild-svelte`.
 2.  **Compiler Options**: Set `runes: true` and `generate: 'server'`.
 3.  **Include**: Target `.svelte.ts` (and `.svelte.js`) files.
@@ -61,14 +62,15 @@ async function buildExtension() {
 
 ### 3. File Naming
 
-*   Use `.svelte.ts` for any file that uses `$state` or `$derived`.
-*   This signals to the bundler (and developers) that the file contains reactive logic.
+- Use `.svelte.ts` for any file that uses `$state` or `$derived`.
+- This signals to the bundler (and developers) that the file contains reactive logic.
 
 ## Automation & Best Practices
 
 To make this easier for future extensions, we should consider:
 
 1.  **Shared Build Package**: Create `@plures/praxis-build-vscode` that exports a pre-configured esbuild setup.
+
     ```javascript
     // Future usage
     import { buildExtension } from '@plures/praxis-build-vscode';

@@ -13,6 +13,7 @@ import {
   QueryChangedEvent,
   ViewModeChangedEvent,
   ConnectionStateUpdatedEvent,
+  AuthenticationFailedEvent,
 } from '../facts.js';
 import type { PraxisConnectionSnapshot, PraxisConnectionState } from '../../connection/types.js';
 
@@ -28,6 +29,11 @@ export const connectionsLoadedRule = defineRule<ApplicationEngineContext>({
   impl: (state, events) => {
     const loadedEvent = findEvent(events, ConnectionsLoadedEvent);
     if (!loadedEvent) return [];
+
+    // console.log('[Praxis] connectionsLoadedRule triggered', {
+    //   count: loadedEvent.payload.connections.length,
+    //   ids: loadedEvent.payload.connections.map((c) => c.id),
+    // });
 
     state.context.connections = loadedEvent.payload.connections;
 
@@ -129,6 +135,64 @@ export const viewModeChangedRule = defineRule<ApplicationEngineContext>({
 });
 
 /**
+ * Handle authentication failure
+ */
+export const authenticationFailedRule = defineRule<ApplicationEngineContext>({
+  id: 'application.authenticationFailed',
+  description: 'Handle authentication failure',
+  meta: {
+    triggers: ['AUTHENTICATION_FAILED'],
+  },
+  impl: (state, events) => {
+    const failedEvent = findEvent(events, AuthenticationFailedEvent);
+    if (!failedEvent) return [];
+
+    const { connectionId, error } = failedEvent.payload;
+
+    // Update last error
+    state.context.lastError = {
+      message: error,
+      connectionId,
+    };
+
+    // Add auth reminder
+    state.context.pendingAuthReminders.set(connectionId, {
+      connectionId,
+      reason: error,
+      status: 'pending',
+    });
+
+    // Update connection state if it exists
+    const existingState = state.context.connectionStates.get(connectionId);
+    if (existingState) {
+      state.context.connectionStates.set(connectionId, {
+        ...existingState,
+        state: 'auth_failed',
+        error: error,
+        isConnected: false,
+      });
+    } else {
+      // If we don't have state yet, create a placeholder one
+      const connection = state.context.connections.find((c) => c.id === connectionId);
+      if (connection) {
+        state.context.connectionStates.set(connectionId, {
+          state: 'auth_failed',
+          connectionId,
+          isConnected: false,
+          authMethod: connection.authMethod || 'pat',
+          hasClient: false,
+          hasProvider: false,
+          error: error,
+          retryCount: 0,
+        });
+      }
+    }
+
+    return [];
+  },
+});
+
+/**
  * Handle connection state updated
  */
 export const connectionStateUpdatedRule = defineRule<ApplicationEngineContext>({
@@ -172,4 +236,5 @@ export const connectionRules = [
   queryChangedRule,
   viewModeChangedRule,
   connectionStateUpdatedRule,
+  authenticationFailedRule,
 ];

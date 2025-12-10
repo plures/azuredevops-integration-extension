@@ -47,8 +47,15 @@ export function processEvent(state: AppState, event: AppEvent) {
       break;
 
     case 'AUTH_SUCCESS':
+      state.isAuthenticating = false;
+      break;
+
     case 'AUTH_FAILED':
       state.isAuthenticating = false;
+      state.errors.push({
+        code: 'AUTH_FAILED',
+        message: event.payload.reason,
+      });
       break;
   }
 }

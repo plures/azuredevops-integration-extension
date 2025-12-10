@@ -4,7 +4,7 @@
  * Wraps the frontend engine in a Svelte store.
  */
 
-import { createPraxisStore, createContextStore } from '@plures/praxis/svelte';
+import { createPraxisStore } from '@plures/praxis/svelte';
 import { frontendEngine } from './frontendEngine.js';
 import type { PraxisEvent } from '@plures/praxis';
 
@@ -29,9 +29,6 @@ export const praxisStore = {
   subscribe: rawStore.subscribe,
   dispatch: dispatchWithSync,
 };
-
-// Create a context-only store for easier access in components
-export const contextStore = createContextStore(frontendEngine);
 
 // Export dispatch for convenience
 export const dispatch = dispatchWithSync;

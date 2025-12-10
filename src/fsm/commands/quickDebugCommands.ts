@@ -49,6 +49,34 @@ export function registerQuickDebugCommands(context: vscode.ExtensionContext): vo
     })
   );
 
+  // SIMULATE CONNECTION LOAD - Test reactivity
+  context.subscriptions.push(
+    vscode.commands.registerCommand('azureDevOpsInt.debug.simulateConnectionLoad', async () => {
+      try {
+        // Dynamic import to avoid circular dependency
+        const { dispatchApplicationEvent } = await import('../../activation.js');
+        const fakeConnection = {
+          id: 'simulated-' + Date.now(),
+          organization: 'SimulatedOrg',
+          project: 'SimulatedProject',
+          label: 'Simulated Connection ' + new Date().toLocaleTimeString(),
+          authMethod: 'pat',
+        } as any;
+
+        vscode.window.showInformationMessage(`Simulating connection load: ${fakeConnection.label}`);
+        dispatchApplicationEvent({
+          type: 'CONNECTIONS_LOADED',
+          payload: {
+            connections: [fakeConnection],
+            activeId: fakeConnection.id,
+          },
+        });
+      } catch (error) {
+        vscode.window.showErrorMessage(`Simulation failed: ${error}`);
+      }
+    })
+  );
+
   fsmLogger.info(FSMComponent.MACHINE, 'Quick debug commands registered');
 }
 

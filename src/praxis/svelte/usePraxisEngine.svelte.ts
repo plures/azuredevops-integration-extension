@@ -103,13 +103,6 @@ export function usePraxisEngine<TContext>(
  * <div>State: {timerState}</div>
  * ```
  */
-export function usePraxisSelector<TContext, TSelected>(
-  state: PraxisEngineState<TContext>,
-  selector: (context: TContext) => TSelected
-): TSelected {
-  // In Svelte 5, we can use $derived to create a reactive derived value
-  return $derived(selector(state.context));
-}
 
 /**
  * Create a matches helper for checking application state

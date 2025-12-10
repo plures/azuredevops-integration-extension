@@ -91,8 +91,8 @@ export async function getEntraIdToken(
     },
     system: {
       loggerOptions: {
-        loggerCallback(loglevel, message, containsPii) {
-          // console.log(message);
+        loggerCallback(_loglevel, _message, _containsPii) {
+          // intentional noop
         },
         piiLoggingEnabled: false,
         logLevel: msal.LogLevel.Verbose,
