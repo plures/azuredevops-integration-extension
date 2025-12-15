@@ -76,6 +76,48 @@ export const eventHandlers: Record<
   SIGN_IN_ENTRA: (manager, event) =>
     manager.signInEntra(event.connectionId as string, event.forceInteractive as boolean),
   SIGN_OUT_ENTRA: (manager, event) => manager.signOutEntra(event.connectionId as string),
+  WORK_ITEMS_LOADED: (manager, event) => {
+    const connectionId =
+      typeof event.connectionId === 'string'
+        ? (event.connectionId as string)
+        : manager.getContext().activeConnectionId;
+
+    if (!connectionId) {
+      return;
+    }
+
+    const workItems = Array.isArray(event.workItems) ? (event.workItems as any[]) : [];
+    const query = typeof event.query === 'string' ? (event.query as string) : undefined;
+
+    manager.workItemsLoaded(workItems, connectionId, query);
+
+    if (event.kanbanView === true) {
+      manager.setViewMode('kanban');
+    }
+  },
+
+  WORK_ITEMS_ERROR: (manager, event) => {
+    const connectionId =
+      typeof event.connectionId === 'string'
+        ? (event.connectionId as string)
+        : manager.getContext().activeConnectionId;
+
+    if (!connectionId) {
+      return;
+    }
+
+    const error = typeof event.error === 'string' ? (event.error as string) : 'Unknown error';
+    manager.workItemsError(error, connectionId);
+  },
+
+  COMMENT_RESULT: (manager, event) => {
+    if (event.success === false) {
+      const errorMessage =
+        typeof event.error === 'string' ? (event.error as string) : 'Comment operation failed';
+      manager.reportError(errorMessage, event.connectionId as string | undefined);
+    }
+    // Success cases are handled upstream (webview/UI). No-op to avoid warning noise.
+  },
   TOGGLE_DEBUG_VIEW: (manager) => manager.toggleDebugView(),
   TOGGLE_VIEW: (manager) => manager.toggleViewMode(),
   PAUSE_TIMER: (manager) => manager.pauseTimer(),

@@ -204,6 +204,21 @@ Transform the Azure DevOps Integration extension into the definitive VS Code com
 3. **Accessibility Testing**: Automated accessibility checks
 4. **User Testing**: Regular user feedback sessions
 
+### Copilot + Praxis Governance (LLM Guardrails)
+
+**Goal**: Ensure AI-generated changes never sidestep Praxis rigor, keep the codebase clean, and preserve readability and traceability.
+
+- **Praxis-first outputs**: Copilot must propose changes only as Events, Facts, Rules, or Flows/Actors that interpret effect commands—never inline side effects inside rules.
+- **Naming & structure**: Rules follow `<Domain><Aspect><Action>` naming, one rule per file export, alphabetized exports, and mandatory metadata tags (domain, capability, safety) for CodeCanvas filtering.
+- **Schema registration**: New events/facts/rules must be added to the centralized schema indices; unregistered logic is rejected.
+- **Effect discipline**: Side effects are emitted as typed effect commands; actors/flows remain small (length-limited by lint) and single-responsibility.
+- **No legacy drift**: Zero-tolerance for unused, dead, or confusing files—removals must delete references and files; CI blocks orphaned modules and unused exports.
+- **Lint/format enforcement**: ESLint plugin `praxis` enforces purity (no I/O/time/random in rules), size caps, ordering, and schema registration; `Format Document` auto-fixes ordering and import hygiene.
+- **Trace + Canvas fidelity**: Every new/changed rule includes metadata for filtering and remains trace-visible via `debugTraceLog`; CodeCanvas filters by tags to aid review.
+- **Simulation before merge**: Changes include a minimal expectation spec or simulation scenario (deterministic inputs → expected facts/context) instead of ad-hoc tests; property-based sweeps for invariants where applicable.
+- **CI gates**: Pipeline runs `npm run build`, `npm run test`, `praxis:lint`, and “no-orphans” checks; any violation fails the build.
+- **Copilot operating mode**: Copilot must adhere to repository instructions (Praxis-first, purity, no legacy FSM shortcuts) and refuse to generate code that violates these guardrails.
+
 ### Release Strategy
 
 1. **Beta Releases**: Monthly beta releases for testing

@@ -25,6 +25,8 @@ import * as vscode from 'vscode';
 import { createLogger } from '../../logging/unifiedLogger.js';
 
 const logger = createLogger('fsm-setup-service');
+const DEFAULT_ENTRA_TENANT_ID = 'organizations';
+const DEFAULT_ENTRA_CLIENT_ID = 'a5243d69-523e-496b-a22c-7ff3b5a3e85b';
 
 // Define the connection type locally since it's defined in activation.ts
 type ProjectConnection = {
@@ -42,6 +44,18 @@ type ProjectConnection = {
   apiBaseUrl?: string;
 };
 
+interface StartSetupOptions {
+  /**
+   * Target connection to reconfigure. When provided with startAtAuthChoice,
+   * skips URL parsing and jumps directly to auth selection.
+   */
+  connectionId?: string;
+  /**
+   * When true, start the flow at the auth method selection step for the target connection.
+   */
+  startAtAuthChoice?: boolean;
+}
+
 // Result type for setup flow
 export interface FSMSetupResult {
   status: 'success' | 'cancelled' | 'removed';
@@ -56,13 +70,19 @@ export class FSMSetupService {
     this.context = context;
   }
 
-  async startSetup(_options?: { skipInitialChoice?: boolean }): Promise<FSMSetupResult> {
+  async startSetup(options?: StartSetupOptions): Promise<FSMSetupResult> {
     // Load connections from workspace configuration (not globalState!)
     const settings = vscode.workspace.getConfiguration('azureDevOpsIntegration');
     const existingConnections = settings.get<ProjectConnection[]>('connections', []);
     const activeConnectionId = this.context.globalState.get<string>(
       'azureDevOpsInt.activeConnectionId'
     );
+
+    const startAtAuthChoice = options?.startAtAuthChoice ?? false;
+    const targetConnectionId = options?.connectionId ?? activeConnectionId;
+    const targetConnection = targetConnectionId
+      ? existingConnections.find((c) => c.id === targetConnectionId)
+      : undefined;
 
     logger.debug('Starting setup', {
       connectionsCount: existingConnections.length,
@@ -71,9 +91,15 @@ export class FSMSetupService {
         id: c.id,
         authMethod: c.authMethod,
       })),
+      startAtAuthChoice,
+      targetConnectionId,
     });
 
     try {
+      if (startAtAuthChoice && targetConnection) {
+        return await this.reconfigureAuth(targetConnection, existingConnections, settings);
+      }
+
       // Simplified setup flow without XState
       const url = await this.showUrlInput();
       if (!url) {
@@ -216,28 +242,30 @@ export class FSMSetupService {
     }
   }
 
-  private async showAuthMethodSelection(): Promise<'pat' | 'entra' | undefined> {
-    const authMethod = await vscode.window.showQuickPick(
-      [
-        {
-          label: 'Personal Access Token (PAT)',
-          description: 'Use a Personal Access Token for authentication',
-          detail: 'Recommended for most users. Generate a PAT from Azure DevOps settings.',
-          value: 'pat' as const,
-        },
-        {
-          label: 'Microsoft Entra ID (OAuth)',
-          description: 'Use your Microsoft account to sign in',
-          detail: 'Enterprise authentication using your organizational account.',
-          value: 'entra' as const,
-        },
-      ],
+  private async showAuthMethodSelection(
+    currentMethod?: 'pat' | 'entra'
+  ): Promise<'pat' | 'entra' | undefined> {
+    const items = [
       {
-        placeHolder: 'Choose authentication method',
-        matchOnDescription: true,
-        matchOnDetail: true,
-      }
-    );
+        label: 'Personal Access Token (PAT)',
+        description: 'Use a Personal Access Token for authentication',
+        detail: 'Recommended for most users. Generate a PAT from Azure DevOps settings.',
+        value: 'pat' as const,
+      },
+      {
+        label: 'Microsoft Entra ID (OAuth)',
+        description: 'Use your Microsoft account to sign in',
+        detail: 'Enterprise authentication using your organizational account.',
+        value: 'entra' as const,
+      },
+    ];
+
+    const authMethod = await vscode.window.showQuickPick(items, {
+      placeHolder: 'Choose authentication method',
+      matchOnDescription: true,
+      matchOnDetail: true,
+      activeItem: currentMethod ? items.find((item) => item.value === currentMethod) : undefined,
+    });
 
     return authMethod?.value;
   }
@@ -256,35 +284,82 @@ export class FSMSetupService {
   }
 
   private async showEntraConfig(): Promise<{ tenantId: string; clientId: string } | null> {
-    const tenantId = await vscode.window.showInputBox({
-      prompt: 'Enter your Tenant ID (Directory ID)',
-      placeHolder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-      validateInput: (value) => {
-        if (!value) return 'Tenant ID is required';
-        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
-          return 'Invalid Tenant ID format';
-        }
-        return null;
-      },
+    // Defaults are handled automatically; keep method for potential future advanced configuration
+    return { tenantId: DEFAULT_ENTRA_TENANT_ID, clientId: DEFAULT_ENTRA_CLIENT_ID };
+  }
+
+  private async reconfigureAuth(
+    targetConnection: ProjectConnection,
+    existingConnections: ProjectConnection[],
+    settings: vscode.WorkspaceConfiguration
+  ): Promise<FSMSetupResult> {
+    logger.debug('Reconfiguring authentication for connection', {
+      connectionId: targetConnection.id,
+      authMethod: targetConnection.authMethod,
     });
 
-    if (!tenantId) return null;
+    const authMethod = await this.showAuthMethodSelection(targetConnection.authMethod);
+    if (!authMethod) {
+      return { status: 'cancelled' };
+    }
 
-    const clientId = await vscode.window.showInputBox({
-      prompt: 'Enter your Application (Client) ID',
-      placeHolder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-      validateInput: (value) => {
-        if (!value) return 'Client ID is required';
-        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
-          return 'Invalid Client ID format';
-        }
-        return null;
-      },
-    });
+    let patToken: string | undefined;
+    let tenantId: string | undefined;
+    let clientId: string | undefined;
 
-    if (!clientId) return null;
+    if (authMethod === 'pat') {
+      patToken = await this.showPATInput();
+      if (!patToken) {
+        return { status: 'cancelled' };
+      }
+    } else {
+      // Device code flow uses the built-in multi-tenant app; do not prompt for tenant/client IDs
+      tenantId = targetConnection.tenantId || DEFAULT_ENTRA_TENANT_ID;
+      clientId = targetConnection.clientId || DEFAULT_ENTRA_CLIENT_ID;
+    }
 
-    return { tenantId, clientId };
+    if (authMethod !== 'pat' && targetConnection.patKey) {
+      await this.context.secrets.delete(targetConnection.patKey);
+    }
+
+    const patKey =
+      authMethod === 'pat' ? (targetConnection.patKey ?? `pat-${targetConnection.id}`) : undefined;
+
+    if (authMethod === 'pat' && patKey && patToken) {
+      await this.context.secrets.store(patKey, patToken);
+    }
+
+    const updatedConnection: ProjectConnection = {
+      ...targetConnection,
+      authMethod,
+      patKey,
+      tenantId: authMethod === 'entra' ? tenantId : undefined,
+      clientId: authMethod === 'entra' ? clientId : undefined,
+    };
+
+    const updatedConnections = existingConnections.map((connection) =>
+      connection.id === targetConnection.id ? updatedConnection : connection
+    );
+
+    await settings.update('connections', updatedConnections, vscode.ConfigurationTarget.Global);
+
+    try {
+      const { setLoadedConnectionsReader } = await import('../services/extensionHostBridge.js');
+      setLoadedConnectionsReader(() => updatedConnections);
+    } catch (error) {
+      logger.warn('Failed to update bridge reader after auth reset', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    if (authMethod === 'entra') {
+      vscode.window.showInformationMessage(
+        'Authentication method updated. Starting Entra sign-in — complete the device code prompt to finish.'
+      );
+    } else {
+      vscode.window.showInformationMessage('Authentication updated successfully.');
+    }
+    return { status: 'success', connectionId: targetConnection.id };
   }
 
   private async manageExistingConnections(

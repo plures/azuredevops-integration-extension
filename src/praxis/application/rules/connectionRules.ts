@@ -20,7 +20,7 @@ import type { PraxisConnectionSnapshot, PraxisConnectionState } from '../../conn
 /**
  * Handle connections loaded
  */
-export const connectionsLoadedRule = defineRule<ApplicationEngineContext>({
+const connectionsLoadedRule = defineRule<ApplicationEngineContext>({
   id: 'application.connectionsLoaded',
   description: 'Handle connections loaded',
   meta: {
@@ -49,7 +49,7 @@ export const connectionsLoadedRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle connection selected
  */
-export const connectionSelectedRule = defineRule<ApplicationEngineContext>({
+const connectionSelectedRule = defineRule<ApplicationEngineContext>({
   id: 'application.connectionSelected',
   description: 'Handle connection selection',
   meta: {
@@ -82,7 +82,7 @@ export const connectionSelectedRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle query changed
  */
-export const queryChangedRule = defineRule<ApplicationEngineContext>({
+const queryChangedRule = defineRule<ApplicationEngineContext>({
   id: 'application.queryChanged',
   description: 'Handle query change',
   meta: {
@@ -109,7 +109,7 @@ export const queryChangedRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle view mode changed
  */
-export const viewModeChangedRule = defineRule<ApplicationEngineContext>({
+const viewModeChangedRule = defineRule<ApplicationEngineContext>({
   id: 'application.viewModeChanged',
   description: 'Handle view mode change',
   meta: {
@@ -137,7 +137,7 @@ export const viewModeChangedRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle authentication failure
  */
-export const authenticationFailedRule = defineRule<ApplicationEngineContext>({
+const authenticationFailedRule = defineRule<ApplicationEngineContext>({
   id: 'application.authenticationFailed',
   description: 'Handle authentication failure',
   meta: {
@@ -195,7 +195,7 @@ export const authenticationFailedRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle connection state updated
  */
-export const connectionStateUpdatedRule = defineRule<ApplicationEngineContext>({
+const connectionStateUpdatedRule = defineRule<ApplicationEngineContext>({
   id: 'application.connectionStateUpdated',
   description: 'Update connection state from external source',
   meta: {

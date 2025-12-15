@@ -14,7 +14,6 @@ import type {
   KanbanColumn,
   DeviceCodeSession,
   PendingWorkItems,
-  UIState,
 } from './types.js';
 import { DEFAULT_APPLICATION_CONFIG } from './types.js';
 import type { ProjectConnection } from '../connection/types.js';
@@ -22,6 +21,13 @@ import type { PraxisTimerSnapshot } from '../timer/types.js';
 import type { PraxisConnectionSnapshot } from '../connection/types.js';
 import { applicationRules } from './rules/index.js';
 import type { TimerEntry } from './features/timer.js';
+import { TraceRecorder, wrapRuleWithTracing } from './tracing.js';
+
+// Simple clock helper to allow tests to stub time if needed
+const defaultClock = { now: () => Date.now() };
+export function getClock(_state?: ApplicationEngineContext) {
+  return defaultClock;
+}
 
 /**
  * Application engine context structure
@@ -46,7 +52,6 @@ export interface ApplicationEngineContext {
   errorRecoveryAttempts: number;
   debugLoggingEnabled: boolean;
   debugViewVisible: boolean;
-  ui?: UIState;
 
   // Per-connection maps
   connectionStates: Map<string, PraxisConnectionSnapshot>;
@@ -123,12 +128,17 @@ function _createConnectionMaps(merged: any) {
  * Create the application engine
  */
 export function createApplicationEngine(
-  config?: Partial<PraxisApplicationContext>
+  config?: Partial<PraxisApplicationContext>,
+  traceRecorder?: TraceRecorder<ApplicationEngineContext>
 ): LogicEngine<ApplicationEngineContext> {
   const registry = new PraxisRegistry<ApplicationEngineContext>();
 
   // Register all application rules
-  for (const rule of applicationRules) {
+  const rules = traceRecorder
+    ? applicationRules.map((rule) => wrapRuleWithTracing(rule, traceRecorder))
+    : applicationRules;
+
+  for (const rule of rules) {
     registry.registerRule(rule);
   }
 

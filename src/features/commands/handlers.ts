@@ -60,11 +60,17 @@ function getConfig() {
 import { dispatchApplicationEvent } from '../../activation.js';
 
 // Setup Commands
-export const setupCommand: CommandHandler = async (ctx) => {
+export const setupCommand: CommandHandler = async (ctx, options?: unknown) => {
   const setupService = new FSMSetupService(ctx.context);
-  await setupService.startSetup();
+  const setupOptions =
+    options && typeof options === 'object'
+      ? (options as { startAtAuthChoice?: boolean; connectionId?: string })
+      : undefined;
+
+  const result = await setupService.startSetup(setupOptions);
   // After setup, refresh connections from config
   await loadConnectionsFromConfig(ctx.context);
+  return result;
 };
 
 // Authentication Commands

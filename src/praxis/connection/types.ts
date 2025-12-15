@@ -37,6 +37,7 @@ export interface ProjectConnection {
   baseUrl?: string;
   apiBaseUrl?: string;
   identityName?: string;
+  clientId?: string;
 }
 
 /**

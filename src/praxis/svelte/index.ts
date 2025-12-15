@@ -11,6 +11,7 @@ export * from './types.js';
 // Engine hook
 export {
   usePraxisEngine,
+  usePraxisSelector,
   matchesState,
   createStateMatchers,
 } from './usePraxisEngine.svelte.js';

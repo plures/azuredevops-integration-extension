@@ -149,6 +149,15 @@ describe('Commands Module', () => {
       expect(mockStartSetup).toHaveBeenCalled();
     });
 
+    it('should forward setup options', async () => {
+      await setupCommand(commandContext, { startAtAuthChoice: true, connectionId: 'abc' });
+
+      expect(mockStartSetup).toHaveBeenCalledWith({
+        startAtAuthChoice: true,
+        connectionId: 'abc',
+      });
+    });
+
     it('should execute open logs command', async () => {
       await openLogsCommand(commandContext);
       expect(mockChannel.show).toHaveBeenCalledWith(true);

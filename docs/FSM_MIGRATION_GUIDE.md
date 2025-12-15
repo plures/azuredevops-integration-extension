@@ -111,9 +111,8 @@ async function validateConnection(context: ConnectionContext): Promise<Validatio
 
 // Pure function for client creation
 async function createAzureClient(context: ConnectionContext): Promise<ClientResult> {
-  const { validateClientConfig, createAzureClient } = await import(
-    '../functions/azureClientFunctions.js'
-  );
+  const { validateClientConfig, createAzureClient } =
+    await import('../functions/azureClientFunctions.js');
 
   const validation = await validateClientConfig(context);
   if (!validation.isValid) {

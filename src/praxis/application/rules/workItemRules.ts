@@ -5,13 +5,13 @@
  */
 
 import { defineRule, findEvent } from '@plures/praxis';
-import type { ApplicationEngineContext } from '../engine.js';
+import { getClock, type ApplicationEngineContext } from '../engine.js';
 import { WorkItemsLoadedEvent, WorkItemsErrorEvent } from '../facts.js';
 
 /**
  * Handle work items loaded
  */
-export const workItemsLoadedRule = defineRule<ApplicationEngineContext>({
+const workItemsLoadedRule = defineRule<ApplicationEngineContext>({
   id: 'application.workItemsLoaded',
   description: 'Handle work items loaded',
   meta: {
@@ -28,7 +28,7 @@ export const workItemsLoadedRule = defineRule<ApplicationEngineContext>({
       workItems,
       connectionId,
       query,
-      timestamp: Date.now(),
+      timestamp: getClock(state).now(),
     };
 
     // Store per connection
@@ -46,7 +46,7 @@ export const workItemsLoadedRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle work items error
  */
-export const workItemsErrorRule = defineRule<ApplicationEngineContext>({
+const workItemsErrorRule = defineRule<ApplicationEngineContext>({
   id: 'application.workItemsError',
   description: 'Handle work items error',
   meta: {

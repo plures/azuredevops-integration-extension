@@ -49,6 +49,16 @@ LLM-GUARD:
     connectionHealthError.type === 'authentication'
   );
 
+  // Auth reminders propagated from Praxis (serialized Map)
+  const pendingAuthReminders = $derived(context?.pendingAuthReminders);
+  const currentAuthReminder = $derived(
+    pendingAuthReminders && activeConnectionId
+      ? pendingAuthReminders instanceof Map
+        ? pendingAuthReminders.get(activeConnectionId)
+        : (pendingAuthReminders as Record<string, any>)[activeConnectionId]
+      : undefined
+  );
+
   // Get active connection to check auth method
   const connections = $derived(context?.connections || []);
   const activeConnection = $derived(connections.find((c: any) => c.id === activeConnectionId));
@@ -59,6 +69,13 @@ LLM-GUARD:
     workItemsError && 
     workItemsErrorConnectionId === activeConnectionId &&
     !isEntraAuth // Don't show PAT error for Entra connections
+  );
+
+  // Work items auth error for Entra (when connectionHealth is absent)
+  const showWorkItemsEntraAuthError = $derived(
+    workItemsError &&
+    workItemsErrorConnectionId === activeConnectionId &&
+    isEntraAuth
   );
 
   // Base flags (avoid circular derivations)
@@ -75,11 +92,30 @@ LLM-GUARD:
   const showDeviceCode = $derived(Boolean(canShowDeviceCodeBase));
   const showEntraAuthError = $derived(Boolean(entraAuthErrorEligible && !showDeviceCode));
 
+  // Auth reminder visibility (fallback when connectionHealth is absent)
+  const showAuthReminder = $derived(
+    Boolean(
+      currentAuthReminder &&
+      !showDeviceCode &&
+      !showEntraAuthError &&
+      !showWorkItemsEntraAuthError &&
+      !showPatError
+    )
+  );
+
   function copyAndOpenDeviceCode() {
     if (!deviceCodeSession) return;
     // Delegate browser launch + clipboard to extension (webview sandbox limitations)
     sendEvent({
       type: 'OPEN_DEVICE_CODE_BROWSER',
+      connectionId: deviceCodeSession.connectionId,
+    });
+  }
+
+  function copyDeviceCodeOnly() {
+    if (!deviceCodeSession) return;
+    sendEvent({
+      type: 'COPY_DEVICE_CODE',
       connectionId: deviceCodeSession.connectionId,
     });
   }
@@ -92,6 +128,14 @@ LLM-GUARD:
     sendEvent({ type: 'OPEN_SETTINGS' });
   }
 
+  function handleResetAuth() {
+    if (activeConnectionId) {
+      sendEvent({ type: 'RESET_AUTH', connectionId: activeConnectionId });
+    } else {
+      sendEvent({ type: 'RESET_AUTH' });
+    }
+  }
+
   function handleCancelDeviceCode() {
     if (deviceCodeSession) {
       sendEvent({
@@ -101,49 +145,27 @@ LLM-GUARD:
     }
   }
 
-  function handleRetryEntraAuth() {
-    if (activeConnectionId) {
-      // Trigger re-authentication for the active connection
-      // This will trigger the connection machine to start interactive auth
-      sendEvent({ 
-        type: 'AUTHENTICATION_REQUIRED', 
-        connectionId: activeConnectionId 
-      });
-    }
+  function handleStartFreshAuth() {
+    // Open setup at the auth choice step so the user can pick a new auth type
+    // and acquire a fresh token (new PAT or new Entra device code flow).
+    handleResetAuth();
+  }
+
+  function startDeviceCodeSignIn() {
+    if (!isEntraAuth) return;
+
+    const connectionId = deviceCodeSession?.connectionId ?? activeConnectionId;
+    if (!connectionId) return;
+
+    sendEvent({
+      type: 'SIGN_IN_ENTRA',
+      connectionId,
+      forceInteractive: true,
+    });
   }
 </script>
 
-{#if showEntraAuthError}
-  <!-- Entra Auth Failure Banner -->
-  <div class="auth-reminder-banner error">
-    <span class="auth-icon">⚠️</span>
-    <div class="auth-message">
-      <strong>Authentication Failed</strong>
-      <span class="error-detail">
-        {connectionHealthError?.message || 'Entra ID authentication failed. Device code flow completed but re-authentication failed.'}
-      </span>
-      {#if connectionHealthError?.suggestedAction}
-        <span class="error-hint">Suggested: {connectionHealthError.suggestedAction}</span>
-      {/if}
-    </div>
-    <div class="auth-actions">
-      <button class="auth-action" onclick={handleRetryEntraAuth}>
-        {connectionHealthError?.suggestedAction || 'Re-authenticate'}
-      </button>
-      <button class="auth-action secondary" onclick={handleOpenSettings}>Settings</button>
-    </div>
-  </div>
-{:else if showPatError}
-  <!-- PAT Reauth Banner -->
-  <div class="auth-reminder-banner error">
-    <span class="auth-icon">⚠</span>
-    <span class="auth-message">{workItemsError}</span>
-    <div class="auth-actions">
-      <button class="auth-action" onclick={handleRetry}>Retry</button>
-      <button class="auth-action secondary" onclick={handleOpenSettings}>Settings</button>
-    </div>
-  </div>
-{:else if showDeviceCode}
+{#if showDeviceCode}
   <!-- Entra Device Code Banner -->
   <div class="auth-reminder-banner warning">
     <span class="auth-icon">🔐</span>
@@ -156,11 +178,21 @@ LLM-GUARD:
     <div class="auth-actions">
       <button
         class="auth-action"
+        onclick={copyDeviceCodeOnly}
+        title="Copy code"
+        aria-label="Copy code"
+      >
+        <span class="codicon">📋</span>
+        Copy code
+      </button>
+      <button
+        class="auth-action"
         onclick={copyAndOpenDeviceCode}
         title="Copy code and open browser"
         aria-label="Copy code and open browser"
       >
-        <span class="codicon">📋</span>
+        <span class="codicon">🌐</span>
+        Open browser
       </button>
       <button
         class="auth-action secondary"
@@ -169,7 +201,84 @@ LLM-GUARD:
         aria-label="Cancel authentication"
       >
         <span class="codicon">✗</span>
+        Cancel
       </button>
+    </div>
+  </div>
+{:else if showEntraAuthError}
+  <!-- Entra Auth Failure Banner -->
+  <div class="auth-reminder-banner error">
+    <span class="auth-icon">⚠️</span>
+    <div class="auth-message">
+      <strong>Authentication Failed</strong>
+      <span class="error-detail">
+        {connectionHealthError?.message || 'Entra ID authentication failed. Start a new sign-in to choose PAT or begin device code again.'}
+      </span>
+      {#if connectionHealthError?.suggestedAction}
+        <span class="error-hint">Suggested: {connectionHealthError.suggestedAction}</span>
+      {/if}
+    </div>
+    <div class="auth-actions">
+      <button class="auth-action" onclick={startDeviceCodeSignIn}>
+        Start device code sign-in
+      </button>
+      <button class="auth-action" onclick={handleStartFreshAuth}>
+        Change auth / start new sign-in
+      </button>
+      <button class="auth-action secondary" onclick={handleOpenSettings}>Settings</button>
+    </div>
+  </div>
+{:else if showWorkItemsEntraAuthError}
+  <!-- Entra Auth Failure derived from work items error -->
+  <div class="auth-reminder-banner error">
+    <span class="auth-icon">⚠️</span>
+    <div class="auth-message">
+      <strong>Authentication Failed</strong>
+      <span class="error-detail">
+        {workItemsError || 'Authentication failed. Start a new sign-in to choose PAT or device code.'}
+      </span>
+    </div>
+    <div class="auth-actions">
+      <button class="auth-action" onclick={startDeviceCodeSignIn}>
+        Start device code sign-in
+      </button>
+      <button class="auth-action" onclick={handleStartFreshAuth}>
+        Change auth / start new sign-in
+      </button>
+      <button class="auth-action secondary" onclick={handleOpenSettings}>Settings</button>
+    </div>
+  </div>
+{:else if showPatError}
+  <!-- PAT Reauth Banner -->
+  <div class="auth-reminder-banner error">
+    <span class="auth-icon">⚠</span>
+    <span class="auth-message">{workItemsError}</span>
+    <div class="auth-actions">
+      <button class="auth-action" onclick={handleRetry}>Retry</button>
+      <button class="auth-action" onclick={handleStartFreshAuth}>Change auth / start new sign-in</button>
+      <button class="auth-action secondary" onclick={handleOpenSettings}>Settings</button>
+    </div>
+  </div>
+{:else if showAuthReminder}
+  <!-- Auth Reminder (fallback when connectionHealth is absent) -->
+  <div class="auth-reminder-banner error">
+    <span class="auth-icon">⚠️</span>
+    <div class="auth-message">
+      <strong>Authentication Required</strong>
+      <span class="error-detail">{currentAuthReminder?.reason || 'Sign in to continue.'}</span>
+    </div>
+    <div class="auth-actions">
+      {#if isEntraAuth}
+        <button class="auth-action" onclick={startDeviceCodeSignIn}>
+          Start device code sign-in
+        </button>
+        <button class="auth-action" onclick={handleStartFreshAuth}>
+          Change auth / start new sign-in
+        </button>
+      {:else}
+        <button class="auth-action" onclick={handleRetry}>Retry</button>
+      {/if}
+      <button class="auth-action secondary" onclick={handleOpenSettings}>Settings</button>
     </div>
   </div>
 {/if}
@@ -273,9 +382,9 @@ LLM-GUARD:
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 2rem;
+    min-width: 2rem;
     height: 2rem;
-    padding: 0;
+    padding: 0 0.6rem;
     margin: 0;
     background: transparent;
     border: none;

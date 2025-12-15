@@ -40,7 +40,7 @@ describe('Praxis Svelte Helpers', () => {
     });
 
     it('should handle undefined values', () => {
-      const context: { timerState: string | undefined } = { timerState: undefined };
+      const context = { timerState: undefined };
 
       expect(matchesState(context, 'timerState', undefined)).toBe(true);
       expect(matchesState(context, 'timerState', 'running')).toBe(false);

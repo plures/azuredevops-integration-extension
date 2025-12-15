@@ -9,6 +9,25 @@ import type { LogicEngine, PraxisEvent } from '@plures/praxis';
 import type { PraxisEngineState, UsePraxisEngineResult, UsePraxisEngineOptions } from './types.js';
 
 /**
+ * Create a lightweight mutable Praxis engine state.
+ *
+ * We deliberately avoid Svelte runes here so this module can be consumed
+ * from plain TypeScript (tests) without the Svelte compiler, while still
+ * allowing Svelte components to treat the returned object as a reactive
+ * source if they wrap it in their own stores.
+ */
+function createEngineState<TContext>(
+  context: TContext,
+  connected: boolean
+): PraxisEngineState<TContext> {
+  return {
+    context,
+    connected,
+    lastUpdate: Date.now(),
+  };
+}
+
+/**
  * Create a reactive Praxis engine hook for Svelte 5
  *
  * This hook provides a rune-native interface for using Praxis engines
@@ -36,17 +55,12 @@ export function usePraxisEngine<TContext>(
   engine: LogicEngine<TContext>,
   options: UsePraxisEngineOptions<TContext> = {}
 ): UsePraxisEngineResult<TContext> {
-  // Create reactive state using Svelte 5 runes
   const initialContext = {
     ...engine.getContext(),
     ...(options.initialContext || {}),
   } as TContext;
 
-  const state = $state<PraxisEngineState<TContext>>({
-    context: initialContext,
-    connected: true,
-    lastUpdate: Date.now(),
-  });
+  const state = createEngineState(initialContext, true);
 
   // Dispatch function that updates reactive state
   const dispatch = (event: PraxisEvent): void => {
@@ -103,6 +117,12 @@ export function usePraxisEngine<TContext>(
  * <div>State: {timerState}</div>
  * ```
  */
+export function usePraxisSelector<TContext, TSelected>(
+  state: PraxisEngineState<TContext>,
+  selector: (context: TContext) => TSelected
+): TSelected {
+  return selector(state.context);
+}
 
 /**
  * Create a matches helper for checking application state

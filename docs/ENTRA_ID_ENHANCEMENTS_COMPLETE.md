@@ -139,13 +139,13 @@ Adds a dedicated status bar item that shows real-time authentication status for 
 
 ### Visual Indicators
 
-| Status                | Icon         | Display Example       | Background Color |
-| --------------------- | ------------ | --------------------- | ---------------- |
-| **Healthy**           | `$(pass)`    | `✓ Entra: 5d`         | None             |
+| Status                | Icon         | Display Example      | Background Color |
+| --------------------- | ------------ | -------------------- | ---------------- |
+| **Healthy**           | `$(pass)`    | `✓ Entra: 5d`        | None             |
 | **Warning (< 5 min)** | `$(warning)` | `⚠ Entra: 3m`        | Yellow           |
-| **Expired**           | `$(error)`   | `✗ Entra: Expired`    | Red              |
+| **Expired**           | `$(error)`   | `✗ Entra: Expired`   | Red              |
 | **Not Authenticated** | `$(warning)` | `⚠ Sign In Required` | Yellow           |
-| **PAT Auth (Hidden)** | -            | -                     | -                |
+| **PAT Auth (Hidden)** | -            | -                    | -                |
 
 ### Time Display Format
 

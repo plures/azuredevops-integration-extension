@@ -19,17 +19,17 @@
  */
 
 // Optional vscode import (extension host only); dynamic to avoid bundler resolution errors in desktop app
-let vscode: any = undefined;
-try {
-  // Use eval(require) to avoid static analysis in non-Node runtimes
-
-  const req = eval('require') as any;
-  if (req) {
-    vscode = req('vscode');
+let vscode: typeof import('vscode') | undefined;
+void (async () => {
+  try {
+    if (typeof process !== 'undefined' && process?.versions?.node) {
+      const vscodeModule = await import('vscode');
+      vscode = vscodeModule;
+    }
+  } catch {
+    vscode = undefined;
   }
-} catch {
-  vscode = undefined;
-}
+})();
 import { logLine } from '../logging.js';
 
 const LOG_PREFIX = '[AzureDevOpsInt]';

@@ -8,6 +8,11 @@
 
 import type { PraxisTimerSnapshot } from '../timer/types.js';
 import type { PraxisConnectionSnapshot, ProjectConnection } from '../connection/types.js';
+import type { TraceEntry } from './tracing.js';
+
+export interface PraxisClock {
+  now(): number;
+}
 
 /**
  * Application orchestrator states
@@ -88,6 +93,7 @@ export interface UIState {
  * Application context - shared data across all orchestrated engines
  */
 export interface PraxisApplicationContext {
+  clock: PraxisClock;
   // Application lifecycle
   isActivated: boolean;
   isDeactivating: boolean;
@@ -129,6 +135,7 @@ export interface PraxisApplicationContext {
   // Debug and UI flags
   debugLoggingEnabled: boolean;
   debugViewVisible: boolean;
+  debugTraceLog?: TraceEntry[];
   ui?: UIState;
 }
 
@@ -143,6 +150,8 @@ export interface PraxisApplicationSnapshot {
   hasActiveTimer: boolean;
   connectionCount: number;
   errorRecoveryAttempts: number;
+  // Full context (needed for consumers expecting XState-like snapshots)
+  context: PraxisApplicationContext;
 }
 
 /**
@@ -185,6 +194,7 @@ export type EventBusSubscriber = (message: EventBusMessage) => void;
  * Default application configuration
  */
 export const DEFAULT_APPLICATION_CONFIG: Partial<PraxisApplicationContext> = {
+  clock: { now: () => Date.now() },
   isActivated: false,
   isDeactivating: false,
   connections: [],
@@ -199,6 +209,7 @@ export const DEFAULT_APPLICATION_CONFIG: Partial<PraxisApplicationContext> = {
   errorRecoveryAttempts: 0,
   debugLoggingEnabled: false,
   debugViewVisible: false,
+  debugTraceLog: [],
   ui: {
     notification: null,
     dialog: null,

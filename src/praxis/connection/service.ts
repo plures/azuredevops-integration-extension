@@ -67,6 +67,18 @@ export class ConnectionService {
     error?: string;
     state?: unknown;
   }> {
+    const currentState = manager.getConnectionState();
+    const failedStates = ['auth_failed', 'client_failed', 'provider_failed', 'connection_error'];
+
+    // If a previous attempt failed, reset the manager so we can restart auth (e.g., user clicks retry)
+    if (failedStates.includes(currentState)) {
+      logger.info(`Resetting failed connection state before reconnect`, {
+        connectionId: manager.getConnectionData().config.id,
+        previousState: currentState,
+      });
+      manager.reset();
+    }
+
     const config = manager.getConnectionData().config;
     const forceInteractive = options?.interactive === true;
     

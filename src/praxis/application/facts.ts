@@ -192,6 +192,14 @@ export const RefreshDataEvent = defineEvent<'REFRESH_DATA', { connectionId?: str
 );
 
 /**
+ * Connection state updated (legacy bridge) event
+ */
+export const ConnectionStateUpdatedEvent = defineEvent<
+  'CONNECTION_STATE_UPDATED',
+  { connectionId: string; state: any }
+>('CONNECTION_STATE_UPDATED');
+
+/**
  * Device code started event
  */
 export const DeviceCodeStartedAppEvent = defineEvent<
@@ -219,6 +227,11 @@ export const DeviceCodeCancelledEvent = defineEvent<
   'DEVICE_CODE_CANCELLED',
   { connectionId: string }
 >('DEVICE_CODE_CANCELLED');
+
+/**
+ * Webview/application state synchronization event (webview → Praxis)
+ */
+export const SyncStateEvent = defineEvent<'SyncState', any>('SyncState');
 
 /**
  * Application error event
@@ -388,14 +401,6 @@ export const WebviewReadyEvent = defineEvent<'WEBVIEW_READY', Record<string, nev
 );
 
 /**
- * Connection state updated event
- */
-export const ConnectionStateUpdatedEvent = defineEvent<
-  'CONNECTION_STATE_UPDATED',
-  { connectionId: string; state: any }
->('CONNECTION_STATE_UPDATED');
-
-/**
  * Union type of all application events
  */
 export type PraxisApplicationEvent =
@@ -412,9 +417,11 @@ export type PraxisApplicationEvent =
   | ReturnType<typeof WorkItemsLoadedEvent.create>
   | ReturnType<typeof WorkItemsErrorEvent.create>
   | ReturnType<typeof RefreshDataEvent.create>
+  | ReturnType<typeof ConnectionStateUpdatedEvent.create>
   | ReturnType<typeof DeviceCodeStartedAppEvent.create>
   | ReturnType<typeof DeviceCodeCompletedAppEvent.create>
   | ReturnType<typeof DeviceCodeCancelledEvent.create>
+  | ReturnType<typeof SyncStateEvent.create>
   | ReturnType<typeof ApplicationErrorEvent.create>
   | ReturnType<typeof RetryApplicationEvent.create>
   | ReturnType<typeof ResetApplicationEvent.create>
@@ -440,5 +447,4 @@ export type PraxisApplicationEvent =
   | ReturnType<typeof WebviewReadyEvent.create>
   | ReturnType<typeof StartTimerEvent.create>
   | ReturnType<typeof PauseTimerEvent.create>
-  | ReturnType<typeof StopTimerEvent.create>
-  | ReturnType<typeof ConnectionStateUpdatedEvent.create>;
+  | ReturnType<typeof StopTimerEvent.create>;

@@ -24,6 +24,7 @@ import { PraxisAuthManager } from '../auth/manager.js';
 import { PraxisConnectionManager } from '../connection/manager.js';
 import { fsmTracer } from '../../fsm/logging/FSMTracer.js';
 import { FSMComponent } from '../../fsm/logging/FSMLogger.js';
+import { TraceRecorder } from './tracing.js';
 import {
   ActivateEvent,
   ActivationCompleteEvent,
@@ -73,6 +74,7 @@ import {
  */
 export class PraxisApplicationManager {
   private engine: LogicEngine<ApplicationEngineContext>;
+  private traceRecorder: TraceRecorder<ApplicationEngineContext>;
   private eventBus: PraxisEventBus;
   private isStarted = false;
 
@@ -113,7 +115,8 @@ export class PraxisApplicationManager {
     } else {
       PraxisApplicationManager.instance = this;
     }
-    this.engine = createApplicationEngine(config);
+    this.traceRecorder = new TraceRecorder<ApplicationEngineContext>();
+    this.engine = createApplicationEngine(config, this.traceRecorder);
     this.eventBus = getPraxisEventBus();
     this.setupEventBusListeners();
   }
@@ -230,7 +233,28 @@ export class PraxisApplicationManager {
    * Dispatch typed events to the engine
    */
   public dispatch(events: PraxisApplicationEvent[]): void {
-    this.engine.step(events);
+    const contextBefore = this.engine.getContext();
+    const traceEnabled = Boolean(contextBefore.debugLoggingEnabled);
+
+    if (traceEnabled) {
+      this.traceRecorder.beginDispatch(events, contextBefore);
+    }
+
+    const result = this.engine.step(events);
+    const contextAfter = this.engine.getContext();
+
+    if (traceEnabled) {
+      const entry = this.traceRecorder.completeDispatch(contextAfter, result?.diagnostics);
+      if (entry) {
+        this.engine.updateContext((ctx) => ({ ...ctx, debugTraceLog: this.traceRecorder.getEntries() }));
+      }
+    }
+
+    if (!contextAfter.debugLoggingEnabled && this.traceRecorder.getEntries().length > 0) {
+      this.traceRecorder.reset();
+      this.engine.updateContext((ctx) => ({ ...ctx, debugTraceLog: [] }));
+    }
+
     this.notifyListeners();
   }
 
@@ -786,11 +810,14 @@ export class PraxisApplicationManager {
    * Get application snapshot
    */
   getSnapshot(): PraxisApplicationSnapshot & { matches: (state: string) => boolean } {
-    const ctx = this.engine.getContext();
-    const currentState = ctx.applicationState;
+    const ctx = this.engine.getContext() as unknown as PraxisApplicationContext;
+    const currentState = this.getApplicationState();
 
     return {
       state: currentState,
+      // Expose the full context for compatibility with consumers that expect
+      // an XState-style snapshot shape (activation bridge, webview handlers).
+      context: ctx,
       isActivated: ctx.isActivated,
       connections: ctx.connections,
       activeConnectionId: ctx.activeConnectionId,

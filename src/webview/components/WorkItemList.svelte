@@ -327,9 +327,11 @@ LLM-GUARD:
     {/if}
     {#if hasConnectionError && connectionError}
       <ErrorBanner
-        error={connectionError}
+        error={connectionError.type === 'authentication'
+          ? { ...connectionError, suggestedAction: 'Change auth / start new sign-in' }
+          : connectionError}
         onRetry={() => sendEvent({ type: 'REFRESH_DATA' })}
-        onFixAuth={() => sendEvent({ type: 'AUTHENTICATION_REQUIRED', connectionId: activeConnectionId })}
+        onFixAuth={() => sendEvent({ type: 'RESET_AUTH', connectionId: activeConnectionId })}
         onDismiss={() => {
           // Dismiss handled by FSM clearing error state
         }}
@@ -342,10 +344,10 @@ LLM-GUARD:
           message: workItemsError || 'Unable to load work items',
           type: 'authentication' as const,
           recoverable: true,
-          suggestedAction: 'Re-authenticate',
+          suggestedAction: 'Change auth / start new sign-in',
         } : undefined)}
         onRetry={() => sendEvent({ type: 'REFRESH_DATA' })}
-        onFixAuth={() => sendEvent({ type: 'AUTHENTICATION_REQUIRED', connectionId: activeConnectionId })}
+        onFixAuth={() => sendEvent({ type: 'RESET_AUTH', connectionId: activeConnectionId })}
       />
     {:else if filteredItems.length === 0 && workItems.length > 0}
       <div class="empty-state">

@@ -20,19 +20,23 @@ import { getCacheStats } from './cache.js';
 
 // Optional Node perf_hooks; fallback to browser performance
 let performanceImpl: { now: () => number } = { now: () => Date.now() };
-try {
-  const req = eval('require') as any;
-  if (req) {
-    const ph = req('perf_hooks');
-    if (ph?.performance?.now) {
-      performanceImpl = ph.performance;
+void (async () => {
+  try {
+    if (typeof process !== 'undefined' && process?.versions?.node) {
+      const { performance } = await import('perf_hooks');
+      if (performance?.now) {
+        performanceImpl = performance;
+      }
+      return;
     }
+  } catch {
+    // fall through to browser
   }
-} catch {
+
   if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
     performanceImpl = performance;
   }
-}
+})();
 
 export interface PerformanceMetrics {
   operation: string;

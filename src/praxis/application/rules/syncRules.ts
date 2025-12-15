@@ -4,13 +4,9 @@
  * Rules for synchronizing state from backend to frontend.
  */
 
-import { defineRule, findEvent, defineEvent } from '@plures/praxis';
+import { defineRule, findEvent } from '@plures/praxis';
 import type { ApplicationEngineContext } from '../engine.js';
-
-/**
- * Event to synchronize full application state
- */
-export const SyncStateEvent = defineEvent<'SyncState', ApplicationEngineContext>('SyncState');
+import { SyncStateEvent } from '../facts.js';
 
 /**
  * Handle state synchronization

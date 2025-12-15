@@ -914,9 +914,9 @@ div.auth-message.svelte-cv3w9g {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
+  min-width: 2rem;
   height: 2rem;
-  padding: 0;
+  padding: 0 0.6rem;
   margin: 0;
   background: transparent;
   border: none;

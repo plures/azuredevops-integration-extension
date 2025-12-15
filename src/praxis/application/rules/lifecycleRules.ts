@@ -17,7 +17,7 @@ import {
 /**
  * Handle application activation
  */
-export const activateRule = defineRule<ApplicationEngineContext>({
+const activateRule = defineRule<ApplicationEngineContext>({
   id: 'application.activate',
   description: 'Activate the application',
   meta: {
@@ -42,7 +42,7 @@ export const activateRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle activation complete
  */
-export const activationCompleteRule = defineRule<ApplicationEngineContext>({
+const activationCompleteRule = defineRule<ApplicationEngineContext>({
   id: 'application.activationComplete',
   description: 'Complete application activation',
   meta: {
@@ -64,7 +64,7 @@ export const activationCompleteRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle activation failure
  */
-export const activationFailedRule = defineRule<ApplicationEngineContext>({
+const activationFailedRule = defineRule<ApplicationEngineContext>({
   id: 'application.activationFailed',
   description: 'Handle activation failure',
   meta: {
@@ -87,7 +87,7 @@ export const activationFailedRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle deactivation
  */
-export const deactivateRule = defineRule<ApplicationEngineContext>({
+const deactivateRule = defineRule<ApplicationEngineContext>({
   id: 'application.deactivate',
   description: 'Deactivate the application',
   meta: {
@@ -110,7 +110,7 @@ export const deactivateRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle deactivation complete
  */
-export const deactivationCompleteRule = defineRule<ApplicationEngineContext>({
+const deactivationCompleteRule = defineRule<ApplicationEngineContext>({
   id: 'application.deactivationComplete',
   description: 'Complete application deactivation',
   meta: {

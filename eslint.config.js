@@ -3,11 +3,12 @@
 import js from '@eslint/js';
 import tsParser from '@typescript-eslint/parser';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
+import praxisPlugin from './packages/eslint-plugin-praxis/index.js';
 
 export default [
   js.configs.recommended,
   {
-    plugins: { '@typescript-eslint': tsPlugin },
+    plugins: { '@typescript-eslint': tsPlugin, praxis: praxisPlugin },
     files: ['src/**/*.ts', 'tests/**/*.ts', 'packages/**/src/**/*.ts'],
     languageOptions: {
       parser: tsParser,
@@ -46,6 +47,13 @@ export default [
       // Note: no-console is enforced above to require use of unified logger
       'no-var': 'error',
       'prefer-arrow-callback': 'warn',
+    },
+  },
+  {
+    files: ['src/praxis/application/rules/**/*.ts'],
+    rules: {
+      'praxis/purity': 'warn',
+      'praxis/single-export': 'warn',
     },
   },
   // Ownership: prevent defining new *Context types outside the single context file

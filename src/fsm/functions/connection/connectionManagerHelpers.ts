@@ -1,9 +1,23 @@
 import type { ExtensionContext } from 'vscode';
-import type { ProjectConnection } from '../../../praxis/connection/types.js';
+import type { ProjectConnection } from '../../ConnectionFSMManager.js';
 import type { PraxisConnectionManager } from '../../../praxis/connection/manager.js';
 import { AzureDevOpsIntClient } from '../../../azureClient.js';
 import { WorkItemsProvider } from '../../../provider.js';
 import { getPat, getEntraIdToken } from '../auth/authentication.js';
+
+let cachedDispatchApplicationEvent: ((event: any) => void) | undefined;
+
+async function dispatchDeviceCodeEvent(event: any) {
+  try {
+    if (!cachedDispatchApplicationEvent) {
+      const activation = await import('../../../activation.js');
+      cachedDispatchApplicationEvent = activation.dispatchApplicationEvent;
+    }
+    cachedDispatchApplicationEvent?.(event);
+  } catch {
+    // Swallow dispatch errors to avoid breaking authentication flow
+  }
+}
 
 /**
  * Perform authentication
@@ -13,14 +27,39 @@ export async function performAuthentication(
   config: ProjectConnection,
   context: ExtensionContext,
   force?: boolean,
-  onDeviceCode?: (response: any) => void
+  onDeviceCode?: (info: {
+    userCode: string;
+    verificationUri: string;
+    verificationUriComplete?: string;
+    expiresInSeconds: number;
+  }) => void
 ): Promise<void> {
   try {
     let token: string;
     let expiresAt: number | undefined;
+    let deviceCodeStarted = false;
 
     if (config.authMethod === 'entra') {
-      token = await getEntraIdToken(context, config.tenantId, force, onDeviceCode);
+      token = await getEntraIdToken(context, config.tenantId, {
+        force,
+        connectionId: config.id,
+        connectionLabel: config.label,
+        clientId: config.clientId,
+        onDeviceCode: async (info) => {
+          deviceCodeStarted = true;
+          await dispatchDeviceCodeEvent({
+            type: 'DEVICE_CODE_STARTED',
+            connectionId: config.id,
+            userCode: info.userCode,
+            verificationUri: info.verificationUri,
+            expiresInSeconds: info.expiresInSeconds,
+          });
+
+          if (onDeviceCode) {
+            onDeviceCode(info);
+          }
+        },
+      });
       // Entra tokens usually expire in 1 hour, but we let MSAL handle refresh
       expiresAt = Date.now() + 3600 * 1000;
     } else {
@@ -28,7 +67,19 @@ export async function performAuthentication(
     }
 
     manager.authenticated(token, expiresAt);
+
+    if (deviceCodeStarted) {
+      await dispatchDeviceCodeEvent({
+        type: 'DEVICE_CODE_COMPLETED',
+        connectionId: config.id,
+      });
+    }
   } catch (error) {
+    // Ensure device code UI is cleared on failure
+    await dispatchDeviceCodeEvent({
+      type: 'DEVICE_CODE_COMPLETED',
+      connectionId: config.id,
+    });
     manager.authFailed(error instanceof Error ? error.message : String(error));
   }
 }

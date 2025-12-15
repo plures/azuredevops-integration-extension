@@ -5,7 +5,7 @@
  */
 
 import { defineRule, findEvent } from '@plures/praxis';
-import type { ApplicationEngineContext } from '../engine.js';
+import { getClock, type ApplicationEngineContext } from '../engine.js';
 import {
   DeviceCodeStartedAppEvent,
   DeviceCodeCompletedAppEvent,
@@ -26,7 +26,7 @@ import {
 /**
  * Handle device code started
  */
-export const deviceCodeStartedRule = defineRule<ApplicationEngineContext>({
+const deviceCodeStartedRule = defineRule<ApplicationEngineContext>({
   id: 'application.deviceCodeStarted',
   description: 'Handle device code flow started',
   meta: {
@@ -37,7 +37,7 @@ export const deviceCodeStartedRule = defineRule<ApplicationEngineContext>({
     if (!startedEvent) return [];
 
     const { connectionId, userCode, verificationUri, expiresInSeconds } = startedEvent.payload;
-    const now = Date.now();
+    const now = getClock(state).now();
 
     state.context.deviceCodeSession = {
       connectionId,
@@ -55,7 +55,7 @@ export const deviceCodeStartedRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle device code completed
  */
-export const deviceCodeCompletedRule = defineRule<ApplicationEngineContext>({
+const deviceCodeCompletedRule = defineRule<ApplicationEngineContext>({
   id: 'application.deviceCodeCompleted',
   description: 'Handle device code flow completed',
   meta: {
@@ -76,7 +76,7 @@ export const deviceCodeCompletedRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle device code cancelled
  */
-export const deviceCodeCancelledRule = defineRule<ApplicationEngineContext>({
+const deviceCodeCancelledRule = defineRule<ApplicationEngineContext>({
   id: 'application.deviceCodeCancelled',
   description: 'Handle device code flow cancelled',
   meta: {
@@ -101,7 +101,7 @@ export const deviceCodeCancelledRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle application error
  */
-export const applicationErrorRule = defineRule<ApplicationEngineContext>({
+const applicationErrorRule = defineRule<ApplicationEngineContext>({
   id: 'application.error',
   description: 'Handle application error',
   meta: {
@@ -129,7 +129,7 @@ export const applicationErrorRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle retry
  */
-export const retryRule = defineRule<ApplicationEngineContext>({
+const retryRule = defineRule<ApplicationEngineContext>({
   id: 'application.retry',
   description: 'Retry after error',
   meta: {
@@ -152,7 +152,7 @@ export const retryRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle reset
  */
-export const resetRule = defineRule<ApplicationEngineContext>({
+const resetRule = defineRule<ApplicationEngineContext>({
   id: 'application.reset',
   description: 'Reset application state',
   meta: {
@@ -182,7 +182,7 @@ export const resetRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle toggle debug view
  */
-export const toggleDebugViewRule = defineRule<ApplicationEngineContext>({
+const toggleDebugViewRule = defineRule<ApplicationEngineContext>({
   id: 'application.toggleDebugView',
   description: 'Toggle debug view visibility',
   meta: {
@@ -209,7 +209,7 @@ export const toggleDebugViewRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle auth reminder requested
  */
-export const authReminderRequestedRule = defineRule<ApplicationEngineContext>({
+const authReminderRequestedRule = defineRule<ApplicationEngineContext>({
   id: 'application.authReminderRequested',
   description: 'Handle authentication reminder request',
   meta: {
@@ -234,7 +234,7 @@ export const authReminderRequestedRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle auth reminder cleared
  */
-export const authReminderClearedRule = defineRule<ApplicationEngineContext>({
+const authReminderClearedRule = defineRule<ApplicationEngineContext>({
   id: 'application.authReminderCleared',
   description: 'Handle authentication reminder cleared',
   meta: {
@@ -253,7 +253,7 @@ export const authReminderClearedRule = defineRule<ApplicationEngineContext>({
 /**
  * Handle authentication success
  */
-export const authenticationSuccessRule = defineRule<ApplicationEngineContext>({
+const authenticationSuccessRule = defineRule<ApplicationEngineContext>({
   id: 'application.authenticationSuccess',
   description: 'Handle authentication success',
   meta: {
