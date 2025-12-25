@@ -2,14 +2,14 @@
  * Module: Activation
  * Owner: application
  * Reads: ApplicationContext (selectors), webview events
- * Writes: none directly to context; delegates via FSM reducers and Router stamping
+ * Writes: none directly to context; delegates via Praxis reducers and Router stamping
  * Receives: UI/system events, provider messages
- * Emits: syncState to webview; dispatches typed events to ApplicationMachine
+ * Emits: syncState to webview; dispatches typed events to PraxisApplicationManager
  * Prohibitions: Do not implement webview logic here; Do not define context types; Do not set selection
- * Rationale: Integration layer wiring VS Code host to FSM + Webview; routing and stamping only
+ * Rationale: Integration layer wiring VS Code host to Praxis + Webview; routing and stamping only
  *
  * LLM-GUARD:
- * - Do not mutate ApplicationContext directly; use FSM events/reducers
+ * - Do not mutate ApplicationContext directly; use Praxis events/reducers
  * - Do not create new *Context types; import from the single context module
  */
 import * as vscode from 'vscode';
@@ -29,18 +29,17 @@ import { SessionTelemetryManager } from './sessionTelemetry.js';
 //   getBranchEnrichmentState,
 //   updateBuildRefreshTimer,
 //   type BranchContext,
-// } from './fsm/functions/connection/branchEnrichment.js';
+// } from './services/connection/branchEnrichment.js';
 import {
   clearConnectionCaches,
   // getBranchEnrichmentState,
   updateBuildRefreshTimer,
   // type BranchContext,
-} from './fsm/functions/connection/branchEnrichment.js';
-// import { getConnectionLabel } from './fsm/functions/connection/connectionLabel.js';
+} from './services/connection/branchEnrichment.js';
 import {
   createBranchAwareTransform,
   // createConnectionProvider as _createConnectionProvider,
-} from './fsm/functions/connection/providerFactory.js';
+} from './services/connection/providerFactory.js';
 import { createSharedContextBridge } from './bridge/sharedContextBridge.js';
 import {
   bridgeConsoleToOutputChannel,
@@ -56,8 +55,8 @@ import { startCacheCleanup, stopCacheCleanup } from './cache.js';
 import {
   normalizeConnections,
   resolveActiveConnectionId,
-} from './fsm/functions/activation/connectionNormalization.js';
-import { migrateGlobalPATToConnections } from './fsm/functions/secrets/patMigration.js';
+} from './services/connection/connectionNormalization.js';
+import { migrateGlobalPATToConnections } from './services/secrets/patMigration.js';
 import {
   getApplicationStoreActor,
   sendApplicationStoreEvent,
@@ -70,20 +69,22 @@ import {
   getLoadedConnections,
   // setRegisterAllCommands as _setRegisterAllCommands,
   // setWebviewMessageHandler as _setWebviewMessageHandler,
-} from './fsm/services/extensionHostBridge.js';
+} from './services/extensionHostBridge.js';
 import { registerCommands } from './features/commands/index.js';
-import { registerTraceCommands } from './fsm/commands/traceCommands.js';
-import { registerQuickDebugCommands } from './fsm/commands/quickDebugCommands.js';
-// import { FSMSetupService } from './fsm/services/fsmSetupService.js';
-// import { ConnectionAdapter } from './fsm/adapters/ConnectionAdapter.js';
-import { getConnectionFSMManager } from './fsm/ConnectionFSMManager.js';
-//import { initializeBridge } from './fsm/services/extensionHostBridge.js';
+import { registerTraceCommands } from './commands/traceCommands.js';
+import { registerQuickDebugCommands } from './commands/quickDebugCommands.js';
+import { ConnectionService } from './praxis/connection/service.js';
+//import { initializeBridge } from './services/extensionHostBridge.js';
 import type {
   // AuthReminderReason,
   AuthReminderState,
   ConnectionState,
   ProjectConnection,
-} from './fsm/machines/applicationTypes.js';
+} from './types/application.js';
+import {
+  AuthRedirectReceivedAppEvent,
+  AuthCodeFlowCompletedAppEvent,
+} from './praxis/application/facts.js';
 // import type { WorkItemTimerState, TimeEntry } from './types.js';
 
 // type _AuthMethod = 'pat' | 'entra';
@@ -129,6 +130,38 @@ let connections: ProjectConnection[] = [];
 const connectionStates = new Map<string, ConnectionState>();
 // let connectionAdapterInstance: ConnectionAdapter | undefined;
 let activeConnectionId: string | undefined;
+// Track connections that were recently signed out to prevent automatic reconnection
+const recentlySignedOutConnections = new Set<string>();
+
+/**
+ * Mark a connection as recently signed out to prevent automatic reconnection
+ */
+export function markConnectionSignedOut(connectionId: string): void {
+  recentlySignedOutConnections.add(connectionId);
+  verbose('[activation] Marked connection as signed out', { connectionId });
+  // Clear the flag after 30 seconds to allow reconnection if user wants
+  setTimeout(() => {
+    recentlySignedOutConnections.delete(connectionId);
+    verbose('[activation] Cleared signed-out flag for connection', { connectionId });
+  }, 30000);
+}
+
+/**
+ * Clear the signed-out flag for a connection (e.g., when user explicitly signs in)
+ */
+export function clearSignedOutFlag(connectionId: string): void {
+  recentlySignedOutConnections.delete(connectionId);
+  verbose('[activation] Cleared signed-out flag for connection', { connectionId });
+}
+
+/**
+ * Clear connection state from connectionStates map (used during sign out)
+ */
+export function clearConnectionState(connectionId: string): void {
+  connectionStates.delete(connectionId);
+  initialRefreshedConnections.delete(connectionId);
+  verbose('[clearConnectionState] Cleared connection state', { connectionId });
+}
 let tokenRefreshInterval: NodeJS.Timeout | undefined;
 let gcInterval: NodeJS.Timeout | undefined;
 // let isDeactivating = false;
@@ -153,7 +186,7 @@ function shouldLogDebug(): boolean {
 // -------------------------------------------------------------
 // These exports provide a lightweight simulation of the webview ↔ activation
 // message contract for unit tests that import activation.ts directly.
-// They intentionally avoid FSM pathways for isolation.
+// They intentionally avoid Praxis pathways for isolation.
 export function __setTestContext(ctx: {
   panel?: any;
   provider?: any;
@@ -169,14 +202,14 @@ export function __setTestContext(ctx: {
 export function handleMessage(message: any): void {
   switch (message?.type) {
     case 'openExternal': {
-      // FSM-requested external URL open
+      // Praxis-requested external URL open
       if (message.url) {
         vscode.env.openExternal(vscode.Uri.parse(message.url));
       }
       break;
     }
     case 'createBranch': {
-      // FSM-requested branch creation
+      // Praxis-requested branch creation
       if (message.suggestedName) {
         vscode.window
           .showInputBox({
@@ -204,7 +237,7 @@ export function handleMessage(message: any): void {
     }
     case 'refresh': {
       try {
-        // CRITICAL: Use provider from active connection's FSM state, not global provider
+        // CRITICAL: Use provider from active connection's Praxis state, not global provider
         // This ensures refresh uses the correct connection when tabs are switched
         if (activeConnectionId) {
           const actor = getApplicationActor();
@@ -221,7 +254,7 @@ export function handleMessage(message: any): void {
               query,
             });
           } else if (provider) {
-            // Fallback to global provider if FSM provider not available
+            // Fallback to global provider if Praxis provider not available
             provider.refresh(getStoredQueryForConnection(activeConnectionId));
             verbose('[activation] Refreshed work items using fallback provider', {
               connectionId: activeConnectionId,
@@ -710,7 +743,7 @@ export function dispatchApplicationEvent(event: unknown): void {
               placeHolder: 'Optional: describe what you worked on...',
             });
 
-            // Stop the timer (send to FSM)
+            // Stop the timer (send to Praxis)
             const timerActor = snapshot?.context?.timerActor;
             if (timerActor && typeof timerActor.send === 'function') {
               timerActor.send({ type: 'STOP' });
@@ -884,7 +917,7 @@ export function dispatchApplicationEvent(event: unknown): void {
     }
   }
 
-  // Always send event to FSM for state management
+  // Always send event to Praxis for state management
   sendApplicationStoreEvent(event);
 }
 
@@ -1121,26 +1154,26 @@ export async function updateAuthStatusBar(): Promise<void> {
     return;
   }
 
-  // Try to get state from connectionStates first, but also check FSM if not available
+  // Try to get state from connectionStates first, but also check Praxis if not available
   const state = connectionStates.get(activeConnectionId);
   let authMethod: 'pat' | 'entra';
   let connectionConfig: ProjectConnection | undefined;
 
-  // If state not in connectionStates, try to get from FSM context
+  // If state not in connectionStates, try to get from Praxis context
   if (!state) {
     try {
       const actor = getApplicationActor();
       const snapshot = actor?.getSnapshot?.();
-      const fsmConnectionStates = snapshot?.context?.connectionStates;
-      const fsmConnectionState = fsmConnectionStates?.get(activeConnectionId);
+      const praxisConnectionStates = snapshot?.context?.connectionStates;
+      const praxisConnectionState = praxisConnectionStates?.get(activeConnectionId);
 
-      // Try to get connection config from FSM context or connections list
+      // Try to get connection config from Praxis context or connections list
       const connections = snapshot?.context?.connections || [];
       connectionConfig = connections.find((c: ProjectConnection) => c.id === activeConnectionId);
 
-      if (fsmConnectionState) {
+      if (praxisConnectionState) {
         authMethod =
-          fsmConnectionState.authMethod || fsmConnectionState.config?.authMethod || 'pat';
+          praxisConnectionState.authMethod || praxisConnectionState.config?.authMethod || 'pat';
       } else if (connectionConfig) {
         authMethod = connectionConfig.authMethod || 'pat';
       } else {
@@ -1149,7 +1182,7 @@ export async function updateAuthStatusBar(): Promise<void> {
         return;
       }
     } catch (error) {
-      // FSM might not be available yet - hide status bar
+      // Praxis might not be available yet - hide status bar
       authStatusBarItem.hide();
       return;
     }
@@ -1166,7 +1199,7 @@ export async function updateAuthStatusBar(): Promise<void> {
   };
 
   try {
-    // Use connectionConfig (from state or FSM) for connection label
+    // Use connectionConfig (from state or Praxis) for connection label
     if (!connectionConfig) {
       // Fallback: try to get from connections list
       try {
@@ -1188,20 +1221,20 @@ export async function updateAuthStatusBar(): Promise<void> {
 
     const connectionLabel = describeConnection(connectionConfig);
 
-    // Get FSM connection state to determine actual auth status
+    // Get Praxis connection state to determine actual auth status
     const actor = getApplicationActor();
     const snapshot = actor?.getSnapshot?.();
-    const fsmConnectionStates = snapshot?.context?.connectionStates;
-    const fsmConnectionState = fsmConnectionStates?.get(activeConnectionId);
+    const praxisConnectionStates = snapshot?.context?.connectionStates;
+    const praxisConnectionState = praxisConnectionStates?.get(activeConnectionId);
 
     // Get the actual connection machine state (e.g., 'connected', 'auth_failed')
     let connectionMachineState: string | null = null;
     try {
-      const { getConnectionFSMManager } = await import('./fsm/ConnectionFSMManager.js');
-      const fsmManager = getConnectionFSMManager();
-      connectionMachineState = fsmManager.getConnectionState(activeConnectionId);
+      const connectionService = ConnectionService.getInstance();
+      const manager = connectionService.getConnectionManager(activeConnectionId);
+      connectionMachineState = manager?.getConnectionState() || null;
     } catch (error) {
-      // FSM might not be available yet
+      // Connection service might not be available yet
       console.debug('[AzureDevOpsInt] Could not get connection machine state:', error);
     }
 
@@ -1209,8 +1242,8 @@ export async function updateAuthStatusBar(): Promise<void> {
     // BUT: Only consider connected if the state machine is actually in 'connected' state
     const actualStateConnected = connectionMachineState === 'connected';
     const hasClientAndProvider = Boolean(
-      fsmConnectionState?.client ||
-      fsmConnectionState?.provider ||
+      praxisConnectionState?.client ||
+      praxisConnectionState?.provider ||
       (state?.client && state?.provider)
     );
     const isConnected = actualStateConnected && hasClientAndProvider;
@@ -1223,12 +1256,20 @@ export async function updateAuthStatusBar(): Promise<void> {
       connectionMachineState === 'connection_error';
     // Remaining retries according to connection machine policy (retryCount < 3)
     const remainingRetries =
-      (typeof fsmConnectionState?.retryCount === 'number' ? fsmConnectionState.retryCount : 0) < 3;
+      (typeof praxisConnectionState?.retryCount === 'number'
+        ? praxisConnectionState.retryCount
+        : 0) < 3;
 
     // Check if there's an active device code session for this connection
     const hasActiveDeviceCode = Boolean(
       snapshot?.context?.deviceCodeSession?.connectionId === activeConnectionId &&
       snapshot?.context?.deviceCodeSession?.expiresAt > Date.now()
+    );
+
+    // Check if there's an active auth code flow session for this connection
+    const hasActiveAuthCodeFlow = Boolean(
+      snapshot?.context?.authCodeFlowSession?.connectionId === activeConnectionId &&
+      snapshot?.context?.authCodeFlowSession?.expiresAt > Date.now()
     );
 
     // Check if connection is in interactive_auth state (device code flow in progress)
@@ -1244,7 +1285,7 @@ export async function updateAuthStatusBar(): Promise<void> {
       connectionMachineState === 'interactive_auth' ||
       connectionMachineState === 'creating_client' ||
       connectionMachineState === 'creating_provider' ||
-      fsmConnectionState?.reauthInProgress === true;
+      praxisConnectionState?.reauthInProgress === true;
 
     // Treat startup/disconnected and transient auth_failed-with-retries as connecting to prevent flicker
     const isDisconnected =
@@ -1269,11 +1310,11 @@ export async function updateAuthStatusBar(): Promise<void> {
         hasActiveDeviceCode,
         isConnecting,
         isInteractiveAuth,
-        hasClient: !!(state?.client || fsmConnectionState?.client),
-        hasProvider: !!(state?.provider || fsmConnectionState?.provider),
-        fsmIsConnected: fsmConnectionState?.isConnected,
-        fsmClient: !!fsmConnectionState?.client,
-        fsmProvider: !!fsmConnectionState?.provider,
+        hasClient: !!(state?.client || praxisConnectionState?.client),
+        hasProvider: !!(state?.provider || praxisConnectionState?.provider),
+        praxisIsConnected: praxisConnectionState?.isConnected,
+        praxisClient: !!praxisConnectionState?.client,
+        praxisProvider: !!praxisConnectionState?.provider,
       });
     }
 
@@ -1300,15 +1341,27 @@ export async function updateAuthStatusBar(): Promise<void> {
       }
     }
 
-    // PRIORITY 2: Device code / interactive flow indicator
-    if (hasActiveDeviceCode || (isInteractiveAuth && authMethod === 'entra')) {
+    // PRIORITY 2: Device code / Auth code flow / interactive flow indicator
+    if (hasActiveAuthCodeFlow && authMethod === 'entra') {
+      // Show auth code flow in progress (Entra only)
+      const remainingMs = Math.max(
+        (snapshot?.context?.authCodeFlowSession?.expiresAt || Date.now()) - Date.now(),
+        0
+      );
+      const remainingMinutes = Math.ceil(remainingMs / 60000);
+      authStatusBarItem.text = '$(sync~spin) Entra: Signing In...';
+      authStatusBarItem.tooltip = `Authorization code flow in progress for ${connectionLabel}. Complete sign-in in browser (${remainingMinutes}m remaining).`;
+      authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+      authStatusBarItem.command = 'azureDevOpsInt.signInWithEntra';
+      authStatusBarItem.show();
+    } else if (hasActiveDeviceCode || (isInteractiveAuth && authMethod === 'entra')) {
       // Show device code flow in progress (Entra only)
       authStatusBarItem.text = '$(sync~spin) Entra: Device Code Active';
       authStatusBarItem.tooltip = `Device code authentication in progress for ${connectionLabel}`;
       authStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
       authStatusBarItem.command = 'azureDevOpsInt.signInWithEntra';
       authStatusBarItem.show();
-    } else if (isConnected && !hasActiveDeviceCode) {
+    } else if (isConnected && !hasActiveDeviceCode && !hasActiveAuthCodeFlow) {
       // Show successful auth status (only if no auth failure)
       if (authMethod === 'entra') {
         authStatusBarItem.text = '$(pass) Entra: Connected';
@@ -1326,7 +1379,7 @@ export async function updateAuthStatusBar(): Promise<void> {
       if (stateMachineAuthFailed && !remainingRetries) {
         const authLabel = authMethod === 'entra' ? 'Entra' : 'PAT';
         const errorMessage =
-          fsmConnectionState?.lastError ||
+          praxisConnectionState?.lastError ||
           state?.lastError ||
           (connectionMachineState === 'auth_failed' ? 'Authentication failed' : 'Connection error');
         if (authMethod === 'entra') {
@@ -1615,10 +1668,20 @@ async function ensureActiveConnection(
   }
 
   const { connection } = prepared;
-  const manager = getConnectionFSMManager();
-  manager.setEnabled(true);
 
-  const result = await manager.connectToConnection(connection, {
+  // CRITICAL: Check if this connection was recently signed out
+  // This prevents automatic reconnection after explicit sign-out
+  if (recentlySignedOutConnections.has(connection.id)) {
+    verbose('[ensureActiveConnection] Skipping connection for recently signed-out connection', {
+      connectionId: connection.id,
+      label: connection.label,
+    });
+    return undefined;
+  }
+  const connectionService = ConnectionService.getInstance();
+  connectionService.setContext(context);
+
+  const result = await connectionService.connect(connection, {
     refresh: options.refresh,
     interactive: options.interactive,
   });
@@ -1634,7 +1697,7 @@ async function ensureActiveConnection(
     return state;
   }
 
-  verbose('[ensureActiveConnection] FSM connection did not produce a usable provider.', {
+  verbose('[ensureActiveConnection] Praxis connection did not produce a usable provider.', {
     connectionId: connection.id,
     hasResult: !!result,
     hasClient: !!result?.client,
@@ -1664,10 +1727,10 @@ async function ensureActiveConnection(
 
 // function getConnectionAdapterInstance(): ConnectionAdapter {
 //   if (!connectionAdapterInstance) {
-//     const manager = getConnectionFSMManager();
-//     // The fallback function is no longer needed as we are fully on FSM.
+//     const manager = ConnectionService.getInstance();
+//     // The fallback function is no longer needed as we are fully on Praxis.
 //     connectionAdapterInstance = new ConnectionAdapter(manager, async () => undefined, true);
-//     connectionAdapterInstance.setUseFSM(true);
+//     connectionAdapterInstance.setUsePraxis(true);
 //   }
 //   return connectionAdapterInstance;
 // }
@@ -2119,7 +2182,7 @@ function ensureTimer(context: vscode.ExtensionContext) {
       persistTimer(context, data),
     restorePersisted: () => restoreTimer(context),
     onState: (s: any) => {
-      // Reactive Architecture: Timer state is managed by FSM timerActor.
+      // Reactive Architecture: Timer state is managed by Praxis timerActor.
       // Timer state updates are sent to webview via syncState message (not partial timerUpdate).
       // This callback only updates VS Code context for command enablement.
       updateTimerContext(s);
@@ -2209,8 +2272,8 @@ type SendWorkItemsSnapshotOptions = Omit<PostWorkItemsSnapshotParams, 'panel' | 
 function dispatchProviderMessage(message: any): void {
   const messageType = message?.type;
 
-  // Reactive Architecture: workItemsLoaded and workItemsError are handled via FSM context updates.
-  // These messages dispatch to FSM, which updates context, and syncState sends full state to webview.
+  // Reactive Architecture: workItemsLoaded and workItemsError are handled via Praxis context updates.
+  // These messages dispatch to Praxis, which updates context, and syncState sends full state to webview.
   // We no longer post these partial messages directly to webview.
   if (messageType === 'workItemsLoaded') {
     const items = Array.isArray(message.workItems) ? [...message.workItems] : [];
@@ -2222,7 +2285,7 @@ function dispatchProviderMessage(message: any): void {
       connectionId: message.connectionId,
     });
 
-    // Dispatch to FSM - context will be updated and syncState will send full state to webview
+    // Dispatch to Praxis - context will be updated and syncState will send full state to webview
     dispatchApplicationEvent({
       type: 'WORK_ITEMS_LOADED',
       workItems: items,
@@ -2232,7 +2295,51 @@ function dispatchProviderMessage(message: any): void {
       types: Array.isArray(message.types) ? [...message.types] : undefined,
     });
 
-    verbose('[dispatchProviderMessage] Dispatched WORK_ITEMS_LOADED event to FSM');
+    verbose('[dispatchProviderMessage] Dispatched WORK_ITEMS_LOADED event to Praxis');
+
+    // CRITICAL: Force syncState to webview immediately after work items are loaded
+    // This ensures work items appear without requiring a manual refresh
+    setImmediate(() => {
+      if (panel?.webview) {
+        const appActor = getApplicationStoreActor();
+        if (appActor) {
+          let snapshot: any = undefined;
+
+          // Check if it's PraxisApplicationManager (has getApplicationState)
+          if (typeof (appActor as any).getApplicationState === 'function') {
+            const manager = appActor as any;
+            const state = manager.getApplicationState();
+            const context = manager.getContext();
+            snapshot = { value: state, context };
+          }
+          // Check if it's XState actor (has getSnapshot)
+          else if (typeof (appActor as any).getSnapshot === 'function') {
+            snapshot = (appActor as any).getSnapshot();
+          }
+
+          if (snapshot) {
+            const serializableState = {
+              praxisState: snapshot.value,
+              context: getSerializableContext(snapshot.context),
+              matches: {}, // Simplified matches for immediate sync
+            };
+
+            verbose('[dispatchProviderMessage] Forcing syncState after WORK_ITEMS_LOADED', {
+              workItemsCount: serializableState.context.workItems?.length || 0,
+              connectionWorkItemsKeys: Object.keys(
+                serializableState.context.connectionWorkItems || {}
+              ),
+            });
+
+            panel.webview.postMessage({
+              type: 'syncState',
+              payload: serializableState,
+            });
+          }
+        }
+      }
+    });
+
     return;
   }
 
@@ -2249,7 +2356,7 @@ function dispatchProviderMessage(message: any): void {
         typeof message.connectionId === 'string' ? message.connectionId : activeConnectionId;
       if (connectionId) {
         // If this looks like an authentication error (401 or contains 'Authentication failed'),
-        // notify the FSM so UI (status bar/banner) can update deterministically.
+        // notify the Praxis so UI (status bar/banner) can update deterministically.
         const looksAuthFailure =
           /\b401\b/.test(errorText) || /authentication failed/i.test(errorText);
         if (looksAuthFailure) {
@@ -2270,7 +2377,7 @@ function dispatchProviderMessage(message: any): void {
   verbose('[dispatchProviderMessage] Dropping unhandled message type', { type: messageType });
 }
 
-function forwardProviderMessage(connectionId: string, message: unknown) {
+export function forwardProviderMessage(connectionId: string, message: unknown) {
   // Forward provider messages directly, not wrapped in envelope
   // This allows sendToWebview to recognize workItemsLoaded and other message types
   verbose('[forwardProviderMessage] Received from provider', {
@@ -2354,8 +2461,8 @@ function sendWorkItemsSnapshot(options: SendWorkItemsSnapshotOptions): void {
   const branchContext = resolveBranchContextPayload(connectionId, options.branchContext);
   const types = resolveSnapshotTypes(options.provider, options.types, verbose);
 
-  // Reactive Architecture: Dispatch directly to FSM instead of using sendToWebview.
-  // FSM will update context and syncState will send full state to webview.
+  // Reactive Architecture: Dispatch directly to Praxis instead of using sendToWebview.
+  // Praxis will update context and syncState will send full state to webview.
   const enrichedWorkItems = enrichWorkItems(items, connectionId, branchContext);
   dispatchApplicationEvent({
     type: 'WORK_ITEMS_LOADED',
@@ -2555,8 +2662,8 @@ export async function activate(context: vscode.ExtensionContext) {
       (reason.stack.includes('azuredevops-integration-extension') ||
         reason.stack.includes('azureDevOpsInt') ||
         reason.stack.includes('activation.ts') ||
-        reason.stack.includes('src\\fsm\\') ||
-        reason.stack.includes('src/fsm/'));
+        reason.stack.includes('src\\praxis\\') ||
+        reason.stack.includes('src/praxis/'));
 
     // Skip rejections from other extensions
     if (!isFromOurExtension) {
@@ -2593,7 +2700,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   extensionContextRef = context;
   setExtensionContextRefBridge(context);
-  getConnectionFSMManager().setContext(context);
+  ConnectionService.getInstance().setContext(context);
 
   // Hydrate persisted per-connection query selections (if present)
   try {
@@ -2655,19 +2762,45 @@ export async function activate(context: vscode.ExtensionContext) {
   // updateAuthStatusBarRef = updateAuthStatusBar;
   (globalThis as any).__updateAuthStatusBar = updateAuthStatusBar;
 
+  // Global map to store pending auth code flow providers by connection ID
+  // This allows the URI handler to route redirects to the correct provider
+  const pendingAuthProviders = new Map<string, any>();
+  (globalThis as any).__pendingAuthProviders = pendingAuthProviders;
+
+  // Register URI handler for authorization code flow
+  const uriHandler = vscode.window.registerUriHandler({
+    handleUri: async (uri: vscode.Uri) => {
+      try {
+        // Only handle our custom scheme
+        if (uri.scheme !== 'vscode-azuredevops-int') {
+          return;
+        }
+
+        // Handle auth callback
+        if (uri.path === '/auth/callback') {
+          await handleAuthRedirect(uri, context, pendingAuthProviders);
+        }
+      } catch (error: any) {
+        activationLogger.error(`URI handler error: ${error.message}`, { meta: error });
+        vscode.window.showErrorMessage(`Authentication error: ${error.message}`);
+      }
+    },
+  });
+  context.subscriptions.push(uriHandler);
+
   // const authenticationProviderOptions: vscode.AuthenticationProviderOptions & {
   //   supportsAccountManagement?: boolean;
   // } = {
   //   supportsMultipleAccounts: true,
   //   supportsAccountManagement: true,
   // };
-  // LEGACY AUTH REMOVED - Authentication provider registration replaced by FSM authentication
+  // LEGACY AUTH REMOVED - Authentication provider registration replaced by Praxis authentication
 
   // Ensure applicationStore is initialized before registering webview provider
-  // This prevents race conditions where the webview panel resolves before the FSM actor is available
+  // This prevents race conditions where the webview panel resolves before the Praxis actor is available
   verbose('[activation] Ensuring application store is initialized before webview registration');
   await ensureSharedContextBridge(context);
-  verbose('[activation] Application store initialized, FSM actor available');
+  verbose('[activation] Application store initialized, Praxis actor available');
 
   // Register the work items webview view resolver (guard against duplicate registration)
   if (!viewProviderRegistered) {
@@ -2681,7 +2814,7 @@ export async function activate(context: vscode.ExtensionContext) {
     );
     viewProviderRegistered = true;
   }
-  // Register FSM trace commands for full replay capability
+  // Register trace commands for full replay capability
   registerTraceCommands(context);
 
   // Register quick debug commands for instant troubleshooting
@@ -2689,7 +2822,7 @@ export async function activate(context: vscode.ExtensionContext) {
   verbose('[ACTIVATION] Quick debug commands registered');
 
   // Register output channel reader for programmatic log access
-  import('./fsm/commands/outputChannelReader.js')
+  import('./commands/outputChannelReader.js')
     .then(({ registerOutputChannelReader }) => {
       registerOutputChannelReader(context);
       verbose('[ACTIVATION] Output channel reader registered for automated debugging');
@@ -2700,44 +2833,44 @@ export async function activate(context: vscode.ExtensionContext) {
       });
     });
 
-  // AUTO-START FSM TRACING AND SHOW OUTPUT FOR DEBUGGING
-  verbose('[ACTIVATION] Starting FSM tracing session automatically...');
+  // AUTO-START TRACING AND SHOW OUTPUT FOR DEBUGGING
+  verbose('[ACTIVATION] Starting tracing session automatically...');
 
-  // Import FSM tracing modules
-  import('./fsm/logging/FSMTracer.js')
-    .then(({ startTraceSession /*, fsmTracer */ }) => {
+  // Import tracing modules
+  import('./logging/TraceLogger.js')
+    .then(({ startTraceSession }) => {
       try {
         const sessionId = startTraceSession('Extension Activation - Auto Debug Session');
-        verbose(`[ACTIVATION] FSM tracing started: ${sessionId}`);
+        verbose(`[ACTIVATION] Tracing started: ${sessionId}`);
 
-        // Show the FSM output channel immediately for visibility
-        import('./fsm/logging/FSMLogger.js')
-          .then(({ fsmLogger, FSMComponent }) => {
-            fsmLogger.showOutputChannel();
-            verbose('[ACTIVATION] FSM Output Channel opened for debugging visibility');
+        // Show the output channel immediately for visibility
+        import('./logging/ComponentLogger.js')
+          .then(({ componentLogger, Component }) => {
+            componentLogger.showOutputChannel();
+            verbose('[ACTIVATION] Output Channel opened for debugging visibility');
 
             // Log activation start
-            fsmLogger.info(FSMComponent.APPLICATION, 'Extension activation started', {
-              component: FSMComponent.APPLICATION,
+            componentLogger.info(Component.APPLICATION, 'Extension activation started', {
+              component: Component.APPLICATION,
               event: 'ACTIVATE',
               state: 'activating',
             });
           })
           .catch((error) => {
-            activationLogger.error('[ACTIVATION] Failed to import FSM logger for activation', {
+            activationLogger.error('[ACTIVATION] Failed to import logger for activation', {
               meta: error,
             });
           });
       } catch (error) {
-        activationLogger.error('[ACTIVATION] Failed to start FSM tracing', { meta: error });
+        activationLogger.error('[ACTIVATION] Failed to start tracing', { meta: error });
       }
     })
     .catch((error) => {
-      activationLogger.error('[ACTIVATION] Failed to import FSM tracing modules', { meta: error });
+      activationLogger.error('[ACTIVATION] Failed to import tracing modules', { meta: error });
     });
 
   // Import LiveCanvasBridge to enable the WebSocket connection to the live canvas
-  import('./fsm/logging/LiveCanvasBridge.js')
+  import('./logging/LiveCanvasBridge.js')
     .then(({ LiveCanvasBridge }) => {
       try {
         // Initialize LiveCanvasBridge
@@ -2754,14 +2887,14 @@ export async function activate(context: vscode.ExtensionContext) {
       activationLogger.error('[ACTIVATION] Failed to import LiveCanvasBridge', { meta: error });
     });
 
-  // FSM and Bridge setup
-  // const fsmSetupService = new FSMSetupService(context);
+  // Bridge setup
+  // const praxisSetupService = new PraxisSetupService(context);
 
   const appActor = getApplicationStoreActor();
 
-  // Activate the FSM with extension context
+  // Activate the application with extension context
   if (appActor && typeof (appActor as any).send === 'function') {
-    verbose('[activation] Sending ACTIVATE event to FSM');
+    verbose('[activation] Sending ACTIVATE event to application');
     (appActor as any).send({ type: 'ACTIVATE', context });
 
     // Drive the activation process
@@ -2801,12 +2934,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
   if (appActor && typeof (appActor as any).subscribe === 'function') {
     (appActor as any).subscribe((snapshot: any) => {
-      // CRITICAL: Update global activeConnectionId when FSM context changes
+      // CRITICAL: Update global activeConnectionId when application context changes
       // This ensures status bar and refresh use the correct connection
-      const fsmActiveConnectionId = snapshot?.context?.activeConnectionId;
-      if (fsmActiveConnectionId !== activeConnectionId) {
+      const praxisActiveConnectionId = snapshot?.context?.activeConnectionId;
+      if (praxisActiveConnectionId !== activeConnectionId) {
         const previousActiveConnectionId = activeConnectionId;
-        activeConnectionId = fsmActiveConnectionId;
+        activeConnectionId = praxisActiveConnectionId;
         verbose('[activation] Active connection changed', {
           previous: previousActiveConnectionId,
           current: activeConnectionId,
@@ -2820,22 +2953,34 @@ export async function activate(context: vscode.ExtensionContext) {
         });
 
         // If the newly active connection is not connected, proactively ensure and, if needed, prompt
+        // BUT: Skip if this connection was recently signed out (prevents automatic reconnection after sign out)
         try {
           if (extensionContextRef && activeConnectionId) {
-            const manager = getConnectionFSMManager();
-            const stateValue = manager.getConnectionState(activeConnectionId);
-            const targetState = connectionStates.get(activeConnectionId);
-            const hasProvider = !!targetState?.provider;
-            const isConnected =
-              stateValue === 'connected' || (targetState && targetState.isConnected === true);
-            if (!hasProvider || !isConnected) {
-              // Attempt to establish connection; allow interactive auth so user is prompted if required
-              ensureActiveConnection(extensionContextRef, activeConnectionId, {
-                refresh: true,
-                interactive: true,
-              }).catch((err) => {
-                verbose('[activation] ensureActiveConnection failed after active switch', err);
-              });
+            // Check if this connection was recently signed out
+            if (recentlySignedOutConnections.has(activeConnectionId)) {
+              verbose(
+                '[activation] Skipping automatic reconnection for recently signed-out connection',
+                {
+                  connectionId: activeConnectionId,
+                }
+              );
+            } else {
+              const connectionService = ConnectionService.getInstance();
+              const manager = connectionService.getConnectionManager(activeConnectionId);
+              const stateValue = manager?.getConnectionState() || null;
+              const targetState = connectionStates.get(activeConnectionId);
+              const hasProvider = !!targetState?.provider;
+              const isConnected =
+                stateValue === 'connected' || (targetState && targetState.isConnected === true);
+              if (!hasProvider || !isConnected) {
+                // Attempt to establish connection; allow interactive auth so user is prompted if required
+                ensureActiveConnection(extensionContextRef, activeConnectionId, {
+                  refresh: true,
+                  interactive: true,
+                }).catch((err) => {
+                  verbose('[activation] ensureActiveConnection failed after active switch', err);
+                });
+              }
             }
           }
         } catch (err) {
@@ -2956,7 +3101,7 @@ export async function activate(context: vscode.ExtensionContext) {
         };
 
         const serializableState = {
-          fsmState: snapshot.value,
+          praxisState: snapshot.value,
           context: getSerializableContext(snapshot.context),
           matches, // Include pre-computed state matches
         };
@@ -3042,7 +3187,13 @@ export async function activate(context: vscode.ExtensionContext) {
     authStatusBarItem,
   };
 
+  verbose('[activation] Registering commands...');
+
+  console.debug('[ACTIVATION] Registering commands...');
   const commandDisposables = registerCommands(context, commandContext);
+  verbose('[activation] Commands registered', { count: commandDisposables.length });
+
+  console.debug(`[ACTIVATION] Commands registered: ${commandDisposables.length} disposables`);
   context.subscriptions.push(...commandDisposables);
 
   // Set up listeners and handlers
@@ -3062,7 +3213,7 @@ export async function activate(context: vscode.ExtensionContext) {
   ensureActiveConnection(context, activeConnectionId, { refresh: true })
     .then(() => {
       // Ensure status bar is shown after initial connection
-      // Small delay to allow FSM to process device code session if it exists
+      // Small delay to allow application to process device code session if it exists
       setTimeout(() => {
         updateAuthStatusBar().catch((error) => {
           verbose('[activation] Status bar update failed:', error);
@@ -3149,7 +3300,7 @@ export function deactivate(): Thenable<void> {
   return Promise.resolve();
 }
 
-// Helper function to extract only serializable properties from FSM context
+// Helper function to extract only serializable properties from application context
 function getSerializableContext(context: any): Record<string, any> {
   if (!context) {
     return {};
@@ -3174,19 +3325,19 @@ function getSerializableContext(context: any): Record<string, any> {
 
   if (context.activeConnectionId) {
     try {
-      // Try to get connection error from ConnectionFSMManager
-      const connectionManager = getConnectionFSMManager();
-      const connectionActor = connectionManager.getConnectionActor(context.activeConnectionId);
-      if (connectionActor && typeof connectionActor.getSnapshot === 'function') {
-        const connectionSnapshot = connectionActor.getSnapshot();
-        if (connectionSnapshot?.error) {
-          workItemsError = connectionSnapshot.error;
+      // Try to get connection error from ConnectionService
+      const connectionService = ConnectionService.getInstance();
+      const connectionManager = connectionService.getConnectionManager(context.activeConnectionId);
+      if (connectionManager) {
+        const connectionData = connectionManager.getConnectionData();
+        if (connectionData.lastError) {
+          workItemsError = connectionData.lastError;
           workItemsErrorConnectionId = context.activeConnectionId;
           if (shouldLogDebug()) {
             verbose('[getSerializableContext] Extracted connection error', {
               error: workItemsError,
               connectionId: workItemsErrorConnectionId,
-              state: connectionSnapshot.state,
+              state: connectionManager.getConnectionState(),
             });
           }
         }
@@ -3249,6 +3400,16 @@ function getSerializableContext(context: any): Record<string, any> {
           remainingMs: Math.max(context.deviceCodeSession.expiresAt - Date.now(), 0),
         }
       : undefined,
+    authCodeFlowSession: context.authCodeFlowSession
+      ? {
+          connectionId: context.authCodeFlowSession.connectionId,
+          authorizationUrl: context.authCodeFlowSession.authorizationUrl,
+          startedAt: context.authCodeFlowSession.startedAt,
+          expiresAt: context.authCodeFlowSession.expiresAt,
+          expiresInSeconds: context.authCodeFlowSession.expiresInSeconds,
+          remainingMs: Math.max(context.authCodeFlowSession.expiresAt - Date.now(), 0),
+        }
+      : undefined,
   };
 
   // Only log serialization if debug logging is enabled to prevent log spam
@@ -3268,14 +3429,106 @@ function getSerializableContext(context: any): Record<string, any> {
   return serialized;
 }
 
+/**
+ * Handle authorization redirect URI from browser
+ */
+async function handleAuthRedirect(
+  uri: vscode.Uri,
+  context: vscode.ExtensionContext,
+  pendingAuthProviders: Map<string, any>
+): Promise<void> {
+  try {
+    // Parse URI parameters
+    const params = new URLSearchParams(uri.query);
+    const authorizationCode = params.get('code');
+    const state = params.get('state');
+    const error = params.get('error');
+    const errorDescription = params.get('error_description');
+
+    // Check for errors
+    if (error) {
+      const errorMsg = errorDescription || error;
+      activationLogger.error(`Authorization error: ${errorMsg}`);
+      vscode.window.showErrorMessage(`Authentication failed: ${errorMsg}`);
+      return;
+    }
+
+    if (!authorizationCode || !state) {
+      activationLogger.error('Missing authorization code or state in redirect URI');
+      vscode.window.showErrorMessage('Invalid authentication response');
+      return;
+    }
+
+    // Find provider by checking state parameter
+    let connectionId: string | undefined;
+    let provider: any;
+
+    for (const [connId, prov] of pendingAuthProviders.entries()) {
+      const pendingState = prov.getPendingAuthState?.();
+      if (pendingState === state) {
+        connectionId = connId;
+        provider = prov;
+        break;
+      }
+    }
+
+    if (!provider || !connectionId) {
+      activationLogger.error('No pending authentication found for redirect');
+      vscode.window.showErrorMessage('Authentication session expired. Please try again.');
+      return;
+    }
+
+    // Dispatch event
+    dispatchApplicationEvent(
+      AuthRedirectReceivedAppEvent.create({
+        connectionId: connectionId,
+        authorizationCode: authorizationCode,
+        state: state,
+      })
+    );
+
+    // Handle redirect
+    const result = await provider.handleRedirectUri(uri);
+
+    if (result.success) {
+      // Dispatch completion event
+      dispatchApplicationEvent(
+        AuthCodeFlowCompletedAppEvent.create({
+          connectionId: connectionId,
+          success: true,
+        })
+      );
+
+      // Clear pending provider
+      pendingAuthProviders.delete(connectionId);
+
+      vscode.window.showInformationMessage('Authentication successful!');
+    } else {
+      // Dispatch failure event
+      dispatchApplicationEvent(
+        AuthCodeFlowCompletedAppEvent.create({
+          connectionId: connectionId,
+          success: false,
+          error: result.error,
+        })
+      );
+
+      vscode.window.showErrorMessage(`Authentication failed: ${result.error}`);
+    }
+  } catch (error: any) {
+    activationLogger.error(`Redirect handling error: ${error.message}`, { meta: error });
+    vscode.window.showErrorMessage(`Authentication error: ${error.message}`);
+  }
+}
+
 class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
   public view?: vscode.WebviewView;
   private readonly extensionUri: vscode.Uri;
-  private readonly fsm: ReturnType<typeof getApplicationActor>;
+  private readonly appActor: ReturnType<typeof getApplicationActor>;
 
   constructor(_context: vscode.ExtensionContext) {
     this.extensionUri = _context.extensionUri;
-    this.fsm = getApplicationActor();
+    this.appActor = getApplicationActor();
   }
 
   public resolveWebviewView(
@@ -3286,7 +3539,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
     this.view = webviewView;
     panel = webviewView; // Store in global for snapshot subscription
 
-    // CRITICAL: When panel is created, immediately send current FSM state
+    // CRITICAL: When panel is created, immediately send current Praxis state
     // This ensures work items loaded before panel creation are sent to webview
     // (State will be sent below after webview setup is complete)
     const webview = webviewView.webview;
@@ -3474,7 +3727,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
           };
 
           const serializableState = {
-            fsmState: snapshot.value,
+            praxisState: snapshot.value,
             context: getSerializableContext(snapshot.context),
             matches,
           };
@@ -3530,8 +3783,8 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
         return;
       }
 
-      if ((message.type === 'fsmEvent' || message.type === 'appEvent') && message.event) {
-        // Forward webview events to the FSM (wrapped format)
+      if (message.type === 'appEvent' && message.event) {
+        // Forward webview events to the Praxis (wrapped format)
         verbose('[AzureDevOpsIntViewProvider] Received event from webview', {
           eventType: message.event.type,
           event: message.event,
@@ -3545,7 +3798,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
           const evtType = message.event.type as string;
           // Router stamping helper
           try {
-            const { stampConnectionMeta } = await import('./fsm/router/stamp.js');
+            const { stampConnectionMeta } = await import('./services/router/stamp.js');
             message.event = stampConnectionMeta(message.event, currentActiveId);
           } catch {
             // Inline fallback (no-op)
@@ -3593,7 +3846,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
                 meta: err,
               });
             });
-          return; // Don't dispatch to FSM
+          return; // Don't dispatch to Praxis
         }
 
         if (message.event.type === 'OPEN_DEVICE_CODE_BROWSER') {
@@ -3602,7 +3855,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
             connectionId: message.event.connectionId,
           });
 
-          // Get device code session from FSM context
+          // Get device code session from Praxis context
           const actor = getApplicationActor();
           const snapshot = actor?.getSnapshot?.();
           const deviceCodeSession = snapshot?.context?.deviceCodeSession;
@@ -3637,10 +3890,49 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
               { meta: { connectionId: message.event.connectionId } }
             );
           }
-          return; // Don't dispatch to FSM
+          return; // Don't dispatch to Praxis
         }
 
-        // Forward other events to FSM
+        if (message.event.type === 'OPEN_AUTH_CODE_FLOW_BROWSER') {
+          // Handle auth code flow browser opening from webview
+          verbose(
+            '[AzureDevOpsIntViewProvider] Received OPEN_AUTH_CODE_FLOW_BROWSER from webview',
+            {
+              connectionId: message.event.connectionId,
+            }
+          );
+
+          // Get auth code flow session from Praxis context
+          const actor = getApplicationActor();
+          const snapshot = actor?.getSnapshot?.();
+          const authCodeFlowSession = snapshot?.context?.authCodeFlowSession;
+
+          if (
+            authCodeFlowSession &&
+            authCodeFlowSession.connectionId === message.event.connectionId
+          ) {
+            // Open browser to authorization URL
+            const uri = vscode.Uri.parse(authCodeFlowSession.authorizationUrl);
+            vscode.env
+              .openExternal(uri)
+              .then(() => {
+                verbose('[AzureDevOpsIntViewProvider] Auth code flow browser opened');
+              })
+              .then(undefined, (err) => {
+                activationLogger.error('[AzureDevOpsIntViewProvider] Failed to open browser', {
+                  meta: err,
+                });
+              });
+          } else {
+            activationLogger.warn(
+              '[AzureDevOpsIntViewProvider] Auth code flow session not found for connection',
+              { meta: { connectionId: message.event.connectionId } }
+            );
+          }
+          return; // Don't dispatch to Praxis
+        }
+
+        // Forward other events to Praxis
         dispatchApplicationEvent(message.event);
       } else {
         // Log warning for legacy/unknown message types
@@ -3682,11 +3974,11 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
       }
     });
 
-    // Notify FSM that webview panel is ready
-    this.fsm?.send?.({ type: 'UPDATE_WEBVIEW_PANEL', webviewPanel: webviewView });
+    // Notify Praxis that webview panel is ready
+    this.appActor?.send?.({ type: 'UPDATE_WEBVIEW_PANEL', webviewPanel: webviewView });
 
-    // Send initial FSM state to webview
-    // CRITICAL: When panel is created, immediately send current FSM state
+    // Send initial Praxis state to webview
+    // CRITICAL: When panel is created, immediately send current Praxis state
     // This ensures work items loaded before panel creation are sent to webview
     sendCurrentState();
   }

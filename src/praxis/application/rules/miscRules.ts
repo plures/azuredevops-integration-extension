@@ -10,6 +10,8 @@ import {
   DeviceCodeStartedAppEvent,
   DeviceCodeCompletedAppEvent,
   DeviceCodeCancelledEvent,
+  AuthCodeFlowStartedAppEvent,
+  AuthCodeFlowCompletedAppEvent,
   ApplicationErrorEvent,
   RetryApplicationEvent,
   ResetApplicationEvent,
@@ -95,6 +97,59 @@ const deviceCodeCancelledRule = defineRule<ApplicationEngineContext>({
 });
 
 // ============================================================================
+// Auth Code Flow Rules
+// ============================================================================
+
+/**
+ * Handle auth code flow started
+ */
+const authCodeFlowStartedRule = defineRule<ApplicationEngineContext>({
+  id: 'application.authCodeFlowStarted',
+  description: 'Handle authorization code flow with PKCE started',
+  meta: {
+    triggers: ['AUTH_CODE_FLOW_STARTED'],
+  },
+  impl: (state, events) => {
+    const startedEvent = findEvent(events, AuthCodeFlowStartedAppEvent);
+    if (!startedEvent) return [];
+
+    const { connectionId, authorizationUrl, expiresInSeconds } = startedEvent.payload;
+    const now = getClock(state).now();
+
+    state.context.authCodeFlowSession = {
+      connectionId,
+      authorizationUrl,
+      startedAt: now,
+      expiresAt: now + expiresInSeconds * 1000,
+      expiresInSeconds,
+    };
+
+    return [];
+  },
+});
+
+/**
+ * Handle auth code flow completed
+ */
+const authCodeFlowCompletedRule = defineRule<ApplicationEngineContext>({
+  id: 'application.authCodeFlowCompleted',
+  description: 'Handle authorization code flow with PKCE completed',
+  meta: {
+    triggers: ['AUTH_CODE_FLOW_COMPLETED'],
+  },
+  impl: (state, events) => {
+    const completedEvent = findEvent(events, AuthCodeFlowCompletedAppEvent);
+    if (!completedEvent) return [];
+
+    if (state.context.authCodeFlowSession?.connectionId === completedEvent.payload.connectionId) {
+      state.context.authCodeFlowSession = undefined;
+    }
+
+    return [];
+  },
+});
+
+// ============================================================================
 // Error Handling Rules
 // ============================================================================
 
@@ -169,6 +224,7 @@ const resetRule = defineRule<ApplicationEngineContext>({
     state.context.lastError = undefined;
     state.context.errorRecoveryAttempts = 0;
     state.context.deviceCodeSession = undefined;
+    state.context.authCodeFlowSession = undefined;
     state.context.pendingWorkItems = undefined;
 
     return [];
@@ -271,6 +327,10 @@ const authenticationSuccessRule = defineRule<ApplicationEngineContext>({
       state.context.deviceCodeSession = undefined;
     }
 
+    if (state.context.authCodeFlowSession?.connectionId === connectionId) {
+      state.context.authCodeFlowSession = undefined;
+    }
+
     if (state.context.lastError?.connectionId === connectionId) {
       state.context.lastError = undefined;
     }
@@ -284,6 +344,9 @@ export const miscRules = [
   deviceCodeStartedRule,
   deviceCodeCompletedRule,
   deviceCodeCancelledRule,
+  // Auth code flow
+  authCodeFlowStartedRule,
+  authCodeFlowCompletedRule,
   // Error handling
   applicationErrorRule,
   retryRule,

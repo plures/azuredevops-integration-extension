@@ -8,7 +8,7 @@
 
 import type { PraxisTimerSnapshot } from '../timer/types.js';
 import type { PraxisConnectionSnapshot, ProjectConnection } from '../connection/types.js';
-import type { TraceEntry } from './tracing.js';
+import type { TraceEntry } from '../../logging/TraceLogger.js';
 
 export interface PraxisClock {
   now(): number;
@@ -56,6 +56,17 @@ export interface DeviceCodeSession {
   connectionId: string;
   userCode: string;
   verificationUri: string;
+  startedAt: number;
+  expiresAt: number;
+  expiresInSeconds: number;
+}
+
+/**
+ * Auth code flow session for OAuth authorization code flow with PKCE
+ */
+export interface AuthCodeFlowSession {
+  connectionId: string;
+  authorizationUrl: string;
   startedAt: number;
   expiresAt: number;
   expiresInSeconds: number;
@@ -123,6 +134,9 @@ export interface PraxisApplicationContext {
 
   // Device code flow
   deviceCodeSession?: DeviceCodeSession;
+  
+  // Auth code flow (PKCE)
+  authCodeFlowSession?: AuthCodeFlowSession;
 
   // Error handling
   lastError?: {

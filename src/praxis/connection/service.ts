@@ -1,10 +1,10 @@
 import type { ExtensionContext } from 'vscode';
 import { PraxisConnectionManager } from './manager.js';
 import type { ProjectConnection } from './types.js';
-import { createComponentLogger, FSMComponent } from '../../fsm/logging/FSMLogger.js';
+import { createComponentLogger, Component } from '../../logging/ComponentLogger.js';
 import { ConnectionDriver } from './driver.js';
 
-const logger = createComponentLogger(FSMComponent.CONNECTION, 'ConnectionService');
+const logger = createComponentLogger(Component.CONNECTION, 'ConnectionService');
 
 export class ConnectionService {
   private static instance: ConnectionService;

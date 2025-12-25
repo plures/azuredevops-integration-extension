@@ -7,31 +7,31 @@
 **Separation of Concerns**
 
 - **Svelte (Webview)**: Controls UI rendering, user interactions, and visual state
-- **FSM (Extension Host)**: Manages all application state, business logic, and side effects
-- **Svelte informs FSM**: Sends user actions and UI state changes (doesn't control FSM)
-- **FSM updates state**: Changes context/state (doesn't control UI)
-- **UI reacts automatically**: Svelte components react to state/context changes
+- **Praxis (Extension Host)**: Manages all application state, business logic, and side effects using Facts, Rules, and Flows
+- **Svelte informs Praxis**: Sends user actions and UI state changes (doesn't control Praxis)
+- **Praxis updates state**: Changes context via Rules and Facts (doesn't control UI)
+- **UI reacts automatically**: Svelte components react to context changes
 
 **Reactive Paradigm (Not Messaging)**
 
-- ✅ **State/context updates drive UI**: FSM context changes → UI reacts automatically
+- ✅ **State/context updates drive UI**: Praxis context changes → UI reacts automatically
 - ✅ **Single `syncState` message**: All state updates via one message type
 - ❌ **No partial state messages**: Don't send `syncTimerState`, `workItemsError`, etc.
 - ❌ **No command messages**: Don't send `showError`, `updateButton`, etc.
-- ✅ **All UI state in FSM context**: If UI displays it, it's in context
+- ✅ **All UI state in Praxis context**: If UI displays it, it's in context
 
 **Unidirectional Data Flow**
 
 ```
-User Action → Svelte sends event → FSM processes → Context updates → syncState → UI reacts
+User Action → Svelte sends event → Praxis Rules process → Context updates → syncState → UI reacts
 ```
 
 ### Implementation Rules
 
-**FSM Context Updates**
+**Praxis Context Updates**
 
-- All UI-visible state must be in FSM context
-- Update context, not UI directly
+- All UI-visible state must be in Praxis context (Facts)
+- Update context via Rules, not UI directly
 - Context changes trigger `syncState` automatically
 - No separate messages for partial updates
 
@@ -39,7 +39,7 @@ User Action → Svelte sends event → FSM processes → Context updates → syn
 
 - Read state reactively: `const data = $derived(context?.data)`
 - Send actions: `vscode.postMessage({ type: 'ACTION_NAME' })`
-- Local UI state: Control locally, notify FSM for persistence
+- Local UI state: Control locally, notify Praxis for persistence
 - React to context: UI updates automatically when context changes
 
 **Message Types**
@@ -56,19 +56,19 @@ User Action → Svelte sends event → FSM processes → Context updates → syn
 panel.webview.postMessage({ type: 'workItemsError', error: '...' });
 panel.webview.postMessage({ type: 'syncTimerState', payload: {...} });
 
-// ✅ DO: Update FSM context, syncState handles it
-assign({ workItemsError: '...', timerState: {...} });
-// State subscription automatically sends syncState
+// ✅ DO: Update Praxis context via Rules, syncState handles it
+// Rules update Facts in context
+// Context changes automatically trigger syncState
 
 // ❌ DON'T: UI controls its own state
 function handleRefresh() {
   workItems = fetchWorkItems(); // UI managing state
 }
 
-// ✅ DO: UI sends action, FSM updates state
+// ✅ DO: UI sends action, Praxis Rules update state
 function handleRefresh() {
   vscode.postMessage({ type: 'REFRESH_DATA' });
-  // FSM updates context → syncState → UI reacts
+  // Praxis Rules update context → syncState → UI reacts
 }
 ```
 

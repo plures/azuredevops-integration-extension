@@ -45,21 +45,31 @@ LLM-GUARD:
   
   // CRITICAL: Filter work items to only show those for the active connection
   // This ensures work items from one connection are never shown when another connection's tab is selected
-  const allWorkItems = $derived(context?.pendingWorkItems?.workItems || context?.workItems || []);
   const pendingWorkItemsConnectionId = $derived(context?.pendingWorkItems?.connectionId);
+  const connectionWorkItems = $derived(context?.connectionWorkItems || {});
+  
   const workItems = $derived.by(() => {
-    // If pendingWorkItems has a connectionId, filter by it
-    if (pendingWorkItemsConnectionId) {
-      // Only show work items if they belong to the active connection
-      if (pendingWorkItemsConnectionId === activeConnectionId) {
-        return allWorkItems;
-      }
-      // If pendingWorkItems is for a different connection, return empty array
+    if (!activeConnectionId) {
       return [];
     }
-    // Fallback: if no connectionId in pendingWorkItems, only show if activeConnectionId matches
-    // This is a safety check - ideally all work items should have connectionId
-    return activeConnectionId ? allWorkItems : [];
+
+    // Priority 1: Check pendingWorkItems if it matches the active connection
+    if (pendingWorkItemsConnectionId === activeConnectionId && context?.pendingWorkItems?.workItems) {
+      return context.pendingWorkItems.workItems;
+    }
+
+    // Priority 2: Check connectionWorkItems map for the active connection
+    const connectionItems = connectionWorkItems[activeConnectionId];
+    if (Array.isArray(connectionItems) && connectionItems.length > 0) {
+      return connectionItems;
+    }
+
+    // Priority 3: Fallback to legacy workItems array (for backward compatibility)
+    if (Array.isArray(context?.workItems) && context.workItems.length > 0) {
+      return context.workItems;
+    }
+
+    return [];
   });
   const timerState = $derived(context?.timerState);
   const workItemsError = $derived(context?.workItemsError);

@@ -15,7 +15,7 @@ LLM-GUARD:
 <script lang="ts">
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
-  import { webviewStore } from './praxis/webview/store.js';
+  import { praxisStore } from './praxis/store.js';
   // import Settings from './components/Settings.svelte';
   import ConnectionTabs from './components/ConnectionTabs.svelte';
   import ConnectionViews from './components/ConnectionViews.svelte';
@@ -29,11 +29,11 @@ LLM-GUARD:
   console.debug('[webview] App.svelte initializing');
 
   // Reactive Praxis state from webview store
-  let currentState = $state(get(webviewStore) as any);
+  let currentState = $state(get(praxisStore) as any);
   
   // Subscribe to store updates
   $effect(() => {
-    const unsubscribe = webviewStore.subscribe((value) => {
+    const unsubscribe = praxisStore.subscribe((value) => {
       console.debug('[webview] App store update', { 
         hasConnections: value.context.app.connections?.length > 0 
       });
@@ -83,7 +83,7 @@ LLM-GUARD:
     }
   });
 
-  // Toggle debug view - handled locally in Svelte, just notify FSM of change
+  // Toggle debug view - handled locally in Svelte, just notify Praxis of change
   let localDebugViewVisible = $state(false);
   
   // Sync with context when it changes

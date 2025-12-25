@@ -20,6 +20,8 @@ import * as msal from '@azure/msal-node';
 import { PublicClientApplication as _PublicClientApplication } from '@azure/msal-node';
 import type * as vscode from 'vscode';
 import { createLogger } from '../logging/unifiedLogger.js';
+import { AuthorizationCodeFlowProvider } from '../services/auth/authorizationCodeProvider.js';
+import { shouldUseAuthCodeFlow } from '../config/authConfig.js';
 
 const logger = createLogger('entraAuth');
 // Inline type definitions (previously from deleted types.js)
@@ -88,6 +90,7 @@ export class EntraAuthProvider implements IAuthProvider {
   private cachedToken?: TokenInfo;
   private refreshTokenKey: string;
   private tokenCacheKey: string;
+  private authCodeFlowProvider?: AuthorizationCodeFlowProvider;
 
   // Refresh failure tracking to prevent constant retry attempts
   // private refreshFailureCount = 0;
@@ -193,12 +196,58 @@ export class EntraAuthProvider implements IAuthProvider {
   }
 
   /**
-   * Authenticate using device code flow (v1.9.3 proven approach)
-   * @param forceInteractive If true, skips silent authentication and forces device code flow
+   * Get/create auth code flow provider
+   */
+  private getAuthCodeFlowProvider(): AuthorizationCodeFlowProvider {
+    if (!this.authCodeFlowProvider) {
+      const redirectUri = `vscode-azuredevops-int://auth/callback`;
+
+      this.authCodeFlowProvider = new AuthorizationCodeFlowProvider({
+        config: {
+          clientId: this.config.clientId,
+          tenantId: this.config.tenantId,
+          scopes: this.config.scopes,
+        },
+        secretStorage: this.secretStorage,
+        connectionId: this.connectionId,
+        redirectUri: redirectUri,
+        onStatusUpdate: (connectionId, status) => {
+          this.onStatusUpdate?.(connectionId, status);
+        },
+      });
+    }
+    return this.authCodeFlowProvider;
+  }
+
+  /**
+   * Authenticate using device code flow or authorization code flow with PKCE
+   * @param forceInteractive If true, skips silent authentication and forces interactive flow
    */
   async authenticate(forceInteractive: boolean = false): Promise<AuthenticationResult> {
     try {
       const scopes = this.resolveScopes();
+
+      // Check if auth code flow should be used
+      const useAuthCodeFlow = shouldUseAuthCodeFlow('entra', this.connectionId);
+
+      if (useAuthCodeFlow) {
+        try {
+          const provider = this.getAuthCodeFlowProvider();
+
+          // Store provider globally for URI handler
+          if (!(globalThis as any).__pendingAuthProviders) {
+            (globalThis as any).__pendingAuthProviders = new Map();
+          }
+          (globalThis as any).__pendingAuthProviders.set(this.connectionId, provider);
+
+          return await provider.authenticate(forceInteractive);
+        } catch (error: any) {
+          logger.warn('Auth code flow failed, falling back to device code', {
+            meta: { error: error.message, connectionId: this.connectionId },
+          });
+          // Fall through to device code flow
+        }
+      }
 
       // Try silent authentication first (unless forced)
       if (!forceInteractive) {

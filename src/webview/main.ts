@@ -15,10 +15,9 @@
 import { mount } from 'svelte';
 import App from './App.svelte';
 import { frontendEngine } from './praxis/frontendEngine.js';
-import { webviewStore } from './praxis/webview/store.js';
+import { praxisStore } from './praxis/store.js';
 import { SyncStateEvent } from '../praxis/application/facts.js';
-import { SyncAppStateEvent, PartialAppStateUpdateEvent } from './praxis/webview/facts.js';
-import { applicationSnapshot } from './fsmSnapshotStore.js';
+import { applicationSnapshot } from './praxisSnapshotStore.js';
 
 // This ensures that we only try to mount the Svelte app after the DOM is fully loaded.
 // This is a critical step to prevent race conditions where the script runs before the
@@ -116,9 +115,9 @@ if (typeof (globalThis as any).process === 'undefined') {
   (globalThis as any).process = {
     env: {
       NODE_ENV: 'development',
-      USE_TIMER_FSM: 'true',
-      USE_CONNECTION_FSM: 'true',
-      USE_WEBVIEW_FSM: 'true',
+      USE_TIMER_PRAXIS: 'true',
+      USE_CONNECTION_PRAXIS: 'true',
+      USE_WEBVIEW_PRAXIS: 'true',
       USE_MESSAGE_ROUTER: 'true',
     },
     arch: '',
@@ -141,7 +140,7 @@ type IncomingMessage = {
   type?: string;
   payload?: any;
   context?: any;
-  fsmState?: any;
+  praxisState?: any;
   matches?: any;
   meta?: any;
   command?: string;
@@ -164,7 +163,7 @@ function extractSyncEnvelope(msg: IncomingMessage) {
   if (msg.type === 'syncState' && msg.payload) {
     return {
       context: msg.payload.context,
-      fsmState: msg.payload.fsmState,
+      praxisState: msg.payload.praxisState,
       matches: msg.payload.matches,
     };
   }
@@ -172,12 +171,12 @@ function extractSyncEnvelope(msg: IncomingMessage) {
   if (msg.type === 'contextUpdate' && msg.context) {
     return {
       context: msg.context,
-      fsmState: msg.meta?.state ?? msg.fsmState,
+      praxisState: msg.meta?.state ?? msg.praxisState,
       matches: msg.matches,
     };
   }
 
-  return { context: msg.context, fsmState: msg.fsmState, matches: msg.matches };
+  return { context: msg.context, praxisState: msg.praxisState, matches: msg.matches };
 }
 
 function handlePartialUpdate(msg: IncomingMessage): boolean {
@@ -193,15 +192,16 @@ function handlePartialUpdate(msg: IncomingMessage): boolean {
         : undefined,
   };
 
-  webviewStore.dispatch([PartialAppStateUpdateEvent.create(partialUpdate)] as any);
+  // Dispatch partial update using SyncStateEvent
+  praxisStore.dispatch([SyncStateEvent.create(partialUpdate)] as any);
   return true;
 }
 
-function buildEnrichedContext(context: any, fsmState: any) {
+function buildEnrichedContext(context: any, praxisState: any) {
   const connections = Array.isArray(context?.connections) ? context.connections : [];
   return {
     ...context,
-    applicationState: fsmState || context?.applicationState || 'active',
+    applicationState: praxisState || context?.applicationState || 'active',
     connections,
     ui: context?.ui || { activeTab: 'connections' },
   };
@@ -209,7 +209,7 @@ function buildEnrichedContext(context: any, fsmState: any) {
 
 function dispatchSyncToEngines(enrichedContext: any, matches: any) {
   frontendEngine.step([SyncStateEvent.create(enrichedContext)]);
-  webviewStore.dispatch([SyncAppStateEvent.create(enrichedContext)] as any);
+  praxisStore.dispatch([SyncStateEvent.create(enrichedContext)] as any);
   applicationSnapshot.set({
     value: enrichedContext.applicationState,
     context: enrichedContext,
@@ -224,17 +224,17 @@ window.addEventListener('message', (event) => {
 
     if (handlePartialUpdate(msg)) return;
 
-    const { context, fsmState, matches } = extractSyncEnvelope(msg);
+    const { context, praxisState, matches } = extractSyncEnvelope(msg);
     if (!context) return;
 
     const connectionsLen = Array.isArray(context.connections) ? context.connections.length : 0;
     console.debug('[webview] Dispatching SyncState to engines', {
       hasConnections: connectionsLen > 0,
       connectionsLen,
-      appState: fsmState,
+      appState: praxisState,
     });
 
-    const enrichedContext = buildEnrichedContext(context, fsmState);
+    const enrichedContext = buildEnrichedContext(context, praxisState);
 
     console.debug('[webview] Enriched context summary', {
       connectionsLen: enrichedContext.connections.length,

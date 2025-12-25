@@ -4,7 +4,7 @@ Owner: webview
 Reads: syncState from extension (ApplicationContext serialized)
 Writes: UI-only events; selection via selection writer factory (webview-owned)
 Receives: syncState, host broadcasts
-Emits: fsmEvent envelopes (Router handles stamping)
+Emits: appEvent envelopes (Router handles stamping)
 Prohibitions: Do not import extension host modules; Do not define context types
 Rationale: Svelte UI component; reacts to ApplicationContext and forwards intents
 
@@ -14,18 +14,19 @@ LLM-GUARD:
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { applicationMachine } from '../../fsm/machines';
-  import { useMachine } from '@xstate/svelte';
+  // Removed XState machine import - using Praxis instead
   import WorkItemList from './WorkItemList.svelte';
   import Settings from './Settings.svelte';
   import StatusBar from './StatusBar.svelte';
-  import { fsmLogger } from '../../fsm/logging';
+  import { componentLogger } from '../../logging/ComponentLogger.js';
+  import { Component } from '../../logging/ComponentLogger.js';
 
-  const { state, send } = useMachine(applicationMachine);
+  // Removed XState machine usage - using Praxis instead
+  // const { state, send } = useMachine(applicationMachine);
 
   onMount(() => {
-    fsmLogger.info('Svelte component mounted', {
-      fsmComponent: 'ReactiveApp',
+    componentLogger.info(Component.WEBVIEW, 'Svelte component mounted', {
+      component: Component.WEBVIEW,
       state: $state.value,
     });
   });
@@ -47,7 +48,7 @@ LLM-GUARD:
   {/if}
 </main>
 
-<StatusBar fsmState={$state} />
+<StatusBar praxisState={$state} />
 
 <style>
   main {

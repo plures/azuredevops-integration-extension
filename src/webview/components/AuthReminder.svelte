@@ -32,6 +32,18 @@ LLM-GUARD:
     deviceCodeSession ? deviceCodeRemainingMs <= 0 : true
   );
 
+  // Auth code flow session reactive bindings
+  const authCodeFlowSession = $derived(context?.authCodeFlowSession);
+  const authCodeFlowRemainingMs = $derived(
+    authCodeFlowSession ? Math.max(authCodeFlowSession.expiresAt - Date.now(), 0) : 0
+  );
+  const authCodeFlowExpiresInMinutes = $derived(
+    authCodeFlowSession ? Math.ceil(authCodeFlowRemainingMs / 60000) : 0
+  );
+  const authCodeFlowExpired = $derived(
+    authCodeFlowSession ? authCodeFlowRemainingMs <= 0 : true
+  );
+
   // PAT error reactive bindings
   const workItemsError = $derived(context?.workItemsError);
   const workItemsErrorConnectionId = $derived(context?.workItemsErrorConnectionId);
@@ -84,18 +96,25 @@ LLM-GUARD:
       !deviceCodeExpired &&
       deviceCodeSession.connectionId === activeConnectionId
   );
+  const canShowAuthCodeFlowBase = $derived(
+    authCodeFlowSession &&
+      !authCodeFlowExpired &&
+      authCodeFlowSession.connectionId === activeConnectionId
+  );
   const entraAuthErrorEligible = $derived(
     hasConnectionHealthError && !!activeConnectionId && isEntraAuth
   );
 
-  // Final visibility flags - prioritize device code over error
-  const showDeviceCode = $derived(Boolean(canShowDeviceCodeBase));
-  const showEntraAuthError = $derived(Boolean(entraAuthErrorEligible && !showDeviceCode));
+  // Final visibility flags - prioritize auth code flow > device code > error
+  const showAuthCodeFlow = $derived(Boolean(canShowAuthCodeFlowBase));
+  const showDeviceCode = $derived(Boolean(canShowDeviceCodeBase && !showAuthCodeFlow));
+  const showEntraAuthError = $derived(Boolean(entraAuthErrorEligible && !showDeviceCode && !showAuthCodeFlow));
 
   // Auth reminder visibility (fallback when connectionHealth is absent)
   const showAuthReminder = $derived(
     Boolean(
       currentAuthReminder &&
+      !showAuthCodeFlow &&
       !showDeviceCode &&
       !showEntraAuthError &&
       !showWorkItemsEntraAuthError &&
@@ -145,6 +164,23 @@ LLM-GUARD:
     }
   }
 
+  function handleOpenAuthCodeFlowBrowser() {
+    if (!authCodeFlowSession) return;
+    sendEvent({
+      type: 'OPEN_AUTH_CODE_FLOW_BROWSER',
+      connectionId: authCodeFlowSession.connectionId,
+    });
+  }
+
+  function handleCancelAuthCodeFlow() {
+    if (authCodeFlowSession) {
+      sendEvent({
+        type: 'SIGN_OUT_ENTRA',
+        connectionId: authCodeFlowSession.connectionId,
+      });
+    }
+  }
+
   function handleStartFreshAuth() {
     // Open setup at the auth choice step so the user can pick a new auth type
     // and acquire a fresh token (new PAT or new Entra device code flow).
@@ -165,7 +201,37 @@ LLM-GUARD:
   }
 </script>
 
-{#if showDeviceCode}
+{#if showAuthCodeFlow}
+  <!-- Entra Auth Code Flow Banner -->
+  <div class="auth-reminder-banner warning">
+    <span class="auth-icon">🔐</span>
+    <div class="auth-message-container">
+      <span class="auth-message">
+        Authentication Required: Complete sign-in in your browser ({authCodeFlowExpiresInMinutes}m left)
+      </span>
+    </div>
+    <div class="auth-actions">
+      <button
+        class="auth-action"
+        onclick={handleOpenAuthCodeFlowBrowser}
+        title="Open browser to complete sign-in"
+        aria-label="Open browser to complete sign-in"
+      >
+        <span class="codicon">🌐</span>
+        Open browser
+      </button>
+      <button
+        class="auth-action secondary"
+        onclick={handleCancelAuthCodeFlow}
+        title="Cancel authentication"
+        aria-label="Cancel authentication"
+      >
+        <span class="codicon">✗</span>
+        Cancel
+      </button>
+    </div>
+  </div>
+{:else if showDeviceCode}
   <!-- Entra Device Code Banner -->
   <div class="auth-reminder-banner warning">
     <span class="auth-icon">🔐</span>

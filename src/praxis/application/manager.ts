@@ -22,8 +22,6 @@ import { PraxisEventBus, getPraxisEventBus } from './eventBus.js';
 import { PraxisTimerManager } from '../timer/manager.js';
 import { PraxisAuthManager } from '../auth/manager.js';
 import { PraxisConnectionManager } from '../connection/manager.js';
-import { fsmTracer } from '../../fsm/logging/FSMTracer.js';
-import { FSMComponent } from '../../fsm/logging/FSMLogger.js';
 import { TraceRecorder } from './tracing.js';
 import {
   ActivateEvent,

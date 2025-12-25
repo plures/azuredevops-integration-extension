@@ -25,11 +25,11 @@ import { readable, writable, derived } from 'svelte/store';
 import { PraxisApplicationManager } from '../praxis/application/manager.js';
 import type { ProjectConnection } from '../praxis/connection/types.js';
 import type { PraxisApplicationContext } from '../praxis/application/types.js';
-import { setApplicationStoreBridge } from '../fsm/services/extensionHostBridge.js';
+import { setApplicationStoreBridge } from '../services/extensionHostBridge.js';
 import { eventHandlers, type ApplicationEvent } from './eventHandlers.js';
-import { createComponentLogger, FSMComponent } from '../fsm/logging/FSMLogger.js';
+import { createComponentLogger, Component } from '../logging/ComponentLogger.js';
 
-const logger = createComponentLogger(FSMComponent.APPLICATION, 'applicationStore');
+const logger = createComponentLogger(Component.APPLICATION, 'applicationStore');
 
 // ============================================================================
 // TYPE DEFINITIONS FOR COMPATIBILITY
@@ -69,7 +69,7 @@ function handleApplicationEvent(manager: PraxisApplicationManager, event: Applic
  */
 function createApplicationStore() {
   // Create and start the Praxis application manager
-  // Use getInstance() to ensure we share the singleton with ConnectionFSMManager
+  // Use getInstance() to ensure we share the singleton with ConnectionService
   const applicationManager = PraxisApplicationManager.getInstance();
   applicationManager.start();
 
@@ -81,7 +81,7 @@ function createApplicationStore() {
     can: (event: ApplicationEvent) => boolean;
   } | null>(null);
 
-  // Poll for state changes (similar to how we handled it in ConnectionFSMManager)
+  // Poll for state changes (similar to how we handled it in ConnectionService)
   let lastSnapshot = '';
 
   const pollInterval = setInterval(() => {

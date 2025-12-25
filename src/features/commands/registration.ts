@@ -93,24 +93,71 @@ export function registerCommands(
   _context: vscode.ExtensionContext,
   commandContext: CommandContext
 ): vscode.Disposable[] {
+  console.debug(
+    `[REGISTER COMMANDS] Starting registration of ${commandRegistrations.length} commands`
+  );
+  logger.info(
+    `[Command Registration] Starting registration of ${commandRegistrations.length} commands`
+  );
   const disposables: vscode.Disposable[] = [];
 
   for (const registration of commandRegistrations) {
-    const disposable = vscode.commands.registerCommand(registration.command, (...args: any[]) => {
-      try {
-        const result = registration.handler(commandContext, ...args);
-        if (result instanceof Promise) {
-          result.catch((error) => {
-            logger.error(`Error in command ${registration.command}`, { meta: error });
-            vscode.window.showErrorMessage(`Command failed: ${(error as any).message}`);
-          });
+    try {
+      const disposable = vscode.commands.registerCommand(registration.command, (...args: any[]) => {
+        // Use console.debug for immediate visibility (bypasses logger configuration)
+
+        console.debug(`[COMMAND INVOKED] ${registration.command}`, {
+          args,
+          timestamp: new Date().toISOString(),
+        });
+        logger.info(`[Command Registration] Command invoked: ${registration.command}`, { args });
+        try {
+          const result = registration.handler(commandContext, ...args);
+          if (result instanceof Promise) {
+            result
+              .then(() => {
+                console.debug(`[COMMAND SUCCESS] ${registration.command}`);
+              })
+              .catch((error) => {
+                console.debug(`[COMMAND ERROR] ${registration.command}`, error);
+                logger.error(`Error in command ${registration.command}`, { meta: error });
+                vscode.window.showErrorMessage(`Command failed: ${(error as any).message}`);
+              });
+          }
+        } catch (error) {
+          console.debug(`[COMMAND SYNC ERROR] ${registration.command}`, error);
+          logger.error(`Error in command ${registration.command}`, { meta: error });
+          vscode.window.showErrorMessage(`Command failed: ${(error as any).message}`);
         }
-      } catch (error) {
-        logger.error(`Error in command ${registration.command}`, { meta: error });
-        vscode.window.showErrorMessage(`Command failed: ${(error as any).message}`);
+      });
+      disposables.push(disposable);
+      if (registration.command === 'azureDevOpsInt.signOutEntra') {
+        console.debug(
+          `[COMMAND REGISTERED] ${registration.command} - handler:`,
+          typeof registration.handler
+        );
+        logger.info(`[Command Registration] Registered signOutEntra command`, {
+          handlerType: typeof registration.handler,
+          handlerName: registration.handler?.name || 'anonymous',
+        });
+        // Also show a notification to confirm registration
+        vscode.window
+          .showInformationMessage(`SignOut command registered: ${registration.command}`)
+          .then(
+            () => {},
+            () => {}
+          );
       }
-    });
-    disposables.push(disposable);
+      logger.info(`[Command Registration] Registered command: ${registration.command}`);
+    } catch (error) {
+      console.debug(`[REGISTRATION ERROR] Failed to register ${registration.command}`, error);
+      logger.error(`Failed to register command ${registration.command}`, { meta: error });
+      if (registration.command === 'azureDevOpsInt.signOutEntra') {
+        vscode.window.showErrorMessage(
+          `Failed to register signOutEntra command: ${(error as any).message}`
+        );
+      }
+    }
   }
 
   return disposables;

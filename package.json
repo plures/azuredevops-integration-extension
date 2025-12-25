@@ -511,6 +511,12 @@
         }
       ]
     },
+    "uriHandlers": [
+      {
+        "uri": "vscode-azuredevops-int",
+        "label": "Azure DevOps Integration Auth"
+      }
+    ],
     "configuration": {
       "title": "Azure DevOps Integration",
       "properties": {
@@ -856,6 +862,21 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically refresh Entra ID access tokens before they expire"
+        },
+        "azureDevOpsIntegration.auth.useAuthCodeFlow": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use Authorization Code Flow with PKCE instead of Device Code Flow (recommended for better UX)"
+        },
+        "azureDevOpsIntegration.auth.flow": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "device-code",
+            "auth-code"
+          ],
+          "default": "auto",
+          "description": "Authentication flow preference: 'auto' uses auth-code if available, 'device-code' forces device code, 'auth-code' forces authorization code flow"
         }
       }
     }
@@ -950,7 +971,7 @@
   },
   "dependencies": {
     "@azure/msal-node": "^3.8.4",
-    "@plures/praxis": "file:praxis",
+    "@plures/praxis": "^1.1.0",
     "@types/ws": "^8.18.1",
     "axios": "^1.13.2",
     "azure-devops-node-api": "^15.1.1",

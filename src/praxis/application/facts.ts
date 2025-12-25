@@ -6,7 +6,7 @@
 
 import { defineFact, defineEvent } from '@plures/praxis';
 import type { ProjectConnection } from '../connection/types.js';
-import type { ViewMode, WorkItem, DeviceCodeSession, PendingWorkItems } from './types.js';
+import type { ViewMode, WorkItem, DeviceCodeSession, AuthCodeFlowSession, PendingWorkItems } from './types.js';
 
 import { StartTimerEvent, PauseTimerEvent, StopTimerEvent } from './features/timer.js';
 
@@ -66,6 +66,13 @@ export const PendingWorkItemsFact = defineFact<'PendingWorkItems', PendingWorkIt
  */
 export const DeviceCodeSessionFact = defineFact<'DeviceCodeSession', DeviceCodeSession | undefined>(
   'DeviceCodeSession'
+);
+
+/**
+ * Auth code flow session fact
+ */
+export const AuthCodeFlowSessionFact = defineFact<'AuthCodeFlowSession', AuthCodeFlowSession | undefined>(
+  'AuthCodeFlowSession'
 );
 
 /**
@@ -291,6 +298,42 @@ export const SignInEntraEvent = defineEvent<
 >('SIGN_IN_ENTRA');
 
 /**
+ * Auth code flow started event
+ */
+export const AuthCodeFlowStartedAppEvent = defineEvent<
+  'AUTH_CODE_FLOW_STARTED',
+  {
+    connectionId: string;
+    authorizationUrl: string;
+    expiresInSeconds: number;
+  }
+>('AUTH_CODE_FLOW_STARTED');
+
+/**
+ * Auth code flow completed event
+ */
+export const AuthCodeFlowCompletedAppEvent = defineEvent<
+  'AUTH_CODE_FLOW_COMPLETED',
+  {
+    connectionId: string;
+    success: boolean;
+    error?: string;
+  }
+>('AUTH_CODE_FLOW_COMPLETED');
+
+/**
+ * Auth redirect received event
+ */
+export const AuthRedirectReceivedAppEvent = defineEvent<
+  'AUTH_REDIRECT_RECEIVED',
+  {
+    connectionId: string;
+    authorizationCode: string;
+    state: string;
+  }
+>('AUTH_REDIRECT_RECEIVED');
+
+/**
  * Sign out Entra event
  */
 export const SignOutEntraEvent = defineEvent<'SIGN_OUT_ENTRA', { connectionId: string }>(
@@ -421,6 +464,9 @@ export type PraxisApplicationEvent =
   | ReturnType<typeof DeviceCodeStartedAppEvent.create>
   | ReturnType<typeof DeviceCodeCompletedAppEvent.create>
   | ReturnType<typeof DeviceCodeCancelledEvent.create>
+  | ReturnType<typeof AuthCodeFlowStartedAppEvent.create>
+  | ReturnType<typeof AuthCodeFlowCompletedAppEvent.create>
+  | ReturnType<typeof AuthRedirectReceivedAppEvent.create>
   | ReturnType<typeof SyncStateEvent.create>
   | ReturnType<typeof ApplicationErrorEvent.create>
   | ReturnType<typeof RetryApplicationEvent.create>

@@ -9,9 +9,9 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 ### Separation of Concerns
 
 - [x] Svelte controls webview UI rendering and user interactions
-- [x] FSM manages all application state and business logic
-- [x] Svelte informs FSM of user actions (not controls it)
-- [x] FSM updates state/context (not UI directly)
+- [x] Praxis manages all application state and business logic (Facts, Rules, Flows)
+- [x] Svelte informs Praxis of user actions (not controls it)
+- [x] Praxis updates state/context via Rules (not UI directly)
 - [x] UI reacts automatically to state/context changes
 
 ### Reactive Paradigm (Not Messaging)
@@ -19,7 +19,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] State/context updates drive UI reactively
 - [x] Single `syncState` message for all state updates
 - [x] Removed partial state messages (`syncTimerState`, `workItemsError`, `workItemsLoaded`, `timerUpdate`)
-- [x] All UI-visible state in FSM context
+- [x] All UI-visible state in Praxis context (Facts)
 - [x] No command messages to control UI
 - [ ] Single context definition file is the only source of schema
 - [ ] Runtime context is immutable (deep-frozen snapshots in dev)
@@ -32,7 +32,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Shows "$(plug) Select a connection" when connections exist but none is active
 - [x] Shows "$(sync~spin) … Connecting…" during connecting/retrying states (no premature failure)
 - [x] Shows "Sign In Required" only after all retries are exhausted (final state)
-- [x] Reacts to FSM context changes immediately (no polling/timers)
+- [x] Reacts to Praxis context changes immediately (no polling/timers)
 - [x] Logging cannot break UI updates (no undefined identifiers in log payloads)
 
 ### URL Semantics (ADO Online and On-Prem)
@@ -47,11 +47,11 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 
 ### Implementation Status
 
-- [x] Toggle debug view: Svelte controls locally, notifies FSM
-- [x] User actions: Svelte sends events, FSM processes
-- [x] State sync: FSM sends full context via `syncState`
-- [x] Provider updates FSM context (not direct messages) - Messages go through forwardProviderMessage → sendToWebview → FSM dispatch
-- [x] Timer state in FSM context (not separate messages) - Timer state managed by FSM timerActor, sent via syncState
+- [x] Toggle debug view: Svelte controls locally, notifies Praxis
+- [x] User actions: Svelte sends events, Praxis Rules process
+- [x] State sync: Praxis sends full context via `syncState`
+- [x] Provider updates Praxis context (not direct messages) - Messages go through forwardProviderMessage → sendToWebview → Praxis dispatch
+- [x] Timer state in Praxis context (not separate messages) - Timer state managed by Praxis TimerManager, sent via syncState
 
 ### Context Ownership & Enforcement
 
@@ -106,31 +106,21 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] Run feature tests before commit
 - [x] Prevent broken code from entering git history
 
-### FSM Type-Safe Architecture
+### Praxis Type-Safe Architecture
 
 - [x] Enhanced runtime validation (Layer 1) - Build-time validation script
-- [x] State constants migration (Layer 2) - **Branch: `feature/fsm-type-safe-state-constants`** ✅ COMPLETE
-  - [x] All machines use state name constants
-  - [x] IntelliSense works for state transitions
-  - [x] No string literals in transition targets
-- [ ] **Runtime validation in compile step** - **CRITICAL GAP IDENTIFIED** ⚠️
-  - [ ] Add `validate:machines:runtime` to compile script
-  - [ ] Verify runtime validation catches structural errors
-  - [ ] Document FSM structure validation rules (see `FSM_VALIDATION_GAP_ANALYSIS.md`)
-- [ ] **FSM Structure Validation Rules** - **CRITICAL GAP IDENTIFIED** ⚠️
-  - [ ] State keys use child names, not full paths
-  - [ ] `initial` values use child names, not full paths
-  - [ ] Sibling transitions use direct names (`'sibling'`), not relative (`.sibling`)
-  - [ ] Child transitions use relative paths (`.child`)
-  - [ ] Absolute transitions use full paths or machine-scoped paths (`#machine.state`)
-- [ ] Schema-first definition (Layer 3) - **Branch: `feature/fsm-type-safe-schema`**
-  - [ ] Schema format defined
-  - [ ] Type generation from schemas
-  - [ ] At least one machine migrated to schema
-- [ ] ESLint rules for type safety (Layer 4) - **Branch: `feature/fsm-type-safe-eslint`**
-  - [ ] ESLint rule validates state transitions
-  - [ ] Rule integrated into pre-commit checks
-  - [ ] All code passes rule validation
+- [x] Facts and Events migration (Layer 2) - **Praxis migration complete** ✅ COMPLETE
+  - [x] All state represented as Facts in context
+  - [x] IntelliSense works for Events and Facts
+  - [x] Type-safe Rules with proper context typing
+- [x] **Praxis Schema Format (PSF)** - Schema-first definition
+  - [x] Schema format defined in Praxis framework
+  - [x] Type generation from schemas
+  - [x] All engines use Praxis schema format
+- [x] **Praxis Rules Validation** - Type-safe Rules
+  - [x] Rules are pure functions with typed context
+  - [x] Events are type-safe with proper payloads
+  - [x] Facts are properly typed in context
 
 ### Action Buttons Implementation
 
@@ -139,18 +129,18 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [x] **Fixed webview loading error** - view now renders correctly
 - [x] **Enhanced branch creation** with work item linking and comments
 - [x] **Added in-VSCode edit dialog** for work items
-- [x] **Improved timer state synchronization** between FSM and webview
+- [x] **Improved timer state synchronization** between Praxis and webview
 - [x] **Added comprehensive error handling** for all action buttons
 - [x] **Resolved build errors** - duplicate methods, file size limits
 - [x] **Extension activation successful** - all features operational
 - [x] **Added webview message handler** - critical fix for ALL button functionality
-- [x] **Fixed timer state sync** - timer actor now broadcasts state to application context
+- [x] **Fixed timer state sync** - Praxis TimerManager now broadcasts state to application context
 - [x] **Fixed branch creation** - corrected synchronous getWorkItems usage
 - [x] **Removed unused syncDataToWebview** - eliminated confusing dead code
 
 ### Quality Gates
 
-- [x] All state machines pass validation
+- [x] All Praxis engines pass validation
 - [x] Timer feature has integration tests (14 tests)
 - [x] Timer module extracted into small files
 - [x] Pre-commit validation enabled
@@ -177,6 +167,25 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 - [ ] Design documents include testable acceptance criteria (Gherkin)
 - [ ] Design documents link to related issues/PRs
 - [ ] Design documents are kept updated during implementation
+
+### Entra ID Authentication Migration
+
+- [x] **Migration Plan Created** (`docs/ENTRA_AUTH_MIGRATION_PLAN.md`)
+- [ ] Migration plan reviewed and approved
+- [ ] PKCE utilities implemented (`src/auth/pkceUtils.ts`)
+- [ ] Authorization code flow provider implemented (`src/auth/authorizationCodeProvider.ts`)
+- [ ] URI handler registered in package.json
+- [ ] URI handler registered in activation.ts
+- [ ] EntraAuthProvider updated to support auth code flow
+- [ ] Praxis authentication rules updated
+- [ ] UI components updated for auth code flow
+- [ ] Unit tests for PKCE utilities (>90% coverage)
+- [ ] Integration tests for auth code flow
+- [ ] Manual testing completed on all platforms
+- [ ] Feature flag implemented for gradual rollout
+- [ ] Backward compatibility maintained (device code fallback)
+- [ ] Documentation updated (README, CHANGELOG, security docs)
+- [ ] User communication prepared (release notes, migration guide)
 
 ---
 
@@ -434,7 +443,7 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
 
 - [ ] Query selector appears below tab buttons (not adjacent)
 - [ ] All controls and views are children of ConnectionView component
-- [ ] FSM context includes per-connection state maps (`connectionQueries`, `connectionWorkItems`, `connectionFilters`)
+- [ ] Praxis context includes per-connection state maps (`connectionQueries`, `connectionWorkItems`, `connectionFilters`)
 - [ ] Components use visibility toggle (not mount/unmount) for connection switching
 - [ ] Per-connection state persists when switching connections
 - [ ] Per-connection state persists across VS Code sessions

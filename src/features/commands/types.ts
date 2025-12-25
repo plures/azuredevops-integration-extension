@@ -13,8 +13,8 @@
  */
 import * as vscode from 'vscode';
 import type { WorkItemsProvider } from '../../provider.js';
-import type { ProjectConnection as _ProjectConnection } from '../../fsm/machines/applicationTypes.js';
-import type { BranchContext } from '../../fsm/functions/connection/branchEnrichment.js';
+import type { ProjectConnection as _ProjectConnection } from '../../types/application.js';
+import type { BranchContext } from '../../services/connection/branchEnrichment.js';
 import type { WorkItemTimer } from '../../timer.js';
 
 export interface CommandContext {
