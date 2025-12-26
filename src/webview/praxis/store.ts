@@ -16,12 +16,18 @@ const dispatchWithSync = (events: PraxisEvent[]) => {
   // 1. Update local engine (optimistic or for local-only logic)
   rawStore.dispatch(events);
 
-  // 2. Send to Extension Host
+  // 2. Send to Extension Host (but NOT SyncState events - those are one-way from extension)
+  const hasSyncState = events.some((e: any) => e.tag === 'SyncState');
+  if (hasSyncState) {
+    // SyncState events are one-way from extension to webview, don't send them back
+    return;
+  }
+
   const vscode = (window as any).__vscodeApi;
   if (vscode) {
     vscode.postMessage({ type: 'PRAXIS_EVENT', events });
   } else {
-    console.debug('[store] VS Code API not available, event not sent to backend', events);
+    // VS Code API not available - this is expected in some contexts
   }
 };
 

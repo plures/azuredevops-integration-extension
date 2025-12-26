@@ -40,38 +40,58 @@ export async function performAuthentication(
     let deviceCodeStarted = false;
 
     if (config.authMethod === 'entra') {
-      // Try authorization code flow first
+      // Try authorization code flow first (default)
       const { setupAuthCodeFlow } = await import('./authFlowHelpers.js');
-      const authCodeResult = await setupAuthCodeFlow(
-        manager,
-        config,
-        context,
-        dispatchDeviceCodeEvent,
-        force
-      );
+      const { shouldUseAuthCodeFlow } = await import('../../config/authConfig.js');
+      const useAuthCodeFlow = shouldUseAuthCodeFlow('entra', config.id);
+      
+      if (useAuthCodeFlow) {
+        const authCodeResult = await setupAuthCodeFlow(
+          manager,
+          config,
+          context,
+          dispatchDeviceCodeEvent,
+          force
+        );
 
-      if (authCodeResult.success && authCodeResult.token) {
-        token = authCodeResult.token;
-        expiresAt = authCodeResult.expiresAt;
+        if (authCodeResult.success && authCodeResult.token) {
+          token = authCodeResult.token;
+          expiresAt = authCodeResult.expiresAt;
+        } else {
+          // Don't silently fall back to device code - throw error instead
+          throw new Error(
+            authCodeResult.error || 
+            'Authorization code flow failed. If you need device code flow, set azureDevOpsIntegration.auth.flow to "device-code"'
+          );
+        }
       } else {
-        // Fall back to device code flow
+        // Device code flow - only used when explicitly requested
         token = await getEntraIdToken(context, config.tenantId, {
           force,
           connectionId: config.id,
           connectionLabel: config.label,
           clientId: config.clientId,
           onDeviceCode: async (info) => {
-            deviceCodeStarted = true;
-            await dispatchDeviceCodeEvent({
-              type: 'DEVICE_CODE_STARTED',
-              connectionId: config.id,
-              userCode: info.userCode,
-              verificationUri: info.verificationUri,
-              expiresInSeconds: info.expiresInSeconds,
-            });
+            try {
+              deviceCodeStarted = true;
+              await dispatchDeviceCodeEvent({
+                type: 'DEVICE_CODE_STARTED',
+                connectionId: config.id,
+                userCode: info.userCode,
+                verificationUri: info.verificationUri,
+                expiresInSeconds: info.expiresInSeconds,
+              });
 
-            if (onDeviceCode) {
-              onDeviceCode(info);
+              if (onDeviceCode) {
+                // Call the optional callback, but don't await it to avoid blocking
+                Promise.resolve(onDeviceCode(info)).catch((error) => {
+                  // Log but don't throw - callback errors shouldn't break auth flow
+                  // Errors are already logged by the callback handler
+                });
+              }
+            } catch (error) {
+              // Log error but don't throw - device code dispatch failure shouldn't break auth
+              // Errors are already handled by dispatchDeviceCodeEvent's try-catch
             }
           },
         });

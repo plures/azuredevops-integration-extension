@@ -23,6 +23,8 @@ import { PraxisTimerManager } from '../timer/manager.js';
 import { PraxisAuthManager } from '../auth/manager.js';
 import { PraxisConnectionManager } from '../connection/manager.js';
 import { TraceRecorder } from './tracing.js';
+import { instrumentActor } from '../../logging/TraceLogger.js';
+import { Component } from '../../logging/ComponentLogger.js';
 import {
   ActivateEvent,
   ActivationCompleteEvent,
@@ -262,7 +264,7 @@ export class PraxisApplicationManager {
       try {
         listener(context);
       } catch (error) {
-        console.debug('Error in PraxisApplicationManager listener:', error);
+        // Automatic logging will capture this error
       }
     }
   }
@@ -299,7 +301,7 @@ export class PraxisApplicationManager {
    * Instrument tracing
    */
   private instrumentTracing(): void {
-    fsmTracer.instrumentActor(this.engine, FSMComponent.APPLICATION, 'applicationMachine');
+    instrumentActor(this.engine, Component.APPLICATION, 'applicationMachine');
   }
 
   /**

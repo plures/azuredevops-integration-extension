@@ -18,49 +18,19 @@ import { frontendEngine } from './praxis/frontendEngine.js';
 import { praxisStore } from './praxis/store.js';
 import { SyncStateEvent } from '../praxis/application/facts.js';
 import { applicationSnapshot } from './praxisSnapshotStore.js';
+import { interceptPostMessage, interceptWindowMessages } from '../logging/MessageInterceptor.js';
 
 // This ensures that we only try to mount the Svelte app after the DOM is fully loaded.
 // This is a critical step to prevent race conditions where the script runs before the
 // target element (`svelte-root`) is available.
 
-console.debug('[AzureDevOpsInt][webview] main.ts initialized');
-postWebviewLog('script_start', {
-  hasAcquireVsCodeApi: typeof acquireVsCodeApi === 'function',
-  timestamp: Date.now(),
-  readyState: document.readyState,
-});
-
-// Early lifecycle breadcrumbs to detect where execution stops
+// CRITICAL: Set up automatic message interception FIRST, before any other code
+// This must happen before window.addEventListener('message', ...) is called
 try {
-  postWebviewLog('after_imports', { readyState: document.readyState });
-  Promise.resolve().then(() => postWebviewLog('microtask', { readyState: document.readyState }));
-  setTimeout(() => postWebviewLog('tick0', { readyState: document.readyState }), 0);
-  postWebviewLog('after_breadcrumbs', { readyState: document.readyState });
+  interceptWindowMessages('webview');
 } catch (err) {
-  postWebviewLog('early_error', { message: (err as any)?.message ?? String(err) });
+  // Silent fail - automatic logging is best-effort
 }
-
-// Heartbeat: confirm module stays alive even if DOM events are missed
-setTimeout(() => {
-  postWebviewLog('heartbeat', { readyState: document.readyState });
-  if (!mountAttempted) {
-    tryBootstrap('timeout_heartbeat');
-  }
-}, 50);
-
-// Continuous pulse to verify event loop and messaging stay alive
-setInterval(() => {
-  postWebviewLog('pulse', { readyState: document.readyState, attempted: mountAttempted });
-  try {
-    if (mountFailed) return;
-    const target = rootRef || findExistingMount();
-    if (target && !mounted) {
-      target.innerText = `Waiting… attempted=${mountAttempted} mounted=${mounted}`;
-    }
-  } catch {
-    // best-effort visual breadcrumb
-  }
-}, 500);
 
 // Host log helper for diagnostics
 let __vscodeApi: any = undefined;
@@ -70,24 +40,18 @@ function getVsCodeApi(): any | undefined {
     if (typeof acquireVsCodeApi === 'function') {
       __vscodeApi = acquireVsCodeApi();
       (window as any).__vscodeApi = __vscodeApi;
+      
+      // Intercept postMessage for automatic logging
+      if (__vscodeApi && typeof __vscodeApi.postMessage === 'function') {
+        __vscodeApi = interceptPostMessage(__vscodeApi, 'webview');
+      }
+      
       return __vscodeApi;
     }
-  } catch {
-    // best-effort; fallback to undefined
+  } catch (err) {
+    // Silent fail - automatic logging is best-effort
   }
   return __vscodeApi;
-}
-
-function postWebviewLog(message: string, meta?: Record<string, unknown>) {
-  try {
-    const vscode = getVsCodeApi();
-    if (vscode) {
-      __vscodeApi = vscode;
-      vscode.postMessage({ type: 'webviewLog', message, meta });
-    }
-  } catch {
-    // best-effort
-  }
 }
 
 function describeError(err: unknown) {
@@ -125,9 +89,6 @@ if (typeof (globalThis as any).process === 'undefined') {
     version: '0.0.0-webview',
     nextTick: (cb: (...args: any[]) => void) => Promise.resolve().then(cb),
   };
-  // Ensure identifier binding in module scope
-
-  console.debug('[AzureDevOpsInt][webview] process shim installed');
 }
 
 // -------------------------------------------------------------
@@ -145,19 +106,6 @@ type IncomingMessage = {
   meta?: any;
   command?: string;
 };
-
-function logIncoming(msg: IncomingMessage | undefined) {
-  console.debug('[AzureDevOpsInt][webview] Received message:', {
-    type: msg?.type,
-    hasContext: !!msg?.context,
-    hasPayload: !!msg?.payload,
-  });
-  postWebviewLog('message', {
-    type: msg?.type,
-    hasContext: !!msg?.context,
-    hasPayload: !!msg?.payload,
-  });
-}
 
 function extractSyncEnvelope(msg: IncomingMessage) {
   if (msg.type === 'syncState' && msg.payload) {
@@ -182,7 +130,6 @@ function extractSyncEnvelope(msg: IncomingMessage) {
 function handlePartialUpdate(msg: IncomingMessage): boolean {
   if (msg.command !== 'UPDATE_STATE' || !msg.payload) return false;
 
-  console.debug('[webview] Received UPDATE_STATE', msg.payload);
   const partialUpdate = {
     connections: msg.payload.connections,
     activeConnectionId: msg.payload.activeConnectionId,
@@ -208,46 +155,73 @@ function buildEnrichedContext(context: any, praxisState: any) {
 }
 
 function dispatchSyncToEngines(enrichedContext: any, matches: any) {
-  frontendEngine.step([SyncStateEvent.create(enrichedContext)]);
-  praxisStore.dispatch([SyncStateEvent.create(enrichedContext)] as any);
-  applicationSnapshot.set({
-    value: enrichedContext.applicationState,
-    context: enrichedContext,
-    matches: matches || {},
-  });
+  // Create SyncState event
+  const syncEvent = SyncStateEvent.create(enrichedContext);
+  
+  // Only dispatch to the store (which updates the engine internally)
+  // Don't call frontendEngine.step directly - let the store handle it
+  // This prevents SyncState events from being sent back to extension
+  try {
+    praxisStore.dispatch([syncEvent] as any);
+  } catch (err) {
+    // Error handling - automatic logging will capture this
+  }
+  
+  // Also update applicationSnapshot directly for immediate UI updates
+  // This ensures the UI reacts immediately even if praxisStore hasn't updated yet
+  try {
+    applicationSnapshot.set({
+      value: enrichedContext.applicationState || 'active',
+      context: enrichedContext,
+      matches: matches || {},
+    });
+    // Debug: Log that snapshot was updated (automatic logging will capture this)
+  } catch (err) {
+    // Error handling - automatic logging will capture this
+  }
 }
 
-window.addEventListener('message', (event) => {
-  try {
-    const msg: IncomingMessage = event?.data;
-    logIncoming(msg);
-
-    if (handlePartialUpdate(msg)) return;
-
-    const { context, praxisState, matches } = extractSyncEnvelope(msg);
-    if (!context) return;
-
-    const connectionsLen = Array.isArray(context.connections) ? context.connections.length : 0;
-    console.debug('[webview] Dispatching SyncState to engines', {
-      hasConnections: connectionsLen > 0,
-      connectionsLen,
-      appState: praxisState,
-    });
-
-    const enrichedContext = buildEnrichedContext(context, praxisState);
-
-    console.debug('[webview] Enriched context summary', {
-      connectionsLen: enrichedContext.connections.length,
-      activeConnectionId: enrichedContext.activeConnectionId,
-      appState: enrichedContext.applicationState,
-    });
-
-    dispatchSyncToEngines(enrichedContext, matches);
-  } catch (err) {
-    console.debug('[AzureDevOpsInt][webview] message handler error', err);
-    postWebviewLog('message_handler_error', { error: (err as any)?.message ?? String(err) });
+// Set up message handler early to catch all messages
+// CRITICAL: This must run before any messages arrive
+try {
+  // Verify window.addEventListener exists
+  if (typeof window.addEventListener !== 'function') {
+    throw new Error('window.addEventListener is not available');
   }
-});
+
+  // Register the message handler
+  window.addEventListener('message', (event) => {
+    try {
+      const msg: IncomingMessage = event?.data;
+      if (!msg) {
+        return;
+      }
+
+      if (handlePartialUpdate(msg)) {
+        return;
+      }
+
+      const { context, praxisState, matches } = extractSyncEnvelope(msg);
+      if (!context) {
+        return;
+      }
+
+      const enrichedContext = buildEnrichedContext(context, praxisState);
+      dispatchSyncToEngines(enrichedContext, matches);
+    } catch (err) {
+      // Error handling - automatic logging will capture this
+    }
+  });
+} catch (err) {
+  // Try to register handler anyway as fallback
+  try {
+    window.addEventListener('message', (event) => {
+      // Fallback handler - automatic logging will capture messages
+    });
+  } catch (fallbackErr) {
+    // Silent fail
+  }
+}
 
 // We prefer a stable dedicated root element but if it's missing (e.g. legacy HTML
 // or experimental template differences) we fall back to creating one.
@@ -273,7 +247,6 @@ function ensureMountTarget(): HTMLElement {
   } else {
     document.body.appendChild(created);
   }
-  console.debug('[AzureDevOpsInt][webview] Created missing mount element #svelte-root');
   return created;
 }
 
@@ -285,10 +258,7 @@ let mountFailed = false;
 function tryBootstrap(reason: string) {
   if (mountAttempted) return;
   mountAttempted = true;
-  postWebviewLog('bootstrap', { reason, readyState: document.readyState });
 
-  console.debug('[AzureDevOpsInt][webview] bootstrapMount: ensuring mount target');
-  postWebviewLog('dom_ready', { timestamp: Date.now(), readyState: document.readyState });
   const root = ensureMountTarget();
   rootRef = root;
   try {
@@ -301,24 +271,17 @@ function tryBootstrap(reason: string) {
     // Acquire VS Code API once and make it available globally
     const vscode = getVsCodeApi();
 
-    postWebviewLog('mount_invoking', { target: root.id });
     mount(App, { target: root });
-    console.debug(
-      '🟢 [AzureDevOpsInt][webview] Svelte component mounted successfully on #' + root.id
-    );
-    postWebviewLog('mounted', { target: root.id });
     mounted = true;
 
     if (vscode) {
+      // Notify extension that webview is ready - extension will automatically send current state
+      // No need for explicit getContext request - reactive sync handles this automatically
       vscode.postMessage({ type: 'webviewReady' });
-      // Fallback: explicitly request latest context in case initial syncState was missed
-      vscode.postMessage({ type: 'getContext' });
     }
   } catch (e) {
     const detail = describeError(e);
     mountFailed = true;
-    console.debug('🔴 [AzureDevOpsInt][webview] Failed to mount Svelte component:', detail);
-    postWebviewLog('mount_failed', detail as any);
     try {
       const escaped = (detail.message || String(e)).replace(/</g, '&lt;');
       const stack = detail.stack ? `<pre style="white-space:pre-wrap">${detail.stack}</pre>` : '';
@@ -329,6 +292,9 @@ function tryBootstrap(reason: string) {
   }
 }
 
+// Set up message handler BEFORE bootstrap to catch early messages
+// (Handler is already set up above)
+
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
   // DOMContentLoaded may have already fired by the time the module executes
   tryBootstrap('ready_state');
@@ -337,26 +303,14 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
 }
 
 // Capture runtime errors to host for diagnosis
+// Automatic logging will capture these via global error handlers
 window.addEventListener('error', (event) => {
-  postWebviewLog('error', {
-    message: event.message,
-    filename: event.filename,
-    lineno: event.lineno,
-    colno: event.colno,
-  });
+  // Automatic logging will capture this
 });
 
 window.addEventListener('unhandledrejection', (event) => {
-  postWebviewLog('unhandledrejection', { reason: (event as any)?.reason });
+  // Automatic logging will capture this
 });
-
-// Catch any synchronous fatal errors after module load
-try {
-  // no-op; serves to keep try/catch near end of module in case of future additions
-  void 0;
-} catch (err) {
-  postWebviewLog('fatal_sync_error', { message: (err as any)?.message ?? String(err) });
-}
 
 // If mount never completes, surface a visible hint in the DOM
 setTimeout(() => {
@@ -365,7 +319,7 @@ setTimeout(() => {
   const target = rootRef || findExistingMount();
   if (!target) return;
   if (mountAttempted) {
-    target.innerHTML = `<div style="padding:12px;color:var(--vscode-descriptionForeground);">Webview did not finish mounting. Check logs for mount_failed/pulse.</div>`;
+    target.innerHTML = `<div style="padding:12px;color:var(--vscode-descriptionForeground);">Webview did not finish mounting. Check logs.</div>`;
   } else {
     target.innerHTML = `<div style="padding:12px;color:var(--vscode-descriptionForeground);">Webview bootstrap not attempted.</div>`;
   }

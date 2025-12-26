@@ -16,6 +16,7 @@ LLM-GUARD:
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
   import { praxisStore } from './praxis/store.js';
+  import { applicationSnapshot } from './praxisSnapshotStore.js';
   // import Settings from './components/Settings.svelte';
   import ConnectionTabs from './components/ConnectionTabs.svelte';
   import ConnectionViews from './components/ConnectionViews.svelte';
@@ -30,19 +31,54 @@ LLM-GUARD:
 
   // Reactive Praxis state from webview store
   let currentState = $state(get(praxisStore) as any);
+  let snapshotState = $state(get(applicationSnapshot) as any);
   
   // Subscribe to store updates
   $effect(() => {
     const unsubscribe = praxisStore.subscribe((value) => {
-      console.debug('[webview] App store update', { 
-        hasConnections: value.context.app.connections?.length > 0 
-      });
+      // Automatic logging will capture this
       currentState = value;
     });
     return unsubscribe;
   });
   
-  const appContext = $derived(currentState.context.app);
+  // Also subscribe to applicationSnapshot for immediate updates
+  // This ensures we get updates even if the Praxis store hasn't updated yet
+  $effect(() => {
+    const unsubscribe = applicationSnapshot.subscribe((snapshot) => {
+      // Automatic logging will capture this
+      snapshotState = snapshot;
+      // Also update currentState if snapshot has data and store doesn't
+      if (snapshot && snapshot.context && (!currentState?.context || currentState.context.connections?.length === 0)) {
+        currentState = {
+          value: snapshot.value || currentState?.value,
+          context: snapshot.context,
+          matches: snapshot.matches || currentState?.matches || {},
+        };
+      }
+    });
+    return unsubscribe;
+  });
+  
+  // The Praxis store context is the ApplicationEngineContext directly, not nested under 'app'
+  // CRITICAL: Use $derived to ensure reactivity - reads from reactive $state variables
+  const appContext = $derived.by(() => {
+    const storeContext = currentState?.context;
+    const snapshotContext = snapshotState?.context;
+    
+    // Prefer store context if it has connections or substantial data
+    if (storeContext && (storeContext.connections?.length > 0 || Object.keys(storeContext).length > 5)) {
+      return storeContext;
+    }
+    
+    // Fallback to snapshot context (updated directly from syncState messages)
+    if (snapshotContext && (snapshotContext.connections?.length > 0 || Object.keys(snapshotContext).length > 5)) {
+      return snapshotContext;
+    }
+    
+    // Return whichever has data, preferring store
+    return storeContext || snapshotContext || {};
+  });
   // const uiContext = $derived(currentState.context.ui);
 
   // Debug snapshot reactivity
@@ -66,9 +102,18 @@ LLM-GUARD:
   }
 
   // Context-based state derivation
+  // Always show UI even if context is empty (will update when syncState arrives)
   const hasConnections = $derived((appContext?.connections?.length || 0) > 0);
-  const isActivating = $derived(appContext?.applicationState === 'activating' || appContext?.applicationState === 'initializing');
-  const isActivationFailed = $derived(appContext?.applicationState === 'activation_error' || appContext?.lastError);
+  const isActivating = $derived(
+    appContext?.applicationState === 'activating' || 
+    appContext?.applicationState === 'initializing' ||
+    appContext?.applicationState === 'inactive'
+  );
+  const isActivationFailed = $derived(
+    appContext?.applicationState === 'activation_error' || 
+    appContext?.lastError ||
+    (appContext?.workItemsError && appContext?.workItemsErrorConnectionId === appContext?.activeConnectionId)
+  );
   
   // Typed derived values for ConnectionViews props
   const connectionsArray: Array<{ id: string; label?: string }> = $derived(
@@ -77,10 +122,8 @@ LLM-GUARD:
   const activeId: string | undefined = $derived(appContext?.activeConnectionId);
 
   onMount(() => {
-    console.debug('[AzureDevOpsInt][webview] App.svelte mounted');
-    if (vscode) {
-      vscode.postMessage({ type: 'webviewReady' });
-    }
+    // Automatic logging will capture mount events
+    // Note: webviewReady is sent from main.ts after mount, no need to send it here
   });
 
   // Toggle debug view - handled locally in Svelte, just notify Praxis of change
@@ -173,16 +216,24 @@ LLM-GUARD:
     {/if}
 
   {:else}
-    <!-- No connections state -->
-    {#if isActivating}
+    <!-- No connections state or still loading -->
+    {#if isActivating && (!appContext || appContext.applicationState === 'inactive')}
       <div class="loading">
         <p>Initializing Azure DevOps Integration...</p>
-        <p class="sub-text">Loading connections...</p>
+        <p class="sub-text">Waiting for connection data...</p>
+        <p class="sub-text" style="font-size: 0.8em; margin-top: 10px;">
+          If this persists, check the browser console (F12) for errors.
+        </p>
       </div>
     {:else if isActivationFailed}
       <div class="error-container">
-        <h2>Activation Failed</h2>
-        <p>{appContext?.lastError?.message || 'Unknown error during activation'}</p>
+        <h2>Connection Error</h2>
+        <p>{appContext?.workItemsError || appContext?.lastError?.message || 'Unknown error'}</p>
+        {#if appContext?.activeConnectionId}
+          <p style="font-size: 0.9em; margin-top: 10px;">
+            Connection: {appContext.activeConnectionId}
+          </p>
+        {/if}
         <button onclick={() => sendEvent({ type: 'RETRY' })}>Retry</button>
       </div>
     {:else}
@@ -196,10 +247,14 @@ LLM-GUARD:
             <summary>Debug Info (v2)</summary>
             <pre>{JSON.stringify({
               hasConnections,
-              connectionsLength: appContext?.connections?.length,
-              appState: appContext?.applicationState,
+              connectionsLength: appContext?.connections?.length || 0,
+              appState: appContext?.applicationState || 'unknown',
+              activeConnectionId: appContext?.activeConnectionId,
               contextKeys: appContext ? Object.keys(appContext) : [],
-              rawConnections: appContext?.connections
+              rawConnections: appContext?.connections || [],
+              hasAppContext: !!appContext,
+              storeValue: currentState?.value,
+              snapshotValue: get(applicationSnapshot)?.value,
             }, null, 2)}</pre>
           </details>
         </div>

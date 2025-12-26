@@ -19,7 +19,7 @@ export interface AuthConfig {
 export function getAuthConfig(): AuthConfig {
   const config = vscode.workspace.getConfiguration('azureDevOpsIntegration.auth');
 
-  const useAuthCodeFlow = config.get<boolean>('useAuthCodeFlow', false);
+  const useAuthCodeFlow = config.get<boolean>('useAuthCodeFlow', true); // Default to true (auth code flow)
   const flowPreference = config.get<AuthFlowPreference>('flow', 'auto');
 
   return {
@@ -51,6 +51,7 @@ export function shouldUseAuthCodeFlow(
     return false;
   }
 
-  // Auto mode: use auth code flow if enabled
-  return config.useAuthCodeFlow;
+  // Auto mode: default to auth code flow (unless explicitly disabled)
+  // Only use device code if explicitly requested via flowPreference
+  return config.useAuthCodeFlow !== false; // Default to true
 }

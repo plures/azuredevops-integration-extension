@@ -24,11 +24,41 @@ export default [
         { varsIgnorePattern: '^_', argsIgnorePattern: '^_', ignoreRestSiblings: true },
       ],
       'no-undef': 'off',
-      // Enforce use of unified logger instead of console.log/error/warn
-      'no-console': [
+      // Enforce use of automatic logging - NO manual logging allowed
+      'no-console': 'error', // NO console methods allowed - use automatic logging only
+      // Prevent manual logging imports
+      'no-restricted-imports': [
         'error',
         {
-          allow: ['debug'], // Allow console.debug for webview debugging
+          patterns: [
+            {
+              group: ['**/logging/unifiedLogger', '**/logging', './logging/unifiedLogger', './logging'],
+              message: 'Manual logging is deprecated. Use automatic logging via StandardizedAutomaticLogger.',
+            },
+          ],
+        },
+      ],
+      // Prevent postWebviewLog calls
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.name='postWebviewLog']",
+          message: 'Manual logging is deprecated. Use automatic logging via StandardizedAutomaticLogger.',
+        },
+        {
+          selector: "CallExpression[callee.name='createLogger']",
+          message: 'Manual logging is deprecated. Use automatic logging via StandardizedAutomaticLogger.',
+        },
+        {
+          selector: "CallExpression[callee.name='createScopedLogger']",
+          message: 'Manual logging is deprecated. Use automatic logging via StandardizedAutomaticLogger.',
+        },
+        // Enforce Praxis event-driven logging pattern
+        {
+          selector:
+            "CallExpression[callee.type='MemberExpression'][callee.object.name='standardizedLogger'][callee.property.name=/^(info|error|warn|debug)$/]",
+          message:
+            'Application events should be dispatched as Praxis events via dispatchApplicationEvent() instead of using standardizedLogger. This ensures automatic logging and state management. Only use standardizedLogger for infrastructure-level logging (before Praxis initialization, logging system itself).',
         },
       ],
 
@@ -149,14 +179,40 @@ export default [
   },
 
   {
-    // Files that intentionally override console methods
+    // Files that intentionally use console methods (the logging infrastructure itself)
     files: [
       'src/fsm/commands/debugConsoleBridge.ts',
       'src/logging.ts',
       'src/logging/unifiedLogger.ts',
+      'src/logging/StandardizedAutomaticLogger.ts',
+      'src/logging/AutomaticLogger.ts',
+      'src/logging/FunctionInterceptor.ts',
+      'src/logging/MessageInterceptor.ts',
     ],
     rules: {
-      'no-console': 'off', // These files intentionally override console methods
+      'no-console': 'off', // These files ARE the logging system
+      'no-restricted-imports': 'off', // Logging files can import each other
+      'no-restricted-syntax': 'off', // Logging files can use logging syntax (including standardizedLogger)
+    },
+  },
+  {
+    // Files that need infrastructure-level logging (before Praxis initialization)
+    // These are allowed to use standardizedLogger for critical infrastructure events
+    files: [
+      'src/activation.ts', // Only for pre-Praxis initialization logging
+      'src/services/extensionHostBridge.ts', // Bridge initialization
+    ],
+    rules: {
+      // Allow standardizedLogger but warn - prefer Praxis events when possible
+      'no-restricted-syntax': [
+        'warn',
+        {
+          selector:
+            "CallExpression[callee.type='MemberExpression'][callee.object.name='standardizedLogger'][callee.property.name=/^(info|error|warn|debug)$/]",
+          message:
+            'Consider using dispatchApplicationEvent() for application events. standardizedLogger should only be used for infrastructure-level logging before Praxis is initialized.',
+        },
+      ],
     },
   },
   {

@@ -865,8 +865,8 @@
         },
         "azureDevOpsIntegration.auth.useAuthCodeFlow": {
           "type": "boolean",
-          "default": false,
-          "description": "Use Authorization Code Flow with PKCE instead of Device Code Flow (recommended for better UX)"
+          "default": true,
+          "description": "Use Authorization Code Flow with PKCE instead of Device Code Flow (recommended for better UX). Defaults to true - set to false to use Device Code Flow."
         },
         "azureDevOpsIntegration.auth.flow": {
           "type": "string",

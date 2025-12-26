@@ -26,7 +26,7 @@ import { createLogger } from '../logging/unifiedLogger.js';
 
 const logger = createLogger('fsm-setup-service');
 const DEFAULT_ENTRA_TENANT_ID = 'organizations';
-const DEFAULT_ENTRA_CLIENT_ID = 'a5243d69-523e-496b-a22c-7ff3b5a3e85b';
+const DEFAULT_ENTRA_CLIENT_ID = 'c6c01810-2fff-45f0-861b-2ba02ae00ddc';
 
 // Define the connection type locally since it's defined in activation.ts
 type ProjectConnection = {

@@ -161,7 +161,7 @@ async function signOutEntra(
 
     // Clear tokens for all possible client ID variations
     // Azure DevOps uses client ID: 872cd9fa-d31f-45e0-9eab-6e460a02d1f1
-    // But authentication.ts uses: a5243d69-523e-496b-a22c-7ff3b5a3e85b
+    // But authentication.ts uses: c6c01810-2fff-45f0-861b-2ba02ae00ddc
     // Clear both to be safe
     const AZURE_DEVOPS_CLIENT_ID = '872cd9fa-d31f-45e0-9eab-6e460a02d1f1';
     const AZURE_CLI_CLIENT_ID = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
@@ -225,7 +225,13 @@ async function signOutEntra(
     vscode.window.showInformationMessage('Signed out successfully.');
     logger.info('Sign out completed', { connectionId: activeConnectionId });
   } catch (error: any) {
-    logger.error('signOutEntra error', { meta: error });
+    logger.error('signOutEntra error', {
+      error: error?.message || String(error),
+      stack: error?.stack,
+      name: error?.name,
+      code: error?.code,
+      connectionId: activeConnectionId,
+    });
     vscode.window.showErrorMessage(`Sign out failed: ${error.message || String(error)}`);
   }
 }
@@ -407,15 +413,12 @@ export const signInWithEntraCommand: CommandHandler = async (_ctx, target?: unkn
 export const signOutEntraCommand: CommandHandler = async (_ctx, target?: unknown) => {
   logger.info('[signOutEntraCommand] Command invoked', { target, hasContext: !!_ctx.context });
 
-  console.debug('[signOutEntraCommand] Command invoked (console.debug)', { target });
   try {
     logger.info('[signOutEntraCommand] Calling signOutEntra function');
     await signOutEntra(_ctx.context, typeof target === 'string' ? target : (target as any)?.id);
     logger.info('[signOutEntraCommand] signOutEntra completed successfully');
   } catch (error: any) {
     logger.error('[signOutEntraCommand] Command failed', { meta: error });
-
-    console.debug('[signOutEntraCommand] Command failed (console.debug)', error);
     throw error;
   }
 };

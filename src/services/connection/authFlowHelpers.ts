@@ -36,7 +36,7 @@ export async function setupAuthCodeFlow(
 
     const provider = new AuthorizationCodeFlowProvider({
       config: {
-        clientId: config.clientId || 'a5243d69-523e-496b-a22c-7ff3b5a3e85b',
+        clientId: config.clientId || 'c6c01810-2fff-45f0-861b-2ba02ae00ddc',
         tenantId: config.tenantId,
         scopes: undefined, // Use defaults
       },
@@ -100,8 +100,7 @@ export async function setupAuthCodeFlow(
     }
   } catch (error: any) {
     // Fall back to device code flow
-
-    console.debug(`Auth code flow failed, falling back to device code: ${error.message}`);
+    // Automatic logging will capture this error
     return {
       success: false,
       error: error.message,

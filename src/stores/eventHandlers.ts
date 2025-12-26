@@ -187,4 +187,18 @@ export const eventHandlers: Record<
       manager.setQuery(event.query, event.connectionId as string);
     }
   },
+  RESET_AUTH: (manager, event) => {
+    // Reset auth: sign out and then open settings for reconfiguration
+    const connectionId = typeof event.connectionId === 'string' ? event.connectionId : manager.getContext().activeConnectionId;
+    if (connectionId) {
+      // Sign out first to clear auth state
+      manager.signOutEntra(connectionId);
+    }
+    // Note: Opening settings is handled in activation.ts message handler
+    // This allows the user to reconfigure auth (choose PAT or Entra, etc.)
+  },
+  OPEN_SETTINGS: (_manager, _event) => {
+    // Opening settings is handled directly in activation.ts message handler
+    // This is a no-op here to prevent "Unknown event type" warnings
+  },
 };

@@ -249,6 +249,54 @@ export const ApplicationErrorEvent = defineEvent<
 >('APPLICATION_ERROR');
 
 /**
+ * Device code copy failed event
+ */
+export const DeviceCodeCopyFailedEvent = defineEvent<
+  'DEVICE_CODE_COPY_FAILED',
+  { connectionId: string; error: string }
+>('DEVICE_CODE_COPY_FAILED');
+
+/**
+ * Device code browser open failed event
+ */
+export const DeviceCodeBrowserOpenFailedEvent = defineEvent<
+  'DEVICE_CODE_BROWSER_OPEN_FAILED',
+  { connectionId: string; error: string }
+>('DEVICE_CODE_BROWSER_OPEN_FAILED');
+
+/**
+ * Device code session not found event
+ */
+export const DeviceCodeSessionNotFoundEvent = defineEvent<
+  'DEVICE_CODE_SESSION_NOT_FOUND',
+  { connectionId: string }
+>('DEVICE_CODE_SESSION_NOT_FOUND');
+
+/**
+ * Auth code flow browser open failed event
+ */
+export const AuthCodeFlowBrowserOpenFailedEvent = defineEvent<
+  'AUTH_CODE_FLOW_BROWSER_OPEN_FAILED',
+  { connectionId: string; error: string }
+>('AUTH_CODE_FLOW_BROWSER_OPEN_FAILED');
+
+/**
+ * Auth code flow browser opened successfully event
+ */
+export const AuthCodeFlowBrowserOpenedEvent = defineEvent<
+  'AUTH_CODE_FLOW_BROWSER_OPENED',
+  { connectionId: string; url: string }
+>('AUTH_CODE_FLOW_BROWSER_OPENED');
+
+/**
+ * Device code browser opened successfully event
+ */
+export const DeviceCodeBrowserOpenedEvent = defineEvent<
+  'DEVICE_CODE_BROWSER_OPENED',
+  { connectionId: string; userCode: string }
+>('DEVICE_CODE_BROWSER_OPENED');
+
+/**
  * Retry event
  */
 export const RetryApplicationEvent = defineEvent<'RETRY', Record<string, never>>('RETRY');
@@ -493,4 +541,10 @@ export type PraxisApplicationEvent =
   | ReturnType<typeof WebviewReadyEvent.create>
   | ReturnType<typeof StartTimerEvent.create>
   | ReturnType<typeof PauseTimerEvent.create>
-  | ReturnType<typeof StopTimerEvent.create>;
+  | ReturnType<typeof StopTimerEvent.create>
+  | ReturnType<typeof DeviceCodeCopyFailedEvent.create>
+  | ReturnType<typeof DeviceCodeBrowserOpenFailedEvent.create>
+  | ReturnType<typeof DeviceCodeSessionNotFoundEvent.create>
+  | ReturnType<typeof DeviceCodeBrowserOpenedEvent.create>
+  | ReturnType<typeof AuthCodeFlowBrowserOpenFailedEvent.create>
+  | ReturnType<typeof AuthCodeFlowBrowserOpenedEvent.create>;

@@ -9,7 +9,7 @@ import { createLogger } from '../../logging/unifiedLogger.js';
 
 const logger = createLogger('auth-code-flow-helpers');
 
-const DEFAULT_ENTRA_CLIENT_ID = 'a5243d69-523e-496b-a22c-7ff3b5a3e85b';
+const DEFAULT_ENTRA_CLIENT_ID = 'c6c01810-2fff-45f0-861b-2ba02ae00ddc';
 const DEFAULT_ENTRA_TENANT = 'organizations';
 
 export interface AuthCodeFlowOptions {

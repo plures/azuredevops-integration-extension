@@ -31,8 +31,13 @@ const workItemsLoadedRule = defineRule<ApplicationEngineContext>({
       timestamp: getClock(state).now(),
     };
 
-    // Store per connection
-    state.context.connectionWorkItems.set(connectionId, workItems);
+    // Priority 3: Make Map updates immutable (create new Map instance)
+    // Priority 4: Idempotency - only update if changed
+    const existingWorkItems = state.context.connectionWorkItems.get(connectionId);
+    if (existingWorkItems !== workItems) {
+      state.context.connectionWorkItems = new Map(state.context.connectionWorkItems);
+      state.context.connectionWorkItems.set(connectionId, workItems);
+    }
 
     // Clear any error for this connection
     if (state.context.lastError?.connectionId === connectionId) {

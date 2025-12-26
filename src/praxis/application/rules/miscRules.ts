@@ -277,11 +277,19 @@ const authReminderRequestedRule = defineRule<ApplicationEngineContext>({
 
     const { connectionId, reason, detail } = reminderEvent.payload;
 
-    state.context.pendingAuthReminders.set(connectionId, {
+    // Priority 3: Make Map updates immutable (create new Map instance)
+    // Priority 4: Idempotency - check if already exists with same value
+    const existing = state.context.pendingAuthReminders.get(connectionId);
+    const newValue = {
       connectionId,
       reason: detail || reason,
       status: 'pending',
-    });
+    };
+    
+    if (!existing || existing.reason !== newValue.reason || existing.status !== newValue.status) {
+      state.context.pendingAuthReminders = new Map(state.context.pendingAuthReminders);
+      state.context.pendingAuthReminders.set(connectionId, newValue);
+    }
 
     return [];
   },
@@ -300,7 +308,12 @@ const authReminderClearedRule = defineRule<ApplicationEngineContext>({
     const clearedEvent = findEvent(events, AuthReminderClearedEvent);
     if (!clearedEvent) return [];
 
-    state.context.pendingAuthReminders.delete(clearedEvent.payload.connectionId);
+    // Priority 3: Make Map updates immutable (create new Map instance)
+    // Priority 4: Idempotency - check if exists before deleting
+    if (state.context.pendingAuthReminders.has(clearedEvent.payload.connectionId)) {
+      state.context.pendingAuthReminders = new Map(state.context.pendingAuthReminders);
+      state.context.pendingAuthReminders.delete(clearedEvent.payload.connectionId);
+    }
 
     return [];
   },
@@ -321,8 +334,14 @@ const authenticationSuccessRule = defineRule<ApplicationEngineContext>({
 
     const { connectionId } = successEvent.payload;
 
-    state.context.pendingAuthReminders.delete(connectionId);
+    // Priority 3: Make Map updates immutable (create new Map instance)
+    // Priority 4: Idempotency - check if exists before deleting
+    if (state.context.pendingAuthReminders.has(connectionId)) {
+      state.context.pendingAuthReminders = new Map(state.context.pendingAuthReminders);
+      state.context.pendingAuthReminders.delete(connectionId);
+    }
 
+    // Idempotency: Only clear if session exists for this connection
     if (state.context.deviceCodeSession?.connectionId === connectionId) {
       state.context.deviceCodeSession = undefined;
     }

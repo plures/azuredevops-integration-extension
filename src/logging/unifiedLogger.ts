@@ -31,8 +31,10 @@ void (async () => {
   }
 })();
 import { logLine } from '../logging.js';
+import { standardizedLogger } from './StandardizedAutomaticLogger.js';
 
-const LOG_PREFIX = '[AzureDevOpsInt]';
+// Use standardized logger format: [azuredevops-integration-extension][{runtime}][{flowName}][{componentName}][{functionName}]
+// This ensures all logs use the same format for consistency and filtering
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -88,26 +90,12 @@ function shouldLogDebug(): boolean {
 }
 
 function writeLog(level: LogLevel, message: string, options?: LogOptions): void {
-  const scope = options?.scope ? `[${options.scope}]` : '';
-  const metaText = formatMeta(options?.meta);
-  const metaSuffix = metaText ? ` ${metaText}` : '';
-
-  const logMessage = `${LOG_PREFIX}${scope} ${message}${metaSuffix}`;
-
-  // Write to output channel
-  logLine(logMessage);
-
-  // Also write to console for immediate visibility
-  // Handle console methods explicitly to satisfy ESLint no-console rule
-  if (level === 'error') {
-    console.error(logMessage);
-  } else if (level === 'warn') {
-    console.warn(logMessage);
-  } else if (level === 'debug') {
-    console.debug(logMessage);
-  } else {
-    console.log(logMessage);
-  }
+  const scope = options?.scope || 'application';
+  const meta = options?.meta ? (typeof options.meta === 'object' ? options.meta as Record<string, unknown> : { meta: options.meta }) : undefined;
+  
+  // Use standardized logger format: [azuredevops-integration-extension][{runtime}][{flowName}][{componentName}][{functionName}]
+  // Map scope to componentName, use 'application' as flowName
+  standardizedLogger.log('application', scope, undefined, level, message, meta);
 }
 
 function formatMeta(meta: unknown): string | undefined {

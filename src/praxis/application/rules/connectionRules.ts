@@ -30,12 +30,25 @@ const connectionsLoadedRule = defineRule<ApplicationEngineContext>({
     const loadedEvent = findEvent(events, ConnectionsLoadedEvent);
     if (!loadedEvent) return [];
 
-    // console.log('[Praxis] connectionsLoadedRule triggered', {
-    //   count: loadedEvent.payload.connections.length,
-    //   ids: loadedEvent.payload.connections.map((c) => c.id),
-    // });
-
     state.context.connections = loadedEvent.payload.connections;
+
+    // Initialize connection states for each connection (if not already present)
+    // This ensures connectionStates Map is populated when connections are loaded
+    state.context.connectionStates = new Map(state.context.connectionStates);
+    for (const connection of loadedEvent.payload.connections) {
+      if (!state.context.connectionStates.has(connection.id)) {
+        state.context.connectionStates.set(connection.id, {
+          state: 'disconnected',
+          connectionId: connection.id,
+          isConnected: false,
+          authMethod: connection.authMethod || 'pat',
+          hasClient: false,
+          hasProvider: false,
+          retryCount: 0,
+          error: undefined,
+        });
+      }
+    }
 
     // Auto-select first connection if none selected
     if (!state.context.activeConnectionId && state.context.connections.length > 0) {
@@ -97,9 +110,14 @@ const queryChangedRule = defineRule<ApplicationEngineContext>({
 
     state.context.activeQuery = query;
 
-    // Save query per connection
+    // Priority 3: Make Map updates immutable (create new Map instance)
+    // Priority 4: Idempotency - only update if changed
     if (targetConnectionId) {
-      state.context.connectionQueries.set(targetConnectionId, query);
+      const existingQuery = state.context.connectionQueries.get(targetConnectionId);
+      if (existingQuery !== query) {
+        state.context.connectionQueries = new Map(state.context.connectionQueries);
+        state.context.connectionQueries.set(targetConnectionId, query);
+      }
     }
 
     return [];
@@ -122,12 +140,17 @@ const viewModeChangedRule = defineRule<ApplicationEngineContext>({
 
     state.context.viewMode = modeEvent.payload.viewMode;
 
-    // Save view mode per connection
+    // Priority 3: Make Map updates immutable (create new Map instance)
+    // Priority 4: Idempotency - only update if changed
     if (state.context.activeConnectionId) {
-      state.context.connectionViewModes.set(
-        state.context.activeConnectionId,
-        modeEvent.payload.viewMode
-      );
+      const existingMode = state.context.connectionViewModes.get(state.context.activeConnectionId);
+      if (existingMode !== modeEvent.payload.viewMode) {
+        state.context.connectionViewModes = new Map(state.context.connectionViewModes);
+        state.context.connectionViewModes.set(
+          state.context.activeConnectionId,
+          modeEvent.payload.viewMode
+        );
+      }
     }
 
     return [];
@@ -155,26 +178,39 @@ const authenticationFailedRule = defineRule<ApplicationEngineContext>({
       connectionId,
     };
 
-    // Add auth reminder
-    state.context.pendingAuthReminders.set(connectionId, {
+    // Priority 3: Make Map updates immutable (create new Map instance)
+    // Priority 4: Idempotency - check if already exists with same value
+    const existingReminder = state.context.pendingAuthReminders.get(connectionId);
+    const newReminder = {
       connectionId,
       reason: error,
       status: 'pending',
-    });
+    };
+    
+    if (!existingReminder || existingReminder.reason !== newReminder.reason || existingReminder.status !== newReminder.status) {
+      state.context.pendingAuthReminders = new Map(state.context.pendingAuthReminders);
+      state.context.pendingAuthReminders.set(connectionId, newReminder);
+    }
 
-    // Update connection state if it exists
+    // Update connection state if it exists (immutable Map update)
     const existingState = state.context.connectionStates.get(connectionId);
     if (existingState) {
-      state.context.connectionStates.set(connectionId, {
+      const updatedState = {
         ...existingState,
         state: 'auth_failed',
         error: error,
         isConnected: false,
-      });
+      };
+      // Only update if changed (idempotency)
+      if (existingState.state !== updatedState.state || existingState.error !== updatedState.error || existingState.isConnected !== updatedState.isConnected) {
+        state.context.connectionStates = new Map(state.context.connectionStates);
+        state.context.connectionStates.set(connectionId, updatedState);
+      }
     } else {
       // If we don't have state yet, create a placeholder one
       const connection = state.context.connections.find((c) => c.id === connectionId);
       if (connection) {
+        state.context.connectionStates = new Map(state.context.connectionStates);
         state.context.connectionStates.set(connectionId, {
           state: 'auth_failed',
           connectionId,
@@ -225,7 +261,13 @@ const connectionStateUpdatedRule = defineRule<ApplicationEngineContext>({
       error: undefined,
     };
 
-    state.context.connectionStates.set(connectionId, snapshot);
+    // Priority 3: Make Map updates immutable (create new Map instance)
+    // Priority 4: Idempotency - only update if changed
+    const existingSnapshot = state.context.connectionStates.get(connectionId);
+    if (!existingSnapshot || JSON.stringify(existingSnapshot) !== JSON.stringify(snapshot)) {
+      state.context.connectionStates = new Map(state.context.connectionStates);
+      state.context.connectionStates.set(connectionId, snapshot);
+    }
     return [];
   },
 });
