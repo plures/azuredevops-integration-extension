@@ -93,19 +93,15 @@ export function registerCommands(
   _context: vscode.ExtensionContext,
   commandContext: CommandContext
 ): vscode.Disposable[] {
-  console.debug(
-    `[REGISTER COMMANDS] Starting registration of ${commandRegistrations.length} commands`
-  );
-  logger.info(
-    `[Command Registration] Starting registration of ${commandRegistrations.length} commands`
-  );
+  const startTime = Date.now();
   const disposables: vscode.Disposable[] = [];
+  const errors: Array<{ command: string; error: string }> = [];
 
+  // Batch register all commands (optimization: reduce logging verbosity)
   for (const registration of commandRegistrations) {
     try {
       const disposable = vscode.commands.registerCommand(registration.command, (...args: any[]) => {
         // Use console.debug for immediate visibility (bypasses logger configuration)
-
         console.debug(`[COMMAND INVOKED] ${registration.command}`, {
           args,
           timestamp: new Date().toISOString(),
@@ -131,6 +127,8 @@ export function registerCommands(
         }
       });
       disposables.push(disposable);
+      
+      // Special handling for signOutEntra (debugging purposes)
       if (registration.command === 'azureDevOpsInt.signOutEntra') {
         console.debug(
           `[COMMAND REGISTERED] ${registration.command} - handler:`,
@@ -140,24 +138,34 @@ export function registerCommands(
           handlerType: typeof registration.handler,
           handlerName: registration.handler?.name || 'anonymous',
         });
-        // Also show a notification to confirm registration
-        vscode.window
-          .showInformationMessage(`SignOut command registered: ${registration.command}`)
-          .then(
-            () => {},
-            () => {}
-          );
       }
-      logger.info(`[Command Registration] Registered command: ${registration.command}`);
     } catch (error) {
+      const errorMsg = (error as any).message || String(error);
+      errors.push({ command: registration.command, error: errorMsg });
       console.debug(`[REGISTRATION ERROR] Failed to register ${registration.command}`, error);
       logger.error(`Failed to register command ${registration.command}`, { meta: error });
       if (registration.command === 'azureDevOpsInt.signOutEntra') {
         vscode.window.showErrorMessage(
-          `Failed to register signOutEntra command: ${(error as any).message}`
+          `Failed to register signOutEntra command: ${errorMsg}`
         );
       }
     }
+  }
+
+  // Single summary log instead of 32 individual logs (optimization)
+  const duration = Date.now() - startTime;
+  if (errors.length > 0) {
+    logger.warn(
+      `[Command Registration] Registered ${disposables.length}/${commandRegistrations.length} commands in ${duration}ms`,
+      {
+        errors: errors.map((e) => `${e.command}: ${e.error}`),
+        failed: errors.length,
+      }
+    );
+  } else {
+    logger.info(
+      `[Command Registration] Registered ${disposables.length} commands in ${duration}ms`
+    );
   }
 
   return disposables;

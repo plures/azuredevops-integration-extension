@@ -63,19 +63,27 @@ Logging happens automatically at:
 5. **Performance** - Via automatic performance monitoring
 
 **Important:** Some events still require explicit logging calls:
+
 - **Promise callbacks** (`.then()`, `.catch()`) - Not automatically intercepted
 - **Control flow branches** (if/else, switch cases) - Not automatically captured
 - **Success cases** - Need explicit logging for important operations
 - **Application events** - User actions, state transitions, etc.
 
 For these cases, use `StandardizedAutomaticLogger` directly:
+
 ```typescript
 import { standardizedLogger } from './logging/StandardizedAutomaticLogger.js';
 
 // Log important application events
-standardizedLogger.info('auth', 'webview-provider', 'openExternal', 'Browser opened successfully', { connectionId });
-standardizedLogger.error('auth', 'webview-provider', 'writeText', 'Failed to copy', { error: err.message });
-standardizedLogger.warn('auth', 'webview-provider', 'onDidReceiveMessage', 'Session not found', { connectionId });
+standardizedLogger.info('auth', 'webview-provider', 'openExternal', 'Browser opened successfully', {
+  connectionId,
+});
+standardizedLogger.error('auth', 'webview-provider', 'writeText', 'Failed to copy', {
+  error: err.message,
+});
+standardizedLogger.warn('auth', 'webview-provider', 'onDidReceiveMessage', 'Session not found', {
+  connectionId,
+});
 ```
 
 ### 3. Context Synchronization (Reactive, Not Message-Based)
@@ -83,6 +91,7 @@ standardizedLogger.warn('auth', 'webview-provider', 'onDidReceiveMessage', 'Sess
 **Key Principle:** Message passing is **NOT** part of application logic. It's a hidden, automatic facility.
 
 #### Current (Deprecated) Approach:
+
 ```typescript
 // ❌ WRONG: Manual message passing
 webview.postMessage({ type: 'syncState', payload: state });
@@ -94,6 +103,7 @@ window.addEventListener('message', (event) => {
 ```
 
 #### New (Reactive) Approach:
+
 ```typescript
 // ✅ CORRECT: Automatic reactive sync
 // Extension host context changes → automatically synced to webview
@@ -135,7 +145,7 @@ class StandardizedAutomaticLogger {
     const prefix = `[azuredevops-integration-extension][${runtime}][${flowName}][${componentName}]`;
     const functionPart = functionName ? `[${functionName}]` : '';
     const logMessage = `${prefix}${functionPart} ${message}`;
-    
+
     // Log to VS Code output channel
     // Log to console (for debug console)
     // Store for replay
@@ -194,4 +204,3 @@ declare module './logging' {
 4. **Automatic Sync** - Context sync is transparent, not part of app logic
 5. **Deterministic** - Reactive architecture ensures deterministic behavior
 6. **Debuggable** - All logs accessible via debug console
-

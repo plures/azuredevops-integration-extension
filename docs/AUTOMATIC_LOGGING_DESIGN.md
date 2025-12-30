@@ -3,6 +3,7 @@
 ## Problem Statement
 
 Currently, logging requires manual instrumentation throughout the codebase. This leads to:
+
 - Inconsistent logging coverage
 - Missing critical information when debugging
 - Time wasted adding logging after issues occur
@@ -11,6 +12,7 @@ Currently, logging requires manual instrumentation throughout the codebase. This
 ## Solution: Automatic Observability Layer
 
 Create a comprehensive automatic logging system that captures:
+
 1. **Function calls/returns** - All function invocations with parameters and results
 2. **Message passing** - All webview ↔ extension host communication
 3. **State changes** - All Praxis state transitions and context updates
@@ -37,13 +39,13 @@ Intercept all webview message passing automatically:
 const interceptedWebview = interceptWebviewMessages(webview, {
   logAll: true,
   capturePayloads: true,
-  trackTiming: true
+  trackTiming: true,
 });
 
 // Webview side
 const interceptedPostMessage = interceptPostMessage(window.__vscodeApi, {
   logAll: true,
-  capturePayloads: true
+  capturePayloads: true,
 });
 ```
 
@@ -57,7 +59,7 @@ observePraxisActor(actor, {
   logStateTransitions: true,
   logContextChanges: true,
   logEvents: true,
-  captureSnapshots: true
+  captureSnapshots: true,
 });
 ```
 
@@ -67,12 +69,12 @@ All logs follow a consistent structure for replay:
 
 ```typescript
 interface AutomaticLogEntry {
-  id: string;                    // Unique log entry ID
-  timestamp: number;              // High-precision timestamp
+  id: string; // Unique log entry ID
+  timestamp: number; // High-precision timestamp
   type: 'function' | 'message' | 'state' | 'error' | 'performance';
-  component: string;              // Component/module name
-  operation: string;              // Operation name (function name, message type, etc.)
-  
+  component: string; // Component/module name
+  operation: string; // Operation name (function name, message type, etc.)
+
   // Function logs
   function?: {
     name: string;
@@ -81,7 +83,7 @@ interface AutomaticLogEntry {
     error?: Error;
     duration: number;
   };
-  
+
   // Message logs
   message?: {
     direction: 'host->webview' | 'webview->host';
@@ -89,7 +91,7 @@ interface AutomaticLogEntry {
     payload: unknown;
     response?: unknown;
   };
-  
+
   // State logs
   state?: {
     from: string;
@@ -98,25 +100,25 @@ interface AutomaticLogEntry {
     contextBefore: unknown;
     contextAfter: unknown;
   };
-  
+
   // Error logs
   error?: {
     message: string;
     stack: string;
     context: unknown;
   };
-  
+
   // Performance logs
   performance?: {
     metric: string;
     value: number;
     unit: string;
   };
-  
+
   // Context
   context?: Record<string, unknown>;
   sessionId: string;
-  traceId?: string;              // For correlating related operations
+  traceId?: string; // For correlating related operations
 }
 ```
 
@@ -148,24 +150,28 @@ async function replaySession(session: ReplaySession): Promise<void> {
 ## Implementation Plan
 
 ### Phase 1: Core Infrastructure
+
 1. Create `AutomaticLogger` class with structured logging
 2. Implement function interception using Proxies
 3. Implement message interception for webview communication
 4. Create log storage and retrieval system
 
 ### Phase 2: Integration
+
 1. Integrate with existing Praxis actors
 2. Integrate with webview message passing
 3. Integrate with error handlers
 4. Add performance monitoring
 
 ### Phase 3: Replay System
+
 1. Implement log serialization/deserialization
 2. Create replay engine
 3. Add visualization tools
 4. Add export/import capabilities
 
 ### Phase 4: Developer Tools
+
 1. Create VS Code command to view logs
 2. Create log filtering/search UI
 3. Add log export functionality
@@ -185,28 +191,28 @@ async function replaySession(session: ReplaySession): Promise<void> {
 interface AutomaticLoggingConfig {
   enabled: boolean;
   level: 'debug' | 'info' | 'warn' | 'error';
-  
+
   // What to log
   logFunctions: boolean;
   logMessages: boolean;
   logStateChanges: boolean;
   logErrors: boolean;
   logPerformance: boolean;
-  
+
   // Filtering
-  includeComponents: string[];      // Only log these components
-  excludeComponents: string[];      // Don't log these components
-  includeFunctions: string[];        // Only log these functions
-  excludeFunctions: string[];       // Don't log these functions
-  
+  includeComponents: string[]; // Only log these components
+  excludeComponents: string[]; // Don't log these components
+  includeFunctions: string[]; // Only log these functions
+  excludeFunctions: string[]; // Don't log these functions
+
   // Storage
-  maxEntries: number;                // Max log entries in memory
-  persistToFile: boolean;           // Save to file
-  filePath?: string;                // File path if persisting
-  
+  maxEntries: number; // Max log entries in memory
+  persistToFile: boolean; // Save to file
+  filePath?: string; // File path if persisting
+
   // Performance
-  sampleRate: number;                // 0.0 to 1.0, sample rate for performance logs
-  minDuration: number;               // Only log functions slower than this (ms)
+  sampleRate: number; // 0.0 to 1.0, sample rate for performance logs
+  minDuration: number; // Only log functions slower than this (ms)
 }
 ```
 
@@ -234,4 +240,3 @@ function myFunction(param: string) {
   return doSomething(param);
 }
 ```
-

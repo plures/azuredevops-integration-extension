@@ -7,6 +7,7 @@ export interface NormalizeConnectionsResult {
     normalized: number;
     added: number;
     migrated: number;
+    deduplicated?: number; // Number of duplicate connections removed
   };
 }
 
@@ -25,9 +26,11 @@ export function normalizeConnections(
   legacyFallback?: LegacyFallback
 ): NormalizeConnectionsResult {
   const normalized: ProjectConnection[] = [];
+  const seen = new Map<string, ProjectConnection>(); // Deduplication map: key = "org|project|baseUrl"
   let requiresSave = false;
   let added = 0;
   let migrated = 0;
+  let deduplicated = 0;
 
   // Process raw connections
   for (const raw of rawConnections) {
@@ -38,6 +41,38 @@ export function normalizeConnections(
     // Validate required fields
     if (!conn.organization || !conn.project) {
       continue; // Skip invalid connections
+    }
+
+    // Create deduplication key: (org, project, baseUrl)
+    // This prevents duplicate connections for the same org/project/baseUrl combination
+    const baseUrl = conn.baseUrl ? String(conn.baseUrl).trim() : '';
+    const dedupeKey = `${String(conn.organization).trim()}|${String(conn.project).trim()}|${baseUrl}`;
+    
+    // Check for duplicate
+    if (seen.has(dedupeKey)) {
+      const existing = seen.get(dedupeKey)!;
+      // Merge: prefer connection with ID, or merge fields from newer connection
+      if (!existing.id && conn.id) {
+        // Replace existing with one that has ID
+        const index = normalized.indexOf(existing);
+        if (index >= 0) {
+          normalized[index] = {
+            ...existing,
+            id: conn.id,
+            // Merge other fields, preferring newer values
+            tenantId: conn.tenantId || existing.tenantId,
+            authMethod: conn.authMethod || existing.authMethod,
+            apiBaseUrl: conn.apiBaseUrl || existing.apiBaseUrl,
+            label: conn.label || existing.label,
+          };
+          requiresSave = true;
+          deduplicated++;
+        }
+      } else {
+        // Skip duplicate - already have a connection for this org/project/baseUrl
+        deduplicated++;
+        continue;
+      }
     }
 
     // Normalize connection
@@ -55,6 +90,9 @@ export function normalizeConnections(
       identityName: conn.identityName ? String(conn.identityName).trim() : undefined,
     };
 
+    normalized.push(normalizedConn);
+    seen.set(dedupeKey, normalizedConn);
+
     // Check if ID was generated (migration needed)
     if (!conn.id) {
       requiresSave = true;
@@ -71,8 +109,6 @@ export function normalizeConnections(
       requiresSave = true;
       migrated++;
     }
-
-    normalized.push(normalizedConn);
   }
 
   // Add legacy fallback if no connections exist
@@ -93,11 +129,12 @@ export function normalizeConnections(
 
   return {
     connections: normalized,
-    requiresSave,
+    requiresSave: requiresSave || deduplicated > 0,
     summary: {
       normalized: normalized.length,
       added,
       migrated,
+      deduplicated, // Track how many duplicates were removed
     },
   };
 }

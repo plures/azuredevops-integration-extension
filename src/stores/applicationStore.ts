@@ -22,6 +22,7 @@
  */
 
 import { readable, writable, derived } from 'svelte/store';
+import { createPraxisStore, createContextStore, createDerivedStore } from '@plures/praxis/svelte';
 import { PraxisApplicationManager } from '../praxis/application/manager.js';
 import type { ProjectConnection } from '../praxis/connection/types.js';
 import type { PraxisApplicationContext } from '../praxis/application/types.js';
@@ -66,6 +67,15 @@ function handleApplicationEvent(manager: PraxisApplicationManager, event: Applic
 
 /**
  * Creates the main application manager and wraps it in Svelte stores
+ * 
+ * Uses Praxis unified Svelte integration (@plures/praxis/svelte) for reactive subscriptions
+ * instead of polling, providing better performance and following Praxis best practices.
+ * 
+ * The integration provides:
+ * - Proper reactive subscriptions (no polling overhead)
+ * - Automatic cleanup and subscription management
+ * - Type-safe store access
+ * - Better performance through event-driven updates
  */
 function createApplicationStore() {
   // Create and start the Praxis application manager
@@ -73,7 +83,27 @@ function createApplicationStore() {
   const applicationManager = PraxisApplicationManager.getInstance();
   applicationManager.start();
 
-  // Current state store (updated via polling since Praxis doesn't have built-in subscriptions)
+  // Get the underlying engine for the unified integration
+  const engine = applicationManager.getEngine();
+
+  // Create reactive store using Praxis unified integration
+  // This provides proper reactive subscriptions instead of polling
+  const praxisStore = createPraxisStore(engine);
+  
+  // Create context store for direct context access
+  const contextStore = createContextStore(engine);
+
+  // Create optimized derived stores using Praxis integration
+  // These are more efficient than manual derived() calls
+  const connectionsDerivedStore = createDerivedStore(engine, (ctx) => ctx.connections || []);
+  const activeConnectionIdDerivedStore = createDerivedStore(engine, (ctx) => ctx.activeConnectionId);
+  const connectionStatesDerivedStore = createDerivedStore(engine, (ctx) => ctx.connectionStates || new Map());
+  const pendingAuthRemindersDerivedStore = createDerivedStore(engine, (ctx) => ctx.pendingAuthReminders || new Map());
+  const isActivatedDerivedStore = createDerivedStore(engine, (ctx) => ctx.isActivated ?? false);
+  const isDeactivatingDerivedStore = createDerivedStore(engine, (ctx) => ctx.isDeactivating ?? false);
+  const lastErrorDerivedStore = createDerivedStore(engine, (ctx) => ctx.lastError);
+
+  // Current state wrapper that bridges Praxis store to our expected interface
   const currentState = writable<{
     value: string;
     context: ApplicationContext;
@@ -81,45 +111,52 @@ function createApplicationStore() {
     can: (event: ApplicationEvent) => boolean;
   } | null>(null);
 
-  // Poll for state changes (similar to how we handled it in ConnectionService)
-  let lastSnapshot = '';
-
-  const pollInterval = setInterval(() => {
+  // Subscribe to manager's internal subscription system to sync with store
+  // This ensures store updates when state changes through manager methods
+  const managerUnsubscribe = applicationManager.subscribe(() => {
+    // Update the wrapper state when manager state changes
     const appState = applicationManager.getApplicationState();
-    const appData = applicationManager.getContext();
+    const appData = applicationManager.getContext() as unknown as ApplicationContext;
 
-    // Create a fingerprint of the state to detect changes
-    // We include key UI-driving properties to avoid redundant updates
-    const currentSnapshot = JSON.stringify({
-      state: appState,
-      activeConnectionId: appData.activeConnectionId,
-      activeQuery: appData.activeQuery,
-      viewMode: appData.viewMode,
-      isActivated: appData.isActivated,
-      isDeactivating: appData.isDeactivating,
-      connectionsLen: appData.connections.length,
-      // Check map sizes to detect data changes
-      workItemsMapSize: appData.connectionWorkItems.size,
-      statesMapSize: appData.connectionStates.size,
-      // Check specific work items count for active connection
-      activeWorkItemsLen: appData.activeConnectionId
-        ? appData.connectionWorkItems.get(appData.activeConnectionId)?.length
-        : 0,
-      // Check last error to ensure error states are propagated
-      lastError: appData.lastError ? appData.lastError.message : null,
+    currentState.set({
+      value: appState,
+      context: appData,
+      matches: (stateValue: string) => {
+        if (appState === stateValue) return true;
+        if (appState.includes(stateValue)) return true;
+        // Map legacy states
+        if (stateValue === 'activation_failed' && appState === 'activation_error') return true;
+        return false;
+      },
+      can: (_event: ApplicationEvent) => true, // Praxis handles validation internally
     });
+  });
 
-    if (currentSnapshot !== lastSnapshot) {
-      lastSnapshot = currentSnapshot;
-
-      currentState.set({
-        value: appState,
-        context: appData,
-        matches: (stateValue: string) => appState === stateValue || appState.includes(stateValue),
-        can: (_event: ApplicationEvent) => true, // Praxis handles validation internally
-      });
+  // Also subscribe to Praxis store for completeness
+  // This ensures we get updates from both manager and store dispatch paths
+  const praxisUnsubscribe = praxisStore.subscribe((praxisState) => {
+    if (!praxisState) {
+      currentState.set(null);
+      return;
     }
-  }, 100);
+
+    // Extract state value from Praxis state format
+    const appState = applicationManager.getApplicationState();
+    const appData = applicationManager.getContext() as unknown as ApplicationContext;
+
+    currentState.set({
+      value: appState,
+      context: appData,
+      matches: (stateValue: string) => {
+        if (appState === stateValue) return true;
+        if (appState.includes(stateValue)) return true;
+        // Map legacy states
+        if (stateValue === 'activation_failed' && appState === 'activation_error') return true;
+        return false;
+      },
+      can: (_event: ApplicationEvent) => true, // Praxis handles validation internally
+    });
+  });
 
   // Application State Store (readable wrapper)
   const applicationState = readable<{
@@ -128,17 +165,19 @@ function createApplicationStore() {
     matches: (state: string) => boolean;
     can: (event: ApplicationEvent) => boolean;
   } | null>(null, (set) => {
-    // Subscribe to the writable store
+    // Subscribe to the wrapper state
     const unsubscribe = currentState.subscribe(set);
 
     return () => {
       unsubscribe();
-      clearInterval(pollInterval);
+      praxisUnsubscribe();
+      managerUnsubscribe();
       applicationManager.stop();
     };
   });
 
   // Send events to the application manager
+  // Note: We can also use praxisStore.dispatch() for events that match Praxis format
   function send(event: ApplicationEvent) {
     // Map XState event types to Praxis manager methods
     handleApplicationEvent(applicationManager, event);
@@ -150,6 +189,26 @@ function createApplicationStore() {
     // Expose manager for debugging
     get actor() {
       return applicationManager;
+    },
+    // Expose Praxis store for advanced usage
+    get praxisStore() {
+      return praxisStore;
+    },
+    // Expose context store for direct context access
+    get contextStore() {
+      return contextStore;
+    },
+    // Expose derived stores for optimized access
+    get derivedStores() {
+      return {
+        connections: connectionsDerivedStore,
+        activeConnectionId: activeConnectionIdDerivedStore,
+        connectionStates: connectionStatesDerivedStore,
+        pendingAuthReminders: pendingAuthRemindersDerivedStore,
+        isActivated: isActivatedDerivedStore,
+        isDeactivating: isDeactivatingDerivedStore,
+        lastError: lastErrorDerivedStore,
+      };
     },
   };
 }
@@ -190,42 +249,26 @@ setApplicationStoreBridge({
 // ============================================================================
 
 // Extension Lifecycle State
-export const isActivated = derived(
-  applicationStore.applicationState,
-  ($state) => $state?.context.isActivated ?? false
-);
+// Use Praxis derived stores for better performance
+export const isActivated = applicationStore.derivedStores.isActivated;
 
 export const isInitializing = derived(
   applicationStore.applicationState,
   ($state) => $state?.matches('activating') ?? false
 );
 
-export const isDeactivating = derived(
-  applicationStore.applicationState,
-  ($state) => $state?.context.isDeactivating ?? false
-);
+export const isDeactivating = applicationStore.derivedStores.isDeactivating;
 
 // Connection Management State
-export const connections = derived(
-  applicationStore.applicationState,
-  ($state) => $state?.context.connections ?? []
-);
+// Use Praxis derived stores for better performance
+export const connections = applicationStore.derivedStores.connections;
 
-export const activeConnectionId = derived(
-  applicationStore.applicationState,
-  ($state) => $state?.context.activeConnectionId
-);
+export const activeConnectionId = applicationStore.derivedStores.activeConnectionId;
 
-export const connectionStates = derived(
-  applicationStore.applicationState,
-  ($state) => $state?.context.connectionStates ?? new Map()
-);
+export const connectionStates = applicationStore.derivedStores.connectionStates;
 
 // Authentication State
-export const pendingAuthReminders = derived(
-  applicationStore.applicationState,
-  ($state) => $state?.context.pendingAuthReminders ?? new Map()
-);
+export const pendingAuthReminders = applicationStore.derivedStores.pendingAuthReminders;
 
 // UI State
 export const webviewReady = derived(
@@ -255,10 +298,8 @@ export const dataError = derived(
 );
 
 // Error State
-export const lastError = derived(
-  applicationStore.applicationState,
-  ($state) => $state?.context.lastError
-);
+// Use Praxis derived store for better performance
+export const lastError = applicationStore.derivedStores.lastError;
 
 export const isInErrorRecovery = derived(
   applicationStore.applicationState,

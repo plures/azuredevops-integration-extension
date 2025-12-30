@@ -6,11 +6,13 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    setupFiles: ['tests/setup/praxis-history-setup.ts'],
     include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
     exclude: [
       'node_modules',
       'dist',
       'temp_extract',
+      'tests/setup/**',
       // Exclude legacy xstate-based feature tests (now replaced by Praxis)
       'src/features/connection/*.test.ts',
       'src/features/timer/*.test.ts',

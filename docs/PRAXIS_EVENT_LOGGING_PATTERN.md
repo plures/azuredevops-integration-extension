@@ -7,6 +7,7 @@
 ## Why This Works
 
 When you dispatch an event to Praxis:
+
 1. **Praxis processes the event** - Rules evaluate, state updates
 2. **Instrumentation automatically logs** - `instrumentActor` wraps the actor and logs all events via `TraceLogger.logEvent`
 3. **No explicit logging needed** - The event itself becomes the log entry
@@ -19,7 +20,7 @@ When you dispatch an event to Praxis:
 // Don't do this - explicit logging bypasses Praxis
 standardizedLogger.error('auth', 'webview-provider', 'writeText', 'Failed to copy device code', {
   connectionId,
-  error: err.message
+  error: err.message,
 });
 ```
 
@@ -46,11 +47,13 @@ dispatchApplicationEvent(
 ## When to Use Explicit Logging
 
 Only use `StandardizedAutomaticLogger` directly for:
+
 - **Infrastructure-level logging** - Logging system itself (`StandardizedAutomaticLogger.ts`, `FunctionInterceptor.ts`, `MessageInterceptor.ts`)
 - **Very low-level errors** - Before Praxis is initialized (e.g., extension activation before Praxis starts)
 - **Performance metrics** - Not application events
 
 **ESLint Rules Enforce This:**
+
 - ❌ **Error**: Using `standardizedLogger` in application code (should use `dispatchApplicationEvent` instead)
 - ✅ **Allowed**: Using `standardizedLogger` in logging infrastructure files
 - ⚠️ **Warning**: Using `standardizedLogger` in `activation.ts` (prefer Praxis events when possible)
@@ -58,10 +61,12 @@ Only use `StandardizedAutomaticLogger` directly for:
 ## Event Types
 
 ### Success Events
+
 - `DeviceCodeBrowserOpenedEvent` - Browser opened successfully
 - `AuthCodeFlowBrowserOpenedEvent` - Auth flow browser opened
 
 ### Error Events
+
 - `DeviceCodeCopyFailedEvent` - Failed to copy device code
 - `DeviceCodeBrowserOpenFailedEvent` - Failed to open browser
 - `AuthCodeFlowBrowserOpenFailedEvent` - Failed to open auth flow browser
@@ -71,25 +76,29 @@ Only use `StandardizedAutomaticLogger` directly for:
 ## Example: Refactoring from Explicit Logging
 
 ### Before (Explicit Logging)
+
 ```typescript
-vscode.env.clipboard.writeText(deviceCodeSession.userCode)
+vscode.env.clipboard
+  .writeText(deviceCodeSession.userCode)
   .then(() => {
     standardizedLogger.info('auth', 'webview-provider', 'writeText', 'Copied successfully', {
       connectionId,
-      userCode: deviceCodeSession.userCode
+      userCode: deviceCodeSession.userCode,
     });
   })
   .catch((err) => {
     standardizedLogger.error('auth', 'webview-provider', 'writeText', 'Failed to copy', {
       connectionId,
-      error: err.message
+      error: err.message,
     });
   });
 ```
 
 ### After (Praxis Events)
+
 ```typescript
-vscode.env.clipboard.writeText(deviceCodeSession.userCode)
+vscode.env.clipboard
+  .writeText(deviceCodeSession.userCode)
   .then(() => {
     dispatchApplicationEvent(
       DeviceCodeBrowserOpenedEvent.create({
@@ -117,6 +126,7 @@ When events are dispatched via `dispatchApplicationEvent()`, they flow through `
 3. **Notifies listeners** - state changes propagate
 
 The trace recorder automatically captures:
+
 - Event type and payload
 - Context before and after
 - State transitions
@@ -131,4 +141,3 @@ This means **all Praxis events are automatically logged** when tracing is enable
 - [ ] Replace explicit logging with `dispatchApplicationEvent`
 - [ ] Verify automatic logging captures the events
 - [ ] Remove unused `standardizedLogger` imports
-

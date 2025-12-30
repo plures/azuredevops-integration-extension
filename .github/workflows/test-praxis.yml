@@ -1,0 +1,62 @@
+name: Praxis History Tests
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/praxis/**'
+      - 'src/testing/**'
+      - 'src/debugging/**'
+      - 'tests/praxis/**'
+      - 'vitest.config.ts'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/praxis/**'
+      - 'src/testing/**'
+      - 'src/debugging/**'
+      - 'tests/praxis/**'
+      - 'vitest.config.ts'
+
+jobs:
+  test-praxis:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [20.x]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Compile TypeScript
+        run: npm run compile
+      
+      - name: Run Praxis tests
+        run: npm run test:praxis
+      
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-artifacts
+          path: test-artifacts/
+          retention-days: 7
+      
+      - name: Upload test coverage
+        if: success()
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/coverage-final.json
+          flags: praxis-tests
+          name: praxis-coverage
+

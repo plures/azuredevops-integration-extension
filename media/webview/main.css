@@ -1147,6 +1147,318 @@ button.svelte-w8xrzn:disabled {
   cursor: not-allowed;
 }
 
+/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/HistoryControls.esbuild-svelte-fake-css */
+.history-controls.svelte-11qegyq {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.history-button.svelte-11qegyq {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  border: 1px solid var(--vscode-button-border, transparent);
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: opacity 0.2s;
+}
+.history-button.svelte-11qegyq:hover:not(:disabled) {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+.history-button.svelte-11qegyq:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/HistoryTimeline.esbuild-svelte-fake-css */
+.history-timeline-container.svelte-uzfmon {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+}
+.timeline-header.svelte-uzfmon {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+.timeline-header.svelte-uzfmon h3:where(.svelte-uzfmon) {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.timeline-controls.svelte-uzfmon {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.control-button.svelte-uzfmon {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: 1px solid var(--vscode-button-border);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.control-button.svelte-uzfmon:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+.history-count.svelte-uzfmon {
+  font-size: 0.75rem;
+  color: var(--vscode-descriptionForeground);
+}
+.timeline-entries.svelte-uzfmon {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+.timeline-entry.svelte-uzfmon {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  margin-bottom: 0.25rem;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.timeline-entry.svelte-uzfmon:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+.timeline-entry.active.svelte-uzfmon {
+  border-color: var(--vscode-focusBorder);
+  background: var(--vscode-list-activeSelectionBackground);
+}
+.timeline-entry.selected.svelte-uzfmon {
+  border-color: var(--vscode-button-background);
+}
+.entry-index.svelte-uzfmon {
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+  min-width: 2rem;
+}
+.entry-content.svelte-uzfmon {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.entry-state.svelte-uzfmon {
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+.entry-label.svelte-uzfmon {
+  font-size: 0.75rem;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+.entry-events.svelte-uzfmon {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+.event-tag.svelte-uzfmon {
+  font-size: 0.7rem;
+  padding: 0.125rem 0.25rem;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border-radius: 2px;
+}
+.event-more.svelte-uzfmon {
+  font-size: 0.7rem;
+  color: var(--vscode-descriptionForeground);
+}
+.entry-timestamp.svelte-uzfmon {
+  font-size: 0.7rem;
+  color: var(--vscode-descriptionForeground);
+}
+.entry-actions.svelte-uzfmon {
+  display: flex;
+  gap: 0.25rem;
+}
+.action-button.svelte-uzfmon {
+  padding: 0.125rem 0.5rem;
+  font-size: 0.7rem;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: 1px solid var(--vscode-button-border);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.action-button.svelte-uzfmon:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+.diff-panel.svelte-uzfmon {
+  border-top: 1px solid var(--vscode-panel-border);
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+.diff-header.svelte-uzfmon {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: var(--vscode-editor-background);
+}
+.diff-header.svelte-uzfmon h4:where(.svelte-uzfmon) {
+  margin: 0;
+  font-size: 0.875rem;
+}
+.close-button.svelte-uzfmon {
+  background: none;
+  border: none;
+  color: var(--vscode-foreground);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.diff-content.svelte-uzfmon {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 1rem;
+}
+.diff-summary.svelte-uzfmon {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--vscode-foreground);
+}
+.diff-text.svelte-uzfmon {
+  font-family: monospace;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  color: var(--vscode-foreground);
+  margin: 0;
+}
+
+/* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/components/PerformanceDashboard.esbuild-svelte-fake-css */
+.performance-dashboard.svelte-1rs9uqy {
+  padding: 1rem;
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  font-family: var(--vscode-font-family);
+}
+.dashboard-header.svelte-1rs9uqy {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+.dashboard-header.svelte-1rs9uqy h3:where(.svelte-1rs9uqy) {
+  margin: 0;
+  font-size: 1rem;
+}
+.dashboard-controls.svelte-1rs9uqy {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+.threshold-slider.svelte-1rs9uqy {
+  width: 100px;
+}
+.threshold-value.svelte-1rs9uqy {
+  font-size: 0.875rem;
+  color: var(--vscode-descriptionForeground);
+  min-width: 50px;
+}
+.dashboard-summary.svelte-1rs9uqy {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.summary-item.svelte-1rs9uqy {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+  background: var(--vscode-editorWidget-background);
+  border-radius: 4px;
+}
+.summary-label.svelte-1rs9uqy {
+  font-size: 0.75rem;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 0.25rem;
+}
+.summary-value.svelte-1rs9uqy {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+.slow-transitions.svelte-1rs9uqy,
+.all-transitions.svelte-1rs9uqy {
+  margin-top: 1.5rem;
+}
+.slow-transitions.svelte-1rs9uqy h4:where(.svelte-1rs9uqy),
+.all-transitions.svelte-1rs9uqy h4:where(.svelte-1rs9uqy) {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+  color: var(--vscode-foreground);
+}
+.transitions-list.svelte-1rs9uqy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.transition-item.svelte-1rs9uqy {
+  padding: 0.5rem;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  transition: border-color 0.2s;
+}
+.transition-item.slow.svelte-1rs9uqy {
+  border-color: var(--vscode-errorForeground);
+  background: var(--vscode-inputValidation-errorBackground);
+}
+.transition-header.svelte-1rs9uqy {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+.transition-states.svelte-1rs9uqy {
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+.transition-duration.svelte-1rs9uqy {
+  font-size: 0.875rem;
+  color: var(--vscode-descriptionForeground);
+}
+.transition-duration.slow.svelte-1rs9uqy {
+  color: var(--vscode-errorForeground);
+  font-weight: 600;
+}
+.transition-details.svelte-1rs9uqy {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.75rem;
+  color: var(--vscode-descriptionForeground);
+}
+.transition-label.svelte-1rs9uqy {
+  font-style: italic;
+}
+.no-data.svelte-1rs9uqy {
+  padding: 2rem;
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+}
+
 /* fakecss:C:/Projects/azuredevops-integration-extension/src/webview/App.esbuild-svelte-fake-css */
 main.svelte-db2r4i {
   padding: 1rem;
@@ -1193,6 +1505,12 @@ button.svelte-db2r4i:hover {
   padding: 0.5rem 0;
   margin-bottom: 0.5rem;
 }
+.history-controls-container.svelte-db2r4i {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
 .debug-panel.svelte-db2r4i {
   margin: 0.5rem 0 0.75rem;
   padding: 0.5rem;
@@ -1219,5 +1537,15 @@ button.svelte-db2r4i:hover {
   border: 1px solid var(--vscode-tab-activeBorder, var(--vscode-focusBorder));
   border-radius: 4px;
   color: var(--vscode-tab-activeForeground);
+}
+.history-timeline-panel.svelte-db2r4i {
+  margin: 0.5rem 0;
+  max-height: 400px;
+  overflow: hidden;
+}
+.performance-dashboard-panel.svelte-db2r4i {
+  margin: 0.5rem 0;
+  max-height: 500px;
+  overflow: hidden;
 }
 /*# sourceMappingURL=main.css.map */

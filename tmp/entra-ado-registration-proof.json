@@ -1,0 +1,19 @@
+{
+  "displayName": "AzureDevOps-VSCode-Ext",
+  "registeredAt": "2025-12-26T08:01:02.1144806Z",
+  "adminConsentGranted": false,
+  "createdDateTime": "2025-12-26T07:59:52Z",
+  "updatedAt": "2025-12-26T08:01:02.1125453Z",
+  "redirectUris": [
+    "vscode-azuredevops-int://auth/callback"
+  ],
+  "objectId": "43e1af37-7af1-41e8-a76c-909d26724eea",
+  "signInAudience": "AzureADMultipleOrgs",
+  "appId": "c6c01810-2fff-45f0-861b-2ba02ae00ddc",
+  "resource": {
+    "scopeId": "ee69721e-6c3a-468f-a9ec-302d16a4c599",
+    "scopeValue": "user_impersonation",
+    "id": "499b84ac-1321-427f-aa17-267ca6975798",
+    "uri": "https://app.vssps.visualstudio.com"
+  }
+}

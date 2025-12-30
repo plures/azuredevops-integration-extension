@@ -24,6 +24,9 @@ LLM-GUARD:
   import WebviewHeader from './components/WebviewHeader.svelte';
   import Notification from './components/Notification.svelte';
   import ComposeCommentDialog from './components/ComposeCommentDialog.svelte';
+  import HistoryControls from './components/HistoryControls.svelte';
+  import HistoryTimeline from './components/HistoryTimeline.svelte';
+  import PerformanceDashboard from './components/PerformanceDashboard.svelte';
   
   // ConnectionViews component uses export let syntax for proper TypeScript inference
 
@@ -151,6 +154,11 @@ LLM-GUARD:
     <!-- Main work items UI -->
     <WebviewHeader context={appContext} {sendEvent} />
     
+    <!-- History Controls (Undo/Redo) -->
+    <div class="history-controls-container">
+      <HistoryControls />
+    </div>
+    
     {#if connectionsArray.length > 1}
       <ConnectionTabs
         connections={appContext.connections}
@@ -194,6 +202,16 @@ LLM-GUARD:
             null,
             2
           )}</pre>
+      </div>
+      
+      <!-- History Timeline for Time-Travel Debugging -->
+      <div class="history-timeline-panel">
+        <HistoryTimeline />
+      </div>
+      
+      <!-- Performance Dashboard -->
+      <div class="performance-dashboard-panel">
+        <PerformanceDashboard />
       </div>
     {/if}
 
@@ -309,6 +327,13 @@ LLM-GUARD:
     padding: 0.5rem 0;
     margin-bottom: 0.5rem;
   }
+  
+  .history-controls-container {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--vscode-panel-border);
+  }
   .debug-panel {
     margin: 0.5rem 0 0.75rem;
     padding: 0.5rem;
@@ -335,5 +360,17 @@ LLM-GUARD:
     border: 1px solid var(--vscode-tab-activeBorder, var(--vscode-focusBorder));
     border-radius: 4px;
     color: var(--vscode-tab-activeForeground);
+  }
+  
+  .history-timeline-panel {
+    margin: 0.5rem 0;
+    max-height: 400px;
+    overflow: hidden;
+  }
+  
+  .performance-dashboard-panel {
+    margin: 0.5rem 0;
+    max-height: 500px;
+    overflow: hidden;
   }
 </style>

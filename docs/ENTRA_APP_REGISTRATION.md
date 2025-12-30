@@ -33,6 +33,7 @@ az login
 ```
 
 This will:
+
 - Find the app registration by client ID
 - Update the redirect URI to `vscode-azuredevops-int://auth/callback`
 - Enable public client flows
@@ -72,6 +73,7 @@ az login
 ```
 
 The scripts will:
+
 1. Check if Azure CLI is available (find it automatically on Windows)
 2. Verify you're logged in
 3. Update existing app or create new one
@@ -172,6 +174,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\update-entra-app-redirect.ps1
 ### Azure CLI Not Found
 
 The scripts automatically detect Azure CLI in common Windows installation locations:
+
 - `C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd`
 - `C:\Program Files (x86)\Microsoft SDKs\Azure\CLI2\wbin\az.cmd`
 - `%LOCALAPPDATA%\Programs\Azure CLI\az.cmd`

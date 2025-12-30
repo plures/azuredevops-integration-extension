@@ -72,6 +72,8 @@ import {
 import { registerCommands } from './features/commands/index.js';
 import { registerTraceCommands } from './commands/traceCommands.js';
 import { registerQuickDebugCommands } from './commands/quickDebugCommands.js';
+import { registerHistoryDebugCommands } from './commands/historyDebugCommands.js';
+import { registerTestGeneratorCommands } from './commands/testGeneratorCommands.js';
 import { ConnectionService } from './praxis/connection/service.js';
 //import { initializeBridge } from './services/extensionHostBridge.js';
 import type {
@@ -2683,7 +2685,12 @@ export async function activate(context: vscode.ExtensionContext) {
       getOutputChannel() ?? vscode.window.createOutputChannel('Azure DevOps Integration');
     setOutputChannel(channel);
     // Use standardized logger format: [azuredevops-integration-extension][ext][activation][activation][enableDebugLogging]
-    standardizedLogger.info('activation', 'activation', 'enableDebugLogging', 'Debug logging enabled');
+    standardizedLogger.info(
+      'activation',
+      'activation',
+      'enableDebugLogging',
+      'Debug logging enabled'
+    );
     // Bridge console logging to Output Channel for better debugging
     bridgeConsoleToOutputChannel();
   }
@@ -2766,6 +2773,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Register quick debug commands for instant troubleshooting
   registerQuickDebugCommands(context);
+  
+  // Register history debug commands for testing and debugging
+  registerHistoryDebugCommands(context);
+  
+  // Register test generator commands
+  registerTestGeneratorCommands(context);
   // Automatic logging will capture this
 
   // Register output channel reader for programmatic log access
@@ -3247,35 +3260,46 @@ function getSerializableContext(context: any): Record<string, any> {
   if (context.activeConnectionId) {
     try {
       // First check connectionStates Map from Praxis context (most reliable)
-      const connectionStatesMap = context.connectionStates instanceof Map 
-        ? context.connectionStates 
-        : context.connectionStates 
-          ? new Map(Object.entries(context.connectionStates))
-          : new Map();
-      
+      const connectionStatesMap =
+        context.connectionStates instanceof Map
+          ? context.connectionStates
+          : context.connectionStates
+            ? new Map(Object.entries(context.connectionStates))
+            : new Map();
+
       const praxisConnectionState = connectionStatesMap.get(context.activeConnectionId);
-      
+
       // Check if connection is in error/disconnected state
-      if (praxisConnectionState && (!praxisConnectionState.isConnected || praxisConnectionState.state === 'disconnected' || praxisConnectionState.state === 'auth_failed')) {
+      if (
+        praxisConnectionState &&
+        (!praxisConnectionState.isConnected ||
+          praxisConnectionState.state === 'disconnected' ||
+          praxisConnectionState.state === 'auth_failed')
+      ) {
         // Determine auth method to provide appropriate error message
-        const activeConnection = context.connections?.find((c: any) => c.id === context.activeConnectionId);
+        const activeConnection = context.connections?.find(
+          (c: any) => c.id === context.activeConnectionId
+        );
         const isEntraAuth = activeConnection?.authMethod === 'entra';
-        
+
         if (praxisConnectionState.state === 'auth_failed') {
-          workItemsError = isEntraAuth 
+          workItemsError = isEntraAuth
             ? 'Entra ID authentication failed. Start a new sign-in to choose PAT or begin device code again.'
             : 'Authentication failed. Please check your credentials and try again.';
-        } else if (!praxisConnectionState.isConnected || praxisConnectionState.state === 'disconnected') {
+        } else if (
+          !praxisConnectionState.isConnected ||
+          praxisConnectionState.state === 'disconnected'
+        ) {
           workItemsError = isEntraAuth
             ? 'Connection not authenticated. Sign in to continue.'
             : 'Connection not authenticated. Please configure your credentials.';
         }
-        
+
         if (workItemsError) {
           workItemsErrorConnectionId = context.activeConnectionId;
         }
       }
-      
+
       // Also check ConnectionService for explicit error messages (takes precedence)
       const connectionService = ConnectionService.getInstance();
       const connectionManager = connectionService.getConnectionManager(context.activeConnectionId);
@@ -3294,6 +3318,12 @@ function getSerializableContext(context: any): Record<string, any> {
   }
 
   // Extract only serializable properties, excluding VS Code API objects and actors
+  // IMPORTANT: Serialization must be transparent - serialize what's in the context,
+  // don't make business decisions about what to include/exclude. Business logic
+  // belongs in Praxis rules, not in serialization code. Components depend on the
+  // context having a certain shape - e.g., connectionStates should include all
+  // connections, not just active ones. The fact that a connection is disconnected
+  // is a property that components need to react to.
   const serialized = {
     isActivated: context.isActivated,
     isDeactivating: context.isDeactivating,
@@ -3478,7 +3508,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
     // This ensures work items loaded before panel creation are sent to webview
     // (State will be sent below after webview setup is complete)
     const webview = webviewView.webview;
-    
+
     // Intercept webview messages for automatic logging
     // Store intercepted methods to use instead of direct webview calls
     // Automatic logging will capture this - activationLogger.info('[AzureDevOpsIntViewProvider] Setting up automatic message logging');
@@ -3489,7 +3519,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
     } catch (err) {
       // Automatic logging will capture this error
     }
-    
+
     webview.options = {
       enableScripts: true,
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
@@ -3638,8 +3668,8 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
         // Automatic logging will capture this
 
         if (snapshot && matchesFn) {
-          // Pre-compute state matches
-          const matches = {
+          // Pre-compute state matches - only include true values to reduce payload size
+          const allMatches = {
             inactive: matchesFn('inactive'),
             activating: matchesFn('activating'),
             activation_failed: matchesFn('activation_failed'),
@@ -3663,20 +3693,28 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
             }),
             'active.ready.error': matchesFn({ active: { ready: 'error' } }),
           };
+          
+          // Filter to only include true matches (optimization: reduce payload size)
+          const matches: Record<string, boolean> = {};
+          for (const [key, value] of Object.entries(allMatches)) {
+            if (value === true) {
+              matches[key] = true;
+            }
+          }
 
           const serializableState = {
             praxisState: snapshot.value,
             context: getSerializableContext(snapshot.context),
             matches,
           };
-          
+
           // Deduplicate: only send if state changed (Priority 2: Reduce redundant syncs)
           const signature = JSON.stringify(serializableState);
           if (signature === lastStateSignature) {
             return; // No change, skip sending duplicate state
           }
           lastStateSignature = signature;
-          
+
           // Automatic logging will capture this
           // Use intercepted webview if available, otherwise fall back to original
           const webviewToUse = interceptedWebview || webview;
@@ -3790,16 +3828,16 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
         if (message.event.type === 'RESET_AUTH') {
           const now = Date.now();
           const timeSinceLastReset = now - lastResetAuthTime;
-          
+
           // Debounce: ignore if called too soon after last execution
           if (timeSinceLastReset < RESET_AUTH_DEBOUNCE_MS) {
             // Automatic logging will capture this (debounced)
             return; // Skip duplicate processing
           }
-          
+
           // Update last execution time
           lastResetAuthTime = now;
-          
+
           const connectionId = message.event.connectionId as string | undefined;
           // Sign out first (handled by Praxis via event dispatch)
           if (connectionId) {
@@ -3871,7 +3909,9 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
                         error: err instanceof Error ? err.message : String(err),
                       })
                     );
-                    vscode.window.showErrorMessage('Failed to open browser. Code was copied to clipboard.');
+                    vscode.window.showErrorMessage(
+                      'Failed to open browser. Code was copied to clipboard.'
+                    );
                   });
               })
               .then(undefined, (err) => {

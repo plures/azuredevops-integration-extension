@@ -12,11 +12,13 @@ ESLint rules enforce the Praxis event-driven logging pattern, ensuring that all 
 
 **Purpose**: Prevents direct use of `console.log`, `console.error`, `console.warn`, `console.debug`.
 
-**Exceptions**: 
+**Exceptions**:
+
 - Logging infrastructure files (`src/logging/**/*.ts`)
 - Debug console bridge (`src/fsm/commands/debugConsoleBridge.ts`)
 
 **Example**:
+
 ```typescript
 // ❌ ERROR
 console.log('User clicked button');
@@ -32,6 +34,7 @@ dispatchApplicationEvent(UserClickedButtonEvent.create({ buttonId: 'submit' }));
 **Purpose**: Prevents importing old logging systems (`unifiedLogger`, `createLogger`, etc.)
 
 **Example**:
+
 ```typescript
 // ❌ ERROR
 import { createLogger } from './logging/unifiedLogger.js';
@@ -47,6 +50,7 @@ import { dispatchApplicationEvent } from './services/extensionHostBridge.js';
 **Purpose**: Prevents use of deprecated logging APIs
 
 **Example**:
+
 ```typescript
 // ❌ ERROR
 postWebviewLog('Message sent');
@@ -62,15 +66,17 @@ dispatchApplicationEvent(MessageSentEvent.create({ messageId }));
 **Purpose**: Enforces Praxis event-driven logging pattern
 
 **Exceptions**:
+
 - Logging infrastructure files (allowed)
 - `activation.ts` (warning only - prefer Praxis events)
 
 **Example**:
+
 ```typescript
 // ❌ ERROR in application code
 standardizedLogger.error('auth', 'webview-provider', 'writeText', 'Failed to copy', {
   connectionId,
-  error: err.message
+  error: err.message,
 });
 
 // ✅ CORRECT - Dispatch as Praxis event
@@ -86,7 +92,8 @@ dispatchApplicationEvent(
 
 ### Logging Infrastructure Files
 
-**Files**: 
+**Files**:
+
 - `src/logging/StandardizedAutomaticLogger.ts`
 - `src/logging/AutomaticLogger.ts`
 - `src/logging/FunctionInterceptor.ts`
@@ -94,7 +101,8 @@ dispatchApplicationEvent(
 - `src/logging.ts`
 - `src/logging/unifiedLogger.ts`
 
-**Rules**: 
+**Rules**:
+
 - `no-console: 'off'` - These files ARE the logging system
 - `no-restricted-imports: 'off'` - Can import each other
 - `no-restricted-syntax: 'off'` - Can use logging syntax
@@ -102,10 +110,12 @@ dispatchApplicationEvent(
 ### Infrastructure Files (Pre-Praxis)
 
 **Files**:
+
 - `src/activation.ts` (only for pre-Praxis initialization)
 - `src/services/extensionHostBridge.ts` (bridge initialization)
 
 **Rules**:
+
 - `no-restricted-syntax: 'warn'` - Warns when using `standardizedLogger`, suggests Praxis events
 
 ## Migration Checklist
@@ -125,4 +135,3 @@ When refactoring code to use Praxis events:
 3. **Type Safety** - Events are typed, preventing errors
 4. **Consistency** - All events follow same pattern
 5. **Replay Capability** - All events captured for replay
-

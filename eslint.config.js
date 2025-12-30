@@ -32,8 +32,14 @@ export default [
         {
           patterns: [
             {
-              group: ['**/logging/unifiedLogger', '**/logging', './logging/unifiedLogger', './logging'],
-              message: 'Manual logging is deprecated. Use automatic logging via StandardizedAutomaticLogger.',
+              group: [
+                '**/logging/unifiedLogger',
+                '**/logging',
+                './logging/unifiedLogger',
+                './logging',
+              ],
+              message:
+                'Manual logging is deprecated. Use automatic logging via StandardizedAutomaticLogger.',
             },
           ],
         },
@@ -43,15 +49,18 @@ export default [
         'error',
         {
           selector: "CallExpression[callee.name='postWebviewLog']",
-          message: 'Manual logging is deprecated. Use automatic logging via StandardizedAutomaticLogger.',
+          message:
+            'Manual logging is deprecated. Use automatic logging via StandardizedAutomaticLogger.',
         },
         {
           selector: "CallExpression[callee.name='createLogger']",
-          message: 'Manual logging is deprecated. Use automatic logging via StandardizedAutomaticLogger.',
+          message:
+            'Manual logging is deprecated. Use automatic logging via StandardizedAutomaticLogger.',
         },
         {
           selector: "CallExpression[callee.name='createScopedLogger']",
-          message: 'Manual logging is deprecated. Use automatic logging via StandardizedAutomaticLogger.',
+          message:
+            'Manual logging is deprecated. Use automatic logging via StandardizedAutomaticLogger.',
         },
         // Enforce Praxis event-driven logging pattern
         {

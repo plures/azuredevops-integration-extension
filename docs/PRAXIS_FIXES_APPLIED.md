@@ -3,6 +3,7 @@
 ## Summary
 
 Applied all Priority 1-4 fixes to improve Praxis implementation quality:
+
 - ✅ **Priority 1**: Removed side effects from rules
 - ✅ **Priority 2**: Simplified mutation logic
 - ✅ **Priority 3**: Made Map updates immutable
@@ -15,6 +16,7 @@ Applied all Priority 1-4 fixes to improve Praxis implementation quality:
 **File**: `src/praxis/application/rules/syncRules.ts`
 
 **Removed**:
+
 - `postMessage` calls to extension host (side effect)
 - `console.debug` calls (side effect)
 
@@ -27,6 +29,7 @@ Applied all Priority 1-4 fixes to improve Praxis implementation quality:
 **File**: `src/praxis/application/rules/syncRules.ts`
 
 **Before**:
+
 ```typescript
 const { connections, ...restPayload } = payload;
 Object.assign(state.context, restPayload);
@@ -37,6 +40,7 @@ if (Array.isArray(payload.connections)) {
 ```
 
 **After**:
+
 ```typescript
 // Explicit field updates - clear and predictable
 if (Array.isArray(payload.connections)) {
@@ -54,18 +58,21 @@ if (payload.activeConnectionId !== undefined) {
 
 ### Priority 3: Made Map Updates Immutable ✅
 
-**Files**: 
+**Files**:
+
 - `src/praxis/application/rules/miscRules.ts`
 - `src/praxis/application/rules/connectionRules.ts`
 - `src/praxis/application/rules/workItemRules.ts`
 - `src/praxis/application/rules/syncRules.ts`
 
 **Before**:
+
 ```typescript
 state.context.pendingAuthReminders.set(connectionId, {...});
 ```
 
 **After**:
+
 ```typescript
 state.context.pendingAuthReminders = new Map(state.context.pendingAuthReminders);
 state.context.pendingAuthReminders.set(connectionId, {...});
@@ -80,11 +87,13 @@ state.context.pendingAuthReminders.set(connectionId, {...});
 **Files**: All rule files
 
 **Before**:
+
 ```typescript
 state.context.pendingAuthReminders.set(connectionId, {...});
 ```
 
 **After**:
+
 ```typescript
 const existing = state.context.pendingAuthReminders.get(connectionId);
 const newValue = {...};
@@ -101,6 +110,7 @@ if (!existing || existing.reason !== newValue.reason) {
 ## Impact Assessment
 
 ### Before Fixes
+
 - **Pure Functions**: 2/10 ❌
 - **Immutability**: 2/10 ❌
 - **Predictability**: 6/10 ⚠️
@@ -109,6 +119,7 @@ if (!existing || existing.reason !== newValue.reason) {
 - **Overall**: 5/10
 
 ### After Fixes
+
 - **Pure Functions**: 9/10 ✅
 - **Immutability**: 7/10 ⚠️ (Partial - Praxis design allows mutations)
 - **Predictability**: 9/10 ✅
@@ -129,11 +140,13 @@ if (!existing || existing.reason !== newValue.reason) {
 ### Immutability Note
 
 Praxis uses Svelte 5's proxy system which allows mutations for reactivity. While we've improved immutability by:
+
 - Creating new Map instances
 - Creating new array instances (`[...array]`)
 - Explicit field updates
 
 The system still allows direct mutations, which is by design for reactivity. This is acceptable as long as:
+
 - ✅ Rules are pure (no side effects)
 - ✅ Updates are explicit and predictable
 - ✅ Idempotency is maintained
@@ -144,4 +157,3 @@ The system still allows direct mutations, which is by design for reactivity. Thi
 2. ⏭️ Add unit tests for idempotency
 3. ⏭️ Add integration tests for rule execution
 4. ⏭️ Monitor performance impact of Map creation
-

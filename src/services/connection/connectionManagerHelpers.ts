@@ -44,7 +44,7 @@ export async function performAuthentication(
       const { setupAuthCodeFlow } = await import('./authFlowHelpers.js');
       const { shouldUseAuthCodeFlow } = await import('../../config/authConfig.js');
       const useAuthCodeFlow = shouldUseAuthCodeFlow('entra', config.id);
-      
+
       if (useAuthCodeFlow) {
         const authCodeResult = await setupAuthCodeFlow(
           manager,
@@ -60,8 +60,8 @@ export async function performAuthentication(
         } else {
           // Don't silently fall back to device code - throw error instead
           throw new Error(
-            authCodeResult.error || 
-            'Authorization code flow failed. If you need device code flow, set azureDevOpsIntegration.auth.flow to "device-code"'
+            authCodeResult.error ||
+              'Authorization code flow failed. If you need device code flow, set azureDevOpsIntegration.auth.flow to "device-code"'
           );
         }
       } else {

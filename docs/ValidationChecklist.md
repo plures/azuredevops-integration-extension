@@ -121,6 +121,22 @@ This checklist ensures the Azure DevOps Integration Extension meets all quality,
   - [x] Rules are pure functions with typed context
   - [x] Events are type-safe with proper payloads
   - [x] Facts are properly typed in context
+- [x] **Praxis Unified Svelte Integration** - Official Integration
+  - [x] Migrated from polling to reactive subscriptions
+  - [x] Using `createPraxisStore` for reactive state management
+  - [x] Using `createContextStore` for direct context access
+  - [x] Eliminated polling overhead (100ms intervals)
+  - [x] Event-driven updates with instant reactivity
+  - [x] Proper subscription management and cleanup
+- [x] **Praxis v1.2.0 Upgrade** - Latest version integration ✅ COMPLETE
+  - [x] Updated @plures/praxis to v1.2.0
+  - [x] Unified Svelte integration implemented
+  - [x] Build scripts updated to use npx praxis CLI
+  - [x] Canvas command updated to use npx praxis canvas
+  - [x] Build configuration verified for compatibility
+  - [x] Introspection tools available via praxis CLI commands
+  - [x] Framework-agnostic reactive engine available (for future use)
+  - [x] Enhanced Svelte 5 runes support available
 
 ### Action Buttons Implementation
 

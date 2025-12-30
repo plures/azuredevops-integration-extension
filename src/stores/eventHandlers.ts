@@ -189,7 +189,10 @@ export const eventHandlers: Record<
   },
   RESET_AUTH: (manager, event) => {
     // Reset auth: sign out and then open settings for reconfiguration
-    const connectionId = typeof event.connectionId === 'string' ? event.connectionId : manager.getContext().activeConnectionId;
+    const connectionId =
+      typeof event.connectionId === 'string'
+        ? event.connectionId
+        : manager.getContext().activeConnectionId;
     if (connectionId) {
       // Sign out first to clear auth state
       manager.signOutEntra(connectionId);

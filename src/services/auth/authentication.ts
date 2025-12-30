@@ -120,9 +120,7 @@ async function notifyDeviceCode(
     activationLogger.warn('[notifyDeviceCode] Device code is missing', {
       meta: { hasVerificationUri: !!info.verificationUri },
     });
-    vscode.window.showErrorMessage(
-      'Device code is not available. Please try signing in again.'
-    );
+    vscode.window.showErrorMessage('Device code is not available. Please try signing in again.');
     return;
   }
 
@@ -292,7 +290,7 @@ export async function getEntraIdToken(
   // Check if auth code flow should be used (default for Entra)
   const { shouldUseAuthCodeFlow } = await import('../../config/authConfig.js');
   const useAuthCodeFlow = shouldUseAuthCodeFlow('entra', connectionId);
-  
+
   // Only try device code flow if explicitly requested (flowPreference === 'device-code')
   // Otherwise, use auth code flow as default
   if (useAuthCodeFlow) {
@@ -313,12 +311,12 @@ export async function getEntraIdToken(
       }
       return authCodeResult.accessToken;
     }
-    
+
     // If auth code flow fails and user didn't explicitly request device code, throw error
     // Don't silently fall back to device code
     throw new Error(
-      authCodeResult.error || 
-      'Authorization code flow failed. If you need device code flow, set azureDevOpsIntegration.auth.flow to "device-code"'
+      authCodeResult.error ||
+        'Authorization code flow failed. If you need device code flow, set azureDevOpsIntegration.auth.flow to "device-code"'
     );
   }
 

@@ -33,11 +33,11 @@ let azBinary = 'az';
 function runAz(args, label) {
   // Quote the path if it contains spaces (Windows paths)
   const quotedBinary = azBinary.includes(' ') ? `"${azBinary}"` : azBinary;
-  
-  const result = spawnSync(quotedBinary, [...args, '--output', 'json'], { 
+
+  const result = spawnSync(quotedBinary, [...args, '--output', 'json'], {
     encoding: 'utf8',
     shell: true, // Use shell on Windows to handle .cmd files
-    windowsVerbatimArguments: false
+    windowsVerbatimArguments: false,
   });
   if (result.status !== 0) {
     const stderr = result.stderr || result.stdout;
@@ -73,7 +73,7 @@ function pickAzBinary() {
   const pf = process.env['ProgramFiles'];
   const pf86 = process.env['ProgramFiles(x86)'];
   const localAppData = process.env['LOCALAPPDATA'];
-  
+
   // Common installation paths
   const common = [
     pf ? path.join(pf, 'Microsoft SDKs', 'Azure', 'CLI2', 'wbin', 'az.cmd') : null,
@@ -81,7 +81,7 @@ function pickAzBinary() {
     localAppData ? path.join(localAppData, 'Programs', 'Azure CLI', 'az.cmd') : null,
     localAppData ? path.join(localAppData, 'Microsoft', 'Azure CLI', 'az.cmd') : null,
   ].filter(Boolean);
-  
+
   candidates.push(...common);
 
   for (const exe of candidates) {
@@ -129,7 +129,7 @@ function maybeExitIfProofExists() {
 
 function main() {
   assertAzCliAvailable();
-  
+
   let app;
   let appId;
   let objectId;
@@ -137,20 +137,20 @@ function main() {
   if (existingClientId) {
     // Update existing app registration
     console.log(`Updating existing Azure DevOps Entra app: ${existingClientId}...`);
-    
+
     // Find the app by client ID (list all and filter in JavaScript)
     const allApps = runAz(['ad', 'app', 'list'], 'app list');
-    const apps = Array.isArray(allApps) ? allApps.filter(a => a.appId === existingClientId) : [];
+    const apps = Array.isArray(allApps) ? allApps.filter((a) => a.appId === existingClientId) : [];
     if (!apps || apps.length === 0) {
       throw new Error(`App with client ID ${existingClientId} not found.`);
     }
-    
+
     app = apps[0];
     appId = app.appId;
     objectId = app.id;
-    
+
     console.log(`Found app: ${app.displayName} (${appId})`);
-    
+
     // Update redirect URIs
     console.log(`Updating redirect URI to: ${redirectUri}`);
     runAz(
@@ -207,9 +207,7 @@ function main() {
   // Check if permissions already exist
   const existingApp = runAz(['ad', 'app', 'show', '--id', objectId], 'app show');
   const existingPermissions = existingApp?.requiredResourceAccess || [];
-  const hasAdoPermission = existingPermissions.some(
-    (ra) => ra.resourceAppId === adoResourceId
-  );
+  const hasAdoPermission = existingPermissions.some((ra) => ra.resourceAppId === adoResourceId);
 
   // Fetch scope entry (needed for both permission check and proof)
   console.log('Fetching Azure DevOps service principal scopes...');
@@ -272,7 +270,7 @@ function main() {
   console.log(`Redirect URI: ${redirectUri}`);
   console.log(`Proof file: ${proofPath}`);
   console.log('\n' + JSON.stringify(proof, null, 2));
-  
+
   if (!existingClientId) {
     console.log('\n⚠️  IMPORTANT: Update your code to use this Client ID:');
     console.log(`   DEFAULT_ENTRA_CLIENT_ID = '${appId}'`);

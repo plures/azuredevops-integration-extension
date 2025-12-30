@@ -91,8 +91,12 @@ function shouldLogDebug(): boolean {
 
 function writeLog(level: LogLevel, message: string, options?: LogOptions): void {
   const scope = options?.scope || 'application';
-  const meta = options?.meta ? (typeof options.meta === 'object' ? options.meta as Record<string, unknown> : { meta: options.meta }) : undefined;
-  
+  const meta = options?.meta
+    ? typeof options.meta === 'object'
+      ? (options.meta as Record<string, unknown>)
+      : { meta: options.meta }
+    : undefined;
+
   // Use standardized logger format: [azuredevops-integration-extension][{runtime}][{flowName}][{componentName}][{functionName}]
   // Map scope to componentName, use 'application' as flowName
   standardizedLogger.log('application', scope, undefined, level, message, meta);

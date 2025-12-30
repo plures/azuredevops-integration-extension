@@ -1,6 +1,6 @@
 /**
  * Automatic Function Call Interception
- * 
+ *
  * Uses JavaScript Proxies to automatically log all function calls without
  * requiring manual instrumentation.
  */
@@ -12,7 +12,7 @@ export interface InterceptOptions {
   logArgs?: boolean;
   logResult?: boolean;
   logDuration?: boolean;
-  minDuration?: number;  // Only log if duration exceeds this (ms)
+  minDuration?: number; // Only log if duration exceeds this (ms)
 }
 
 /**
@@ -22,7 +22,13 @@ export function interceptFunction<T extends (...args: any[]) => any>(
   fn: T,
   options: InterceptOptions
 ): T {
-  const { component, logArgs = true, logResult = true, logDuration = true, minDuration = 0 } = options;
+  const {
+    component,
+    logArgs = true,
+    logResult = true,
+    logDuration = true,
+    minDuration = 0,
+  } = options;
   const functionName = fn.name || 'anonymous';
 
   return ((...args: any[]) => {
@@ -32,7 +38,7 @@ export function interceptFunction<T extends (...args: any[]) => any>(
 
     try {
       result = fn(...args);
-      
+
       // Handle promises
       if (result instanceof Promise) {
         return result
@@ -61,7 +67,7 @@ export function interceptFunction<T extends (...args: any[]) => any>(
             throw err;
           });
       }
-      
+
       // Synchronous function
       const duration = performance.now() - startTime;
       if (duration >= minDuration) {
@@ -73,7 +79,7 @@ export function interceptFunction<T extends (...args: any[]) => any>(
           { args: logArgs ? args : undefined, result: logResult ? result : undefined, duration }
         );
       }
-      
+
       return result;
     } catch (err) {
       error = err instanceof Error ? err : new Error(String(err));
@@ -99,7 +105,7 @@ export function interceptObject<T extends Record<string, any>>(
   options?: Partial<InterceptOptions>
 ): T {
   const intercepted = {} as T;
-  
+
   for (const key in obj) {
     const value = obj[key];
     if (typeof value === 'function') {
@@ -111,7 +117,7 @@ export function interceptObject<T extends Record<string, any>>(
       intercepted[key] = value;
     }
   }
-  
+
   return intercepted;
 }
 
@@ -125,10 +131,10 @@ export function interceptInstance<T extends Record<string, any>>(
 ): T {
   const prototype = Object.getPrototypeOf(instance);
   const propertyNames = Object.getOwnPropertyNames(prototype);
-  
+
   for (const name of propertyNames) {
     if (name === 'constructor') continue;
-    
+
     const descriptor = Object.getOwnPropertyDescriptor(prototype, name);
     if (descriptor && typeof descriptor.value === 'function') {
       const originalMethod = descriptor.value;
@@ -138,7 +144,6 @@ export function interceptInstance<T extends Record<string, any>>(
       });
     }
   }
-  
+
   return instance;
 }
-

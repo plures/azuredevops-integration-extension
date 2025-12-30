@@ -40,12 +40,12 @@ function getVsCodeApi(): any | undefined {
     if (typeof acquireVsCodeApi === 'function') {
       __vscodeApi = acquireVsCodeApi();
       (window as any).__vscodeApi = __vscodeApi;
-      
+
       // Intercept postMessage for automatic logging
       if (__vscodeApi && typeof __vscodeApi.postMessage === 'function') {
         __vscodeApi = interceptPostMessage(__vscodeApi, 'webview');
       }
-      
+
       return __vscodeApi;
     }
   } catch (err) {
@@ -157,7 +157,7 @@ function buildEnrichedContext(context: any, praxisState: any) {
 function dispatchSyncToEngines(enrichedContext: any, matches: any) {
   // Create SyncState event
   const syncEvent = SyncStateEvent.create(enrichedContext);
-  
+
   // Only dispatch to the store (which updates the engine internally)
   // Don't call frontendEngine.step directly - let the store handle it
   // This prevents SyncState events from being sent back to extension
@@ -166,7 +166,7 @@ function dispatchSyncToEngines(enrichedContext: any, matches: any) {
   } catch (err) {
     // Error handling - automatic logging will capture this
   }
-  
+
   // Also update applicationSnapshot directly for immediate UI updates
   // This ensures the UI reacts immediately even if praxisStore hasn't updated yet
   try {

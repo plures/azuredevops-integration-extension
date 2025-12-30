@@ -1,13 +1,13 @@
 /**
  * Automatic Logging Infrastructure
- * 
+ *
  * Provides zero-instrumentation automatic logging for:
  * - Function calls/returns
  * - Message passing (webview ↔ extension)
  * - State changes (Praxis)
  * - Errors
  * - Performance metrics
- * 
+ *
  * All logs are structured for full replay capability.
  */
 
@@ -25,7 +25,7 @@ export interface AutomaticLogEntry {
   type: LogEntryType;
   component: string;
   operation: string;
-  
+
   function?: {
     name: string;
     args: unknown[];
@@ -36,14 +36,14 @@ export interface AutomaticLogEntry {
     };
     duration: number;
   };
-  
+
   message?: {
     direction: 'host->webview' | 'webview->host';
     type: string;
     payload: unknown;
     response?: unknown;
   };
-  
+
   state?: {
     from: string;
     to: string;
@@ -51,19 +51,19 @@ export interface AutomaticLogEntry {
     contextBefore?: unknown;
     contextAfter?: unknown;
   };
-  
+
   error?: {
     message: string;
     stack?: string;
     context: unknown;
   };
-  
+
   performance?: {
     metric: string;
     value: number;
     unit: string;
   };
-  
+
   context?: Record<string, unknown>;
   sessionId: string;
   traceId?: string;
@@ -123,13 +123,16 @@ export class AutomaticLogger {
 
   private shouldLog(component: string, type: LogEntryType): boolean {
     if (!this.config.enabled) return false;
-    
+
     // Check component filters
     if (this.config.excludeComponents.includes(component)) return false;
-    if (this.config.includeComponents.length > 0 && !this.config.includeComponents.includes(component)) {
+    if (
+      this.config.includeComponents.length > 0 &&
+      !this.config.includeComponents.includes(component)
+    ) {
       return false;
     }
-    
+
     // Check type-specific config
     switch (type) {
       case 'function':
@@ -168,14 +171,14 @@ export class AutomaticLogger {
     if (!this.shouldLog(entry.component, entry.type)) {
       return;
     }
-    
+
     this.entries.push(entry);
-    
+
     // Trim if over limit
     if (this.entries.length > this.config.maxEntries) {
       this.entries = this.entries.slice(-this.config.maxEntries);
     }
-    
+
     // Log to console/output channel
     this.logToConsole(entry);
   }
@@ -183,21 +186,14 @@ export class AutomaticLogger {
   private logToConsole(entry: AutomaticLogEntry): void {
     const level = this.config.level === 'debug' ? 'debug' : 'info';
     const message = this.formatEntry(entry);
-    
+
     // Use standardized logger with proper format
     // Extract flow/component from component string (e.g., "activation.webview" -> flow="activation", component="webview")
     const parts = entry.component.split('.');
     const flowName = parts[0] || 'unknown';
     const componentName = parts.slice(1).join('.') || entry.component;
-    
-    standardizedLogger.log(
-      flowName,
-      componentName,
-      entry.operation,
-      level,
-      message,
-      entry as any
-    );
+
+    standardizedLogger.log(flowName, componentName, entry.operation, level, message, entry as any);
   }
 
   private formatEntry(entry: AutomaticLogEntry): string {
@@ -234,14 +230,16 @@ export class AutomaticLogger {
         name: functionName,
         args: this.sanitizeArgs(args),
         result: error ? undefined : this.sanitizeResult(result),
-        error: error ? {
-          message: error.message,
-          stack: error.stack,
-        } : undefined,
+        error: error
+          ? {
+              message: error.message,
+              stack: error.stack,
+            }
+          : undefined,
         duration,
       },
     });
-    
+
     this.addEntry(entry);
   }
 
@@ -260,7 +258,7 @@ export class AutomaticLogger {
         response: response ? this.sanitizePayload(response) : undefined,
       },
     });
-    
+
     this.addEntry(entry);
   }
 
@@ -281,7 +279,7 @@ export class AutomaticLogger {
         contextAfter: contextAfter ? this.sanitizeContext(contextAfter) : undefined,
       },
     });
-    
+
     this.addEntry(entry);
   }
 
@@ -298,7 +296,7 @@ export class AutomaticLogger {
         context: context || {},
       },
     });
-    
+
     this.addEntry(entry);
   }
 
@@ -315,7 +313,7 @@ export class AutomaticLogger {
         unit,
       },
     });
-    
+
     this.addEntry(entry);
   }
 
@@ -324,7 +322,7 @@ export class AutomaticLogger {
   // ============================================================================
 
   private sanitizeArgs(args: unknown[]): unknown[] {
-    return args.map(arg => this.sanitizeValue(arg));
+    return args.map((arg) => this.sanitizeValue(arg));
   }
 
   private sanitizeResult(result: unknown): unknown {
@@ -342,13 +340,15 @@ export class AutomaticLogger {
   private sanitizeValue(value: unknown): unknown {
     // Remove circular references, functions, etc.
     try {
-      return JSON.parse(JSON.stringify(value, (key, val) => {
-        if (typeof val === 'function') return '[Function]';
-        if (val instanceof Error) return { message: val.message, stack: val.stack };
-        if (val instanceof Map) return Object.fromEntries(val);
-        if (val instanceof Set) return Array.from(val);
-        return val;
-      }));
+      return JSON.parse(
+        JSON.stringify(value, (key, val) => {
+          if (typeof val === 'function') return '[Function]';
+          if (val instanceof Error) return { message: val.message, stack: val.stack };
+          if (val instanceof Map) return Object.fromEntries(val);
+          if (val instanceof Set) return Array.from(val);
+          return val;
+        })
+      );
     } catch {
       return String(value);
     }
@@ -356,15 +356,15 @@ export class AutomaticLogger {
 
   public getEntries(filter?: { type?: LogEntryType; component?: string }): AutomaticLogEntry[] {
     let entries = this.entries;
-    
+
     if (filter?.type) {
-      entries = entries.filter(e => e.type === filter.type);
+      entries = entries.filter((e) => e.type === filter.type);
     }
-    
+
     if (filter?.component) {
-      entries = entries.filter(e => e.component === filter.component);
+      entries = entries.filter((e) => e.component === filter.component);
     }
-    
+
     return entries;
   }
 
@@ -382,4 +382,3 @@ export class AutomaticLogger {
 // ============================================================================
 
 export const automaticLogger = AutomaticLogger.getInstance();
-

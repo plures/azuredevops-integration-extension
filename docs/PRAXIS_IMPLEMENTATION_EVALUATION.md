@@ -11,6 +11,7 @@ This document evaluates our Praxis logic implementation against core functional 
 **Issue**: Rules mutate state directly instead of returning new state.
 
 **Example from `syncRules.ts`**:
+
 ```typescript
 impl: (state, events) => {
   // Direct mutation
@@ -18,10 +19,11 @@ impl: (state, events) => {
   Object.assign(state.context, restPayload);
   state.context.connections = [...payload.connections]; // Re-applied!
   return [];
-}
+};
 ```
 
 **Problems**:
+
 - Rules have side effects (mutations)
 - Cannot be tested in isolation without state setup
 - Cannot be composed or chained safely
@@ -36,6 +38,7 @@ impl: (state, events) => {
 **Issue**: State is mutated in-place rather than creating new state objects.
 
 **Example from `miscRules.ts`**:
+
 ```typescript
 state.context.deviceCodeSession = {
   connectionId,
@@ -48,6 +51,7 @@ state.context.deviceCodeSession = {
 ```
 
 **Problems**:
+
 - No history/undo capability
 - Cannot detect what changed (no diff)
 - Harder to implement time-travel debugging
@@ -60,16 +64,19 @@ state.context.deviceCodeSession = {
 ### ⚠️ **3. Predictability - PARTIALLY IMPLEMENTED**
 
 **What Works**:
+
 - Rules are deterministic (same input → same output)
 - Event-driven (predictable triggers)
 - State transitions are explicit
 
 **What Doesn't Work**:
+
 - `syncStateRule` has complex mutation logic with `Object.assign` and re-applications
 - Multiple rules can mutate same state (order-dependent)
 - Side effects in rules (postMessage, console.debug)
 
 **Example Problem**:
+
 ```typescript
 // syncRules.ts - Complex, hard to predict
 Object.assign(state.context, restPayload);
@@ -86,11 +93,13 @@ if (Array.isArray(payload.connections)) {
 ### ✅ **4. Reactivity - IMPLEMENTED**
 
 **What Works**:
+
 - Svelte reactivity system detects mutations
 - Context changes trigger UI updates
 - Unidirectional data flow (events → rules → state → UI)
 
 **How It Works**:
+
 - Praxis uses Svelte 5's `$state` proxy system
 - Mutations are detected automatically
 - UI components react to context changes
@@ -102,15 +111,18 @@ if (Array.isArray(payload.connections)) {
 ### ⚠️ **5. Idempotency - PARTIALLY IMPLEMENTED**
 
 **What Works**:
+
 - Most rules check conditions before mutating
 - Rules return early if conditions not met
 
 **What Doesn't Work**:
+
 - `syncStateRule` uses `Object.assign` which may overwrite unrelated fields
 - Multiple applications of same event may have different effects
 - Map operations (`set`, `delete`) are not idempotent if called multiple times
 
 **Example Problem**:
+
 ```typescript
 // Not idempotent - calling twice may have different effects
 state.context.pendingAuthReminders.set(connectionId, {
@@ -176,6 +188,7 @@ if (Array.isArray(payload.connections)) {
 ```
 
 **Problems**:
+
 - `Object.assign` may overwrite fields unexpectedly
 - Connections set twice (defensive programming indicates uncertainty)
 - Complex conditional logic makes behavior hard to predict
@@ -207,6 +220,7 @@ state.context.connectionWorkItems.set(connectionId, workItems);
 **Action**: Remove all I/O from rules (postMessage, console.debug)
 
 **Example Fix**:
+
 ```typescript
 // ❌ BEFORE
 if (typeof window !== 'undefined' && (window as any).__vscodeApi) {
@@ -225,6 +239,7 @@ if (typeof window !== 'undefined' && (window as any).__vscodeApi) {
 **Action**: Replace `Object.assign` with explicit field updates
 
 **Example Fix**:
+
 ```typescript
 // ❌ BEFORE
 const { connections, ...restPayload } = payload;
@@ -254,6 +269,7 @@ if (payload.viewMode !== undefined) {
 **Action**: Create new Map instances when updating
 
 **Example Fix**:
+
 ```typescript
 // ❌ BEFORE
 state.context.pendingAuthReminders.set(connectionId, {...});
@@ -270,6 +286,7 @@ state.context.pendingAuthReminders.set(connectionId, {...});
 **Action**: Ensure rules can be safely applied multiple times
 
 **Example Fix**:
+
 ```typescript
 // ❌ BEFORE
 state.context.pendingAuthReminders.set(connectionId, {
@@ -296,9 +313,11 @@ if (!existing || existing.reason !== (detail || reason)) {
 ## Praxis Design Philosophy
 
 **Note**: According to `src/praxis-core/rules.ts`:
+
 > "Pure functions (conceptually) that mutate the state based on events. In Svelte 5, we mutate the proxy directly."
 
 This suggests Praxis is designed to allow mutations for reactivity, but we should still:
+
 1. ✅ Keep rules deterministic
 2. ✅ Avoid side effects
 3. ✅ Make mutations explicit and predictable
@@ -310,17 +329,17 @@ This suggests Praxis is designed to allow mutations for reactivity, but we shoul
 
 ### Current Score (After Fixes)
 
-| Principle | Status | Score |
-|-----------|--------|-------|
-| Pure Functions | ✅ Implemented | 9/10 |
-| Immutability | ⚠️ Partial* | 7/10 |
-| Predictability | ✅ Implemented | 9/10 |
-| Reactivity | ✅ Implemented | 9/10 |
-| Idempotency | ✅ Implemented | 9/10 |
+| Principle      | Status         | Score |
+| -------------- | -------------- | ----- |
+| Pure Functions | ✅ Implemented | 9/10  |
+| Immutability   | ⚠️ Partial\*   | 7/10  |
+| Predictability | ✅ Implemented | 9/10  |
+| Reactivity     | ✅ Implemented | 9/10  |
+| Idempotency    | ✅ Implemented | 9/10  |
 
 **Overall**: 8.6/10 - **Good** ✅
 
-*Note: Immutability is partial because Praxis uses Svelte 5's proxy system which allows mutations for reactivity. However, we now create new instances for Maps and arrays, making updates more predictable and reactive.
+\*Note: Immutability is partial because Praxis uses Svelte 5's proxy system which allows mutations for reactivity. However, we now create new instances for Maps and arrays, making updates more predictable and reactive.
 
 ### Next Steps
 
@@ -333,10 +352,10 @@ This suggests Praxis is designed to allow mutations for reactivity, but we shoul
 ### Long-Term Vision
 
 While Praxis allows mutations for reactivity, we should strive for:
+
 - **Explicit mutations** - Clear, predictable updates
 - **No side effects** - Pure rule logic
 - **Idempotent operations** - Safe to replay
 - **Deterministic behavior** - Same input → same output
 
 This will make the system more testable, debuggable, and maintainable.
-

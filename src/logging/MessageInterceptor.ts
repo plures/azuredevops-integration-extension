@@ -1,6 +1,6 @@
 /**
  * Automatic Message Interception
- * 
+ *
  * Intercepts all webview ↔ extension host message passing automatically.
  */
 
@@ -9,13 +9,19 @@ import { standardizedLogger } from './StandardizedAutomaticLogger.js';
 /**
  * Intercept webview messages (extension host side)
  * VS Code webview API: webview.postMessage() and webview.onDidReceiveMessage()
- * 
+ *
  * Note: VS Code webview properties may be read-only, so we wrap the calls instead
  */
 export function interceptWebviewMessages(
-  webview: { postMessage: (message: any) => Thenable<boolean>; onDidReceiveMessage: (callback: (message: any) => void) => { dispose(): void } },
+  webview: {
+    postMessage: (message: any) => Thenable<boolean>;
+    onDidReceiveMessage: (callback: (message: any) => void) => { dispose(): void };
+  },
   component: string = 'webview'
-): { postMessage: (message: any) => Thenable<boolean>; onDidReceiveMessage: (callback: (message: any) => void) => { dispose(): void } } {
+): {
+  postMessage: (message: any) => Thenable<boolean>;
+  onDidReceiveMessage: (callback: (message: any) => void) => { dispose(): void };
+} {
   const originalPostMessage = webview.postMessage.bind(webview);
   const originalOnDidReceiveMessage = webview.onDidReceiveMessage.bind(webview);
 
@@ -37,7 +43,7 @@ export function interceptWebviewMessages(
       }
       return originalPostMessage(message);
     },
-    
+
     onDidReceiveMessage: (callback: (message: any) => void) => {
       return originalOnDidReceiveMessage((message: any) => {
         try {
@@ -55,7 +61,7 @@ export function interceptWebviewMessages(
       });
     },
   };
-  
+
   return intercepted;
 }
 
@@ -89,24 +95,32 @@ export function interceptPostMessage(
 /**
  * Intercept window.addEventListener('message') (webview side)
  */
-export function interceptWindowMessages(
-  component: string = 'webview'
-): void {
+export function interceptWindowMessages(component: string = 'webview'): void {
   // Check if already intercepted
   if ((window.addEventListener as any).__intercepted) {
-    standardizedLogger.debug('message', component, 'interceptWindowMessages', 'Already intercepted, skipping');
+    standardizedLogger.debug(
+      'message',
+      component,
+      'interceptWindowMessages',
+      'Already intercepted, skipping'
+    );
     return;
   }
-  
+
   const originalAddEventListener = window.addEventListener.bind(window);
-  
-  const interceptedAddEventListener = function(
+
+  const interceptedAddEventListener = function (
     type: string,
     listener: EventListenerOrEventListenerObject | null,
     options?: boolean | AddEventListenerOptions
   ): void {
     if (type === 'message') {
-      standardizedLogger.debug('message', component, 'addEventListener', `Intercepting 'message' listener registration`);
+      standardizedLogger.debug(
+        'message',
+        component,
+        'addEventListener',
+        `Intercepting 'message' listener registration`
+      );
       const wrappedListener = (event: Event) => {
         const messageEvent = event as MessageEvent;
         try {
@@ -120,7 +134,7 @@ export function interceptWindowMessages(
         } catch (err) {
           // Silent fail - logging should never break functionality
         }
-        
+
         // Always call the original listener
         if (listener instanceof Function) {
           listener(event);
@@ -128,19 +142,23 @@ export function interceptWindowMessages(
           listener.handleEvent(event);
         }
       };
-      
+
       return originalAddEventListener(type, wrappedListener, options);
     }
-    
+
     return originalAddEventListener(type, listener, options);
   };
-  
+
   // Mark as intercepted
   (interceptedAddEventListener as any).__intercepted = true;
-  
+
   // Replace window.addEventListener
   window.addEventListener = interceptedAddEventListener;
-  
-  standardizedLogger.info('message', component, 'interceptWindowMessages', 'window.addEventListener intercepted');
-}
 
+  standardizedLogger.info(
+    'message',
+    component,
+    'interceptWindowMessages',
+    'window.addEventListener intercepted'
+  );
+}

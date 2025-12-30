@@ -24,7 +24,7 @@
 
 1. **Remove All Manual Logging** (345+ instances found):
    - Remove all `console.log/error/warn/debug` calls
-   - Remove all `postWebviewLog` calls  
+   - Remove all `postWebviewLog` calls
    - Remove all `createLogger` and `createScopedLogger` calls
    - Files to update:
      - `src/webview/main.ts` (68 instances)
@@ -63,11 +63,13 @@
 ## Migration Strategy
 
 ### Phase 1: Infrastructure ✅ (COMPLETE)
+
 - [x] Create StandardizedAutomaticLogger
 - [x] Update interceptors
 - [x] Add ESLint rules
 
 ### Phase 2: Remove Manual Logging (IN PROGRESS)
+
 - [ ] Remove console.log calls from webview/main.ts
 - [ ] Remove console.log calls from activation.ts
 - [ ] Remove postWebviewLog calls
@@ -75,12 +77,14 @@
 - [ ] Test compilation after each batch
 
 ### Phase 3: Reactive Context Sync (TODO)
+
 - [ ] Design ReactiveContextBridge API
 - [ ] Implement automatic sync mechanism
 - [ ] Replace message-based sync with reactive sync
 - [ ] Remove manual message handling
 
 ### Phase 4: Testing & Validation (TODO)
+
 - [ ] Test all logging scenarios
 - [ ] Verify log format consistency
 - [ ] Verify replay capability
@@ -99,4 +103,3 @@
 2. Then `src/activation.ts` (70 instances)
 3. Continue with other files systematically
 4. Create ReactiveContextBridge for automatic sync
-

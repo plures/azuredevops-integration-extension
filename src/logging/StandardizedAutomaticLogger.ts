@@ -1,9 +1,9 @@
 /**
  * Standardized Automatic Logger
- * 
+ *
  * Provides zero-instrumentation automatic logging with standardized format:
  * [azuredevops-integration-extension][{runtime}][{flowName}][{componentName}][{functionName}] {message}
- * 
+ *
  * This is the ONLY logging mechanism. All other logging systems are deprecated.
  */
 
@@ -55,7 +55,7 @@ class StandardizedAutomaticLogger {
     const flow = `[${context.flowName}]`;
     const component = `[${context.componentName}]`;
     const functionPart = context.functionName ? `[${context.functionName}]` : '';
-    
+
     return `${prefix}${runtime}${flow}${component}${functionPart} ${message}`;
   }
 
@@ -64,7 +64,7 @@ class StandardizedAutomaticLogger {
    */
   private formatMeta(meta?: Record<string, unknown>): string {
     if (!meta || Object.keys(meta).length === 0) return '';
-    
+
     try {
       return ` ${JSON.stringify(meta)}`;
     } catch {
@@ -194,19 +194,23 @@ class StandardizedAutomaticLogger {
   /**
    * Get all log entries (for replay/export)
    */
-  public getEntries(filter?: { flowName?: string; componentName?: string; level?: LogLevel }): LogEntry[] {
+  public getEntries(filter?: {
+    flowName?: string;
+    componentName?: string;
+    level?: LogLevel;
+  }): LogEntry[] {
     let entries = [...this.entries];
-    
+
     if (filter?.flowName) {
-      entries = entries.filter(e => e.context.flowName === filter.flowName);
+      entries = entries.filter((e) => e.context.flowName === filter.flowName);
     }
     if (filter?.componentName) {
-      entries = entries.filter(e => e.context.componentName === filter.componentName);
+      entries = entries.filter((e) => e.context.componentName === filter.componentName);
     }
     if (filter?.level) {
-      entries = entries.filter(e => e.level === filter.level);
+      entries = entries.filter((e) => e.level === filter.level);
     }
-    
+
     return entries;
   }
 
@@ -246,4 +250,3 @@ export function autoLog(
 ): void {
   standardizedLogger.log(flowName, componentName, functionName, level, message, meta);
 }
-

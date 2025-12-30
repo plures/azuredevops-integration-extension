@@ -25,6 +25,7 @@
 #### 1. **Empty Maps** - All Maps are `{}`
 
 **Observed**:
+
 ```json
 "connectionStates": {},
 "pendingAuthReminders": {},
@@ -35,16 +36,19 @@
 ```
 
 **Root Cause**: Maps are empty in the Praxis context, meaning:
+
 - Connection states aren't being populated when connections are loaded
 - No connection-specific data is being tracked
 - Maps are initialized but never updated
 
-**Impact**: 
+**Impact**:
+
 - ⚠️ **HIGH** - Connection state information is missing
 - UI can't display connection-specific data
 - Per-connection queries/work items aren't tracked
 
-**Fix Needed**: 
+**Fix Needed**:
+
 - Populate `connectionStates` when connections are loaded
 - Ensure `CONNECTION_STATE_UPDATED` events are dispatched
 - Initialize Maps with connection data
@@ -55,18 +59,21 @@
 
 **Observed**: Same `syncState` message sent 3 times in quick succession
 
-**Root Cause**: 
+**Root Cause**:
+
 - Multiple triggers calling `sendCurrentState()`
 - `webviewReady` event triggers sync
 - `getContext` request triggers sync
 - State change listeners trigger sync
 
-**Impact**: 
+**Impact**:
+
 - ⚠️ **MEDIUM** - Inefficient, wastes resources
 - May cause UI flicker
 - Increases message passing overhead
 
 **Fix Needed**:
+
 - Debounce/throttle `sendCurrentState()` calls
 - Deduplicate state before sending (compare signatures)
 - Use reactive sync instead of message-based sync
@@ -77,15 +84,18 @@
 
 **Observed**: `webviewReady` sent twice
 
-**Root Cause**: 
+**Root Cause**:
+
 - Webview may be registering multiple listeners
 - Or webview is reloading/reinitializing
 
-**Impact**: 
+**Impact**:
+
 - ⚠️ **LOW** - Minor inefficiency
 - May trigger duplicate syncs
 
 **Fix Needed**:
+
 - Ensure webview only sends `webviewReady` once per initialization
 - Check for duplicate event handlers
 
@@ -95,15 +105,18 @@
 
 **Observed**: Webview explicitly requests context via `getContext` message
 
-**Root Cause**: 
+**Root Cause**:
+
 - Webview isn't receiving initial state automatically
 - Or webview is checking for state updates
 
-**Impact**: 
+**Impact**:
+
 - ⚠️ **MEDIUM** - Indicates reactive sync isn't working perfectly
 - Still using request/response pattern instead of reactive updates
 
 **Fix Needed**:
+
 - Ensure initial state is sent automatically when webview loads
 - Implement reactive context sync (no explicit requests needed)
 
@@ -113,17 +126,20 @@
 
 **Observed**: 4 connections exist but `connectionStates` is empty
 
-**Root Cause**: 
+**Root Cause**:
+
 - `CONNECTION_STATE_UPDATED` events aren't being dispatched when connections are loaded
 - Connection state isn't being initialized in Praxis context
 - Connection managers aren't syncing state to Praxis
 
-**Impact**: 
+**Impact**:
+
 - ⚠️ **HIGH** - Missing critical connection state information
 - Can't track connection status (connected/disconnected/auth_failed)
 - Can't display connection-specific errors
 
 **Fix Needed**:
+
 - Dispatch `CONNECTION_STATE_UPDATED` when connections are loaded
 - Initialize connection states in `connectionsLoadedRule`
 - Sync connection state from ConnectionService to Praxis
@@ -133,6 +149,7 @@
 ## State Analysis
 
 ### What We Have ✅
+
 - `connections`: 4 connections loaded
 - `activeConnectionId`: Set correctly
 - `isActivated`: true
@@ -140,6 +157,7 @@
 - Basic application state
 
 ### What We're Missing ❌
+
 - `connectionStates`: Empty (should have 4 entries)
 - `pendingAuthReminders`: Empty (may be correct if no auth issues)
 - `connectionQueries`: Empty (may be correct if no queries set)
@@ -158,6 +176,7 @@
 **Location**: `src/praxis/application/rules/connectionRules.ts`
 
 **Fix**:
+
 ```typescript
 const connectionsLoadedRule = defineRule<ApplicationEngineContext>({
   // ...
@@ -203,25 +222,26 @@ const connectionsLoadedRule = defineRule<ApplicationEngineContext>({
 **Location**: `src/activation.ts` - `sendCurrentState()`
 
 **Fix**:
+
 ```typescript
 let lastStateSignature: string | undefined;
 
 const sendCurrentState = () => {
   // ... get snapshot ...
-  
+
   const serializableState = {
     praxisState: snapshot.value,
     context: getSerializableContext(snapshot.context),
     matches,
   };
-  
+
   // Deduplicate: only send if state changed
   const signature = JSON.stringify(serializableState);
   if (signature === lastStateSignature) {
     return; // No change, skip
   }
   lastStateSignature = signature;
-  
+
   webviewToUse.postMessage({
     type: 'syncState',
     payload: serializableState,
@@ -244,18 +264,20 @@ const sendCurrentState = () => {
 ## Summary
 
 **Main Issues**:
+
 1. ❌ **Connection states not populated** - Maps are empty
 2. ⚠️ **Redundant syncs** - Same state sent multiple times
 3. ⚠️ **Explicit getContext** - Reactive sync not perfect
 
 **What's Working**:
+
 - ✅ Automatic logging
 - ✅ Message passing
 - ✅ Connections loaded
 - ✅ Basic state sync
 
 **Next Steps**:
+
 1. Fix connection state initialization
 2. Add state deduplication
 3. Verify reactive sync is working
-
