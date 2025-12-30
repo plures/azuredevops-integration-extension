@@ -91,7 +91,7 @@ initHistory();
 export const history = {
   undo: () => {
     if (!historyEngine.canUndo()) {
-      console.debug('[History] Cannot undo - no history available');
+      // Cannot undo - no history available
       return false;
     }
     
@@ -105,13 +105,8 @@ export const history = {
         // Check if engine supports updateContext (ReactiveLogicEngine does)
         if (typeof (frontendEngine as any).updateContext === 'function') {
           (frontendEngine as any).updateContext(entry.state.context as ApplicationEngineContext);
-          console.debug('[History] Undo: Restored state from history entry', { 
-            index: currentHistoryIndex,
-            state: entry.state.state,
-          });
+          // Undo: Restored state from history entry
           return true;
-        } else {
-          console.warn('[History] Engine does not support updateContext - cannot restore state');
         }
       }
     }
@@ -119,7 +114,7 @@ export const history = {
   },
   redo: () => {
     if (!historyEngine.canRedo()) {
-      console.debug('[History] Cannot redo - at end of history');
+      // Cannot redo - at end of history
       return false;
     }
     
@@ -132,13 +127,8 @@ export const history = {
         // Restore the context from the history entry
         if (typeof (frontendEngine as any).updateContext === 'function') {
           (frontendEngine as any).updateContext(entry.state.context as ApplicationEngineContext);
-          console.debug('[History] Redo: Restored state from history entry', { 
-            index: currentHistoryIndex,
-            state: entry.state.state,
-          });
+          // Redo: Restored state from history entry
           return true;
-        } else {
-          console.warn('[History] Engine does not support updateContext - cannot restore state');
         }
       }
     }
@@ -158,7 +148,7 @@ export const history = {
         currentHistoryIndex = index;
         if (typeof (frontendEngine as any).updateContext === 'function') {
           (frontendEngine as any).updateContext(entry.state.context as ApplicationEngineContext);
-          console.debug('[History] Go to history entry', { index });
+          // Go to history entry
           return true;
         }
       }

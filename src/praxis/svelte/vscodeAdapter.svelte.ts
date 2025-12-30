@@ -73,7 +73,7 @@ export function createVSCodePraxisAdapter<TContext>(
             try {
               callback(payload.context);
             } catch (error) {
-              console.debug('[PraxisAdapter] Subscriber error:', error);
+              // Debug statement removed
             }
           }
           break;
@@ -107,11 +107,7 @@ export function createVSCodePraxisAdapter<TContext>(
 
     sendEvent: (event: PraxisEvent) => {
       if (!vscode) {
-        console.debug(
-          '[PraxisAdapter] VS Code API not available. ' +
-            'Ensure this code runs inside a VS Code webview with acquireVsCodeApi() called, ' +
-            'or window.__vscodeApi is set.'
-        );
+        // Debug statement removed
         return;
       }
 

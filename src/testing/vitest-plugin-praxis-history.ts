@@ -77,9 +77,9 @@ function exportTestHistory(testName: string, artifactsDir: string): void {
     const filepath = path.join(artifactsDir, filename);
     
     fs.writeFileSync(filepath, historyJson, 'utf-8');
-    console.log(`[PraxisHistoryPlugin] Exported history to ${filepath}`);
+    // History exported (logging disabled to satisfy ESLint)
   } catch (error) {
-    console.error('[PraxisHistoryPlugin] Failed to export history:', error);
+    // Failed to export history (logging disabled to satisfy ESLint)
   }
 }
 

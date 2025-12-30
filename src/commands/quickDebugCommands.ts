@@ -287,8 +287,7 @@ function showFSMLogsNow(): void {
 
     componentLogger.info(Component.APPLICATION, 'Output Channel opened - logs are now visible');
   } catch (error) {
-    // Use console.debug since this is a debug command and logging system may not be available
-    console.debug('[AzureDevOpsInt] ❌ Failed to show logs:', error);
+    // Failed to show logs - display error message
     vscode.window.showErrorMessage(`Failed to show logs: ${error}`);
   }
 }

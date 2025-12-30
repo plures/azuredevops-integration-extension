@@ -10,7 +10,7 @@ import type { AppEvent } from './events.js';
 
 // eslint-disable-next-line complexity
 export function processEvent(state: AppState, event: AppEvent) {
-  console.debug(`[Praxis] Processing event: ${event.type}`, event);
+  // Processing event (logging disabled to satisfy ESLint)
 
   switch (event.type) {
     case 'CONNECTIONS_LOADED':

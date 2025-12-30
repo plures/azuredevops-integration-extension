@@ -245,8 +245,7 @@ export function registerOutputChannelReader(context: vscode.ExtensionContext): v
           return await getFSMLogsForDebugging(context);
         }
       } catch (error) {
-        // Use console.debug since this is a debug command and logging system may not be available
-        console.debug('[AzureDevOpsInt] [OutputChannelReader] Error getting FSM logs:', error);
+        // Error getting FSM logs - return error message
         return `Error retrieving FSM logs: ${error}`;
       }
     }

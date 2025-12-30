@@ -51,19 +51,20 @@ export async function waitForStateValue(
 /**
  * Reset engine to initial state
  */
-export function resetEngine(setup?: (context: ApplicationEngineContext) => ApplicationEngineContext): void {
+export async function resetEngine(_setup?: (context: ApplicationEngineContext) => ApplicationEngineContext): Promise<void> {
   // Clear history first
   history.clearHistory();
   
   // For testing, we'll use ResetApplicationEvent to reset state
   // This is the proper way to reset via Praxis events
-  const { ResetApplicationEvent } = require('../../src/praxis/application/facts.js');
+  const factsModule = await import('../../src/praxis/application/facts.js');
+  const { ResetApplicationEvent } = factsModule;
   
   // Dispatch reset event if available
   if (ResetApplicationEvent) {
     try {
       frontendEngine.step([ResetApplicationEvent.create({})]);
-    } catch (e) {
+    } catch (_e) {
       // If reset event doesn't work, just clear history
       // The engine will start fresh on next test
     }
