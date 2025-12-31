@@ -22,8 +22,8 @@ import {
 import type { ProjectConnection } from '../../../src/praxis/connection/types.js';
 
 describe('Error Recovery - History Testing Examples', () => {
-  beforeEach(() => {
-    resetEngine();
+  beforeEach(async () => {
+    await resetEngine();
   });
 
   describe('Network Error Recovery', () => {

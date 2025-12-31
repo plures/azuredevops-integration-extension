@@ -7,12 +7,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createSnapshotTest, compareSnapshots, validateScenarioSnapshots } from '../../src/testing/snapshotTesting.js';
 import { resetEngine, dispatch } from '../../src/testing/helpers.js';
+import { frontendEngine } from '../../src/webview/praxis/frontendEngine.js';
 import type { ApplicationEngineContext } from '../../src/praxis/application/engine.js';
 import type { TestScenario } from '../../src/testing/historyTestRecorder.js';
 
 describe('Snapshot Testing', () => {
-  beforeEach(() => {
-    resetEngine();
+  beforeEach(async () => {
+    await resetEngine();
   });
   
   it('should create snapshot test function', () => {
@@ -50,15 +51,15 @@ describe('Snapshot Testing', () => {
     expect(() => testFn()).not.toThrow();
   });
   
-  it('should throw error on invalid state', () => {
-    resetEngine();
+  it('should throw error on invalid state', async () => {
+    await resetEngine();
     
     // Change state to something else
     const modifiedContext: ApplicationEngineContext = {
       ...frontendEngine.getContext(),
       applicationState: 'active',
     };
-    frontendEngine.updateContext(modifiedContext);
+    frontendEngine.updateContext(() => modifiedContext);
     
     const testFn = createSnapshotTest({
       name: 'invalid-state-test',

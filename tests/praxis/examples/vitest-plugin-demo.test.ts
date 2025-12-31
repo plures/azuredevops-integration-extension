@@ -13,8 +13,8 @@ import {
 } from '../../../src/praxis/application/facts.js';
 
 describe('Vitest Plugin - Custom Matchers Demo', () => {
-  beforeEach(() => {
-    resetEngine();
+  beforeEach(async () => {
+    await resetEngine();
   });
 
   describe('Custom Matchers', () => {

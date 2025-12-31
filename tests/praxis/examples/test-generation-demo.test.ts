@@ -15,7 +15,7 @@ import {
 
 describe('Test Generation Demo', () => {
   it('should generate test code from recorded scenario', async () => {
-    resetEngine();
+    await resetEngine();
     
     // Record a scenario
     startRecording('demo-001', 'Test Generation Demo');
@@ -49,7 +49,7 @@ describe('Test Generation Demo', () => {
   });
   
   it('should generate snapshot test code', async () => {
-    resetEngine();
+    await resetEngine();
     
     // Record a scenario
     startRecording('demo-002', 'Snapshot Test Generation');
