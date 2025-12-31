@@ -76,7 +76,7 @@ export class EventReplayDebugger {
     } = options;
     
     // Reset to initial state
-    frontendEngine.updateContext(scenario.initialContext);
+    frontendEngine.updateContext(() => scenario.initialContext);
     history.clearHistory();
     
     // Debug statement removed
@@ -133,9 +133,9 @@ export class EventReplayDebugger {
     // Reset to start state
     if (startIndex > 0 && historyEntries[startIndex - 1]) {
       const startEntry = historyEntries[startIndex - 1];
-      frontendEngine.updateContext(startEntry.state.context as ApplicationEngineContext);
+      frontendEngine.updateContext(() => startEntry.state.context as ApplicationEngineContext);
     } else {
-      frontendEngine.updateContext(historyEntries[0].state.context as ApplicationEngineContext);
+      frontendEngine.updateContext(() => historyEntries[0].state.context as ApplicationEngineContext);
     }
     
     const {

@@ -104,7 +104,8 @@ export const history = {
         // Restore the context from the history entry
         // Check if engine supports updateContext (ReactiveLogicEngine does)
         if (typeof (frontendEngine as any).updateContext === 'function') {
-          (frontendEngine as any).updateContext(entry.state.context as ApplicationEngineContext);
+          const contextToRestore = entry.state.context as ApplicationEngineContext;
+          (frontendEngine as any).updateContext(() => contextToRestore);
           // Undo: Restored state from history entry
           return true;
         }
@@ -126,7 +127,8 @@ export const history = {
       if (entry && entry.state && entry.state.context) {
         // Restore the context from the history entry
         if (typeof (frontendEngine as any).updateContext === 'function') {
-          (frontendEngine as any).updateContext(entry.state.context as ApplicationEngineContext);
+          const contextToRestore = entry.state.context as ApplicationEngineContext;
+          (frontendEngine as any).updateContext(() => contextToRestore);
           // Redo: Restored state from history entry
           return true;
         }
@@ -147,7 +149,8 @@ export const history = {
       if (entry && entry.state && entry.state.context) {
         currentHistoryIndex = index;
         if (typeof (frontendEngine as any).updateContext === 'function') {
-          (frontendEngine as any).updateContext(entry.state.context as ApplicationEngineContext);
+          const contextToRestore = entry.state.context as ApplicationEngineContext;
+          (frontendEngine as any).updateContext(() => contextToRestore);
           // Go to history entry
           return true;
         }

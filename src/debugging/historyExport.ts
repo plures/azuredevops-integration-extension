@@ -80,7 +80,7 @@ export function exportHistoryAsJSON(metadata?: ExportedHistory['metadata']): str
  */
 export function importHistory(exported: ExportedHistory): void {
   // Reset engine to initial state
-  frontendEngine.updateContext(exported.initialContext);
+  frontendEngine.updateContext(() => exported.initialContext);
   history.clearHistory();
   
   // Replay events
