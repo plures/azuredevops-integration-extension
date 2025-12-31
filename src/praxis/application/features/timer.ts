@@ -199,6 +199,14 @@ export const StartTimerRule = defineRule<ApplicationEngineContext>({
     if (!event) return [];
 
     const { workItemId, timestamp } = event.payload;
+    
+    // Validation: Work item must exist in loaded work items
+    const workItemExists = state.context.workItems.some(wi => wi.id === workItemId);
+    if (!workItemExists) {
+      // Do not start timer for invalid/non-existent work item
+      return [];
+    }
+    
     const history = state.context.timerHistory.entries;
     const lastEntry = history[history.length - 1];
 

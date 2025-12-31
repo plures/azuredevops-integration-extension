@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { startRecording, stopRecording } from '../../../src/testing/historyTestRecorder.js';
 import { createSnapshotTest } from '../../../src/testing/snapshotTesting.js';
-import { validateEventSequence, checkState, checkProperty } from '../../../src/testing/eventSequenceValidator.js';
+import { validateEventSequence, checkState, checkProperty, checkCondition } from '../../../src/testing/eventSequenceValidator.js';
 import { resetEngine, waitForState, getContext, dispatch } from '../../../src/testing/helpers.js';
 import { PerformanceProfiler } from '../../../src/debugging/performanceProfiler.js';
 import { diffStates, formatDiff } from '../../../src/debugging/stateDiff.js';
