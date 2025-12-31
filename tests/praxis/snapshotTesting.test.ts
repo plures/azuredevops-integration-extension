@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createSnapshotTest, compareSnapshots, validateScenarioSnapshots } from '../../src/testing/snapshotTesting.js';
 import { resetEngine, dispatch } from '../../src/testing/helpers.js';
 import { frontendEngine } from '../../src/webview/praxis/frontendEngine.js';
+import { ActivateEvent } from '../../src/praxis/application/facts.js';
 import type { ApplicationEngineContext } from '../../src/praxis/application/engine.js';
 import type { TestScenario } from '../../src/testing/historyTestRecorder.js';
 
@@ -19,12 +20,12 @@ describe('Snapshot Testing', () => {
   it('should create snapshot test function', () => {
     const testFn = createSnapshotTest({
       name: 'test-snapshot',
-      events: [],
+      events: [ActivateEvent.create({})], // Need at least one event to create history
       expectedSnapshots: [
         {
           index: 0,
-          state: 'inactive',
-          contextChecks: (ctx) => ctx.isActivated === false,
+          state: 'activating',
+          contextChecks: (ctx) => ctx.applicationState === 'activating',
         },
       ],
     });
@@ -38,12 +39,12 @@ describe('Snapshot Testing', () => {
   it('should validate snapshot state', () => {
     const testFn = createSnapshotTest({
       name: 'state-validation',
-      events: [],
+      events: [ActivateEvent.create({})], // Need at least one event
       expectedSnapshots: [
         {
           index: 0,
-          state: 'inactive',
-          contextChecks: (ctx) => ctx.applicationState === 'inactive',
+          state: 'activating',
+          contextChecks: (ctx) => ctx.applicationState === 'activating',
         },
       ],
     });
