@@ -51,7 +51,7 @@ export async function waitForStateValue(
 /**
  * Reset engine to initial state
  */
-export async function resetEngine(_setup?: (context: ApplicationEngineContext) => ApplicationEngineContext): Promise<void> {
+export async function resetEngine(): Promise<void> {
   // Clear history first
   history.clearHistory();
   
