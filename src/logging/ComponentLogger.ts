@@ -369,9 +369,31 @@ export class ComponentLogger {
 
     // Console output with enhanced visibility for debug console
     if (this.config.destinations.console) {
-      // Console output is disabled to satisfy ESLint no-console rule
-      // Use Output Channel or VS Code Debug Console instead
-      // Output channel handled below
+      const levelName = LOG_LEVEL_NAMES[entry.level];
+      /* eslint-disable no-console */
+      switch (levelName) {
+        case 'ERROR':
+          console.error(formatted);
+          break;
+        case 'WARN':
+          console.warn(formatted);
+          break;
+        case 'INFO':
+          console.info(formatted);
+          break;
+        case 'DEBUG':
+        case 'TRACE':
+          if (typeof console.debug === 'function') {
+            console.debug(formatted);
+          } else {
+            console.log(formatted);
+          }
+          break;
+        default:
+          console.log(formatted);
+          break;
+      }
+      /* eslint-enable no-console */
     }
 
     // Output channel
