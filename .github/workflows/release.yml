@@ -257,6 +257,10 @@ jobs:
           if [ -z "$APK_PATH" ]; then
             APK_PATH=$(find src-tauri/gen/android -name "*.apk" -type f | head -n 1)
           fi
+          if [ -z "$APK_PATH" ]; then
+            echo "Error: No APK file found under src-tauri/gen/android after build. Failing step."
+            exit 1
+          fi
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
           echo "Found APK at: $APK_PATH"
       
