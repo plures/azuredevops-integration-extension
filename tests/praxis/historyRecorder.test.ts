@@ -11,8 +11,8 @@ import { frontendEngine } from '../../src/webview/praxis/frontendEngine.js';
 import type { ApplicationEngineContext } from '../../src/praxis/application/engine.js';
 
 describe('HistoryTestRecorder', () => {
-  beforeEach(() => {
-    resetEngine();
+  beforeEach(async () => {
+    await resetEngine();
   });
   
   it('should start and stop recording', () => {
@@ -52,7 +52,7 @@ describe('HistoryTestRecorder', () => {
       ...initialContext,
       isActivated: true,
     };
-    frontendEngine.updateContext(modifiedContext);
+    frontendEngine.updateContext(() => modifiedContext);
     
     const scenario = recorder.stopRecording();
     

@@ -10,6 +10,9 @@ import type { ViewMode, WorkItem, DeviceCodeSession, AuthCodeFlowSession, Pendin
 
 import { StartTimerEvent, PauseTimerEvent, StopTimerEvent } from './features/timer.js';
 
+// Re-export timer events
+export { StartTimerEvent, PauseTimerEvent, StopTimerEvent };
+
 // ============================================================================
 // Application State Facts
 // ============================================================================

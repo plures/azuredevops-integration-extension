@@ -203,9 +203,8 @@ export class ComponentLogger {
       // Notify listeners of config changes
       this.configListeners.forEach((listener) => listener(this.config));
     } catch (error) {
-      // Bootstrap error - use console.debug since logging system may not be functional
-      console.debug('[ComponentLogger] Failed to load configuration:', error);
-      // Fall back to default config
+      // Bootstrap error - logging system may not be functional
+      // Silently fall back to default config
       this.config = { ...DEFAULT_CONFIG };
     }
   }
@@ -223,8 +222,8 @@ export class ComponentLogger {
         });
       }
     } catch (error) {
-      // Bootstrap error - use console.debug since logging system may not be functional
-      console.debug('[ComponentLogger] Failed to persist configuration:', error);
+      // Bootstrap error - logging system may not be functional
+      // Silently ignore persistence failure
     }
   }
 
@@ -364,47 +363,37 @@ export class ComponentLogger {
       try {
         listener(entry);
       } catch (e) {
-        console.debug('Error in log listener', e);
+        // Silently ignore listener errors to prevent cascading failures
       }
     });
 
     // Console output with enhanced visibility for debug console
     if (this.config.destinations.console) {
-      const consoleMethod =
-        entry.level >= LogLevel.ERROR
-          ? 'error'
-          : entry.level >= LogLevel.WARN
-            ? 'warn'
-            : entry.level >= LogLevel.INFO
-              ? 'info'
-              : 'log';
-
-      // Add emojis and prominent formatting for debug console visibility
-      const emoji =
-        entry.level >= LogLevel.ERROR
-          ? '🔴'
-          : entry.level >= LogLevel.WARN
-            ? '🟡'
-            : entry.level >= LogLevel.INFO
-              ? '🟢'
-              : '🔵';
-
-      const enhancedFormatted = `${emoji} [AzureDevOpsInt][Praxis][${entry.component}] ${formatted}`;
-
-      // ALWAYS output to debug console for maximum visibility during development
-      // This ensures Praxis logs appear in VS Code debug console when running extension
-      console.debug(enhancedFormatted);
-
-      // Also use the appropriate console method for proper categorization in browser dev tools
-      // Handle console methods explicitly to satisfy ESLint no-console rule
-      if (consoleMethod === 'error') {
-        console.debug(`↳ ${formatted}`); // Use debug for all to satisfy ESLint
-      } else if (consoleMethod === 'warn') {
-        console.debug(`↳ ${formatted}`);
-      } else if (consoleMethod === 'info') {
-        console.debug(`↳ ${formatted}`);
+      const levelName = LOG_LEVEL_NAMES[entry.level];
+      /* eslint-disable no-console */
+      switch (levelName) {
+        case 'ERROR':
+          console.error(formatted);
+          break;
+        case 'WARN':
+          console.warn(formatted);
+          break;
+        case 'INFO':
+          console.info(formatted);
+          break;
+        case 'DEBUG':
+        case 'TRACE':
+          if (typeof console.debug === 'function') {
+            console.debug(formatted);
+          } else {
+            console.log(formatted);
+          }
+          break;
+        default:
+          console.log(formatted);
+          break;
       }
-      // 'log' is already handled above with console.debug
+      /* eslint-enable no-console */
     }
 
     // Output channel

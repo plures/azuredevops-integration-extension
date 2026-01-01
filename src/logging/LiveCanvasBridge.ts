@@ -22,7 +22,7 @@ export class LiveCanvasBridge {
       this.ws = new WebSocket(this.url);
 
       this.ws.on('open', () => {
-        console.debug('[LiveCanvasBridge] Connected to Live Canvas');
+        // Connected to Live Canvas - send inspection data
         this.sendLogicInspection();
       });
 
@@ -45,7 +45,7 @@ export class LiveCanvasBridge {
             this.handleTriggerEvent(msg);
           }
         } catch (e) {
-          console.debug('[LiveCanvasBridge] Error parsing message', e);
+          // Silently ignore parse errors
         }
       });
     } catch {

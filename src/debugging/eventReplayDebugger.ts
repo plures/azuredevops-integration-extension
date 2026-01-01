@@ -35,7 +35,7 @@ export class EventReplayDebugger {
    */
   setBreakpoint(index: number): void {
     this.breakpoints.add(index);
-    console.debug('[EventReplayDebugger] Breakpoint set at index', index);
+    // Debug statement removed
   }
   
   /**
@@ -43,7 +43,7 @@ export class EventReplayDebugger {
    */
   removeBreakpoint(index: number): void {
     this.breakpoints.delete(index);
-    console.debug('[EventReplayDebugger] Breakpoint removed at index', index);
+    // Debug statement removed
   }
   
   /**
@@ -51,7 +51,7 @@ export class EventReplayDebugger {
    */
   clearBreakpoints(): void {
     this.breakpoints.clear();
-    console.debug('[EventReplayDebugger] All breakpoints cleared');
+    // Debug statement removed
   }
   
   /**
@@ -76,14 +76,10 @@ export class EventReplayDebugger {
     } = options;
     
     // Reset to initial state
-    frontendEngine.updateContext(scenario.initialContext);
+    frontendEngine.updateContext(() => scenario.initialContext);
     history.clearHistory();
     
-    console.debug('[EventReplayDebugger] Starting replay', {
-      scenarioId: scenario.id,
-      eventCount: scenario.events.length,
-      breakpoints: this.breakpoints.size,
-    });
+    // Debug statement removed
     
     for (let i = 0; i < scenario.events.length; i++) {
       const eventData = scenario.events[i];
@@ -91,10 +87,7 @@ export class EventReplayDebugger {
       // Check for breakpoint
       if (this.breakpoints.has(i) && pauseOnBreakpoint) {
         this.paused = true;
-        console.debug('[EventReplayDebugger] Paused at breakpoint', {
-          index: i,
-          event: eventData.event.tag,
-        });
+        // Debug statement removed
         
         if (onBreakpoint) {
           onBreakpoint(i, eventData.event);
@@ -115,11 +108,7 @@ export class EventReplayDebugger {
       
       // Log state after each step
       const context = frontendEngine.getContext();
-      console.debug(`[EventReplayDebugger] Step ${i}:`, {
-        event: eventData.event.tag,
-        label: eventData.label,
-        state: context.applicationState,
-      });
+      // Debug statement removed
       
       // Wait if step delay specified
       if (stepDelay > 0) {
@@ -127,7 +116,7 @@ export class EventReplayDebugger {
       }
     }
     
-    console.debug('[EventReplayDebugger] Replay complete');
+    // Debug statement removed
   }
   
   /**
@@ -144,9 +133,9 @@ export class EventReplayDebugger {
     // Reset to start state
     if (startIndex > 0 && historyEntries[startIndex - 1]) {
       const startEntry = historyEntries[startIndex - 1];
-      frontendEngine.updateContext(startEntry.state.context as ApplicationEngineContext);
+      frontendEngine.updateContext(() => startEntry.state.context as ApplicationEngineContext);
     } else {
-      frontendEngine.updateContext(historyEntries[0].state.context as ApplicationEngineContext);
+      frontendEngine.updateContext(() => historyEntries[0].state.context as ApplicationEngineContext);
     }
     
     const {
@@ -165,9 +154,7 @@ export class EventReplayDebugger {
       // Check for breakpoint
       if (this.breakpoints.has(i) && pauseOnBreakpoint) {
         this.paused = true;
-        console.debug('[EventReplayDebugger] Paused at breakpoint', {
-          index: i,
-        });
+        // Debug statement removed
         
         if (onBreakpoint && entry.events[0]) {
           onBreakpoint(i, entry.events[0]);
@@ -204,10 +191,7 @@ export class EventReplayDebugger {
     frontendEngine.step([eventData.event]);
     
     const context = frontendEngine.getContext();
-    console.debug(`[EventReplayDebugger] Stepped forward to ${currentIndex + 1}:`, {
-      event: eventData.event.tag,
-      state: context.applicationState,
-    });
+    // Debug statement removed
     
     return currentIndex + 1;
   }
@@ -223,7 +207,7 @@ export class EventReplayDebugger {
     // Go to previous history entry
     history.goToHistory(currentIndex - 1);
     
-    console.debug(`[EventReplayDebugger] Stepped backward to ${currentIndex - 1}`);
+    // Debug statement removed
     
     return currentIndex - 1;
   }
@@ -234,7 +218,7 @@ export class EventReplayDebugger {
   resume(): void {
     if (this.paused) {
       this.paused = false;
-      console.debug('[EventReplayDebugger] Resumed');
+      // Debug statement removed
       
       // Call all resume callbacks
       for (const callback of this.resumeCallbacks) {
@@ -249,7 +233,7 @@ export class EventReplayDebugger {
    */
   pause(): void {
     this.paused = true;
-    console.debug('[EventReplayDebugger] Paused');
+    // Debug statement removed
   }
   
   /**

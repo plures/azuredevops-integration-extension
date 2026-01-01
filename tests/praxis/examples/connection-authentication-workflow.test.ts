@@ -22,8 +22,8 @@ import {
 import type { ProjectConnection } from '../../../src/praxis/connection/types.js';
 
 describe('Connection Authentication Workflow - History Testing Examples', () => {
-  beforeEach(() => {
-    resetEngine();
+  beforeEach(async () => {
+    await resetEngine();
   });
 
   describe('Record & Replay Workflow', () => {

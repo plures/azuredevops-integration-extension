@@ -49,7 +49,7 @@ export function createSnapshotTest(test: SnapshotTest) {
   return () => {
     // Reset to initial state
     const initialContext = getInitialContext();
-    frontendEngine.updateContext(initialContext);
+    frontendEngine.updateContext(() => initialContext);
     history.clearHistory();
     
     // Apply events
@@ -225,7 +225,7 @@ export function validateScenarioSnapshots(
   expectedSnapshots: SnapshotTest['expectedSnapshots']
 ): void {
   // Reset to initial state
-  frontendEngine.updateContext(scenario.initialContext);
+  frontendEngine.updateContext(() => scenario.initialContext);
   history.clearHistory();
   
   // Replay events

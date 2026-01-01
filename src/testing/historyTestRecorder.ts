@@ -93,10 +93,7 @@ export class HistoryTestRecorder {
       metadata: metadata || {},
     };
     
-    console.debug('[HistoryTestRecorder] Started recording', {
-      id: scenarioId,
-      name: scenarioName,
-    });
+    // Recording started (logging disabled to satisfy ESLint)
   }
   
   /**
@@ -113,11 +110,7 @@ export class HistoryTestRecorder {
     const scenario = this.scenario;
     this.scenario = null;
     
-    console.debug('[HistoryTestRecorder] Stopped recording', {
-      id: scenario.id,
-      name: scenario.name,
-      eventCount: scenario.events.length,
-    });
+    // Recording stopped (logging disabled to satisfy ESLint)
     
     return scenario;
   }
@@ -134,7 +127,7 @@ export class HistoryTestRecorder {
     if (this.options.maxDuration) {
       const elapsed = Date.now() - this.startTime;
       if (elapsed > this.options.maxDuration) {
-        console.warn('[HistoryTestRecorder] Max duration exceeded, stopping recording');
+        // Max duration exceeded - stop recording
         this.stopRecording();
         return;
       }
@@ -160,11 +153,7 @@ export class HistoryTestRecorder {
       stateAfter,
     });
     
-    console.debug('[HistoryTestRecorder] Recorded event', {
-      event: event.tag,
-      label: eventLabel,
-      stateAfter,
-    });
+    // Event recorded (logging disabled to satisfy ESLint)
   }
   
   /**

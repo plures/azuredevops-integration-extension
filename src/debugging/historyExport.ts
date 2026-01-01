@@ -80,7 +80,7 @@ export function exportHistoryAsJSON(metadata?: ExportedHistory['metadata']): str
  */
 export function importHistory(exported: ExportedHistory): void {
   // Reset engine to initial state
-  frontendEngine.updateContext(exported.initialContext);
+  frontendEngine.updateContext(() => exported.initialContext);
   history.clearHistory();
   
   // Replay events
@@ -90,10 +90,7 @@ export function importHistory(exported: ExportedHistory): void {
     }
   }
   
-  console.debug('[HistoryExport] Imported history', {
-    entryCount: exported.entries.length,
-    engineType: exported.engineType,
-  });
+  // Debug statement removed
 }
 
 /**
@@ -147,10 +144,10 @@ export async function copyHistoryToClipboard(metadata?: ExportedHistory['metadat
   
   if (typeof navigator !== 'undefined' && navigator.clipboard) {
     await navigator.clipboard.writeText(json);
-    console.debug('[HistoryExport] History copied to clipboard');
+    // Debug statement removed
   } else {
     // Fallback for environments without clipboard API
-    console.log('[HistoryExport] History JSON:', json);
+    // Log statement removed
     throw new Error('Clipboard API not available');
   }
 }

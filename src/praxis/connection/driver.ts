@@ -67,11 +67,11 @@ export class ConnectionDriver {
           if (this.context) {
             performAuthentication(manager, config, this.context, forceInteractive, onDeviceCode).catch((err) => {
                
-              console.debug(`[ConnectionDriver] Auth error: ${err}`);
+              // Debug statement removed
             });
           } else {
              
-            console.debug('[ConnectionDriver] Extension context not set, cannot authenticate');
+            // Debug statement removed
             manager.authFailed('Extension context not set');
           }
         } else if (state === 'creating_client' && !clientStarted && data.credential) {
@@ -81,7 +81,7 @@ export class ConnectionDriver {
               clearEntraIdToken(this.context, config.tenantId, config.clientId)
                 .catch((err) => {
                    
-                  console.debug(`[ConnectionDriver] Failed to clear Entra ID token: ${err}`);
+                  // Debug statement removed
                 })
                 .finally(() => {
                   this.onTokenExpired(config.id);
@@ -91,13 +91,13 @@ export class ConnectionDriver {
             }
           }).catch((err) => {
              
-            console.debug(`[ConnectionDriver] Client creation error: ${err}`);
+            // Debug statement removed
           });
         } else if (state === 'creating_provider' && !providerStarted && data.client) {
           providerStarted = true;
           createProvider(manager, config, data.client as AzureDevOpsIntClient).catch((err) => {
              
-            console.debug(`[ConnectionDriver] Provider creation error: ${err}`);
+            // Debug statement removed
           });
         }
 

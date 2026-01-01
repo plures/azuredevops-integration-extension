@@ -201,7 +201,7 @@ function resetEngine(setup?: (context: ApplicationEngineContext) => ApplicationE
   };
   
   const context = setup ? setup(initialContext) : initialContext;
-  frontendEngine.updateContext(context);
+  frontendEngine.updateContext(() => context);
   history.clearHistory();
 }
 

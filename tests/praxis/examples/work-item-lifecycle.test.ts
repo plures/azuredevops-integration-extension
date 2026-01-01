@@ -24,8 +24,8 @@ import type { ProjectConnection } from '../../../src/praxis/connection/types.js'
 import type { WorkItem } from '../../../src/praxis/application/types.js';
 
 describe('Work Item Lifecycle - History Testing Examples', () => {
-  beforeEach(() => {
-    resetEngine();
+  beforeEach(async () => {
+    await resetEngine();
   });
 
   describe('Work Item Creation Workflow', () => {

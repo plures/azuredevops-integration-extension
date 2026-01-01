@@ -101,8 +101,7 @@ export function registerCommands(
   for (const registration of commandRegistrations) {
     try {
       const disposable = vscode.commands.registerCommand(registration.command, (...args: any[]) => {
-        // Use console.debug for immediate visibility (bypasses logger configuration)
-        console.debug(`[COMMAND INVOKED] ${registration.command}`, {
+        logger.debug(`[COMMAND INVOKED] ${registration.command}`, {
           args,
           timestamp: new Date().toISOString(),
         });
@@ -112,16 +111,16 @@ export function registerCommands(
           if (result instanceof Promise) {
             result
               .then(() => {
-                console.debug(`[COMMAND SUCCESS] ${registration.command}`);
+                logger.debug(`[COMMAND SUCCESS] ${registration.command}`);
               })
               .catch((error) => {
-                console.debug(`[COMMAND ERROR] ${registration.command}`, error);
+                logger.debug(`[COMMAND ERROR] ${registration.command}`, { meta: error });
                 logger.error(`Error in command ${registration.command}`, { meta: error });
                 vscode.window.showErrorMessage(`Command failed: ${(error as any).message}`);
               });
           }
         } catch (error) {
-          console.debug(`[COMMAND SYNC ERROR] ${registration.command}`, error);
+          logger.debug(`[COMMAND SYNC ERROR] ${registration.command}`, { meta: error });
           logger.error(`Error in command ${registration.command}`, { meta: error });
           vscode.window.showErrorMessage(`Command failed: ${(error as any).message}`);
         }
@@ -130,9 +129,9 @@ export function registerCommands(
       
       // Special handling for signOutEntra (debugging purposes)
       if (registration.command === 'azureDevOpsInt.signOutEntra') {
-        console.debug(
+        logger.debug(
           `[COMMAND REGISTERED] ${registration.command} - handler:`,
-          typeof registration.handler
+          { handlerType: typeof registration.handler }
         );
         logger.info(`[Command Registration] Registered signOutEntra command`, {
           handlerType: typeof registration.handler,
@@ -142,7 +141,7 @@ export function registerCommands(
     } catch (error) {
       const errorMsg = (error as any).message || String(error);
       errors.push({ command: registration.command, error: errorMsg });
-      console.debug(`[REGISTRATION ERROR] Failed to register ${registration.command}`, error);
+      logger.debug(`[REGISTRATION ERROR] Failed to register ${registration.command}`, { meta: error });
       logger.error(`Failed to register command ${registration.command}`, { meta: error });
       if (registration.command === 'azureDevOpsInt.signOutEntra') {
         vscode.window.showErrorMessage(

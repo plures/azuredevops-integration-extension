@@ -40,6 +40,6 @@ export async function migrateGlobalPATToConnections(
   } catch (error) {
     // Log but don't throw - migration failures shouldn't break activation
 
-    console.debug('[PAT Migration] Failed to migrate global PAT:', error);
+    // Debug statement removed
   }
 }

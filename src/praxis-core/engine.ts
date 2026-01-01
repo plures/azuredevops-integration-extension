@@ -12,8 +12,9 @@ export const engine = new ReactiveLogicEngine<AppState>({
 
 // Subscription System
 const listeners = new Set<(state: AppState) => void>();
-let logger: (msg: string, meta?: any) => void = (msg, meta) =>
-  console.debug(`[Praxis] ${msg}`, meta);
+let logger: (msg: string, meta?: any) => void = () => {
+  // No-op logger by default - use setLogger to configure
+};
 
 /**
  * Configure the logger for the engine.

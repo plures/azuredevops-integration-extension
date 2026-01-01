@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { startRecording, stopRecording } from '../../../src/testing/historyTestRecorder.js';
 import { createSnapshotTest } from '../../../src/testing/snapshotTesting.js';
-import { validateEventSequence, checkState, checkProperty } from '../../../src/testing/eventSequenceValidator.js';
+import { validateEventSequence, checkCondition } from '../../../src/testing/eventSequenceValidator.js';
 import { resetEngine, waitForState, getContext, dispatch } from '../../../src/testing/helpers.js';
 import { PerformanceProfiler } from '../../../src/debugging/performanceProfiler.js';
 import { diffStates, formatDiff } from '../../../src/debugging/stateDiff.js';
@@ -24,8 +24,8 @@ import type { ProjectConnection } from '../../../src/praxis/connection/types.js'
 import type { WorkItem } from '../../../src/praxis/application/types.js';
 
 describe('Demo: Finding and Fixing Logic Errors', () => {
-  beforeEach(() => {
-    resetEngine();
+  beforeEach(async () => {
+    await resetEngine();
   });
 
   describe('Scenario 1: Timer Starting Without Work Item (Logic Error Detection)', () => {
