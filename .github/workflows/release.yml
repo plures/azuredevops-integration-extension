@@ -152,6 +152,10 @@ jobs:
         shell: bash
         run: |
           MSI_PATH=$(find src-tauri/target/release/bundle/msi -name "*.msi" -type f | head -n 1)
+          if [ -z "$MSI_PATH" ]; then
+            echo "Error: No MSI file found in src-tauri/target/release/bundle/msi. Ensure that 'npm run build:msi' produced an .msi artifact."
+            exit 1
+          fi
           echo "msi_path=$MSI_PATH" >> $GITHUB_OUTPUT
           echo "Found MSI at: $MSI_PATH"
       
