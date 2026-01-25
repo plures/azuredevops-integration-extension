@@ -967,7 +967,7 @@
     "playwright": "^1.57.0",
     "pngjs": "^7.0.0",
     "prettier": "^3.7.4",
-    "svelte": "^5.46.1",
+    "svelte": "^5.48.2",
     "svelte-preprocess": "^6.0.3",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
