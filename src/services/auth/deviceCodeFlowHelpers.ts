@@ -35,15 +35,14 @@ export async function notifyDeviceCode(
     return;
   }
 
-  if (info.userCode) {
-    try {
-      await vscode.env.clipboard.writeText(info.userCode);
-    } catch (error) {
-      logger.warn('[notifyDeviceCode] Failed to copy device code to clipboard', {
-        meta: error,
-      });
-      // Continue even if clipboard copy fails
-    }
+  // Copy device code to clipboard initially
+  try {
+    await vscode.env.clipboard.writeText(info.userCode);
+  } catch (error) {
+    logger.warn('[notifyDeviceCode] Failed to copy device code to clipboard', {
+      meta: error,
+    });
+    // Continue even if clipboard copy fails
   }
 
   const label = options.connectionLabel || options.connectionId || 'Microsoft Entra ID';
@@ -56,20 +55,19 @@ export async function notifyDeviceCode(
     .then(async (action) => {
       if (action !== openInBrowser) return;
 
-      if (info.userCode) {
-        try {
-          await vscode.env.clipboard.writeText(info.userCode);
-          vscode.window.showInformationMessage(
-            `Device code ${info.userCode} copied to clipboard. Paste it into the browser to finish signing in.`
-          );
-        } catch (error) {
-          logger.warn('[notifyDeviceCode] Failed to copy device code to clipboard', {
-            meta: error,
-          });
-          vscode.window.showWarningMessage(
-            `Failed to copy device code to clipboard: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
+      // Copy again when user clicks the button for convenience
+      try {
+        await vscode.env.clipboard.writeText(info.userCode);
+        vscode.window.showInformationMessage(
+          `Device code ${info.userCode} copied to clipboard. Paste it into the browser to finish signing in.`
+        );
+      } catch (error) {
+        logger.warn('[notifyDeviceCode] Failed to copy device code to clipboard', {
+          meta: error,
+        });
+        vscode.window.showWarningMessage(
+          `Failed to copy device code to clipboard: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
 
       const target = info.verificationUriComplete || info.verificationUri;
@@ -85,7 +83,7 @@ export async function notifyDeviceCode(
       logger.warn('[notifyDeviceCode] Notification error', { meta: error });
     });
 
-  if (info.userCode && typeof options.onDeviceCode === 'function') {
+  if (typeof options.onDeviceCode === 'function') {
     // Call onDeviceCode callback and handle errors to prevent unhandled rejections
     Promise.resolve(
       options.onDeviceCode({
