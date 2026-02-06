@@ -97,49 +97,79 @@ async function signInWithEntra(
   }
 }
 
+async function clearEntraTokensForConnection(
+  context: vscode.ExtensionContext,
+  connection: any
+): Promise<void> {
+  const authModule = await import('../../services/auth/authentication.js');
+  const { clearEntraIdToken } = authModule;
+  const tenantId = connection.tenantId || 'organizations';
+  const AZURE_DEVOPS_CLIENT_ID = '872cd9fa-d31f-45e0-9eab-6e460a02d1f1';
+  const AZURE_CLI_CLIENT_ID = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
+
+  await clearEntraIdToken(context, tenantId, connection.clientId || AZURE_DEVOPS_CLIENT_ID);
+  await clearEntraIdToken(context, tenantId, AZURE_DEVOPS_CLIENT_ID);
+  await clearEntraIdToken(context, tenantId, AZURE_CLI_CLIENT_ID);
+  await clearEntraIdToken(context, 'organizations', AZURE_DEVOPS_CLIENT_ID);
+  await clearEntraIdToken(context, 'organizations', AZURE_CLI_CLIENT_ID);
+  await clearEntraIdToken(context, 'organizations', undefined);
+}
+
+async function clearAuthProviders(connectionId: string): Promise<void> {
+  const pendingAuthProviders = (globalThis as any).__pendingAuthProviders as
+    | Map<string, any>
+    | undefined;
+  if (pendingAuthProviders) {
+    const provider = pendingAuthProviders.get(connectionId);
+    if (provider && typeof provider.signOut === 'function') {
+      await provider.signOut();
+    }
+    pendingAuthProviders.delete(connectionId);
+  }
+  try {
+    const { clearPendingAuthCodeFlowProvider } =
+      await import('../../services/auth/authentication.js');
+    clearPendingAuthCodeFlowProvider(connectionId);
+  } catch {
+    // Ignore errors
+  }
+}
+
 async function signOutEntra(
   context: vscode.ExtensionContext,
   connectionId?: string
 ): Promise<void> {
   try {
     logger.info('[signOutEntra] Starting sign out', { connectionId });
-
-    // Get active connection ID if not provided
     const { getApplicationStoreActor } = await import('../../activation.js');
     const actor = getApplicationStoreActor();
     const snapshot = actor?.getSnapshot?.();
     const activeConnectionId = connectionId || snapshot?.context?.activeConnectionId;
 
     logger.info('signOutEntra: Active connection ID', { activeConnectionId });
-
     if (!activeConnectionId) {
       logger.warn('signOutEntra: No active connection found');
       vscode.window.showWarningMessage('No active connection to sign out from.');
       return;
     }
 
-    // Get connection config
     const connections = snapshot?.context?.connections || [];
     const connection = connections.find((c: any) => c.id === activeConnectionId);
-
     if (!connection) {
       vscode.window.showWarningMessage('Connection not found.');
       return;
     }
-
     if (connection.authMethod !== 'entra') {
       vscode.window.showInformationMessage('This connection does not use Entra ID authentication.');
       return;
     }
 
-    // Disconnect the connection FIRST to prevent automatic reconnection
     const { ConnectionService } = await import('../../praxis/connection/service.js');
     const connectionService = ConnectionService.getInstance();
     logger.info('[signOutEntra] Disconnecting connection', { connectionId: activeConnectionId });
     connectionService.disconnect(activeConnectionId);
     logger.info('[signOutEntra] Connection disconnected', { connectionId: activeConnectionId });
 
-    // Clear connection state from connectionStates map
     try {
       const { clearConnectionState } = await import('../../activation.js');
       if (typeof clearConnectionState === 'function') {
@@ -152,51 +182,9 @@ async function signOutEntra(
       // Ignore if function doesn't exist
     }
 
-    // Clear cached tokens - use 'organizations' as default tenant if not specified
-    const authModule = await import('../../services/auth/authentication.js');
-    const { clearEntraIdToken } = authModule;
+    await clearEntraTokensForConnection(context, connection);
+    await clearAuthProviders(activeConnectionId);
 
-    // Use 'organizations' as default tenant (most common for Azure DevOps)
-    const tenantId = connection.tenantId || 'organizations';
-
-    // Clear tokens for all possible client ID variations
-    // Azure DevOps uses client ID: 872cd9fa-d31f-45e0-9eab-6e460a02d1f1
-    // But authentication.ts uses: c6c01810-2fff-45f0-861b-2ba02ae00ddc
-    // Clear both to be safe
-    const AZURE_DEVOPS_CLIENT_ID = '872cd9fa-d31f-45e0-9eab-6e460a02d1f1';
-    const AZURE_CLI_CLIENT_ID = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
-
-    // Clear tokens for all possible combinations
-    await clearEntraIdToken(context, tenantId, connection.clientId || AZURE_DEVOPS_CLIENT_ID);
-    await clearEntraIdToken(context, tenantId, AZURE_DEVOPS_CLIENT_ID);
-    await clearEntraIdToken(context, tenantId, AZURE_CLI_CLIENT_ID);
-    await clearEntraIdToken(context, 'organizations', AZURE_DEVOPS_CLIENT_ID);
-    await clearEntraIdToken(context, 'organizations', AZURE_CLI_CLIENT_ID);
-    await clearEntraIdToken(context, 'organizations', undefined); // Legacy key without client ID
-
-    // Clear auth code flow provider if exists
-    const pendingAuthProviders = (globalThis as any).__pendingAuthProviders as
-      | Map<string, any>
-      | undefined;
-    if (pendingAuthProviders) {
-      const provider = pendingAuthProviders.get(activeConnectionId);
-      if (provider && typeof provider.signOut === 'function') {
-        await provider.signOut();
-      }
-      pendingAuthProviders.delete(activeConnectionId);
-    }
-
-    // Also clear any MSAL account cache for this connection
-    try {
-      const { clearPendingAuthCodeFlowProvider } =
-        await import('../../services/auth/authentication.js');
-      clearPendingAuthCodeFlowProvider(activeConnectionId);
-    } catch {
-      // Ignore errors clearing provider
-    }
-
-    // Mark connection as recently signed out to prevent automatic reconnection
-    // This flag will be cleared after 30 seconds or when user explicitly signs in
     const { markConnectionSignedOut } = await import('../../activation.js');
     if (typeof markConnectionSignedOut === 'function') {
       logger.info('[signOutEntra] Marking connection as signed out', {
@@ -210,13 +198,8 @@ async function signOutEntra(
       logger.warn('[signOutEntra] markConnectionSignedOut function not available');
     }
 
-    // Dispatch SIGN_OUT_ENTRA event
-    dispatchApplicationEvent({
-      type: 'SIGN_OUT_ENTRA',
-      connectionId: activeConnectionId,
-    });
+    dispatchApplicationEvent({ type: 'SIGN_OUT_ENTRA', connectionId: activeConnectionId });
 
-    // Update status bar to reflect signed out state
     const { updateAuthStatusBar } = await import('../../activation.js');
     if (typeof updateAuthStatusBar === 'function') {
       await updateAuthStatusBar();
@@ -230,7 +213,7 @@ async function signOutEntra(
       stack: error?.stack,
       name: error?.name,
       code: error?.code,
-      connectionId: activeConnectionId,
+      connectionId,
     });
     vscode.window.showErrorMessage(`Sign out failed: ${error.message || String(error)}`);
   }

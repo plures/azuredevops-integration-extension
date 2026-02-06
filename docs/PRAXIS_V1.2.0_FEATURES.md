@@ -13,6 +13,7 @@ We've successfully upgraded to and integrated **Praxis v1.2.0**, the latest vers
 **Use Case**: For Node.js-only code paths in the extension host (not webview).
 
 **Example**:
+
 ```typescript
 import { createFrameworkAgnosticReactiveEngine } from '@plures/praxis';
 
@@ -43,15 +44,17 @@ engine.apply((state) => {
 **Current Usage**: We're using `createPraxisStore` and `createContextStore` which work seamlessly with Svelte 5.
 
 **Available Features**:
+
 - `usePraxisEngine` - Runes-based composable with history support
 - `usePraxisContext` - Direct context access with runes
 - `usePraxisSubscription` - Subscription with auto-cleanup
 
 **Example**:
+
 ```svelte
 <script lang="ts">
   import { usePraxisEngine } from '@plures/praxis/svelte';
-  
+
   const engine = createMyEngine();
   const { context, dispatch, undo, redo } = usePraxisEngine(engine, {
     enableHistory: true,
@@ -75,12 +78,14 @@ engine.apply((state) => {
 **Feature**: All exports now ship with ESM, CJS, and type definitions.
 
 **Benefits**:
+
 - Better tree-shaking
 - Proper module resolution
 - TypeScript support out of the box
 - Browser and Node.js variants
 
 **Exports**:
+
 - `@plures/praxis` → main engine
 - `@plures/praxis/svelte` → Svelte 5 integrations
 - `@plures/praxis/schema` → Schema types
@@ -92,6 +97,7 @@ engine.apply((state) => {
 ### 4. Logic Engine Refinements ⭐ ENHANCED
 
 **Features**:
+
 - **Typed Registry**: Better type inference and generics
 - **Step Diagnostics**: Enhanced debugging capabilities
 - **Trace-Friendly Rules**: Better rule execution tracking
@@ -132,11 +138,13 @@ engine.apply((state) => {
 ## Performance Improvements
 
 ### Before (v1.1.3)
+
 - Manual polling every 100ms
 - Up to 100ms update latency
 - Constant CPU usage
 
 ### After (v1.2.0)
+
 - Event-driven updates (instant)
 - No polling overhead
 - Proper subscription management
@@ -145,9 +153,11 @@ engine.apply((state) => {
 ## Migration Notes
 
 ### Breaking Changes
+
 **None** - v1.2.0 is backward compatible with v1.1.3.
 
 ### New Features Available
+
 - Framework-agnostic reactive engine
 - Enhanced Svelte 5 runes support
 - Better type inference
@@ -185,4 +195,3 @@ engine.apply((state) => {
 **Upgrade Date**: 2024-12-30  
 **Breaking Changes**: None  
 **New Features Available**: Framework-agnostic engine, enhanced runes, unified builds
-

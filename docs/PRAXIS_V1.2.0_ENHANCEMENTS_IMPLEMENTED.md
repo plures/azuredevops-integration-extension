@@ -3,6 +3,7 @@
 ## Overview
 
 Successfully implemented all three future enhancements from Praxis v1.2.0:
+
 1. ✅ **Derived Stores** - Using `createDerivedStore` for optimized performance
 2. ✅ **History/Undo-Redo** - Using `createHistoryEngine` for time-travel debugging
 3. ✅ **Framework-Agnostic Engine** - Created wrapper for Node.js-only code paths
@@ -48,7 +49,8 @@ export const connections = applicationStore.derivedStores.connections;
 
 ### What Changed
 
-**Files**: 
+**Files**:
+
 - `src/webview/praxis/store.ts` - Added history engine
 - `src/webview/components/HistoryControls.svelte` - New UI component
 - `src/webview/App.svelte` - Integrated history controls
@@ -76,6 +78,7 @@ export const history = {
 ### UI Component
 
 Created `HistoryControls.svelte` component with:
+
 - Undo button (⟲ Undo)
 - Redo button (⟳ Redo)
 - Disabled state when no history available
@@ -117,9 +120,7 @@ reactiveEngine.subscribe((state) => {
 });
 
 // Create derived values
-const workItemsCount = reactiveEngine.$derived((state) => 
-  state.connectionWorkItems.size
-);
+const workItemsCount = reactiveEngine.$derived((state) => state.connectionWorkItems.size);
 
 // Subscribe to derived value
 workItemsCount.subscribe((count) => {
@@ -144,11 +145,13 @@ workItemsCount.subscribe((count) => {
 ## Performance Improvements
 
 ### Before
+
 - Manual `derived()` stores with store chaining
 - No history/undo-redo capability
 - No framework-agnostic reactivity option
 
 ### After
+
 - Optimized `createDerivedStore` with direct engine access
 - History tracking with undo/redo
 - Framework-agnostic engine for Node.js-only code
@@ -247,4 +250,3 @@ See [Praxis History Engine: Testing & Debugging Plan](./PRAXIS_HISTORY_ENGINE_TE
 ## Status
 
 ✅ **COMPLETE** - All three enhancements successfully implemented and tested.
-

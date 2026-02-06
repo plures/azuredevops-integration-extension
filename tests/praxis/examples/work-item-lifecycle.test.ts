@@ -1,6 +1,6 @@
 /**
  * Work Item Lifecycle Test Example
- * 
+ *
  * Demonstrates testing work item creation, timer start, and related workflows
  * using the history testing infrastructure.
  */
@@ -8,7 +8,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { startRecording, stopRecording } from '../../../src/testing/historyTestRecorder.js';
 import { createSnapshotTest } from '../../../src/testing/snapshotTesting.js';
-import { validateEventSequence, checkState, checkCondition } from '../../../src/testing/eventSequenceValidator.js';
+import {
+  validateEventSequence,
+  checkState,
+  checkCondition,
+} from '../../../src/testing/eventSequenceValidator.js';
 import { resetEngine, waitForState, getContext, dispatch } from '../../../src/testing/helpers.js';
 import {
   ActivateEvent,
@@ -214,7 +218,9 @@ describe('Work Item Lifecycle - History Testing Examples', () => {
             state: 'active',
             contextChecks: (ctx) => {
               const workItems = ctx.connectionWorkItems?.get(testConnection.id);
-              return workItems?.some((wi) => wi.id === 2001) && workItems?.some((wi) => wi.id === 2002);
+              return (
+                workItems?.some((wi) => wi.id === 2001) && workItems?.some((wi) => wi.id === 2002)
+              );
             },
             description: 'Both work items should be present',
           },
@@ -225,4 +231,3 @@ describe('Work Item Lifecycle - History Testing Examples', () => {
     });
   });
 });
-

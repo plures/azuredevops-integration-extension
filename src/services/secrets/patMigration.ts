@@ -39,7 +39,6 @@ export async function migrateGlobalPATToConnections(
     }
   } catch (error) {
     // Log but don't throw - migration failures shouldn't break activation
-
     // Debug statement removed
   }
 }
