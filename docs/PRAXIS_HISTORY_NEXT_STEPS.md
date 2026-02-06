@@ -11,6 +11,7 @@
 **Goal**: Create practical test examples using the new infrastructure to demonstrate value and establish patterns.
 
 **Tasks**:
+
 - [ ] Create example test scenarios for common workflows
   - Connection setup and authentication flow
   - Work item creation and timer start
@@ -21,6 +22,7 @@
 - [ ] Document test patterns and best practices
 
 **Files to Create**:
+
 ```
 tests/praxis/examples/
   ├── connection-workflow.test.ts
@@ -38,6 +40,7 @@ tests/praxis/examples/
 **Goal**: Create a Vitest plugin that automatically integrates history testing into the test runner.
 
 **Tasks**:
+
 - [ ] Create `vitest-plugin-praxis-history.ts`
 - [ ] Auto-reset history before each test
 - [ ] Export history on test failure
@@ -45,6 +48,7 @@ tests/praxis/examples/
 - [ ] Generate test artifacts with history snapshots
 
 **Implementation**:
+
 ```typescript
 // vitest.config.ts
 import { defineConfig } from 'vitest/config';
@@ -69,6 +73,7 @@ export default defineConfig({
 **Goal**: Generate test cases automatically from recorded history.
 
 **Tasks**:
+
 - [ ] Create `generateTestFromHistory()` function
 - [ ] Extract test scenarios from history entries
 - [ ] Generate Vitest test code
@@ -76,6 +81,7 @@ export default defineConfig({
 - [ ] Add test case templates
 
 **Usage**:
+
 ```typescript
 import { generateTestFromHistory } from './testing/testGenerator.js';
 
@@ -98,6 +104,7 @@ await writeFile('generated-test.test.ts', testCode);
 **Goal**: Visual dashboard for analyzing state transition performance.
 
 **Tasks**:
+
 - [ ] Create `PerformanceProfiler` class
 - [ ] Track transition times, context sizes, event counts
 - [ ] Create `PerformanceDashboard.svelte` component
@@ -105,6 +112,7 @@ await writeFile('generated-test.test.ts', testCode);
 - [ ] Export performance reports
 
 **Features**:
+
 - Timeline showing transition durations
 - Heatmap of slow operations
 - Memory usage tracking
@@ -119,6 +127,7 @@ await writeFile('generated-test.test.ts', testCode);
 **Goal**: Automatically validate business rules and state invariants.
 
 **Tasks**:
+
 - [ ] Create `StateInvariant` interface
 - [ ] Define common invariants (e.g., "timer can't run without work item")
 - [ ] Auto-validate on state changes
@@ -126,6 +135,7 @@ await writeFile('generated-test.test.ts', testCode);
 - [ ] Add to test framework
 
 **Usage**:
+
 ```typescript
 import { defineInvariant, validateInvariants } from './testing/invariants.js';
 
@@ -151,6 +161,7 @@ validateInvariants(context, invariants);
 **Goal**: Automatically detect regressions by comparing snapshots across versions.
 
 **Tasks**:
+
 - [ ] Create snapshot baseline system
 - [ ] Compare snapshots between versions
 - [ ] Generate regression reports
@@ -166,6 +177,7 @@ validateInvariants(context, invariants);
 **Goal**: Generate HTML test reports with interactive history visualization.
 
 **Tasks**:
+
 - [ ] Create HTML report generator
 - [ ] Embed history timeline in reports
 - [ ] Show state diffs visually
@@ -179,7 +191,9 @@ validateInvariants(context, invariants);
 ## Quick Wins (Do First)
 
 ### 1. Add Example Test Scenarios
+
 Create 2-3 real test examples to demonstrate the infrastructure:
+
 - Connection authentication flow
 - Work item creation workflow
 - Error recovery scenario
@@ -188,7 +202,9 @@ Create 2-3 real test examples to demonstrate the infrastructure:
 **Impact**: High - Shows value immediately
 
 ### 2. Vitest Custom Matchers
+
 Add custom matchers for better test readability:
+
 ```typescript
 expect(history).toHaveStateTransition('inactive', 'active');
 expect(history).toHaveHistoryLength(5);
@@ -199,7 +215,9 @@ expect(context).toMatchSnapshot();
 **Impact**: Medium - Improves developer experience
 
 ### 3. Export History on Test Failure
+
 Automatically export history when tests fail:
+
 ```typescript
 // In vitest plugin
 afterEach(() => {
@@ -218,21 +236,25 @@ afterEach(() => {
 ## Implementation Roadmap
 
 ### Week 1: Quick Wins
+
 - ✅ Example test scenarios (2-3 examples)
 - ✅ Vitest custom matchers
 - ✅ Export history on test failure
 
 ### Week 2: Vitest Plugin
+
 - ✅ Vitest plugin implementation
 - ✅ Auto-reset history
 - ✅ Test artifact generation
 
 ### Week 3: Advanced Features
+
 - ✅ Automated test generation
 - ✅ Performance profiling dashboard
 - ✅ State invariant validation
 
 ### Week 4: Polish & Documentation
+
 - ✅ Visual test reports
 - ✅ Comprehensive documentation
 - ✅ Example gallery
@@ -298,4 +320,3 @@ afterEach(() => {
 ---
 
 **Recommendation**: Start with **Quick Wins** (#1-3) to demonstrate immediate value, then move to **Vitest Plugin** for seamless integration.
-

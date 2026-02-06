@@ -15,16 +15,19 @@ This guide demonstrates how to use the Praxis history testing infrastructure wit
 **File**: `tests/praxis/examples/connection-authentication-workflow.test.ts`
 
 **What it tests**:
+
 - Complete connection setup and authentication flow
 - State transitions from inactive → active → authenticated
 - Connection state management
 
 **Key patterns demonstrated**:
+
 - Recording a complete workflow
 - Snapshot validation at each step
 - Event sequence validation
 
 **Usage**:
+
 ```typescript
 // Record workflow
 startRecording('connection-auth-001', 'Complete authentication workflow');
@@ -51,23 +54,24 @@ validateEventSequence({
 **File**: `tests/praxis/examples/work-item-lifecycle.test.ts`
 
 **What it tests**:
+
 - Work item creation
 - Timer start/stop functionality
 - Work item state management
 
 **Key patterns demonstrated**:
+
 - Testing business logic (timer requires work item)
 - Validating work item loading
 - State transitions for work items
 
 **Usage**:
+
 ```typescript
 // Test timer validation
 validateEventSequence({
   name: 'timer-validation',
-  sequence: [
-    StartTimerEvent.create({ workItemId: null }),
-  ],
+  sequence: [StartTimerEvent.create({ workItemId: null })],
   validators: [
     {
       afterIndex: 0,
@@ -85,16 +89,19 @@ validateEventSequence({
 **File**: `tests/praxis/examples/error-recovery.test.ts`
 
 **What it tests**:
+
 - Error scenarios
 - Recovery workflows
 - Error state transitions
 
 **Key patterns demonstrated**:
+
 - Testing error handling
 - Validating recovery attempts
 - Error state management
 
 **Usage**:
+
 ```typescript
 // Test error recovery
 const result = validateEventSequence({
@@ -125,16 +132,16 @@ const result = validateEventSequence({
 ```typescript
 it('should record workflow', async () => {
   startRecording('scenario-id', 'Workflow Name');
-  
+
   // Perform actions
   dispatch([Event1.create({})]);
   await waitForState((ctx) => ctx.property === value);
-  
+
   dispatch([Event2.create({})]);
   await waitForState((ctx) => ctx.property2 === value2);
-  
+
   const scenario = stopRecording();
-  
+
   // Verify scenario
   expect(scenario.events.length).toBeGreaterThan(0);
   expect(scenario.finalContext.property).toBe(expectedValue);
@@ -149,10 +156,7 @@ it('should record workflow', async () => {
 it('should validate state snapshots', () => {
   const testFn = createSnapshotTest({
     name: 'test-name',
-    events: [
-      Event1.create({}),
-      Event2.create({}),
-    ],
+    events: [Event1.create({}), Event2.create({})],
     expectedSnapshots: [
       {
         index: 0,
@@ -162,7 +166,7 @@ it('should validate state snapshots', () => {
       },
     ],
   });
-  
+
   expect(() => testFn()).not.toThrow();
 });
 ```
@@ -175,10 +179,7 @@ it('should validate state snapshots', () => {
 it('should validate event sequence', () => {
   const result = validateEventSequence({
     name: 'test-name',
-    sequence: [
-      Event1.create({}),
-      Event2.create({}),
-    ],
+    sequence: [Event1.create({}), Event2.create({})],
     validators: [
       {
         afterIndex: 0,
@@ -192,7 +193,7 @@ it('should validate event sequence', () => {
       },
     ],
   });
-  
+
   expect(result.valid).toBe(true);
   expect(result.errors.length).toBe(0);
 });
@@ -203,19 +204,20 @@ it('should validate event sequence', () => {
 ### State Validation
 
 ```typescript
-import { checkState, checkProperty, checkCondition } from '../../../src/testing/eventSequenceValidator.js';
+import {
+  checkState,
+  checkProperty,
+  checkCondition,
+} from '../../../src/testing/eventSequenceValidator.js';
 
 // Check state value
-checkState('active')
+checkState('active');
 
 // Check property value
-checkProperty('connections', [connection1, connection2])
+checkProperty('connections', [connection1, connection2]);
 
 // Check custom condition
-checkCondition(
-  (ctx) => ctx.connections.length > 0,
-  'Should have connections'
-)
+checkCondition((ctx) => ctx.connections.length > 0, 'Should have connections');
 ```
 
 ### Async Operations
@@ -245,6 +247,7 @@ const state = getState();
 ## Best Practices
 
 1. **Always reset engine** in `beforeEach`:
+
    ```typescript
    beforeEach(() => {
      resetEngine();
@@ -252,27 +255,31 @@ const state = getState();
    ```
 
 2. **Use descriptive scenario names**:
+
    ```typescript
    startRecording('connection-auth-001', 'Complete connection authentication workflow');
    ```
 
 3. **Wait for async operations**:
+
    ```typescript
    dispatch([Event.create({})]);
    await waitForState((ctx) => ctx.property === expectedValue);
    ```
 
 4. **Validate final state** after recording:
+
    ```typescript
    const scenario = stopRecording();
    expect(scenario.finalContext.property).toBe(expectedValue);
    ```
 
 5. **Use context checks** in snapshot tests:
+
    ```typescript
    contextChecks: (ctx) => {
      return ctx.property1 === value1 && ctx.property2 === value2;
-   }
+   };
    ```
 
 6. **Add descriptions** to validators:
@@ -309,4 +316,3 @@ npm run test:feature:watch tests/praxis/examples
 - [Testing & Debugging Plan](./PRAXIS_HISTORY_ENGINE_TESTING_DEBUGGING_PLAN.md)
 - [Implementation Guide](./PRAXIS_HISTORY_TESTING_DEBUGGING_IMPLEMENTATION.md)
 - [Next Steps](./PRAXIS_HISTORY_NEXT_STEPS.md)
-

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Generate Static Screenshots
- * 
+ *
  * Creates static PNG screenshots of the webview in different states:
  * - List view with work items
  * - Kanban board view
@@ -138,11 +138,27 @@ function makeSampleWorkItems() {
 function makeSampleKanbanColumns(items) {
   const byId = new Map(items.map((w) => [w.id, w]));
   const pick = (predicate) =>
-    items.filter((w) => predicate(String(w.fields?.['System.State'] || '').toLowerCase())).map((w) => w.id);
-  const todo = pick((s) => s.includes('new') || s.includes('to do') || s.includes('todo') || s.includes('proposed'));
-  const inprog = pick((s) => s.includes('in progress') || s.includes('inprogress') || s.includes('doing') || s.includes('active'));
+    items
+      .filter((w) => predicate(String(w.fields?.['System.State'] || '').toLowerCase()))
+      .map((w) => w.id);
+  const todo = pick(
+    (s) => s.includes('new') || s.includes('to do') || s.includes('todo') || s.includes('proposed')
+  );
+  const inprog = pick(
+    (s) =>
+      s.includes('in progress') ||
+      s.includes('inprogress') ||
+      s.includes('doing') ||
+      s.includes('active')
+  );
   const review = pick((s) => s.includes('review') || s.includes('testing'));
-  const done = pick((s) => s.includes('done') || s.includes('resolved') || s.includes('closed') || s.includes('completed'));
+  const done = pick(
+    (s) =>
+      s.includes('done') ||
+      s.includes('resolved') ||
+      s.includes('closed') ||
+      s.includes('completed')
+  );
   // Ensure each item is placed at least once
   const assigned = new Set([...todo, ...inprog, ...review, ...done]);
   const leftovers = items.filter((w) => !assigned.has(w.id)).map((w) => w.id);
@@ -319,11 +335,14 @@ async function main() {
           },
         ],
         activeConnectionId: connectionId,
-        pendingWorkItems: items && items.length > 0 ? {
-          workItems: items,
-          connectionId,
-          query: 'Demo',
-        } : undefined,
+        pendingWorkItems:
+          items && items.length > 0
+            ? {
+                workItems: items,
+                connectionId,
+                query: 'Demo',
+              }
+            : undefined,
         viewMode: view === 'kanban' ? 'kanban' : 'list',
         ...(view === 'kanban' && Array.isArray(columns) ? { kanbanColumns: columns } : {}),
       },
@@ -347,7 +366,8 @@ async function main() {
     console.log(`[screenshots] Generating ${fixture.name}...`);
 
     // Send a syncState snapshot so the Svelte app renders the requested view + items
-    const columns = fixture.view === 'kanban' ? makeSampleKanbanColumns(fixture.workItems) : undefined;
+    const columns =
+      fixture.view === 'kanban' ? makeSampleKanbanColumns(fixture.workItems) : undefined;
     await dispatchSyncState(fixture.view, fixture.workItems, columns);
     await page.waitForTimeout(700);
 
@@ -361,7 +381,9 @@ async function main() {
           throw new Error('No kanban cards detected');
         }
       } else {
-        await page.waitForSelector('.work-item-card, .work-item-list, .work-item-list-item', { timeout: 8000 });
+        await page.waitForSelector('.work-item-card, .work-item-list, .work-item-list-item', {
+          timeout: 8000,
+        });
       }
       await page.waitForTimeout(500);
       rendered = true;
@@ -387,10 +409,8 @@ async function main() {
 
     // Capture screenshot
     const target =
-      (await page.$('#svelte-root')) ||
-      (await page.$('main')) ||
-      (await page.$('body'));
-    
+      (await page.$('#svelte-root')) || (await page.$('main')) || (await page.$('body'));
+
     if (target) {
       const screenshotPath = join(outDir, `${fixture.name}.png`);
       await target.screenshot({

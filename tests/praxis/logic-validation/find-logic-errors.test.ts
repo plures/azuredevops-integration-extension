@@ -1,11 +1,16 @@
 /**
  * Logic Error Detection Tests
- * 
+ *
  * Uses the history testing infrastructure to find logic errors in the codebase.
  */
 
 import { describe, it, expect } from 'vitest';
-import { validateEventSequence, checkCondition, checkState, checkProperty } from '../../../src/testing/eventSequenceValidator.js';
+import {
+  validateEventSequence,
+  checkCondition,
+  checkState,
+  checkProperty,
+} from '../../../src/testing/eventSequenceValidator.js';
 import { diffStates, formatDiff } from '../../../src/debugging/stateDiff.js';
 import { PerformanceProfiler } from '../../../src/debugging/performanceProfiler.js';
 import { frontendEngine } from '../../../src/webview/praxis/frontendEngine.js';
@@ -50,7 +55,7 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
   describe('Issue 1: Timer Can Start Without Work Item', () => {
     it('should detect if timer starts without a work item selected', () => {
       console.log('\n🔍 Testing: Timer start validation');
-      
+
       // Setup
       frontendEngine.step([ActivateEvent.create({})]);
       frontendEngine.step([ActivationCompleteEvent.create({})]);
@@ -84,14 +89,14 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
       // Validate: Timer should not start with invalid work item ID
       // The timer history should remain empty or not have the invalid work item
       const timerHistory = afterTimer.timerHistory?.entries || [];
-      const hasInvalidTimer = timerHistory.some(entry => entry.workItemId === 0);
-      
+      const hasInvalidTimer = timerHistory.some((entry) => entry.workItemId === 0);
+
       if (hasInvalidTimer) {
         console.log('  ❌ ERROR: Timer started with invalid work item ID!');
       } else {
         console.log('  ✅ CORRECT: Timer did not start with invalid work item ID');
       }
-      
+
       const validation = {
         valid: !hasInvalidTimer,
         errors: hasInvalidTimer ? [{ message: 'Timer started with invalid work item ID' }] : [],
@@ -114,7 +119,7 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
   describe('Issue 2: Timer Can Start Without Connection', () => {
     it('should detect if timer starts without an active connection', () => {
       console.log('\n🔍 Testing: Timer start without connection');
-      
+
       // Setup: Activate but don't load connections
       frontendEngine.step([ActivateEvent.create({})]);
       frontendEngine.step([ActivationCompleteEvent.create({})]);
@@ -139,7 +144,7 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
       // This is actually correct behavior - timer tracks work items, not connections
       const timerHistory = afterTimer.timerHistory?.entries || [];
       const hasTimer = timerHistory.length > 0;
-      
+
       if (hasTimer && !afterTimer.activeConnectionId) {
         console.log('  ℹ️  INFO: Timer started without active connection (this may be valid)');
       } else if (hasTimer) {
@@ -147,7 +152,7 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
       } else {
         console.log('  ✅ Timer did not start (no connection)');
       }
-      
+
       // Note: Timer starting without connection might be valid depending on business rules
       // This test documents the current behavior
       expect(true).toBe(true); // Test passes - documents current behavior
@@ -157,7 +162,7 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
   describe('Issue 3: Work Items Not Cleared on Connection Change', () => {
     it('should detect if work items persist when switching connections', () => {
       console.log('\n🔍 Testing: Work items on connection switch');
-      
+
       const connection1: ProjectConnection = {
         ...testConnection,
         id: 'conn-1',
@@ -199,16 +204,14 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
       // Validate: Connection 2 should not have connection 1's work items
       const validation = validateEventSequence({
         name: 'workitems-on-switch',
-        sequence: [
-          ConnectionSelectedEvent.create({ connectionId: connection2.id }),
-        ],
+        sequence: [ConnectionSelectedEvent.create({ connectionId: connection2.id })],
         validators: [
           {
             afterIndex: 0,
             validator: (ctx) => {
               const conn2WorkItems = ctx.connectionWorkItems.get(connection2.id);
-              const hasConn1WorkItems = conn2WorkItems?.some(wi => wi.id === testWorkItem.id);
-              
+              const hasConn1WorkItems = conn2WorkItems?.some((wi) => wi.id === testWorkItem.id);
+
               if (hasConn1WorkItems) {
                 console.log('  ❌ ERROR: Connection 2 has Connection 1 work items!');
                 return false;
@@ -229,7 +232,7 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
   describe('Issue 4: Timer State Inconsistency', () => {
     it('should detect if timer state becomes inconsistent', () => {
       console.log('\n🔍 Testing: Timer state consistency');
-      
+
       // Setup
       frontendEngine.step([ActivateEvent.create({})]);
       frontendEngine.step([ActivationCompleteEvent.create({})]);
@@ -271,7 +274,7 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
       console.log(`  After second start: timer entries = ${timerHistory2.length}`);
 
       // Validate: Should only have one start entry (rule prevents duplicate starts)
-      const startEntries = timerHistory2.filter(e => e.type === 'start');
+      const startEntries = timerHistory2.filter((e) => e.type === 'start');
       if (startEntries.length > 1) {
         console.log('  ❌ ERROR: Multiple start entries created!');
       } else {
@@ -285,11 +288,11 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
   describe('Issue 5: Authentication State Not Cleared', () => {
     it('should detect if authentication state persists incorrectly', () => {
       console.log('\n🔍 Testing: Authentication state cleanup');
-      
+
       // Setup: Authenticate connection 1
       frontendEngine.step([ActivateEvent.create({})]);
       frontendEngine.step([ActivationCompleteEvent.create({})]);
-      
+
       const connection1: ProjectConnection = {
         ...testConnection,
         id: 'conn-1',
@@ -333,16 +336,14 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
       // Validate: Connection 2 should NOT be authenticated
       const validation = validateEventSequence({
         name: 'auth-state-on-switch',
-        sequence: [
-          ConnectionSelectedEvent.create({ connectionId: connection2.id }),
-        ],
+        sequence: [ConnectionSelectedEvent.create({ connectionId: connection2.id })],
         validators: [
           {
             afterIndex: 0,
             validator: (ctx) => {
               const conn2State = ctx.connectionStates.get(connection2.id);
               const isConn2Authenticated = conn2State?.isConnected === true;
-              
+
               if (isConn2Authenticated) {
                 console.log('  ❌ ERROR: Connection 2 incorrectly authenticated!');
                 return false;
@@ -363,7 +364,7 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
   describe('Issue 6: State Transition Performance', () => {
     it('should identify slow state transitions', () => {
       console.log('\n🔍 Testing: Performance analysis');
-      
+
       // Perform multiple operations
       frontendEngine.step([ActivateEvent.create({})]);
       frontendEngine.step([ActivationCompleteEvent.create({})]);
@@ -394,7 +395,7 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
       const slow = PerformanceProfiler.getSlowTransitions(100);
       if (slow.length > 0) {
         console.log(`  ⚠️  Slow transitions detected: ${slow.length}`);
-        slow.forEach(t => {
+        slow.forEach((t) => {
           console.log(`    - ${t.from} → ${t.to}: ${t.duration.toFixed(2)}ms`);
         });
       } else {
@@ -409,7 +410,7 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
   describe('Issue 7: Complete State Validation', () => {
     it('should validate complete application state for inconsistencies', () => {
       console.log('\n🔍 Testing: Complete state validation');
-      
+
       // Full workflow
       frontendEngine.step([ActivateEvent.create({})]);
       frontendEngine.step([ActivationCompleteEvent.create({})]);
@@ -459,7 +460,9 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
 
               // Invariant 3: Active connection must exist in connections list
               if (ctx.activeConnectionId) {
-                const connectionExists = ctx.connections.some(c => c.id === ctx.activeConnectionId);
+                const connectionExists = ctx.connections.some(
+                  (c) => c.id === ctx.activeConnectionId
+                );
                 if (!connectionExists) {
                   errors.push('Active connection ID does not exist in connections list');
                 }
@@ -475,7 +478,7 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
 
               if (errors.length > 0) {
                 console.log('  ❌ State inconsistencies found:');
-                errors.forEach(e => console.log(`    - ${e}`));
+                errors.forEach((e) => console.log(`    - ${e}`));
                 return false;
               }
 
@@ -491,4 +494,3 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
     });
   });
 });
-
