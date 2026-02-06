@@ -1,4 +1,4 @@
-/* eslint-disable max-lines */
+ 
 /**
  * Module: src/features/commands/handlers.ts
  * Owner: application
