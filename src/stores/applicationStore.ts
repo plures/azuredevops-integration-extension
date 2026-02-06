@@ -67,16 +67,17 @@ function handleApplicationEvent(manager: PraxisApplicationManager, event: Applic
 
 /**
  * Creates the main application manager and wraps it in Svelte stores
- * 
+ *
  * Uses Praxis unified Svelte integration (@plures/praxis/svelte) for reactive subscriptions
  * instead of polling, providing better performance and following Praxis best practices.
- * 
+ *
  * The integration provides:
  * - Proper reactive subscriptions (no polling overhead)
  * - Automatic cleanup and subscription management
  * - Type-safe store access
  * - Better performance through event-driven updates
  */
+// eslint-disable-next-line max-lines-per-function
 function createApplicationStore() {
   // Create and start the Praxis application manager
   // Use getInstance() to ensure we share the singleton with ConnectionService
@@ -89,18 +90,30 @@ function createApplicationStore() {
   // Create reactive store using Praxis unified integration
   // This provides proper reactive subscriptions instead of polling
   const praxisStore = createPraxisStore(engine);
-  
+
   // Create context store for direct context access
   const contextStore = createContextStore(engine);
 
   // Create optimized derived stores using Praxis integration
   // These are more efficient than manual derived() calls
   const connectionsDerivedStore = createDerivedStore(engine, (ctx) => ctx.connections || []);
-  const activeConnectionIdDerivedStore = createDerivedStore(engine, (ctx) => ctx.activeConnectionId);
-  const connectionStatesDerivedStore = createDerivedStore(engine, (ctx) => ctx.connectionStates || new Map());
-  const pendingAuthRemindersDerivedStore = createDerivedStore(engine, (ctx) => ctx.pendingAuthReminders || new Map());
+  const activeConnectionIdDerivedStore = createDerivedStore(
+    engine,
+    (ctx) => ctx.activeConnectionId
+  );
+  const connectionStatesDerivedStore = createDerivedStore(
+    engine,
+    (ctx) => ctx.connectionStates || new Map()
+  );
+  const pendingAuthRemindersDerivedStore = createDerivedStore(
+    engine,
+    (ctx) => ctx.pendingAuthReminders || new Map()
+  );
   const isActivatedDerivedStore = createDerivedStore(engine, (ctx) => ctx.isActivated ?? false);
-  const isDeactivatingDerivedStore = createDerivedStore(engine, (ctx) => ctx.isDeactivating ?? false);
+  const isDeactivatingDerivedStore = createDerivedStore(
+    engine,
+    (ctx) => ctx.isDeactivating ?? false
+  );
   const lastErrorDerivedStore = createDerivedStore(engine, (ctx) => ctx.lastError);
 
   // Current state wrapper that bridges Praxis store to our expected interface
