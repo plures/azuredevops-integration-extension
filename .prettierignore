@@ -19,3 +19,6 @@ tmp/
 
 # Ignore generated webview assets (built by Vite)
 media/webview/
+
+# Ignore test coverage reports
+coverage/
