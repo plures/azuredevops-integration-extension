@@ -10,7 +10,7 @@ The Performance Profiling Dashboard provides real-time analysis of state transit
 ✅ **Transition Analysis** - Detailed metrics for each state transition  
 ✅ **Slow Transition Detection** - Automatically identifies slow operations  
 ✅ **Context Size Tracking** - Monitors memory usage  
-✅ **Visual Dashboard** - Easy-to-read performance visualization  
+✅ **Visual Dashboard** - Easy-to-read performance visualization
 
 ## Accessing the Dashboard
 
@@ -32,6 +32,7 @@ The Performance Dashboard is automatically available in the debug view:
 ### Slow Transitions
 
 Automatically highlights transitions that exceed the threshold (default: 100ms):
+
 - Shows transition path (from → to)
 - Displays duration
 - Shows event count
@@ -41,6 +42,7 @@ Automatically highlights transitions that exceed the threshold (default: 100ms):
 ### All Transitions
 
 Complete list of all transitions with:
+
 - State transition path
 - Duration (highlighted if slow)
 - Event count
@@ -52,12 +54,14 @@ Complete list of all transitions with:
 ### Setting Threshold
 
 Adjust the threshold slider to filter slow transitions:
+
 - Lower threshold = more sensitive (shows more transitions)
 - Higher threshold = less sensitive (shows only very slow transitions)
 
 ### Filtering Slow Transitions
 
 Toggle "Show slow only" to focus on performance issues:
+
 - Shows only transitions exceeding threshold
 - Helps identify bottlenecks quickly
 
@@ -118,6 +122,7 @@ const json = PerformanceProfiler.exportProfile();
 ### Transition Duration
 
 Time between state transitions, measured in milliseconds:
+
 - **Fast**: < 50ms
 - **Normal**: 50-100ms
 - **Slow**: 100-500ms
@@ -126,6 +131,7 @@ Time between state transitions, measured in milliseconds:
 ### Context Size
 
 Size of context object in bytes:
+
 - **Small**: < 10KB
 - **Medium**: 10-100KB
 - **Large**: 100KB-1MB
@@ -134,6 +140,7 @@ Size of context object in bytes:
 ### Event Count
 
 Number of events processed in a transition:
+
 - More events = potentially slower transition
 - Helps identify complex operations
 
@@ -151,7 +158,10 @@ Number of events processed in a transition:
 
 ```typescript
 const slow = PerformanceProfiler.getSlowTransitions(200);
-console.log('Slow transitions:', slow.map(t => `${t.from} → ${t.to}: ${t.duration}ms`));
+console.log(
+  'Slow transitions:',
+  slow.map((t) => `${t.from} → ${t.to}: ${t.duration}ms`)
+);
 ```
 
 ### 2. Optimize State Transitions
@@ -165,14 +175,18 @@ const before = PerformanceProfiler.profileHistory();
 // After optimization
 const after = PerformanceProfiler.profileHistory();
 
-console.log('Improvement:', before.summary.averageTransitionTime - after.summary.averageTransitionTime, 'ms');
+console.log(
+  'Improvement:',
+  before.summary.averageTransitionTime - after.summary.averageTransitionTime,
+  'ms'
+);
 ```
 
 ### 3. Monitor Memory Usage
 
 ```typescript
 const profile = PerformanceProfiler.profileHistory();
-const largeContexts = profile.transitions.filter(t => t.contextSize > 100 * 1024);
+const largeContexts = profile.transitions.filter((t) => t.contextSize > 100 * 1024);
 
 console.log('Large contexts:', largeContexts.length);
 ```
@@ -182,7 +196,7 @@ console.log('Large contexts:', largeContexts.length);
 ```typescript
 // In CI/CD
 const profile = PerformanceProfiler.profileHistory();
-const slowCount = profile.summary.slowestTransitions.filter(t => t.duration > 500).length;
+const slowCount = profile.summary.slowestTransitions.filter((t) => t.duration > 500).length;
 
 if (slowCount > 5) {
   throw new Error('Performance regression detected');
@@ -196,15 +210,14 @@ if (slowCount > 5) {
 ```typescript
 it('should complete activation quickly', () => {
   resetEngine();
-  
+
   dispatch([ActivateEvent.create({})]);
   dispatch([ActivationCompleteEvent.create({})]);
-  
+
   const profile = PerformanceProfiler.profileHistory();
-  const activationTime = profile.transitions.find(
-    t => t.from === 'inactive' && t.to === 'activating'
-  )?.duration || 0;
-  
+  const activationTime =
+    profile.transitions.find((t) => t.from === 'inactive' && t.to === 'activating')?.duration || 0;
+
   expect(activationTime).toBeLessThan(100); // Should be fast
 });
 ```
@@ -214,4 +227,3 @@ it('should complete activation quickly', () => {
 - [History Timeline](./PRAXIS_HISTORY_ENGINE_TESTING_DEBUGGING_PLAN.md#21-time-travel-debugging-ui)
 - [Build Integration](./BUILD_INTEGRATION.md)
 - [Testing Examples](./PRAXIS_HISTORY_EXAMPLES_GUIDE.md)
-
