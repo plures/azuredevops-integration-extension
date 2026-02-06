@@ -99,7 +99,10 @@ function createDerivedStores(engine: any) {
     connections: createDerivedStore(engine, (ctx) => ctx.connections || []),
     activeConnectionId: createDerivedStore(engine, (ctx) => ctx.activeConnectionId),
     connectionStates: createDerivedStore(engine, (ctx) => ctx.connectionStates || new Map()),
-    pendingAuthReminders: createDerivedStore(engine, (ctx) => ctx.pendingAuthReminders || new Map()),
+    pendingAuthReminders: createDerivedStore(
+      engine,
+      (ctx) => ctx.pendingAuthReminders || new Map()
+    ),
     isActivated: createDerivedStore(engine, (ctx) => ctx.isActivated ?? false),
     isDeactivating: createDerivedStore(engine, (ctx) => ctx.isDeactivating ?? false),
     lastError: createDerivedStore(engine, (ctx) => ctx.lastError),
@@ -112,10 +115,10 @@ function createDerivedStores(engine: any) {
 
 /**
  * Creates the main application manager and wraps it in Svelte stores
- * 
+ *
  * Uses Praxis unified Svelte integration (@plures/praxis/svelte) for reactive subscriptions
  * instead of polling, providing better performance and following Praxis best practices.
- * 
+ *
  * The integration provides:
  * - Proper reactive subscriptions (no polling overhead)
  * - Automatic cleanup and subscription management

@@ -1,7 +1,7 @@
 /**
  * Module: src/services/auth/deviceCodeFlowHelpers.ts
  * Owner: application
- * 
+ *
  * Device Code Flow Authentication Helpers
  * Extracted from authentication.ts to reduce file complexity
  */

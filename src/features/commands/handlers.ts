@@ -125,7 +125,9 @@ async function clearEntraTokens(
  * Clear auth code flow providers
  */
 async function clearAuthProviders(activeConnectionId: string): Promise<void> {
-  const pendingAuthProviders = (globalThis as any).__pendingAuthProviders as Map<string, any> | undefined;
+  const pendingAuthProviders = (globalThis as any).__pendingAuthProviders as
+    | Map<string, any>
+    | undefined;
   if (pendingAuthProviders) {
     const provider = pendingAuthProviders.get(activeConnectionId);
     if (provider && typeof provider.signOut === 'function') {
@@ -135,7 +137,8 @@ async function clearAuthProviders(activeConnectionId: string): Promise<void> {
   }
 
   try {
-    const { clearPendingAuthCodeFlowProvider } = await import('../../services/auth/authentication.js');
+    const { clearPendingAuthCodeFlowProvider } =
+      await import('../../services/auth/authentication.js');
     clearPendingAuthCodeFlowProvider(activeConnectionId);
   } catch {
     // Ignore errors clearing provider
@@ -189,7 +192,9 @@ async function signOutEntra(
       const { clearConnectionState } = await import('../../activation.js');
       if (typeof clearConnectionState === 'function') {
         clearConnectionState(activeConnectionId);
-        logger.info('[signOutEntra] Connection state cleared', { connectionId: activeConnectionId });
+        logger.info('[signOutEntra] Connection state cleared', {
+          connectionId: activeConnectionId,
+        });
       }
     } catch {
       // Ignore if function doesn't exist

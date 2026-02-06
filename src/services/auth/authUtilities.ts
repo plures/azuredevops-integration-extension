@@ -1,7 +1,7 @@
 /**
  * Module: src/services/auth/authUtilities.ts
  * Owner: application
- * 
+ *
  * Authentication Utility Functions
  * Extracted from authentication.ts to reduce file size
  */

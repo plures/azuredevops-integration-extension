@@ -1,11 +1,15 @@
 /**
  * History Debug Commands
- * 
+ *
  * VS Code commands for history debugging functionality.
  */
 
 import * as vscode from 'vscode';
-import { exportHistoryAsJSON, importHistoryFromJSON, copyHistoryToClipboard } from '../debugging/historyExport.js';
+import {
+  exportHistoryAsJSON,
+  importHistoryFromJSON,
+  copyHistoryToClipboard,
+} from '../debugging/historyExport.js';
 import { startRecording, stopRecording, isRecording } from '../testing/historyTestRecorder.js';
 import { getEventReplayDebugger } from '../debugging/eventReplayDebugger.js';
 
@@ -15,12 +19,12 @@ import { getEventReplayDebugger } from '../debugging/eventReplayDebugger.js';
 async function handleExportHistory(): Promise<void> {
   try {
     const json = exportHistoryAsJSON();
-    
+
     const uri = await vscode.window.showSaveDialog({
       defaultUri: vscode.Uri.file('history-export.json'),
       filters: { 'JSON Files': ['json'] },
     });
-    
+
     if (uri) {
       await vscode.workspace.fs.writeFile(uri, Buffer.from(json, 'utf-8'));
       vscode.window.showInformationMessage('History exported successfully');
@@ -39,7 +43,7 @@ async function handleImportHistory(): Promise<void> {
       filters: { 'JSON Files': ['json'] },
       canSelectMany: false,
     });
-    
+
     if (uri && uri[0]) {
       const content = await vscode.workspace.fs.readFile(uri[0]);
       const json = content.toString();
@@ -60,16 +64,16 @@ async function handleStartRecording(): Promise<void> {
       prompt: 'Enter scenario ID',
       placeHolder: 'test-001',
     });
-    
+
     if (!scenarioId) return;
-    
+
     const scenarioName = await vscode.window.showInputBox({
       prompt: 'Enter scenario name',
       placeHolder: 'User workflow test',
     });
-    
+
     if (!scenarioName) return;
-    
+
     startRecording(scenarioId, scenarioName);
     vscode.window.showInformationMessage(`Started recording: ${scenarioName}`);
   } catch (error) {
@@ -86,13 +90,13 @@ async function handleStopRecording(): Promise<void> {
       vscode.window.showWarningMessage('No active recording');
       return;
     }
-    
+
     const scenario = stopRecording();
     const uri = await vscode.window.showSaveDialog({
       defaultUri: vscode.Uri.file(`${scenario.id}.json`),
       filters: { 'JSON Files': ['json'] },
     });
-    
+
     if (uri) {
       await vscode.workspace.fs.writeFile(
         uri,
@@ -120,8 +124,14 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
         vscode.window.showErrorMessage(`Failed to copy history: ${error}`);
       }
     }),
-    vscode.commands.registerCommand('azureDevOpsInt.debug.history.startRecording', handleStartRecording),
-    vscode.commands.registerCommand('azureDevOpsInt.debug.history.stopRecording', handleStopRecording),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.debug.history.startRecording',
+      handleStartRecording
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.debug.history.stopRecording',
+      handleStopRecording
+    ),
     vscode.commands.registerCommand('azureDevOpsInt.debug.history.clearBreakpoints', () => {
       const replayDebugger = getEventReplayDebugger();
       replayDebugger.clearBreakpoints();
@@ -129,4 +139,3 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
     })
   );
 }
-
