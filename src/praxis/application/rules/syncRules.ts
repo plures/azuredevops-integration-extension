@@ -9,6 +9,28 @@ import type { ApplicationEngineContext } from '../engine.js';
 import { SyncStateEvent } from '../facts.js';
 
 /**
+ * Update context field if payload value is defined
+ */
+function updateField<T>(context: any, key: string, value: T | undefined): void {
+  if (value !== undefined) {
+    context[key] = value;
+  }
+}
+
+/**
+ * Update Map field with immutable copy
+ */
+function updateMapField(context: any, key: string, value: any): void {
+  if (value === undefined) return;
+
+  if (value instanceof Map) {
+    context[key] = new Map(value);
+  } else if (typeof value === 'object' && value !== null) {
+    context[key] = new Map(Object.entries(value));
+  }
+}
+
+/**
  * Handle state synchronization
  * Replaces the entire context with the payload from the event.
  */
@@ -24,110 +46,43 @@ export const syncStateRule = defineRule<ApplicationEngineContext>({
     if (!syncEvent) return [];
 
     const payload = syncEvent.payload;
-    
-    // Priority 1: Removed side effects (postMessage, console.debug)
-    // Automatic logging via Praxis event system will capture this
-    
-    // Priority 2: Explicit field updates instead of Object.assign
+    const ctx = state.context;
+
     // Update connections array explicitly (create new array for reactivity)
     if (Array.isArray(payload.connections)) {
-      state.context.connections = [...payload.connections];
-    } else if (payload.connections === undefined || payload.connections === null) {
-      // If connections is missing, keep existing connections (don't clear them)
-      // This prevents connections from being lost during sync
-      // No logging needed - automatic logging will capture state changes
+      ctx.connections = [...payload.connections];
     }
-    
-    // Update other context properties explicitly
-    if (payload.isActivated !== undefined) {
-      state.context.isActivated = payload.isActivated;
-    }
-    if (payload.isDeactivating !== undefined) {
-      state.context.isDeactivating = payload.isDeactivating;
-    }
-    if (payload.activeConnectionId !== undefined) {
-      state.context.activeConnectionId = payload.activeConnectionId;
-    }
-    if (payload.activeQuery !== undefined) {
-      state.context.activeQuery = payload.activeQuery;
-    }
-    if (payload.viewMode !== undefined) {
-      state.context.viewMode = payload.viewMode;
-    }
-    if (payload.pendingWorkItems !== undefined) {
-      state.context.pendingWorkItems = payload.pendingWorkItems;
-    }
-    if (payload.deviceCodeSession !== undefined) {
-      state.context.deviceCodeSession = payload.deviceCodeSession;
-    }
-    if (payload.authCodeFlowSession !== undefined) {
-      state.context.authCodeFlowSession = payload.authCodeFlowSession;
-    }
-    if (payload.lastError !== undefined) {
-      state.context.lastError = payload.lastError;
-    }
-    if (payload.errorRecoveryAttempts !== undefined) {
-      state.context.errorRecoveryAttempts = payload.errorRecoveryAttempts;
-    }
-    if (payload.workItemsError !== undefined) {
-      state.context.workItemsError = payload.workItemsError;
-    }
-    if (payload.workItemsErrorConnectionId !== undefined) {
-      state.context.workItemsErrorConnectionId = payload.workItemsErrorConnectionId;
-    }
-    if (payload.debugLoggingEnabled !== undefined) {
-      state.context.debugLoggingEnabled = payload.debugLoggingEnabled;
-    }
-    if (payload.debugViewVisible !== undefined) {
-      state.context.debugViewVisible = payload.debugViewVisible;
-    }
+
+    // Update simple context properties
+    updateField(ctx, 'isActivated', payload.isActivated);
+    updateField(ctx, 'isDeactivating', payload.isDeactivating);
+    updateField(ctx, 'activeConnectionId', payload.activeConnectionId);
+    updateField(ctx, 'activeQuery', payload.activeQuery);
+    updateField(ctx, 'viewMode', payload.viewMode);
+    updateField(ctx, 'pendingWorkItems', payload.pendingWorkItems);
+    updateField(ctx, 'deviceCodeSession', payload.deviceCodeSession);
+    updateField(ctx, 'authCodeFlowSession', payload.authCodeFlowSession);
+    updateField(ctx, 'lastError', payload.lastError);
+    updateField(ctx, 'errorRecoveryAttempts', payload.errorRecoveryAttempts);
+    updateField(ctx, 'workItemsError', payload.workItemsError);
+    updateField(ctx, 'workItemsErrorConnectionId', payload.workItemsErrorConnectionId);
+    updateField(ctx, 'debugLoggingEnabled', payload.debugLoggingEnabled);
+    updateField(ctx, 'debugViewVisible', payload.debugViewVisible);
+
+    // Update array with immutability
     if (payload.kanbanColumns !== undefined) {
-      state.context.kanbanColumns = Array.isArray(payload.kanbanColumns) ? [...payload.kanbanColumns] : payload.kanbanColumns;
+      ctx.kanbanColumns = Array.isArray(payload.kanbanColumns)
+        ? [...payload.kanbanColumns]
+        : payload.kanbanColumns;
     }
-    
-    // Priority 3: Make Map updates immutable (create new Map instances)
-    if (payload.connectionStates !== undefined) {
-      if (payload.connectionStates instanceof Map) {
-        state.context.connectionStates = new Map(payload.connectionStates);
-      } else if (typeof payload.connectionStates === 'object' && payload.connectionStates !== null) {
-        state.context.connectionStates = new Map(Object.entries(payload.connectionStates));
-      }
-    }
-    if (payload.connectionWorkItems !== undefined) {
-      if (payload.connectionWorkItems instanceof Map) {
-        state.context.connectionWorkItems = new Map(payload.connectionWorkItems);
-      } else if (typeof payload.connectionWorkItems === 'object' && payload.connectionWorkItems !== null) {
-        state.context.connectionWorkItems = new Map(Object.entries(payload.connectionWorkItems));
-      }
-    }
-    if (payload.connectionQueries !== undefined) {
-      if (payload.connectionQueries instanceof Map) {
-        state.context.connectionQueries = new Map(payload.connectionQueries);
-      } else if (typeof payload.connectionQueries === 'object' && payload.connectionQueries !== null) {
-        state.context.connectionQueries = new Map(Object.entries(payload.connectionQueries));
-      }
-    }
-    if (payload.connectionFilters !== undefined) {
-      if (payload.connectionFilters instanceof Map) {
-        state.context.connectionFilters = new Map(payload.connectionFilters);
-      } else if (typeof payload.connectionFilters === 'object' && payload.connectionFilters !== null) {
-        state.context.connectionFilters = new Map(Object.entries(payload.connectionFilters));
-      }
-    }
-    if (payload.connectionViewModes !== undefined) {
-      if (payload.connectionViewModes instanceof Map) {
-        state.context.connectionViewModes = new Map(payload.connectionViewModes);
-      } else if (typeof payload.connectionViewModes === 'object' && payload.connectionViewModes !== null) {
-        state.context.connectionViewModes = new Map(Object.entries(payload.connectionViewModes));
-      }
-    }
-    if (payload.pendingAuthReminders !== undefined) {
-      if (payload.pendingAuthReminders instanceof Map) {
-        state.context.pendingAuthReminders = new Map(payload.pendingAuthReminders);
-      } else if (typeof payload.pendingAuthReminders === 'object' && payload.pendingAuthReminders !== null) {
-        state.context.pendingAuthReminders = new Map(Object.entries(payload.pendingAuthReminders));
-      }
-    }
+
+    // Update Map fields with immutable copies
+    updateMapField(ctx, 'connectionStates', payload.connectionStates);
+    updateMapField(ctx, 'connectionWorkItems', payload.connectionWorkItems);
+    updateMapField(ctx, 'connectionQueries', payload.connectionQueries);
+    updateMapField(ctx, 'connectionFilters', payload.connectionFilters);
+    updateMapField(ctx, 'connectionViewModes', payload.connectionViewModes);
+    updateMapField(ctx, 'pendingAuthReminders', payload.pendingAuthReminders);
 
     return [];
   },

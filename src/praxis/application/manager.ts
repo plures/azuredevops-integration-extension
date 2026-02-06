@@ -246,7 +246,10 @@ export class PraxisApplicationManager {
     if (traceEnabled) {
       const entry = this.traceRecorder.completeDispatch(contextAfter, result?.diagnostics);
       if (entry) {
-        this.engine.updateContext((ctx) => ({ ...ctx, debugTraceLog: this.traceRecorder.getEntries() }));
+        this.engine.updateContext((ctx) => ({
+          ...ctx,
+          debugTraceLog: this.traceRecorder.getEntries(),
+        }));
       }
     }
 
@@ -283,9 +286,6 @@ export class PraxisApplicationManager {
     this.timerManager = new PraxisTimerManager();
     this.timerManager.start();
   }
-
-
-
 
   /**
    * Subscribe to state changes

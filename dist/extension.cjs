@@ -1219,11 +1219,6 @@ function createSharedContextBridge({
     try {
       logger10?.(message, meta);
     } catch (error) {
-      console.debug("[AzureDevOpsInt] [SharedContextBridge] Logger failed", {
-        message,
-        meta,
-        error
-      });
     }
   }
   function startPolling() {
@@ -1768,7 +1763,6 @@ async function migrateGlobalPATToConnections(context, connections3) {
       await context.secrets.delete(LEGACY_PAT_KEY);
     }
   } catch (error) {
-    console.debug("[PAT Migration] Failed to migrate global PAT:", error);
   }
 }
 var LEGACY_PAT_KEY;
@@ -3336,6 +3330,55 @@ var init_error_handling = __esm({
   }
 });
 
+// node_modules/svelte/src/internal/client/reactivity/status.js
+function set_signal_status(signal, status) {
+  signal.f = signal.f & STATUS_MASK | status;
+}
+function update_derived_status(derived3) {
+  if ((derived3.f & CONNECTED) !== 0 || derived3.deps === null) {
+    set_signal_status(derived3, CLEAN);
+  } else {
+    set_signal_status(derived3, MAYBE_DIRTY);
+  }
+}
+var STATUS_MASK;
+var init_status = __esm({
+  "node_modules/svelte/src/internal/client/reactivity/status.js"() {
+    init_constants2();
+    STATUS_MASK = ~(DIRTY | MAYBE_DIRTY | CLEAN);
+  }
+});
+
+// node_modules/svelte/src/internal/client/reactivity/utils.js
+function clear_marked(deps) {
+  if (deps === null) return;
+  for (const dep of deps) {
+    if ((dep.f & DERIVED) === 0 || (dep.f & WAS_MARKED) === 0) {
+      continue;
+    }
+    dep.f ^= WAS_MARKED;
+    clear_marked(
+      /** @type {Derived} */
+      dep.deps
+    );
+  }
+}
+function defer_effect(effect2, dirty_effects, maybe_dirty_effects) {
+  if ((effect2.f & DIRTY) !== 0) {
+    dirty_effects.add(effect2);
+  } else if ((effect2.f & MAYBE_DIRTY) !== 0) {
+    maybe_dirty_effects.add(effect2);
+  }
+  clear_marked(effect2.deps);
+  set_signal_status(effect2, CLEAN);
+}
+var init_utils2 = __esm({
+  "node_modules/svelte/src/internal/client/reactivity/utils.js"() {
+    init_constants2();
+    init_status();
+  }
+});
+
 // node_modules/svelte/src/internal/client/reactivity/batch.js
 function flushSync(fn) {
   var was_flushing_sync = is_flushing_sync;
@@ -3367,12 +3410,10 @@ function flushSync(fn) {
   }
 }
 function flush_effects() {
-  var was_updating_effect = is_updating_effect;
   is_flushing = true;
   var source_stacks = dev_fallback_default ? /* @__PURE__ */ new Set() : null;
   try {
     var flush_count = 0;
-    set_is_updating_effect(true);
     while (queued_root_effects.length > 0) {
       var batch = Batch.ensure();
       if (flush_count++ > 1e3) {
@@ -3406,7 +3447,6 @@ function flush_effects() {
     }
   } finally {
     is_flushing = false;
-    set_is_updating_effect(was_updating_effect);
     last_scheduled_effect = null;
     if (dev_fallback_default) {
       for (
@@ -3548,6 +3588,9 @@ var init_batch = __esm({
     init_error_handling();
     init_sources();
     init_effects();
+    init_utils2();
+    init_constants();
+    init_status();
     batches = /* @__PURE__ */ new Set();
     current_batch = null;
     previous_batch = null;
@@ -3612,6 +3655,7 @@ var init_batch = __esm({
        */
       skipped_effects = /* @__PURE__ */ new Set();
       is_fork = false;
+      #decrement_queued = false;
       is_deferred() {
         return this.is_fork || this.#blocking_pending > 0;
       }
@@ -3621,28 +3665,25 @@ var init_batch = __esm({
        */
       process(root_effects) {
         queued_root_effects = [];
-        previous_batch = null;
         this.apply();
-        var target = {
-          parent: null,
-          effect: null,
-          effects: [],
-          render_effects: []
-        };
+        var effects = [];
+        var render_effects = [];
         for (const root of root_effects) {
-          this.#traverse_effect_tree(root, target);
-        }
-        if (!this.is_fork) {
-          this.#resolve();
+          this.#traverse_effect_tree(root, effects, render_effects);
         }
         if (this.is_deferred()) {
-          this.#defer_effects(target.effects);
-          this.#defer_effects(target.render_effects);
+          this.#defer_effects(render_effects);
+          this.#defer_effects(effects);
         } else {
+          for (const fn of this.#commit_callbacks) fn();
+          this.#commit_callbacks.clear();
+          if (this.#pending === 0) {
+            this.#commit();
+          }
           previous_batch = this;
           current_batch = null;
-          flush_queued_effects(target.render_effects);
-          flush_queued_effects(target.effects);
+          flush_queued_effects(render_effects);
+          flush_queued_effects(effects);
           previous_batch = null;
           this.#deferred?.resolve();
         }
@@ -3652,33 +3693,32 @@ var init_batch = __esm({
        * Traverse the effect tree, executing effects or stashing
        * them for later execution as appropriate
        * @param {Effect} root
-       * @param {EffectTarget} target
+       * @param {Effect[]} effects
+       * @param {Effect[]} render_effects
        */
-      #traverse_effect_tree(root, target) {
+      #traverse_effect_tree(root, effects, render_effects) {
         root.f ^= CLEAN;
         var effect2 = root.first;
+        var pending_boundary = null;
         while (effect2 !== null) {
           var flags2 = effect2.f;
           var is_branch = (flags2 & (BRANCH_EFFECT | ROOT_EFFECT)) !== 0;
           var is_skippable_branch = is_branch && (flags2 & CLEAN) !== 0;
           var skip = is_skippable_branch || (flags2 & INERT) !== 0 || this.skipped_effects.has(effect2);
-          if ((effect2.f & BOUNDARY_EFFECT) !== 0 && effect2.b?.is_pending()) {
-            target = {
-              parent: target,
-              effect: effect2,
-              effects: [],
-              render_effects: []
-            };
+          if (async_mode_flag && pending_boundary === null && (flags2 & BOUNDARY_EFFECT) !== 0 && effect2.b?.is_pending) {
+            pending_boundary = effect2;
           }
           if (!skip && effect2.fn !== null) {
             if (is_branch) {
               effect2.f ^= CLEAN;
+            } else if (pending_boundary !== null && (flags2 & (EFFECT | RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
+              pending_boundary.b.defer_effect(effect2);
             } else if ((flags2 & EFFECT) !== 0) {
-              target.effects.push(effect2);
+              effects.push(effect2);
             } else if (async_mode_flag && (flags2 & (RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
-              target.render_effects.push(effect2);
+              render_effects.push(effect2);
             } else if (is_dirty(effect2)) {
-              if ((effect2.f & BLOCK_EFFECT) !== 0) this.#dirty_effects.add(effect2);
+              if ((flags2 & BLOCK_EFFECT) !== 0) this.#dirty_effects.add(effect2);
               update_effect(effect2);
             }
             var child2 = effect2.first;
@@ -3690,11 +3730,8 @@ var init_batch = __esm({
           var parent = effect2.parent;
           effect2 = effect2.next;
           while (effect2 === null && parent !== null) {
-            if (parent === target.effect) {
-              this.#defer_effects(target.effects);
-              this.#defer_effects(target.render_effects);
-              target = /** @type {EffectTarget} */
-              target.parent;
+            if (parent === pending_boundary) {
+              pending_boundary = null;
             }
             effect2 = parent.next;
             parent = parent.parent;
@@ -3705,30 +3742,8 @@ var init_batch = __esm({
        * @param {Effect[]} effects
        */
       #defer_effects(effects) {
-        for (const e of effects) {
-          if ((e.f & DIRTY) !== 0) {
-            this.#dirty_effects.add(e);
-          } else if ((e.f & MAYBE_DIRTY) !== 0) {
-            this.#maybe_dirty_effects.add(e);
-          }
-          this.#clear_marked(e.deps);
-          set_signal_status(e, CLEAN);
-        }
-      }
-      /**
-       * @param {Value[] | null} deps
-       */
-      #clear_marked(deps) {
-        if (deps === null) return;
-        for (const dep of deps) {
-          if ((dep.f & DERIVED) === 0 || (dep.f & WAS_MARKED) === 0) {
-            continue;
-          }
-          dep.f ^= WAS_MARKED;
-          this.#clear_marked(
-            /** @type {Derived} */
-            dep.deps
-          );
+        for (var i = 0; i < effects.length; i += 1) {
+          defer_effect(effects[i], this.#dirty_effects, this.#maybe_dirty_effects);
         }
       }
       /**
@@ -3738,7 +3753,7 @@ var init_batch = __esm({
        * @param {any} value
        */
       capture(source2, value) {
-        if (!this.previous.has(source2)) {
+        if (value !== UNINITIALIZED && !this.previous.has(source2)) {
           this.previous.set(source2, value);
         }
         if ((source2.f & ERROR_VALUE) === 0) {
@@ -3771,26 +3786,11 @@ var init_batch = __esm({
         for (const fn of this.#discard_callbacks) fn(this);
         this.#discard_callbacks.clear();
       }
-      #resolve() {
-        if (this.#blocking_pending === 0) {
-          for (const fn of this.#commit_callbacks) fn();
-          this.#commit_callbacks.clear();
-        }
-        if (this.#pending === 0) {
-          this.#commit();
-        }
-      }
       #commit() {
         if (batches.size > 1) {
           this.previous.clear();
           var previous_batch_values = batch_values;
           var is_earlier = true;
-          var dummy_target = {
-            parent: null,
-            effect: null,
-            effects: [],
-            render_effects: []
-          };
           for (const batch of batches) {
             if (batch === this) {
               is_earlier = false;
@@ -3823,7 +3823,7 @@ var init_batch = __esm({
                 current_batch = batch;
                 batch.apply();
                 for (const root of queued_root_effects) {
-                  batch.#traverse_effect_tree(root, dummy_target);
+                  batch.#traverse_effect_tree(root, [], []);
                 }
                 batch.deactivate();
               }
@@ -3851,7 +3851,16 @@ var init_batch = __esm({
       decrement(blocking) {
         this.#pending -= 1;
         if (blocking) this.#blocking_pending -= 1;
-        this.revive();
+        if (this.#decrement_queued) return;
+        this.#decrement_queued = true;
+        queue_micro_task(() => {
+          this.#decrement_queued = false;
+          if (!this.is_deferred()) {
+            this.revive();
+          } else if (queued_root_effects.length > 0) {
+            this.flush();
+          }
+        });
       }
       revive() {
         for (const e of this.#dirty_effects) {
@@ -3881,7 +3890,7 @@ var init_batch = __esm({
           const batch = current_batch = new _Batch();
           batches.add(current_batch);
           if (!is_flushing_sync) {
-            _Batch.enqueue(() => {
+            queue_micro_task(() => {
               if (current_batch !== batch) {
                 return;
               }
@@ -3890,10 +3899,6 @@ var init_batch = __esm({
           }
         }
         return current_batch;
-      }
-      /** @param {() => void} task */
-      static enqueue(task) {
-        queue_micro_task(task);
       }
       apply() {
         if (!async_mode_flag || !this.is_fork && batches.size === 1) return;
@@ -3976,11 +3981,13 @@ var init_boundary = __esm({
     init_tracing();
     init_create_subscriber();
     init_operations();
+    init_utils2();
+    init_status();
     flags = EFFECT_TRANSPARENT | EFFECT_PRESERVED | BOUNDARY_EFFECT;
     Boundary = class {
       /** @type {Boundary | null} */
       parent;
-      #pending = false;
+      is_pending = false;
       /** @type {TemplateNode} */
       #anchor;
       /** @type {TemplateNode | null} */
@@ -4003,7 +4010,12 @@ var init_boundary = __esm({
       #pending_anchor = null;
       #local_pending_count = 0;
       #pending_count = 0;
+      #pending_count_update_queued = false;
       #is_creating_fallback = false;
+      /** @type {Set<Effect>} */
+      #dirty_effects = /* @__PURE__ */ new Set();
+      /** @type {Set<Effect>} */
+      #maybe_dirty_effects = /* @__PURE__ */ new Set();
       /**
        * A source containing the number of pending async deriveds/expressions.
        * Only created if `$effect.pending()` is used inside the boundary,
@@ -4032,7 +4044,7 @@ var init_boundary = __esm({
         this.#children = children;
         this.parent = /** @type {Effect} */
         active_effect.b;
-        this.#pending = !!this.#props.pending;
+        this.is_pending = !!this.#props.pending;
         this.#effect = block(() => {
           active_effect.b = this;
           if (hydrating) {
@@ -4047,6 +4059,9 @@ var init_boundary = __esm({
               this.#hydrate_pending_content();
             } else {
               this.#hydrate_resolved_content();
+              if (this.#pending_count === 0) {
+                this.is_pending = false;
+              }
             }
           } else {
             var anchor = this.#get_anchor();
@@ -4058,7 +4073,7 @@ var init_boundary = __esm({
             if (this.#pending_count > 0) {
               this.#show_pending_snippet();
             } else {
-              this.#pending = false;
+              this.is_pending = false;
             }
           }
           return () => {
@@ -4075,15 +4090,12 @@ var init_boundary = __esm({
         } catch (error) {
           this.error(error);
         }
-        this.#pending = false;
       }
       #hydrate_pending_content() {
         const pending2 = this.#props.pending;
-        if (!pending2) {
-          return;
-        }
+        if (!pending2) return;
         this.#pending_effect = branch(() => pending2(this.#anchor));
-        Batch.enqueue(() => {
+        queue_micro_task(() => {
           var anchor = this.#get_anchor();
           this.#main_effect = this.#run(() => {
             Batch.ensure();
@@ -4099,13 +4111,13 @@ var init_boundary = __esm({
                 this.#pending_effect = null;
               }
             );
-            this.#pending = false;
+            this.is_pending = false;
           }
         });
       }
       #get_anchor() {
         var anchor = this.#anchor;
-        if (this.#pending) {
+        if (this.is_pending) {
           this.#pending_anchor = create_text();
           this.#anchor.before(this.#pending_anchor);
           anchor = this.#pending_anchor;
@@ -4113,11 +4125,18 @@ var init_boundary = __esm({
         return anchor;
       }
       /**
-       * Returns `true` if the effect exists inside a boundary whose pending snippet is shown
+       * Defer an effect inside a pending boundary until the boundary resolves
+       * @param {Effect} effect
+       */
+      defer_effect(effect2) {
+        defer_effect(effect2, this.#dirty_effects, this.#maybe_dirty_effects);
+      }
+      /**
+       * Returns `false` if the effect exists inside a boundary whose pending snippet is shown
        * @returns {boolean}
        */
-      is_pending() {
-        return this.#pending || !!this.parent && this.parent.is_pending();
+      is_rendered() {
+        return !this.is_pending && (!this.parent || this.parent.is_rendered());
       }
       has_pending_snippet() {
         return !!this.#props.pending;
@@ -4174,7 +4193,17 @@ var init_boundary = __esm({
         }
         this.#pending_count += d;
         if (this.#pending_count === 0) {
-          this.#pending = false;
+          this.is_pending = false;
+          for (const e of this.#dirty_effects) {
+            set_signal_status(e, DIRTY);
+            schedule_effect(e);
+          }
+          for (const e of this.#maybe_dirty_effects) {
+            set_signal_status(e, MAYBE_DIRTY);
+            schedule_effect(e);
+          }
+          this.#dirty_effects.clear();
+          this.#maybe_dirty_effects.clear();
           if (this.#pending_effect) {
             pause_effect(this.#pending_effect, () => {
               this.#pending_effect = null;
@@ -4195,9 +4224,14 @@ var init_boundary = __esm({
       update_pending_count(d) {
         this.#update_pending_count(d);
         this.#local_pending_count += d;
-        if (this.#effect_pending) {
-          internal_set(this.#effect_pending, this.#local_pending_count);
-        }
+        if (!this.#effect_pending || this.#pending_count_update_queued) return;
+        this.#pending_count_update_queued = true;
+        queue_micro_task(() => {
+          this.#pending_count_update_queued = false;
+          if (this.#effect_pending) {
+            internal_set(this.#effect_pending, this.#local_pending_count);
+          }
+        });
       }
       get_effect_pending() {
         this.#effect_pending_subscriber();
@@ -4251,7 +4285,7 @@ var init_boundary = __esm({
               this.#failed_effect = null;
             });
           }
-          this.#pending = this.has_pending_snippet();
+          this.is_pending = this.has_pending_snippet();
           this.#main_effect = this.#run(() => {
             this.#is_creating_fallback = false;
             return branch(() => this.#children(this.#anchor));
@@ -4259,7 +4293,7 @@ var init_boundary = __esm({
           if (this.#pending_count > 0) {
             this.#show_pending_snippet();
           } else {
-            this.#pending = false;
+            this.is_pending = false;
           }
         };
         var previous_reaction = active_reaction;
@@ -4316,7 +4350,6 @@ var init_async = __esm({
     init_batch();
     init_deriveds();
     init_effects();
-    init_hydration();
   }
 });
 
@@ -4380,10 +4413,14 @@ function execute_derived(derived3) {
 function update_derived(derived3) {
   var value = execute_derived(derived3);
   if (!derived3.equals(value)) {
-    if (!current_batch?.is_fork) {
-      derived3.v = value;
-    }
     derived3.wv = increment_write_version();
+    if (!current_batch?.is_fork || derived3.deps === null) {
+      derived3.v = value;
+      if (derived3.deps === null) {
+        set_signal_status(derived3, CLEAN);
+        return;
+      }
+    }
   }
   if (is_destroying_effect) {
     return;
@@ -4393,8 +4430,7 @@ function update_derived(derived3) {
       batch_values.set(derived3, value);
     }
   } else {
-    var status = (derived3.f & CONNECTED) === 0 ? MAYBE_DIRTY : CLEAN;
-    set_signal_status(derived3, status);
+    update_derived_status(derived3);
   }
 }
 var recent_async_deriveds, stack;
@@ -4416,6 +4452,7 @@ var init_deriveds = __esm({
     init_batch();
     init_async();
     init_utils();
+    init_status();
     recent_async_deriveds = /* @__PURE__ */ new Set();
     stack = [];
   }
@@ -4515,13 +4552,14 @@ function internal_set(source2, value) {
       }
     }
     if ((source2.f & DERIVED) !== 0) {
+      const derived3 = (
+        /** @type {Derived} */
+        source2
+      );
       if ((source2.f & DIRTY) !== 0) {
-        execute_derived(
-          /** @type {Derived} */
-          source2
-        );
+        execute_derived(derived3);
       }
-      set_signal_status(source2, (source2.f & CONNECTED) !== 0 ? CLEAN : MAYBE_DIRTY);
+      update_derived_status(derived3);
     }
     source2.wv = increment_write_version();
     mark_reactions(source2, DIRTY);
@@ -4540,20 +4578,13 @@ function internal_set(source2, value) {
 }
 function flush_eager_effects() {
   eager_effects_deferred = false;
-  var prev_is_updating_effect = is_updating_effect;
-  set_is_updating_effect(true);
-  const inspects = Array.from(eager_effects);
-  try {
-    for (const effect2 of inspects) {
-      if ((effect2.f & CLEAN) !== 0) {
-        set_signal_status(effect2, MAYBE_DIRTY);
-      }
-      if (is_dirty(effect2)) {
-        update_effect(effect2);
-      }
+  for (const effect2 of eager_effects) {
+    if ((effect2.f & CLEAN) !== 0) {
+      set_signal_status(effect2, MAYBE_DIRTY);
     }
-  } finally {
-    set_is_updating_effect(prev_is_updating_effect);
+    if (is_dirty(effect2)) {
+      update_effect(effect2);
+    }
   }
   eager_effects.clear();
 }
@@ -4618,6 +4649,7 @@ var init_sources = __esm({
     init_batch();
     init_proxy();
     init_deriveds();
+    init_status();
     eager_effects = /* @__PURE__ */ new Set();
     old_values = /* @__PURE__ */ new Map();
     eager_effects_deferred = false;
@@ -5336,6 +5368,7 @@ var init_effects = __esm({
     init_batch();
     init_async();
     init_shared();
+    init_status();
   }
 });
 
@@ -5350,9 +5383,6 @@ var init_legacy = __esm({
 });
 
 // node_modules/svelte/src/internal/client/runtime.js
-function set_is_updating_effect(value) {
-  is_updating_effect = value;
-}
 function set_is_destroying_effect(value) {
   is_destroying_effect = value;
 }
@@ -5389,23 +5419,24 @@ function is_dirty(reaction) {
     reaction.f &= ~WAS_MARKED;
   }
   if ((flags2 & MAYBE_DIRTY) !== 0) {
-    var dependencies = reaction.deps;
-    if (dependencies !== null) {
-      var length = dependencies.length;
-      for (var i = 0; i < length; i++) {
-        var dependency = dependencies[i];
-        if (is_dirty(
+    var dependencies = (
+      /** @type {Value[]} */
+      reaction.deps
+    );
+    var length = dependencies.length;
+    for (var i = 0; i < length; i++) {
+      var dependency = dependencies[i];
+      if (is_dirty(
+        /** @type {Derived} */
+        dependency
+      )) {
+        update_derived(
           /** @type {Derived} */
           dependency
-        )) {
-          update_derived(
-            /** @type {Derived} */
-            dependency
-          );
-        }
-        if (dependency.wv > reaction.wv) {
-          return true;
-        }
+        );
+      }
+      if (dependency.wv > reaction.wv) {
+        return true;
       }
     }
     if ((flags2 & CONNECTED) !== 0 && // During time traveling we don't want to reset the status so that
@@ -5509,6 +5540,16 @@ function update_reaction(reaction) {
     }
     if (previous_reaction !== null && previous_reaction !== reaction) {
       read_version++;
+      if (previous_reaction.deps !== null) {
+        for (let i2 = 0; i2 < previous_skipped_deps; i2 += 1) {
+          previous_reaction.deps[i2].rv = read_version;
+        }
+      }
+      if (previous_deps !== null) {
+        for (const dep of previous_deps) {
+          dep.rv = read_version;
+        }
+      }
       if (untracked_writes !== null) {
         if (previous_untracked_writes === null) {
           previous_untracked_writes = untracked_writes;
@@ -5554,20 +5595,17 @@ function remove_reaction(signal, dependency) {
   // to be unused, when in fact it is used by the currently-updating parent. Checking `new_deps`
   // allows us to skip the expensive work of disconnecting and immediately reconnecting it
   (new_deps === null || !new_deps.includes(dependency))) {
-    set_signal_status(dependency, MAYBE_DIRTY);
-    if ((dependency.f & CONNECTED) !== 0) {
-      dependency.f ^= CONNECTED;
-      dependency.f &= ~WAS_MARKED;
-    }
-    destroy_derived_effects(
-      /** @type {Derived} **/
+    var derived3 = (
+      /** @type {Derived} */
       dependency
     );
-    remove_reactions(
-      /** @type {Derived} **/
-      dependency,
-      0
-    );
+    if ((derived3.f & CONNECTED) !== 0) {
+      derived3.f ^= CONNECTED;
+      derived3.f &= ~WAS_MARKED;
+    }
+    update_derived_status(derived3);
+    destroy_derived_effects(derived3);
+    remove_reactions(derived3, 0);
   }
 }
 function remove_reactions(signal, start_index) {
@@ -5638,7 +5676,7 @@ function get(signal) {
             skipped_deps++;
           } else if (new_deps === null) {
             new_deps = [signal];
-          } else if (!new_deps.includes(signal)) {
+          } else {
             new_deps.push(signal);
           }
         }
@@ -5674,15 +5712,15 @@ function get(signal) {
       }
     }
   }
-  if (is_destroying_effect) {
-    if (old_values.has(signal)) {
-      return old_values.get(signal);
-    }
-    if (is_derived) {
-      var derived3 = (
-        /** @type {Derived} */
-        signal
-      );
+  if (is_destroying_effect && old_values.has(signal)) {
+    return old_values.get(signal);
+  }
+  if (is_derived) {
+    var derived3 = (
+      /** @type {Derived} */
+      signal
+    );
+    if (is_destroying_effect) {
       var value = derived3.v;
       if ((derived3.f & CLEAN) === 0 && derived3.reactions !== null || depends_on_old_values(derived3)) {
         value = execute_derived(derived3);
@@ -5690,13 +5728,15 @@ function get(signal) {
       old_values.set(derived3, value);
       return value;
     }
-  } else if (is_derived && (!batch_values?.has(signal) || current_batch?.is_fork && !effect_tracking())) {
-    derived3 = /** @type {Derived} */
-    signal;
+    var should_connect = (derived3.f & CONNECTED) === 0 && !untracking && active_reaction !== null && (is_updating_effect || (active_reaction.f & CONNECTED) !== 0);
+    var is_new = derived3.deps === null;
     if (is_dirty(derived3)) {
+      if (should_connect) {
+        derived3.f |= CONNECTED;
+      }
       update_derived(derived3);
     }
-    if (is_updating_effect && effect_tracking() && (derived3.f & CONNECTED) === 0) {
+    if (should_connect && !is_new) {
       reconnect(derived3);
     }
   }
@@ -5710,7 +5750,7 @@ function get(signal) {
 }
 function reconnect(derived3) {
   if (derived3.deps === null) return;
-  derived3.f ^= CONNECTED;
+  derived3.f |= CONNECTED;
   for (const dep of derived3.deps) {
     (dep.reactions ??= []).push(derived3);
     if ((dep.f & DERIVED) !== 0 && (dep.f & CONNECTED) === 0) {
@@ -5746,10 +5786,7 @@ function untrack(fn) {
     untracking = previous_untracking;
   }
 }
-function set_signal_status(signal, status) {
-  signal.f = signal.f & STATUS_MASK | status;
-}
-var is_updating_effect, is_destroying_effect, active_reaction, untracking, active_effect, current_sources, new_deps, skipped_deps, untracked_writes, write_version, read_version, update_version, STATUS_MASK;
+var is_updating_effect, is_destroying_effect, active_reaction, untracking, active_effect, current_sources, new_deps, skipped_deps, untracked_writes, write_version, read_version, update_version;
 var init_runtime = __esm({
   "node_modules/svelte/src/internal/client/runtime.js"() {
     init_esm_env();
@@ -5762,12 +5799,12 @@ var init_runtime = __esm({
     init_tracing();
     init_dev();
     init_context();
-    init_warnings();
     init_batch();
     init_error_handling();
     init_constants();
     init_legacy();
     init_shared();
+    init_status();
     is_updating_effect = false;
     is_destroying_effect = false;
     active_reaction = null;
@@ -5780,7 +5817,6 @@ var init_runtime = __esm({
     write_version = 1;
     read_version = 0;
     update_version = read_version;
-    STATUS_MASK = ~(DIRTY | MAYBE_DIRTY | CLEAN);
   }
 });
 
@@ -5949,7 +5985,7 @@ function is_passive_event(name3) {
   return PASSIVE_EVENTS.includes(name3);
 }
 var DOM_BOOLEAN_ATTRIBUTES, DOM_PROPERTIES, PASSIVE_EVENTS, STATE_CREATION_RUNES, RUNES;
-var init_utils2 = __esm({
+var init_utils3 = __esm({
   "node_modules/svelte/src/utils.js"() {
     DOM_BOOLEAN_ATTRIBUTES = [
       "allowfullscreen",
@@ -6195,7 +6231,7 @@ var init_render = __esm({
     init_warnings();
     init_errors2();
     init_template();
-    init_utils2();
+    init_utils3();
     init_constants2();
     init_boundary();
     should_intro = true;
@@ -6207,7 +6243,7 @@ var init_render = __esm({
 // node_modules/svelte/src/internal/shared/validate.js
 var init_validate = __esm({
   "node_modules/svelte/src/internal/shared/validate.js"() {
-    init_utils2();
+    init_utils3();
     init_warnings2();
     init_errors();
     init_errors();
@@ -6300,7 +6336,7 @@ var init_attachments = __esm({
 // node_modules/svelte/src/internal/client/dev/assign.js
 var init_assign = __esm({
   "node_modules/svelte/src/internal/client/dev/assign.js"() {
-    init_utils2();
+    init_utils3();
     init_runtime();
     init_warnings();
   }
@@ -6343,7 +6379,7 @@ var init_ownership = __esm({
     init_constants();
     init_context();
     init_warnings();
-    init_utils2();
+    init_utils3();
   }
 });
 
@@ -6458,7 +6494,7 @@ var init_html = __esm({
     init_reconciler();
     init_template();
     init_warnings();
-    init_utils2();
+    init_utils3();
     init_esm_env();
     init_context();
     init_operations();
@@ -6527,7 +6563,7 @@ var init_svelte_element = __esm({
     init_esm_env();
     init_constants2();
     init_template();
-    init_utils2();
+    init_utils3();
     init_branches();
     init_transitions();
   }
@@ -6629,7 +6665,7 @@ var init_attributes2 = __esm({
     init_warnings();
     init_constants2();
     init_task();
-    init_utils2();
+    init_utils3();
     init_runtime();
     init_attachments2();
     init_attributes();
@@ -6639,6 +6675,15 @@ var init_attributes2 = __esm({
     init_effects();
     init_select();
     init_async();
+  }
+});
+
+// node_modules/svelte/src/internal/client/dom/elements/customizable-select.js
+var init_customizable_select = __esm({
+  "node_modules/svelte/src/internal/client/dom/elements/customizable-select.js"() {
+    init_hydration();
+    init_operations();
+    init_attachments2();
   }
 });
 
@@ -6767,7 +6812,7 @@ function subscribe_to_store(store, run3, invalidate) {
   );
   return unsub.unsubscribe ? () => unsub.unsubscribe() : unsub;
 }
-var init_utils3 = __esm({
+var init_utils4 = __esm({
   "node_modules/svelte/src/store/utils.js"() {
     init_index_client();
     init_utils();
@@ -6880,7 +6925,7 @@ var init_shared2 = __esm({
   "node_modules/svelte/src/store/shared/index.js"() {
     init_utils();
     init_equality();
-    init_utils3();
+    init_utils4();
     subscriber_queue = [];
   }
 });
@@ -6888,7 +6933,7 @@ var init_shared2 = __esm({
 // node_modules/svelte/src/internal/client/reactivity/store.js
 var init_store = __esm({
   "node_modules/svelte/src/internal/client/reactivity/store.js"() {
-    init_utils3();
+    init_utils4();
     init_shared2();
     init_utils();
     init_runtime();
@@ -6949,6 +6994,7 @@ var init_legacy_client = __esm({
     init_constants();
     init_context();
     init_flags();
+    init_status();
     init_event_modifiers();
     Svelte4Component = class {
       /** @type {any} */
@@ -7315,6 +7361,7 @@ var init_client = __esm({
     init_class();
     init_events();
     init_misc();
+    init_customizable_select();
     init_style();
     init_transitions();
     init_document();
@@ -10880,7 +10927,6 @@ var init_ComponentLogger = __esm({
           }
           this.configListeners.forEach((listener) => listener(this.config));
         } catch (error) {
-          console.debug("[ComponentLogger] Failed to load configuration:", error);
           this.config = { ...DEFAULT_CONFIG };
         }
       }
@@ -10895,7 +10941,6 @@ var init_ComponentLogger = __esm({
             });
           }
         } catch (error) {
-          console.debug("[ComponentLogger] Failed to persist configuration:", error);
         }
       }
       onConfigurationChange(listener) {
@@ -11008,20 +11053,31 @@ var init_ComponentLogger = __esm({
           try {
             listener(entry);
           } catch (e) {
-            console.debug("Error in log listener", e);
           }
         });
         if (this.config.destinations.console) {
-          const consoleMethod = entry.level >= 3 /* ERROR */ ? "error" : entry.level >= 2 /* WARN */ ? "warn" : entry.level >= 1 /* INFO */ ? "info" : "log";
-          const emoji = entry.level >= 3 /* ERROR */ ? "\u{1F534}" : entry.level >= 2 /* WARN */ ? "\u{1F7E1}" : entry.level >= 1 /* INFO */ ? "\u{1F7E2}" : "\u{1F535}";
-          const enhancedFormatted = `${emoji} [AzureDevOpsInt][Praxis][${entry.component}] ${formatted}`;
-          console.debug(enhancedFormatted);
-          if (consoleMethod === "error") {
-            console.debug(`\u21B3 ${formatted}`);
-          } else if (consoleMethod === "warn") {
-            console.debug(`\u21B3 ${formatted}`);
-          } else if (consoleMethod === "info") {
-            console.debug(`\u21B3 ${formatted}`);
+          const levelName = LOG_LEVEL_NAMES[entry.level];
+          switch (levelName) {
+            case "ERROR":
+              console.error(formatted);
+              break;
+            case "WARN":
+              console.warn(formatted);
+              break;
+            case "INFO":
+              console.info(formatted);
+              break;
+            case "DEBUG":
+            case "TRACE":
+              if (typeof console.debug === "function") {
+                console.debug(formatted);
+              } else {
+                console.log(formatted);
+              }
+              break;
+            default:
+              console.log(formatted);
+              break;
           }
         }
         if (this.config.destinations.outputChannel) {
@@ -11248,7 +11304,7 @@ function isSpecCompliantForm(thing) {
   return !!(thing && isFunction(thing.append) && thing[toStringTag] === "FormData" && thing[iterator]);
 }
 var toString2, getPrototypeOf, iterator, toStringTag, kindOf, kindOfTest, typeOfTest, isArray, isUndefined, isArrayBuffer, isString, isFunction, isNumber, isObject2, isBoolean2, isPlainObject, isEmptyObject, isDate, isFile, isBlob, isFileList, isStream, isFormData, isURLSearchParams, isReadableStream, isRequest, isResponse, isHeaders, trim, _global, isContextDefined, extend3, stripBOM, inherits, toFlatObject, endsWith, toArray2, isTypedArray, forEachEntry, matchAll, isHTMLForm, toCamelCase, hasOwnProperty, isRegExp, reduceDescriptors, freezeMethods, toObjectSet, noop2, toFiniteNumber, toJSONObject, isAsyncFn, isThenable, _setImmediate, asap, isIterable, utils_default;
-var init_utils4 = __esm({
+var init_utils5 = __esm({
   "node_modules/axios/lib/utils.js"() {
     "use strict";
     init_bind();
@@ -11583,7 +11639,7 @@ var prototype, descriptors, AxiosError_default;
 var init_AxiosError = __esm({
   "node_modules/axios/lib/core/AxiosError.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     utils_default.inherits(AxiosError, Error, {
       toJSON: function toJSON() {
         return {
@@ -22039,7 +22095,7 @@ var predicates, toFormData_default;
 var init_toFormData = __esm({
   "node_modules/axios/lib/helpers/toFormData.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_AxiosError();
     init_FormData();
     predicates = utils_default.toFlatObject(utils_default, {}, null, function filter(prop2) {
@@ -22122,7 +22178,7 @@ function buildURL(url2, params, options) {
 var init_buildURL = __esm({
   "node_modules/axios/lib/helpers/buildURL.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_AxiosURLSearchParams();
   }
 });
@@ -22132,7 +22188,7 @@ var InterceptorManager, InterceptorManager_default;
 var init_InterceptorManager = __esm({
   "node_modules/axios/lib/core/InterceptorManager.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     InterceptorManager = class {
       constructor() {
         this.handlers = [];
@@ -22269,7 +22325,7 @@ __export(utils_exports, {
   origin: () => origin
 });
 var hasBrowserEnv, _navigator, hasStandardBrowserEnv, hasStandardBrowserWebWorkerEnv, origin;
-var init_utils5 = __esm({
+var init_utils6 = __esm({
   "node_modules/axios/lib/platform/common/utils.js"() {
     hasBrowserEnv = typeof window !== "undefined" && typeof document !== "undefined";
     _navigator = typeof navigator === "object" && navigator || void 0;
@@ -22287,7 +22343,7 @@ var platform_default;
 var init_platform = __esm({
   "node_modules/axios/lib/platform/index.js"() {
     init_node2();
-    init_utils5();
+    init_utils6();
     platform_default = {
       ...utils_exports,
       ...node_default
@@ -22311,7 +22367,7 @@ function toURLEncodedForm(data, options) {
 var init_toURLEncodedForm = __esm({
   "node_modules/axios/lib/helpers/toURLEncodedForm.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_toFormData();
     init_platform();
   }
@@ -22372,7 +22428,7 @@ var formDataToJSON_default;
 var init_formDataToJSON = __esm({
   "node_modules/axios/lib/helpers/formDataToJSON.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     formDataToJSON_default = formDataToJSON;
   }
 });
@@ -22395,7 +22451,7 @@ var defaults, defaults_default;
 var init_defaults = __esm({
   "node_modules/axios/lib/defaults/index.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_AxiosError();
     init_transitional();
     init_toFormData();
@@ -22504,7 +22560,7 @@ var ignoreDuplicateOf, parseHeaders_default;
 var init_parseHeaders = __esm({
   "node_modules/axios/lib/helpers/parseHeaders.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     ignoreDuplicateOf = utils_default.toObjectSet([
       "age",
       "authorization",
@@ -22605,7 +22661,7 @@ var $internals, isValidHeaderName, AxiosHeaders, AxiosHeaders_default;
 var init_AxiosHeaders = __esm({
   "node_modules/axios/lib/core/AxiosHeaders.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_parseHeaders();
     $internals = /* @__PURE__ */ Symbol("internals");
     isValidHeaderName = (str2) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str2.trim());
@@ -22803,7 +22859,7 @@ function transformData(fns, response) {
 var init_transformData = __esm({
   "node_modules/axios/lib/core/transformData.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_defaults();
     init_AxiosHeaders();
   }
@@ -22829,7 +22885,7 @@ var init_CanceledError = __esm({
   "node_modules/axios/lib/cancel/CanceledError.js"() {
     "use strict";
     init_AxiosError();
-    init_utils4();
+    init_utils5();
     utils_default.inherits(CanceledError, AxiosError_default, {
       __CANCEL__: true
     });
@@ -23084,7 +23140,7 @@ var require_ms = __commonJS({
 // node_modules/debug/src/common.js
 var require_common = __commonJS({
   "node_modules/debug/src/common.js"(exports2, module2) {
-    function setup(env5) {
+    function setup(env6) {
       createDebug.debug = createDebug;
       createDebug.default = createDebug;
       createDebug.coerce = coerce;
@@ -23093,8 +23149,8 @@ var require_common = __commonJS({
       createDebug.enabled = enabled;
       createDebug.humanize = require_ms();
       createDebug.destroy = destroy;
-      Object.keys(env5).forEach((key2) => {
-        createDebug[key2] = env5[key2];
+      Object.keys(env6).forEach((key2) => {
+        createDebug[key2] = env6[key2];
       });
       createDebug.names = [];
       createDebug.skips = [];
@@ -23448,7 +23504,7 @@ var require_supports_color = __commonJS({
     var os = require("os");
     var tty = require("tty");
     var hasFlag = require_has_flag();
-    var { env: env5 } = process;
+    var { env: env6 } = process;
     var flagForceColor;
     if (hasFlag("no-color") || hasFlag("no-colors") || hasFlag("color=false") || hasFlag("color=never")) {
       flagForceColor = 0;
@@ -23456,14 +23512,14 @@ var require_supports_color = __commonJS({
       flagForceColor = 1;
     }
     function envForceColor() {
-      if ("FORCE_COLOR" in env5) {
-        if (env5.FORCE_COLOR === "true") {
+      if ("FORCE_COLOR" in env6) {
+        if (env6.FORCE_COLOR === "true") {
           return 1;
         }
-        if (env5.FORCE_COLOR === "false") {
+        if (env6.FORCE_COLOR === "false") {
           return 0;
         }
-        return env5.FORCE_COLOR.length === 0 ? 1 : Math.min(Number.parseInt(env5.FORCE_COLOR, 10), 3);
+        return env6.FORCE_COLOR.length === 0 ? 1 : Math.min(Number.parseInt(env6.FORCE_COLOR, 10), 3);
       }
     }
     function translateLevel(level) {
@@ -23498,7 +23554,7 @@ var require_supports_color = __commonJS({
         return 0;
       }
       const min = forceColor || 0;
-      if (env5.TERM === "dumb") {
+      if (env6.TERM === "dumb") {
         return min;
       }
       if (process.platform === "win32") {
@@ -23508,34 +23564,34 @@ var require_supports_color = __commonJS({
         }
         return 1;
       }
-      if ("CI" in env5) {
-        if (["TRAVIS", "CIRCLECI", "APPVEYOR", "GITLAB_CI", "GITHUB_ACTIONS", "BUILDKITE", "DRONE"].some((sign) => sign in env5) || env5.CI_NAME === "codeship") {
+      if ("CI" in env6) {
+        if (["TRAVIS", "CIRCLECI", "APPVEYOR", "GITLAB_CI", "GITHUB_ACTIONS", "BUILDKITE", "DRONE"].some((sign) => sign in env6) || env6.CI_NAME === "codeship") {
           return 1;
         }
         return min;
       }
-      if ("TEAMCITY_VERSION" in env5) {
-        return /^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(env5.TEAMCITY_VERSION) ? 1 : 0;
+      if ("TEAMCITY_VERSION" in env6) {
+        return /^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(env6.TEAMCITY_VERSION) ? 1 : 0;
       }
-      if (env5.COLORTERM === "truecolor") {
+      if (env6.COLORTERM === "truecolor") {
         return 3;
       }
-      if ("TERM_PROGRAM" in env5) {
-        const version3 = Number.parseInt((env5.TERM_PROGRAM_VERSION || "").split(".")[0], 10);
-        switch (env5.TERM_PROGRAM) {
+      if ("TERM_PROGRAM" in env6) {
+        const version3 = Number.parseInt((env6.TERM_PROGRAM_VERSION || "").split(".")[0], 10);
+        switch (env6.TERM_PROGRAM) {
           case "iTerm.app":
             return version3 >= 3 ? 3 : 2;
           case "Apple_Terminal":
             return 2;
         }
       }
-      if (/-256(color)?$/i.test(env5.TERM)) {
+      if (/-256(color)?$/i.test(env6.TERM)) {
         return 2;
       }
-      if (/^screen|^xterm|^vt100|^vt220|^rxvt|color|ansi|cygwin|linux/i.test(env5.TERM)) {
+      if (/^screen|^xterm|^vt100|^vt220|^rxvt|color|ansi|cygwin|linux/i.test(env6.TERM)) {
         return 1;
       }
-      if ("COLORTERM" in env5) {
+      if ("COLORTERM" in env6) {
         return 1;
       }
       return min;
@@ -24319,7 +24375,7 @@ var init_AxiosTransformStream = __esm({
   "node_modules/axios/lib/helpers/AxiosTransformStream.js"() {
     "use strict";
     import_stream = __toESM(require("stream"), 1);
-    init_utils4();
+    init_utils5();
     kInternals = /* @__PURE__ */ Symbol("internals");
     AxiosTransformStream = class extends import_stream.default.Transform {
       constructor(options) {
@@ -24461,7 +24517,7 @@ var init_formDataToStream = __esm({
   "node_modules/axios/lib/helpers/formDataToStream.js"() {
     import_util = __toESM(require("util"), 1);
     import_stream2 = require("stream");
-    init_utils4();
+    init_utils5();
     init_readBlob();
     init_platform();
     BOUNDARY_ALPHABET = platform_default.ALPHABET.ALPHA_DIGIT + "-_";
@@ -24576,7 +24632,7 @@ var init_ZlibHeaderTransformStream = __esm({
 var callbackify, callbackify_default;
 var init_callbackify = __esm({
   "node_modules/axios/lib/helpers/callbackify.js"() {
-    init_utils4();
+    init_utils5();
     callbackify = (fn, reducer) => {
       return utils_default.isAsyncFn(fn) ? function(...args) {
         const cb = args.pop();
@@ -24681,7 +24737,7 @@ var init_progressEventReducer = __esm({
   "node_modules/axios/lib/helpers/progressEventReducer.js"() {
     init_speedometer();
     init_throttle();
-    init_utils4();
+    init_utils5();
     progressEventReducer = (listener, isDownloadStream, freq = 3) => {
       let bytesNotified = 0;
       const _speedometer = speedometer_default(50, 250);
@@ -24818,7 +24874,7 @@ function setProxy(options, configProxy, location) {
 var import_proxy_from_env, import_http, import_https, import_http2, import_util2, import_follow_redirects, import_zlib, import_stream4, import_events5, zlibOptions, brotliOptions, isBrotliSupported, httpFollow, httpsFollow, isHttps, supportedProtocols, flushOnFinish, Http2Sessions, http2Sessions, isHttpAdapterSupported, wrapAsync, resolveFamily, buildAddressEntry, http2Transport, http_default;
 var init_http = __esm({
   "node_modules/axios/lib/adapters/http.js"() {
-    init_utils4();
+    init_utils5();
     init_settle();
     init_buildFullPath();
     init_buildURL();
@@ -25466,7 +25522,7 @@ var init_isURLSameOrigin = __esm({
 var cookies_default;
 var init_cookies = __esm({
   "node_modules/axios/lib/helpers/cookies.js"() {
-    init_utils4();
+    init_utils5();
     init_platform();
     cookies_default = platform_default.hasStandardBrowserEnv ? (
       // Standard browser envs support document.cookie
@@ -25597,7 +25653,7 @@ var headersToObject;
 var init_mergeConfig = __esm({
   "node_modules/axios/lib/core/mergeConfig.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_AxiosHeaders();
     headersToObject = (thing) => thing instanceof AxiosHeaders_default ? { ...thing } : thing;
   }
@@ -25608,7 +25664,7 @@ var resolveConfig_default;
 var init_resolveConfig = __esm({
   "node_modules/axios/lib/helpers/resolveConfig.js"() {
     init_platform();
-    init_utils4();
+    init_utils5();
     init_isURLSameOrigin();
     init_cookies();
     init_buildFullPath();
@@ -25657,7 +25713,7 @@ var init_resolveConfig = __esm({
 var isXHRAdapterSupported, xhr_default;
 var init_xhr = __esm({
   "node_modules/axios/lib/adapters/xhr.js"() {
-    init_utils4();
+    init_utils5();
     init_settle();
     init_transitional();
     init_AxiosError();
@@ -25804,7 +25860,7 @@ var init_composeSignals = __esm({
   "node_modules/axios/lib/helpers/composeSignals.js"() {
     init_CanceledError();
     init_AxiosError();
-    init_utils4();
+    init_utils5();
     composeSignals = (signals, timeout) => {
       const { length } = signals = signals ? signals.filter(Boolean) : [];
       if (timeout || length) {
@@ -25929,7 +25985,7 @@ var DEFAULT_CHUNK_SIZE, isFunction2, globalFetchAPI, ReadableStream2, TextEncode
 var init_fetch = __esm({
   "node_modules/axios/lib/adapters/fetch.js"() {
     init_platform();
-    init_utils4();
+    init_utils5();
     init_AxiosError();
     init_composeSignals();
     init_trackStream();
@@ -25954,11 +26010,11 @@ var init_fetch = __esm({
         return false;
       }
     };
-    factory = (env5) => {
-      env5 = utils_default.merge.call({
+    factory = (env6) => {
+      env6 = utils_default.merge.call({
         skipUndefined: true
-      }, globalFetchAPI, env5);
-      const { fetch: envFetch, Request, Response } = env5;
+      }, globalFetchAPI, env6);
+      const { fetch: envFetch, Request, Response } = env6;
       const isFetchSupported = envFetch ? isFunction2(envFetch) : typeof fetch === "function";
       const isRequestSupported = isFunction2(Request);
       const isResponseSupported = isFunction2(Response);
@@ -26127,8 +26183,8 @@ var init_fetch = __esm({
     };
     seedCache = /* @__PURE__ */ new Map();
     getFetch = (config) => {
-      let env5 = config && config.env || {};
-      const { fetch: fetch2, Request, Response } = env5;
+      let env6 = config && config.env || {};
+      const { fetch: fetch2, Request, Response } = env6;
       const seeds = [
         Request,
         Response,
@@ -26138,7 +26194,7 @@ var init_fetch = __esm({
       while (i--) {
         seed = seeds[i];
         target = map2.get(seed);
-        target === void 0 && map2.set(seed, target = i ? /* @__PURE__ */ new Map() : factory(env5));
+        target === void 0 && map2.set(seed, target = i ? /* @__PURE__ */ new Map() : factory(env6));
         map2 = target;
       }
       return target;
@@ -26184,7 +26240,7 @@ function getAdapter(adapters, config) {
 var knownAdapters, renderReason, isResolvedHandle, adapters_default;
 var init_adapters = __esm({
   "node_modules/axios/lib/adapters/adapters.js"() {
-    init_utils4();
+    init_utils5();
     init_http();
     init_xhr();
     init_fetch();
@@ -26355,7 +26411,7 @@ var validators2, Axios, Axios_default;
 var init_Axios = __esm({
   "node_modules/axios/lib/core/Axios.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_buildURL();
     init_InterceptorManager();
     init_dispatchRequest();
@@ -26660,7 +26716,7 @@ function isAxiosError(payload) {
 var init_isAxiosError = __esm({
   "node_modules/axios/lib/helpers/isAxiosError.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
   }
 });
 
@@ -26761,7 +26817,7 @@ var axios, axios_default;
 var init_axios = __esm({
   "node_modules/axios/lib/axios.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_bind();
     init_Axios();
     init_mergeConfig();
@@ -29822,11 +29878,11 @@ var init_AccountEntity = __esm({
         account.clientInfo = accountDetails.clientInfo;
         account.homeAccountId = accountDetails.homeAccountId;
         account.nativeAccountId = accountDetails.nativeAccountId;
-        const env5 = accountDetails.environment || authority && authority.getPreferredCache();
-        if (!env5) {
+        const env6 = accountDetails.environment || authority && authority.getPreferredCache();
+        if (!env6) {
           throw createClientAuthError(invalidCacheEnvironment);
         }
-        account.environment = env5;
+        account.environment = env6;
         account.realm = clientInfo?.utid || getTenantIdFromIdTokenClaims(accountDetails.idTokenClaims) || "";
         account.localAccountId = clientInfo?.uid || accountDetails.idTokenClaims?.oid || accountDetails.idTokenClaims?.sub || "";
         const preferredUsername = accountDetails.idTokenClaims?.preferred_username || accountDetails.idTokenClaims?.upn;
@@ -34314,15 +34370,15 @@ ${serverError}`);
        * @param authority
        */
       generateCacheRecord(serverTokenResponse, authority, reqTimestamp, request, idTokenClaims, userAssertionHash, authCodePayload) {
-        const env5 = authority.getPreferredCache();
-        if (!env5) {
+        const env6 = authority.getPreferredCache();
+        if (!env6) {
           throw createClientAuthError(invalidCacheEnvironment);
         }
         const claimsTenantId = getTenantIdFromIdTokenClaims(idTokenClaims);
         let cachedIdToken;
         let cachedAccount;
         if (serverTokenResponse.id_token && !!idTokenClaims) {
-          cachedIdToken = createIdTokenEntity(this.homeAccountIdentifier, env5, serverTokenResponse.id_token, this.clientId, claimsTenantId || "");
+          cachedIdToken = createIdTokenEntity(this.homeAccountIdentifier, env6, serverTokenResponse.id_token, this.clientId, claimsTenantId || "");
           cachedAccount = buildAccountToCache(
             this.cacheStorage,
             authority,
@@ -34331,7 +34387,7 @@ ${serverError}`);
             request.correlationId,
             idTokenClaims,
             serverTokenResponse.client_info,
-            env5,
+            env6,
             claimsTenantId,
             authCodePayload,
             void 0,
@@ -34348,7 +34404,7 @@ ${serverError}`);
           const tokenExpirationSeconds = reqTimestamp + expiresIn;
           const extendedTokenExpirationSeconds = tokenExpirationSeconds + extExpiresIn;
           const refreshOnSeconds = refreshIn && refreshIn > 0 ? reqTimestamp + refreshIn : void 0;
-          cachedAccessToken = createAccessTokenEntity(this.homeAccountIdentifier, env5, serverTokenResponse.access_token, this.clientId, claimsTenantId || authority.tenant || "", responseScopes.printScopes(), tokenExpirationSeconds, extendedTokenExpirationSeconds, this.cryptoObj.base64Decode, refreshOnSeconds, serverTokenResponse.token_type, userAssertionHash, serverTokenResponse.key_id, request.claims, request.requestedClaimsHash);
+          cachedAccessToken = createAccessTokenEntity(this.homeAccountIdentifier, env6, serverTokenResponse.access_token, this.clientId, claimsTenantId || authority.tenant || "", responseScopes.printScopes(), tokenExpirationSeconds, extendedTokenExpirationSeconds, this.cryptoObj.base64Decode, refreshOnSeconds, serverTokenResponse.token_type, userAssertionHash, serverTokenResponse.key_id, request.claims, request.requestedClaimsHash);
         }
         let cachedRefreshToken = null;
         if (serverTokenResponse.refresh_token) {
@@ -34357,13 +34413,13 @@ ${serverError}`);
             const rtExpiresIn = typeof serverTokenResponse.refresh_token_expires_in === "string" ? parseInt(serverTokenResponse.refresh_token_expires_in, 10) : serverTokenResponse.refresh_token_expires_in;
             rtExpiresOn = reqTimestamp + rtExpiresIn;
           }
-          cachedRefreshToken = createRefreshTokenEntity(this.homeAccountIdentifier, env5, serverTokenResponse.refresh_token, this.clientId, serverTokenResponse.foci, userAssertionHash, rtExpiresOn);
+          cachedRefreshToken = createRefreshTokenEntity(this.homeAccountIdentifier, env6, serverTokenResponse.refresh_token, this.clientId, serverTokenResponse.foci, userAssertionHash, rtExpiresOn);
         }
         let cachedAppMetadata = null;
         if (serverTokenResponse.foci) {
           cachedAppMetadata = {
             clientId: this.clientId,
-            environment: env5,
+            environment: env6,
             familyId: serverTokenResponse.foci
           };
         }
@@ -42716,6 +42772,192 @@ var init_deviceCodeHelpers = __esm({
   }
 });
 
+// src/services/auth/deviceCodeFlow.ts
+function normalizeDeviceCodeResponse2(response) {
+  const enriched = enrichDeviceCodeResponse(response);
+  const userCode = enriched.userCode ?? enriched.__normalized?.userCode;
+  const verificationUri = enriched.verificationUri ?? enriched.__normalized?.verificationUri ?? "https://microsoft.com/devicelogin";
+  const verificationUriComplete = enriched.verificationUriComplete;
+  const expiresInSeconds = enriched.expiresInSeconds ?? enriched.__normalized?.expiresInSeconds ?? 900;
+  const message = enriched.message ?? enriched.__normalized?.message;
+  return {
+    userCode,
+    verificationUri,
+    verificationUriComplete,
+    expiresInSeconds,
+    message
+  };
+}
+async function notifyDeviceCode(info, options) {
+  const { userCode, verificationUri, message } = info;
+  if (options.interactive !== false) {
+    const useCode = message || `Code: ${userCode}`;
+    const action2 = await vscode6.window.showInformationMessage(
+      useCode,
+      { modal: false },
+      "Open Browser"
+    );
+    if (action2 === "Open Browser") {
+      await vscode6.env.openExternal(vscode6.Uri.parse(verificationUri));
+    }
+  }
+}
+async function attemptDeviceCodeFlow(context, clientId, tenantId, scopes, secretKey, legacyKey, options) {
+  const pca = new PublicClientApplication({
+    auth: {
+      clientId,
+      authority: `https://login.microsoftonline.com/${tenantId}`
+    }
+  });
+  const deviceCodeRequest = {
+    deviceCodeCallback: async (response) => {
+      try {
+        const info = normalizeDeviceCodeResponse2(response);
+        if (!info || !info.userCode || info.userCode.trim() === "") {
+          activationLogger.error("[deviceCodeFlow] Invalid device code response", {
+            meta: { response, hasUserCode: !!info?.userCode }
+          });
+          try {
+            await notifyDeviceCode(
+              {
+                userCode: "",
+                verificationUri: info?.verificationUri || "https://microsoft.com/devicelogin",
+                expiresInSeconds: info?.expiresInSeconds || 900
+              },
+              options
+            );
+          } catch (notifyError) {
+            activationLogger.error("[deviceCodeFlow] Failed to notify device code error", {
+              meta: notifyError
+            });
+          }
+          return;
+        }
+        try {
+          await notifyDeviceCode(info, options);
+        } catch (notifyError) {
+          activationLogger.error("[deviceCodeFlow] Error in notifyDeviceCode", {
+            meta: { notifyError, hasUserCode: !!info?.userCode }
+          });
+        }
+      } catch (error) {
+        activationLogger.error("[deviceCodeFlow] Error in deviceCodeCallback", {
+          meta: { error, response }
+        });
+        try {
+          await notifyDeviceCode(
+            {
+              userCode: "",
+              verificationUri: "https://microsoft.com/devicelogin",
+              expiresInSeconds: 900
+            },
+            options
+          );
+        } catch (notifyError) {
+          activationLogger.error("[deviceCodeFlow] Failed to notify device code error", {
+            meta: notifyError
+          });
+        }
+      }
+    },
+    scopes
+  };
+  const tokenResponse = await pca.acquireTokenByDeviceCode(deviceCodeRequest);
+  if (tokenResponse && tokenResponse.accessToken) {
+    await context.secrets.store(secretKey, tokenResponse.accessToken);
+    if (legacyKey !== secretKey) {
+      await context.secrets.delete(legacyKey);
+    }
+    return tokenResponse.accessToken;
+  }
+  throw new Error("Failed to acquire Entra ID token.");
+}
+var vscode6, activationLogger;
+var init_deviceCodeFlow = __esm({
+  "src/services/auth/deviceCodeFlow.ts"() {
+    "use strict";
+    vscode6 = __toESM(require("vscode"), 1);
+    init_dist2();
+    init_unifiedLogger();
+    init_deviceCodeHelpers();
+    activationLogger = createLogger("auth-device-code-flow");
+  }
+});
+
+// src/services/auth/authHelpers.ts
+function isTokenExpired2(token) {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) {
+      return true;
+    }
+    const payload = JSON.parse(Buffer.from(parts[1], "base64").toString());
+    const now = Math.floor(Date.now() / 1e3);
+    return payload.exp < now + 300;
+  } catch {
+    return true;
+  }
+}
+function resolveScopes(customScopes) {
+  const scopes = /* @__PURE__ */ new Set();
+  (customScopes ?? [AZURE_DEVOPS_SCOPE]).forEach((scope) => {
+    if (scope && typeof scope === "string") {
+      const trimmed = scope.trim();
+      if (trimmed.length > 0) {
+        scopes.add(trimmed);
+      }
+    }
+  });
+  scopes.add(OFFLINE_ACCESS_SCOPE);
+  return Array.from(scopes);
+}
+async function tryGetCachedToken(context, searchKeys, targetKey) {
+  for (const key2 of searchKeys) {
+    const cachedToken = await context.secrets.get(key2);
+    if (cachedToken && !isTokenExpired2(cachedToken)) {
+      if (key2 !== targetKey) {
+        await context.secrets.store(targetKey, cachedToken);
+      }
+      return cachedToken;
+    }
+  }
+  return void 0;
+}
+function formatAuthError(error) {
+  if (!error) return "Unknown error";
+  const parts = [];
+  const knownFields = [
+    error.errorCode,
+    error.subError,
+    error.statusCode,
+    error.message,
+    error.errorMessage,
+    error.correlationId
+  ].filter(Boolean).map((v) => `${v}`);
+  parts.push(...knownFields);
+  const responseBody = error?.responseBody || error?.body || error?.response?.body;
+  if (responseBody) {
+    const bodyString = typeof responseBody === "string" ? responseBody : JSON.stringify(responseBody);
+    parts.push(`body=${bodyString}`);
+  }
+  if (error?.stack) {
+    parts.push(`stack=${error.stack}`);
+  }
+  return parts.filter(Boolean).join(" | ");
+}
+var vscode7, activationLogger2, OFFLINE_ACCESS_SCOPE, AZURE_DEVOPS_SCOPE;
+var init_authHelpers = __esm({
+  "src/services/auth/authHelpers.ts"() {
+    "use strict";
+    vscode7 = __toESM(require("vscode"), 1);
+    init_deviceCodeHelpers();
+    init_unifiedLogger();
+    activationLogger2 = createLogger("auth-helpers");
+    OFFLINE_ACCESS_SCOPE = "offline_access";
+    AZURE_DEVOPS_SCOPE = "499b84ac-1321-427f-aa17-267ca6975798/.default";
+  }
+});
+
 // src/config/authConfig.ts
 var authConfig_exports = {};
 __export(authConfig_exports, {
@@ -42723,7 +42965,7 @@ __export(authConfig_exports, {
   shouldUseAuthCodeFlow: () => shouldUseAuthCodeFlow
 });
 function getAuthConfig() {
-  const config = vscode6.workspace.getConfiguration("azureDevOpsIntegration.auth");
+  const config = vscode8.workspace.getConfiguration("azureDevOpsIntegration.auth");
   const useAuthCodeFlow = config.get("useAuthCodeFlow", true);
   const flowPreference = config.get("flow", "auto");
   return {
@@ -42744,11 +42986,11 @@ function shouldUseAuthCodeFlow(authMethod, _connectionId) {
   }
   return config.useAuthCodeFlow !== false;
 }
-var vscode6;
+var vscode8;
 var init_authConfig = __esm({
   "src/config/authConfig.ts"() {
     "use strict";
-    vscode6 = __toESM(require("vscode"), 1);
+    vscode8 = __toESM(require("vscode"), 1);
   }
 });
 
@@ -42791,12 +43033,12 @@ var init_pkceUtils = __esm({
 });
 
 // src/services/auth/authorizationCodeProvider.ts
-var vscode7, componentLogger2, AZURE_DEVOPS_RESOURCE_ID, DEFAULT_SCOPES, AUTH_TIMEOUT_MS, AuthorizationCodeFlowProvider;
+var vscode9, componentLogger2, AZURE_DEVOPS_RESOURCE_ID, DEFAULT_SCOPES, AUTH_TIMEOUT_MS, AuthorizationCodeFlowProvider;
 var init_authorizationCodeProvider = __esm({
   "src/services/auth/authorizationCodeProvider.ts"() {
     "use strict";
     init_dist2();
-    vscode7 = __toESM(require("vscode"), 1);
+    vscode9 = __toESM(require("vscode"), 1);
     init_pkceUtils();
     init_ComponentLogger();
     componentLogger2 = createComponentLogger("AUTH" /* AUTH */, "AuthorizationCodeFlowProvider");
@@ -42967,7 +43209,7 @@ var init_authorizationCodeProvider = __esm({
             authorizationUrl,
             expiresInSeconds: Math.floor(AUTH_TIMEOUT_MS / 1e3)
           });
-          await vscode7.env.openExternal(vscode7.Uri.parse(authorizationUrl));
+          await vscode9.env.openExternal(vscode9.Uri.parse(authorizationUrl));
           componentLogger2.info("Authorization URL opened in browser", {
             connectionId: this.connectionId,
             authorizationUrl: authorizationUrl.substring(0, 100) + "..."
@@ -43304,141 +43546,6 @@ async function getPat(context, patKey) {
   }
   return pat;
 }
-function isTokenExpired2(token) {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) {
-      return true;
-    }
-    const payload = JSON.parse(Buffer.from(parts[1], "base64").toString());
-    const now = Math.floor(Date.now() / 1e3);
-    return payload.exp < now + 300;
-  } catch {
-    return true;
-  }
-}
-function resolveScopes(customScopes) {
-  const scopes = /* @__PURE__ */ new Set();
-  (customScopes ?? [AZURE_DEVOPS_SCOPE]).forEach((scope) => {
-    if (scope && typeof scope === "string") {
-      const trimmed = scope.trim();
-      if (trimmed.length > 0) {
-        scopes.add(trimmed);
-      }
-    }
-  });
-  scopes.add(OFFLINE_ACCESS_SCOPE);
-  return Array.from(scopes);
-}
-async function tryGetCachedToken(context, searchKeys, targetKey) {
-  for (const key2 of searchKeys) {
-    const cachedToken = await context.secrets.get(key2);
-    if (cachedToken && !isTokenExpired2(cachedToken)) {
-      if (key2 !== targetKey) {
-        await context.secrets.store(targetKey, cachedToken);
-      }
-      return cachedToken;
-    }
-  }
-  return void 0;
-}
-function normalizeDeviceCodeResponse2(response) {
-  const enriched = enrichDeviceCodeResponse(response);
-  const userCode = enriched.userCode ?? enriched.__normalized?.userCode;
-  const verificationUri = enriched.verificationUri ?? enriched.__normalized?.verificationUri ?? "https://microsoft.com/devicelogin";
-  const expiresInSeconds = enriched.__normalized?.expiresInSeconds ?? response?.expiresIn ?? response?.expires_in ?? 900;
-  return {
-    userCode,
-    verificationUri,
-    verificationUriComplete: enriched.verificationUriComplete ?? enriched.__normalized?.verificationUriComplete,
-    expiresInSeconds,
-    message: enriched.message
-  };
-}
-async function notifyDeviceCode(info, options) {
-  if (!info.userCode || info.userCode.trim() === "") {
-    activationLogger.warn("[notifyDeviceCode] Device code is missing", {
-      meta: { hasVerificationUri: !!info.verificationUri }
-    });
-    vscode8.window.showErrorMessage("Device code is not available. Please try signing in again.");
-    return;
-  }
-  if (info.userCode) {
-    try {
-      await vscode8.env.clipboard.writeText(info.userCode);
-    } catch (error) {
-      activationLogger.warn("[notifyDeviceCode] Failed to copy device code to clipboard", {
-        meta: error
-      });
-    }
-  }
-  const label = options.connectionLabel || options.connectionId || "Microsoft Entra ID";
-  const message = `To sign in to ${label}, use a web browser to open ${info.verificationUri} and enter the code ${info.userCode} to authenticate.`;
-  const openInBrowser = "Open in Browser";
-  void vscode8.window.showInformationMessage(message, openInBrowser).then(async (action2) => {
-    if (action2 !== openInBrowser) return;
-    if (info.userCode) {
-      try {
-        await vscode8.env.clipboard.writeText(info.userCode);
-        vscode8.window.showInformationMessage(
-          `Device code ${info.userCode} copied to clipboard. Paste it into the browser to finish signing in.`
-        );
-      } catch (error) {
-        activationLogger.warn("[notifyDeviceCode] Failed to copy device code to clipboard", {
-          meta: error
-        });
-        vscode8.window.showWarningMessage(
-          `Failed to copy device code to clipboard: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    }
-    const target = info.verificationUriComplete || info.verificationUri;
-    try {
-      await vscode8.env.openExternal(vscode8.Uri.parse(target));
-    } catch (error) {
-      activationLogger.warn("[notifyDeviceCode] Failed to open browser", { meta: error });
-      vscode8.window.showErrorMessage("Failed to open browser. Please open it manually.");
-    }
-  }).then(void 0, (error) => {
-    activationLogger.warn("[notifyDeviceCode] Notification error", { meta: error });
-  });
-  if (info.userCode && typeof options.onDeviceCode === "function") {
-    Promise.resolve(
-      options.onDeviceCode({
-        userCode: info.userCode,
-        verificationUri: info.verificationUri,
-        verificationUriComplete: info.verificationUriComplete,
-        expiresInSeconds: info.expiresInSeconds
-      })
-    ).catch((error) => {
-      activationLogger.error("[notifyDeviceCode] Error in onDeviceCode callback", {
-        meta: error
-      });
-    });
-  }
-}
-function formatAuthError(error) {
-  if (!error) return "Unknown error";
-  const parts = [];
-  const knownFields = [
-    error.errorCode,
-    error.subError,
-    error.statusCode,
-    error.message,
-    error.errorMessage,
-    error.correlationId
-  ].filter(Boolean).map((v) => `${v}`);
-  parts.push(...knownFields);
-  const responseBody = error?.responseBody || error?.body || error?.response?.body;
-  if (responseBody) {
-    const bodyString = typeof responseBody === "string" ? responseBody : JSON.stringify(responseBody);
-    parts.push(`body=${bodyString}`);
-  }
-  if (error?.stack) {
-    parts.push(`stack=${error.stack}`);
-  }
-  return parts.filter(Boolean).join(" | ");
-}
 async function clearEntraIdToken(context, tenantId, clientId) {
   if (!tenantId) {
     return;
@@ -43489,82 +43596,19 @@ async function getEntraIdToken(context, tenantId, options = {}) {
       authCodeResult.error || 'Authorization code flow failed. If you need device code flow, set azureDevOpsIntegration.auth.flow to "device-code"'
     );
   }
-  const attemptAcquire = async (clientId) => {
-    const pca = new PublicClientApplication({
-      auth: {
-        clientId,
-        authority: `https://login.microsoftonline.com/${authorityTenant}`
-      }
-    });
-    const targetKey = `entra:${resolvedTenantId}:${clientId}`;
-    const deviceCodeRequest = {
-      deviceCodeCallback: async (response) => {
-        try {
-          const info = normalizeDeviceCodeResponse2(response);
-          if (!info || !info.userCode || info.userCode.trim() === "") {
-            activationLogger.error("[getEntraIdToken] Invalid device code response received", {
-              meta: { response, hasUserCode: !!info?.userCode }
-            });
-            try {
-              await notifyDeviceCode(
-                {
-                  userCode: "",
-                  verificationUri: info?.verificationUri || "https://microsoft.com/devicelogin",
-                  expiresInSeconds: info?.expiresInSeconds || 900
-                },
-                options
-              );
-            } catch (notifyError) {
-              activationLogger.error("[getEntraIdToken] Failed to notify device code error", {
-                meta: notifyError
-              });
-            }
-            return;
-          }
-          try {
-            await notifyDeviceCode(info, options);
-          } catch (notifyError) {
-            activationLogger.error("[getEntraIdToken] Error in notifyDeviceCode", {
-              meta: { notifyError, hasUserCode: !!info?.userCode }
-            });
-          }
-        } catch (error) {
-          activationLogger.error("[getEntraIdToken] Error in deviceCodeCallback", {
-            meta: { error, response }
-          });
-          try {
-            await notifyDeviceCode(
-              {
-                userCode: "",
-                verificationUri: "https://microsoft.com/devicelogin",
-                expiresInSeconds: 900
-              },
-              options
-            );
-          } catch (notifyError) {
-            activationLogger.error("[getEntraIdToken] Failed to notify device code error", {
-              meta: notifyError
-            });
-          }
-        }
-      },
-      scopes
-    };
-    const tokenResponse = await pca.acquireTokenByDeviceCode(deviceCodeRequest);
-    if (tokenResponse && tokenResponse.accessToken) {
-      await context.secrets.store(targetKey, tokenResponse.accessToken);
-      if (legacyKey !== targetKey) {
-        await context.secrets.delete(legacyKey);
-      }
-      return tokenResponse.accessToken;
-    }
-    throw new Error("Failed to acquire Entra ID token.");
-  };
   const candidateClientIds = [resolvedClientId];
   const errors = [];
   for (const clientId of candidateClientIds) {
     try {
-      return await attemptAcquire(clientId);
+      return await attemptDeviceCodeFlow(
+        context,
+        clientId,
+        authorityTenant,
+        scopes,
+        `entra:${resolvedTenantId}:${clientId}`,
+        legacyKey,
+        options
+      );
     } catch (error) {
       const formatted = formatAuthError(error);
       errors.push(`clientId=${clientId}: ${formatted}`);
@@ -43588,20 +43632,15 @@ function getPendingAuthCodeFlowProvider(connectionId) {
 function clearPendingAuthCodeFlowProvider(connectionId) {
   globalThis.__pendingAuthProviders?.delete(connectionId);
 }
-var vscode8, activationLogger, DEFAULT_ENTRA_TENANT2, DEFAULT_ENTRA_CLIENT_ID3, AZURE_CLI_CLIENT_ID, AZURE_DEVOPS_SCOPE, OFFLINE_ACCESS_SCOPE;
+var DEFAULT_ENTRA_TENANT2, DEFAULT_ENTRA_CLIENT_ID3, AZURE_CLI_CLIENT_ID;
 var init_authentication = __esm({
   "src/services/auth/authentication.ts"() {
     "use strict";
-    init_dist2();
-    vscode8 = __toESM(require("vscode"), 1);
-    init_deviceCodeHelpers();
-    init_unifiedLogger();
-    activationLogger = createLogger("auth-authentication");
+    init_deviceCodeFlow();
+    init_authHelpers();
     DEFAULT_ENTRA_TENANT2 = "organizations";
     DEFAULT_ENTRA_CLIENT_ID3 = "c6c01810-2fff-45f0-861b-2ba02ae00ddc";
     AZURE_CLI_CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46";
-    AZURE_DEVOPS_SCOPE = "499b84ac-1321-427f-aa17-267ca6975798/.default";
-    OFFLINE_ACCESS_SCOPE = "offline_access";
   }
 });
 
@@ -43830,11 +43869,15 @@ var init_driver = __esm({
             if (state2 === "authenticating" && !authStarted) {
               authStarted = true;
               if (this.context) {
-                performAuthentication(manager, config, this.context, forceInteractive, onDeviceCode).catch((err) => {
-                  console.debug(`[ConnectionDriver] Auth error: ${err}`);
+                performAuthentication(
+                  manager,
+                  config,
+                  this.context,
+                  forceInteractive,
+                  onDeviceCode
+                ).catch((err) => {
                 });
               } else {
-                console.debug("[ConnectionDriver] Extension context not set, cannot authenticate");
                 manager.authFailed("Extension context not set");
               }
             } else if (state2 === "creating_client" && !clientStarted && data.credential) {
@@ -43842,7 +43885,6 @@ var init_driver = __esm({
               createClient(manager, config, data.credential, () => {
                 if (this.context && config.authMethod === "entra") {
                   clearEntraIdToken(this.context, config.tenantId, config.clientId).catch((err) => {
-                    console.debug(`[ConnectionDriver] Failed to clear Entra ID token: ${err}`);
                   }).finally(() => {
                     this.onTokenExpired(config.id);
                   });
@@ -43850,12 +43892,10 @@ var init_driver = __esm({
                   this.onTokenExpired(config.id);
                 }
               }).catch((err) => {
-                console.debug(`[ConnectionDriver] Client creation error: ${err}`);
               });
             } else if (state2 === "creating_provider" && !providerStarted && data.client) {
               providerStarted = true;
               createProvider(manager, config, data.client).catch((err) => {
-                console.debug(`[ConnectionDriver] Provider creation error: ${err}`);
               });
             }
             if (state2 === "connected") {
@@ -44199,17 +44239,17 @@ async function signInWithEntra(context, connectionId) {
     const snapshot2 = actor?.getSnapshot?.();
     const activeConnectionId4 = connectionId || snapshot2?.context?.activeConnectionId;
     if (!activeConnectionId4) {
-      vscode9.window.showWarningMessage("No active connection to sign in with.");
+      vscode10.window.showWarningMessage("No active connection to sign in with.");
       return;
     }
     const connections3 = snapshot2?.context?.connections || [];
     const connection = connections3.find((c) => c.id === activeConnectionId4);
     if (!connection) {
-      vscode9.window.showWarningMessage("Connection not found.");
+      vscode10.window.showWarningMessage("Connection not found.");
       return;
     }
     if (connection.authMethod !== "entra") {
-      vscode9.window.showInformationMessage("This connection does not use Entra ID authentication.");
+      vscode10.window.showInformationMessage("This connection does not use Entra ID authentication.");
       return;
     }
     const { clearSignedOutFlag: clearSignedOutFlag2 } = await Promise.resolve().then(() => (init_activation(), activation_exports));
@@ -44233,7 +44273,62 @@ async function signInWithEntra(context, connectionId) {
     });
   } catch (error) {
     logger7.error("signInWithEntra error", { meta: error });
-    vscode9.window.showErrorMessage(`Sign in failed: ${error.message || String(error)}`);
+    vscode10.window.showErrorMessage(`Sign in failed: ${error.message || String(error)}`);
+  }
+}
+async function clearAllEntraTokens(context, connection, activeConnectionId4) {
+  const authModule = await Promise.resolve().then(() => (init_authentication(), authentication_exports));
+  const { clearEntraIdToken: clearEntraIdToken2 } = authModule;
+  const tenantId = connection.tenantId || "organizations";
+  const AZURE_DEVOPS_CLIENT_ID = "872cd9fa-d31f-45e0-9eab-6e460a02d1f1";
+  const AZURE_CLI_CLIENT_ID2 = "04b07795-8ddb-461a-bbee-02f9e1bf7b46";
+  await clearEntraIdToken2(context, tenantId, connection.clientId || AZURE_DEVOPS_CLIENT_ID);
+  await clearEntraIdToken2(context, tenantId, AZURE_DEVOPS_CLIENT_ID);
+  await clearEntraIdToken2(context, tenantId, AZURE_CLI_CLIENT_ID2);
+  await clearEntraIdToken2(context, "organizations", AZURE_DEVOPS_CLIENT_ID);
+  await clearEntraIdToken2(context, "organizations", AZURE_CLI_CLIENT_ID2);
+  await clearEntraIdToken2(context, "organizations", void 0);
+}
+async function clearAuthProviders(activeConnectionId4) {
+  const pendingAuthProviders = globalThis.__pendingAuthProviders;
+  if (pendingAuthProviders) {
+    const provider2 = pendingAuthProviders.get(activeConnectionId4);
+    if (provider2 && typeof provider2.signOut === "function") {
+      await provider2.signOut();
+    }
+    pendingAuthProviders.delete(activeConnectionId4);
+  }
+  try {
+    const { clearPendingAuthCodeFlowProvider: clearPendingAuthCodeFlowProvider2 } = await Promise.resolve().then(() => (init_authentication(), authentication_exports));
+    clearPendingAuthCodeFlowProvider2(activeConnectionId4);
+  } catch {
+  }
+}
+async function disconnectAndMarkSignedOut(activeConnectionId4) {
+  const { ConnectionService: ConnectionService2 } = await Promise.resolve().then(() => (init_service(), service_exports));
+  const connectionService = ConnectionService2.getInstance();
+  logger7.info("[signOutEntra] Disconnecting connection", { connectionId: activeConnectionId4 });
+  connectionService.disconnect(activeConnectionId4);
+  logger7.info("[signOutEntra] Connection disconnected", { connectionId: activeConnectionId4 });
+  try {
+    const { clearConnectionState: clearConnectionState2 } = await Promise.resolve().then(() => (init_activation(), activation_exports));
+    if (typeof clearConnectionState2 === "function") {
+      clearConnectionState2(activeConnectionId4);
+      logger7.info("[signOutEntra] Connection state cleared", { connectionId: activeConnectionId4 });
+    }
+  } catch {
+  }
+  const { markConnectionSignedOut: markConnectionSignedOut2 } = await Promise.resolve().then(() => (init_activation(), activation_exports));
+  if (typeof markConnectionSignedOut2 === "function") {
+    logger7.info("[signOutEntra] Marking connection as signed out", {
+      connectionId: activeConnectionId4
+    });
+    markConnectionSignedOut2(activeConnectionId4);
+    logger7.info("[signOutEntra] Connection marked as signed out", {
+      connectionId: activeConnectionId4
+    });
+  } else {
+    logger7.warn("[signOutEntra] markConnectionSignedOut function not available");
   }
 }
 async function signOutEntra(context, connectionId) {
@@ -44246,70 +44341,22 @@ async function signOutEntra(context, connectionId) {
     logger7.info("signOutEntra: Active connection ID", { activeConnectionId: activeConnectionId4 });
     if (!activeConnectionId4) {
       logger7.warn("signOutEntra: No active connection found");
-      vscode9.window.showWarningMessage("No active connection to sign out from.");
+      vscode10.window.showWarningMessage("No active connection to sign out from.");
       return;
     }
     const connections3 = snapshot2?.context?.connections || [];
     const connection = connections3.find((c) => c.id === activeConnectionId4);
     if (!connection) {
-      vscode9.window.showWarningMessage("Connection not found.");
+      vscode10.window.showWarningMessage("Connection not found.");
       return;
     }
     if (connection.authMethod !== "entra") {
-      vscode9.window.showInformationMessage("This connection does not use Entra ID authentication.");
+      vscode10.window.showInformationMessage("This connection does not use Entra ID authentication.");
       return;
     }
-    const { ConnectionService: ConnectionService2 } = await Promise.resolve().then(() => (init_service(), service_exports));
-    const connectionService = ConnectionService2.getInstance();
-    logger7.info("[signOutEntra] Disconnecting connection", { connectionId: activeConnectionId4 });
-    connectionService.disconnect(activeConnectionId4);
-    logger7.info("[signOutEntra] Connection disconnected", { connectionId: activeConnectionId4 });
-    try {
-      const { clearConnectionState: clearConnectionState2 } = await Promise.resolve().then(() => (init_activation(), activation_exports));
-      if (typeof clearConnectionState2 === "function") {
-        clearConnectionState2(activeConnectionId4);
-        logger7.info("[signOutEntra] Connection state cleared", {
-          connectionId: activeConnectionId4
-        });
-      }
-    } catch {
-    }
-    const authModule = await Promise.resolve().then(() => (init_authentication(), authentication_exports));
-    const { clearEntraIdToken: clearEntraIdToken2 } = authModule;
-    const tenantId = connection.tenantId || "organizations";
-    const AZURE_DEVOPS_CLIENT_ID = "872cd9fa-d31f-45e0-9eab-6e460a02d1f1";
-    const AZURE_CLI_CLIENT_ID2 = "04b07795-8ddb-461a-bbee-02f9e1bf7b46";
-    await clearEntraIdToken2(context, tenantId, connection.clientId || AZURE_DEVOPS_CLIENT_ID);
-    await clearEntraIdToken2(context, tenantId, AZURE_DEVOPS_CLIENT_ID);
-    await clearEntraIdToken2(context, tenantId, AZURE_CLI_CLIENT_ID2);
-    await clearEntraIdToken2(context, "organizations", AZURE_DEVOPS_CLIENT_ID);
-    await clearEntraIdToken2(context, "organizations", AZURE_CLI_CLIENT_ID2);
-    await clearEntraIdToken2(context, "organizations", void 0);
-    const pendingAuthProviders = globalThis.__pendingAuthProviders;
-    if (pendingAuthProviders) {
-      const provider2 = pendingAuthProviders.get(activeConnectionId4);
-      if (provider2 && typeof provider2.signOut === "function") {
-        await provider2.signOut();
-      }
-      pendingAuthProviders.delete(activeConnectionId4);
-    }
-    try {
-      const { clearPendingAuthCodeFlowProvider: clearPendingAuthCodeFlowProvider2 } = await Promise.resolve().then(() => (init_authentication(), authentication_exports));
-      clearPendingAuthCodeFlowProvider2(activeConnectionId4);
-    } catch {
-    }
-    const { markConnectionSignedOut: markConnectionSignedOut2 } = await Promise.resolve().then(() => (init_activation(), activation_exports));
-    if (typeof markConnectionSignedOut2 === "function") {
-      logger7.info("[signOutEntra] Marking connection as signed out", {
-        connectionId: activeConnectionId4
-      });
-      markConnectionSignedOut2(activeConnectionId4);
-      logger7.info("[signOutEntra] Connection marked as signed out", {
-        connectionId: activeConnectionId4
-      });
-    } else {
-      logger7.warn("[signOutEntra] markConnectionSignedOut function not available");
-    }
+    await disconnectAndMarkSignedOut(activeConnectionId4);
+    await clearAllEntraTokens(context, connection, activeConnectionId4);
+    await clearAuthProviders(activeConnectionId4);
     dispatchApplicationEvent({
       type: "SIGN_OUT_ENTRA",
       connectionId: activeConnectionId4
@@ -44318,7 +44365,7 @@ async function signOutEntra(context, connectionId) {
     if (typeof updateAuthStatusBar2 === "function") {
       await updateAuthStatusBar2();
     }
-    vscode9.window.showInformationMessage("Signed out successfully.");
+    vscode10.window.showInformationMessage("Signed out successfully.");
     logger7.info("Sign out completed", { connectionId: activeConnectionId4 });
   } catch (error) {
     logger7.error("signOutEntra error", {
@@ -44328,12 +44375,12 @@ async function signOutEntra(context, connectionId) {
       code: error?.code,
       connectionId: activeConnectionId
     });
-    vscode9.window.showErrorMessage(`Sign out failed: ${error.message || String(error)}`);
+    vscode10.window.showErrorMessage(`Sign out failed: ${error.message || String(error)}`);
   }
 }
 async function setOpenAIApiKey(context) {
   try {
-    const apiKey = await vscode9.window.showInputBox({
+    const apiKey = await vscode10.window.showInputBox({
       prompt: "Enter your OpenAI API Key",
       password: true,
       placeHolder: "sk-...",
@@ -44350,12 +44397,12 @@ async function setOpenAIApiKey(context) {
     if (apiKey) {
       const SECRET_KEY = "azureDevOpsInt.openai.apiKey";
       await context.secrets.store(SECRET_KEY, apiKey);
-      vscode9.window.showInformationMessage("OpenAI API Key saved successfully.");
+      vscode10.window.showInformationMessage("OpenAI API Key saved successfully.");
       logger7.info("OpenAI API key stored in secrets");
     }
   } catch (error) {
     logger7.error("setOpenAIApiKey error", { meta: error });
-    vscode9.window.showErrorMessage(`Failed to save API key: ${error.message || String(error)}`);
+    vscode10.window.showErrorMessage(`Failed to save API key: ${error.message || String(error)}`);
   }
 }
 async function cycleAuthSignIn(context) {
@@ -44378,7 +44425,7 @@ async function cycleAuthSignIn(context) {
       } else if (connections3.length > 0) {
         await signInWithEntra(context, connections3[0].id);
       } else {
-        vscode9.window.showWarningMessage("No connections configured.");
+        vscode10.window.showWarningMessage("No connections configured.");
       }
       return;
     }
@@ -44386,17 +44433,17 @@ async function cycleAuthSignIn(context) {
     const cycleIndex = Math.floor(now / 1e3 % pendingConnections.length);
     const targetConnection = pendingConnections[cycleIndex];
     await signInWithEntra(context, targetConnection.id);
-    vscode9.window.showInformationMessage(
+    vscode10.window.showInformationMessage(
       `Signing in to ${targetConnection.label || targetConnection.id}...`
     );
   } catch (error) {
     logger7.error("cycleAuthSignIn error", { meta: error });
-    vscode9.window.showErrorMessage(`Cycle sign in failed: ${error.message || String(error)}`);
+    vscode10.window.showErrorMessage(`Cycle sign in failed: ${error.message || String(error)}`);
   }
 }
 async function diagnoseWorkItemsIssue(_context) {
   try {
-    const channel = getOutputChannel() || vscode9.window.createOutputChannel("Azure DevOps Integration");
+    const channel = getOutputChannel() || vscode10.window.createOutputChannel("Azure DevOps Integration");
     setOutputChannel(channel);
     channel.show(true);
     logLine("=== Work Items Diagnostic ===");
@@ -44431,22 +44478,22 @@ async function diagnoseWorkItemsIssue(_context) {
     logLine("");
     logLine("=== Diagnostic Complete ===");
     logLine("Check the output above for issues and recommendations.");
-    vscode9.window.showInformationMessage(
+    vscode10.window.showInformationMessage(
       "Work items diagnostic complete. Check the output channel for details."
     );
   } catch (error) {
     logger7.error("diagnoseWorkItemsIssue error", { meta: error });
-    vscode9.window.showErrorMessage(`Diagnostic failed: ${error.message || String(error)}`);
+    vscode10.window.showErrorMessage(`Diagnostic failed: ${error.message || String(error)}`);
   }
 }
 function getConfig() {
-  return vscode9.workspace.getConfiguration("azureDevOpsIntegration");
+  return vscode10.workspace.getConfiguration("azureDevOpsIntegration");
 }
-var vscode9, logger7, setupCommand, signInWithEntraCommand, signOutEntraCommand, openLogsCommand, copyLogsToClipboardCommand, openLogsFolderCommand, diagnoseWorkItemsCommand, focusWorkItemsViewCommand, setDefaultElapsedLimitCommand, showWorkItemsCommand, refreshWorkItemsCommand, createWorkItemCommand, startTimerCommand, pauseTimerCommand, resumeTimerCommand, stopTimerCommand, showTimeReportCommand, createBranchCommand, createPullRequestCommand, showPullRequestsCommand, showBuildStatusCommand, toggleKanbanViewCommand, toggleDebugViewCommand, selectTeamCommand, resetPreferredRepositoriesCommand, selfTestWebviewCommand, clearPerformanceDataCommand, forceGCCommand, bulkAssignCommand, setOpenAIApiKeyCommand, generateCopilotPromptCommand, cycleAuthSignInCommand;
+var vscode10, logger7, setupCommand, signInWithEntraCommand, signOutEntraCommand, openLogsCommand, copyLogsToClipboardCommand, openLogsFolderCommand, diagnoseWorkItemsCommand, focusWorkItemsViewCommand, setDefaultElapsedLimitCommand, showWorkItemsCommand, refreshWorkItemsCommand, createWorkItemCommand, startTimerCommand, pauseTimerCommand, resumeTimerCommand, stopTimerCommand, showTimeReportCommand, createBranchCommand, createPullRequestCommand, showPullRequestsCommand, showBuildStatusCommand, toggleKanbanViewCommand, toggleDebugViewCommand, selectTeamCommand, resetPreferredRepositoriesCommand, selfTestWebviewCommand, clearPerformanceDataCommand, forceGCCommand, bulkAssignCommand, setOpenAIApiKeyCommand, generateCopilotPromptCommand, cycleAuthSignInCommand;
 var init_handlers = __esm({
   "src/features/commands/handlers.ts"() {
     "use strict";
-    vscode9 = __toESM(require("vscode"), 1);
+    vscode10 = __toESM(require("vscode"), 1);
     init_unifiedLogger();
     init_setupService();
     init_logging();
@@ -44478,20 +44525,20 @@ var init_handlers = __esm({
       try {
         let channel = getOutputChannel();
         if (!channel) {
-          channel = vscode9.window.createOutputChannel("Azure DevOps Integration");
+          channel = vscode10.window.createOutputChannel("Azure DevOps Integration");
           setOutputChannel(channel);
           logLine("[logs] Output channel created on demand");
         }
         channel.show(true);
         const currentConfig = getConfig();
         if (!currentConfig.get("debugLogging")) {
-          const pick = await vscode9.window.showInformationMessage(
+          const pick = await vscode10.window.showInformationMessage(
             "Verbose logging is currently disabled. Enable it to capture more diagnostics?",
             "Enable",
             "Skip"
           );
           if (pick === "Enable") {
-            await currentConfig.update("debugLogging", true, vscode9.ConfigurationTarget.Global);
+            await currentConfig.update("debugLogging", true, vscode10.ConfigurationTarget.Global);
             logLine("[logs] Debug logging enabled");
           }
         }
@@ -44511,20 +44558,20 @@ Lines: ${buffer.length}
 `;
         const body = buffer.join("\n");
         const text2 = header + body + (body.endsWith("\n") ? "" : "\n");
-        await vscode9.env.clipboard.writeText(text2);
-        vscode9.window.showInformationMessage("Copied extension logs to clipboard.");
+        await vscode10.env.clipboard.writeText(text2);
+        vscode10.window.showInformationMessage("Copied extension logs to clipboard.");
       } catch (err) {
         logger7.error("copyLogsToClipboard error", { meta: err });
       }
     };
     openLogsFolderCommand = async (_ctx) => {
       try {
-        await vscode9.commands.executeCommand("workbench.action.openLogsFolder");
+        await vscode10.commands.executeCommand("workbench.action.openLogsFolder");
       } catch {
         try {
-          await vscode9.env.openExternal(vscode9.env.logUri ?? vscode9.Uri.file(""));
+          await vscode10.env.openExternal(vscode10.env.logUri ?? vscode10.Uri.file(""));
         } catch (e) {
-          vscode9.window.showErrorMessage("Failed to open logs folder: " + (e?.message || String(e)));
+          vscode10.window.showErrorMessage("Failed to open logs folder: " + (e?.message || String(e)));
         }
       }
     };
@@ -44532,14 +44579,14 @@ Lines: ${buffer.length}
       try {
         await diagnoseWorkItemsIssue(_ctx.context);
       } catch (e) {
-        vscode9.window.showErrorMessage("Diagnostic failed: " + (e?.message || String(e)));
+        vscode10.window.showErrorMessage("Diagnostic failed: " + (e?.message || String(e)));
       }
     };
     focusWorkItemsViewCommand = (_ctx) => {
-      vscode9.commands.executeCommand("azureDevOpsInt.workItemsView.focus");
+      vscode10.commands.executeCommand("azureDevOpsInt.workItemsView.focus");
     };
     setDefaultElapsedLimitCommand = async (_ctx) => {
-      const limit = await vscode9.window.showInputBox({
+      const limit = await vscode10.window.showInputBox({
         prompt: "Enter default elapsed time limit (in minutes)",
         value: "480",
         // 8 hours default
@@ -44553,12 +44600,12 @@ Lines: ${buffer.length}
       });
       if (limit) {
         const config = getConfig();
-        await config.update("defaultElapsedLimit", parseInt(limit), vscode9.ConfigurationTarget.Global);
-        vscode9.window.showInformationMessage(`Default elapsed limit set to ${limit} minutes`);
+        await config.update("defaultElapsedLimit", parseInt(limit), vscode10.ConfigurationTarget.Global);
+        vscode10.window.showInformationMessage(`Default elapsed limit set to ${limit} minutes`);
       }
     };
     showWorkItemsCommand = (_ctx) => {
-      vscode9.commands.executeCommand("azureDevOpsInt.workItemsView.focus");
+      vscode10.commands.executeCommand("azureDevOpsInt.workItemsView.focus");
     };
     refreshWorkItemsCommand = async (_ctx) => {
       dispatchApplicationEvent({ type: "REFRESH_DATA" });
@@ -44582,7 +44629,7 @@ Lines: ${buffer.length}
     stopTimerCommand = async (ctx) => {
       const result = await ctx.timer?.stop();
       if (result) {
-        vscode9.window.showInformationMessage(`Timer stopped. Elapsed: ${result.elapsedTime}`);
+        vscode10.window.showInformationMessage(`Timer stopped. Elapsed: ${result.elapsedTime}`);
       }
     };
     showTimeReportCommand = (_ctx) => {
@@ -44617,14 +44664,14 @@ Lines: ${buffer.length}
     };
     clearPerformanceDataCommand = (_ctx) => {
       performanceMonitor.clear();
-      vscode9.window.showInformationMessage("Performance data cleared successfully");
+      vscode10.window.showInformationMessage("Performance data cleared successfully");
     };
     forceGCCommand = (_ctx) => {
       if (global.gc) {
         global.gc();
-        vscode9.window.showInformationMessage("Garbage collection forced");
+        vscode10.window.showInformationMessage("Garbage collection forced");
       } else {
-        vscode9.window.showWarningMessage("Garbage collection not available");
+        vscode10.window.showWarningMessage("Garbage collection not available");
       }
     };
     bulkAssignCommand = (_ctx) => {
@@ -44649,8 +44696,8 @@ function registerCommands(_context, commandContext) {
   const errors = [];
   for (const registration of commandRegistrations) {
     try {
-      const disposable = vscode10.commands.registerCommand(registration.command, (...args) => {
-        console.debug(`[COMMAND INVOKED] ${registration.command}`, {
+      const disposable = vscode11.commands.registerCommand(registration.command, (...args) => {
+        logger8.debug(`[COMMAND INVOKED] ${registration.command}`, {
           args,
           timestamp: (/* @__PURE__ */ new Date()).toISOString()
         });
@@ -44659,25 +44706,24 @@ function registerCommands(_context, commandContext) {
           const result = registration.handler(commandContext, ...args);
           if (result instanceof Promise) {
             result.then(() => {
-              console.debug(`[COMMAND SUCCESS] ${registration.command}`);
+              logger8.debug(`[COMMAND SUCCESS] ${registration.command}`);
             }).catch((error) => {
-              console.debug(`[COMMAND ERROR] ${registration.command}`, error);
+              logger8.debug(`[COMMAND ERROR] ${registration.command}`, { meta: error });
               logger8.error(`Error in command ${registration.command}`, { meta: error });
-              vscode10.window.showErrorMessage(`Command failed: ${error.message}`);
+              vscode11.window.showErrorMessage(`Command failed: ${error.message}`);
             });
           }
         } catch (error) {
-          console.debug(`[COMMAND SYNC ERROR] ${registration.command}`, error);
+          logger8.debug(`[COMMAND SYNC ERROR] ${registration.command}`, { meta: error });
           logger8.error(`Error in command ${registration.command}`, { meta: error });
-          vscode10.window.showErrorMessage(`Command failed: ${error.message}`);
+          vscode11.window.showErrorMessage(`Command failed: ${error.message}`);
         }
       });
       disposables.push(disposable);
       if (registration.command === "azureDevOpsInt.signOutEntra") {
-        console.debug(
-          `[COMMAND REGISTERED] ${registration.command} - handler:`,
-          typeof registration.handler
-        );
+        logger8.debug(`[COMMAND REGISTERED] ${registration.command} - handler:`, {
+          handlerType: typeof registration.handler
+        });
         logger8.info(`[Command Registration] Registered signOutEntra command`, {
           handlerType: typeof registration.handler,
           handlerName: registration.handler?.name || "anonymous"
@@ -44686,12 +44732,12 @@ function registerCommands(_context, commandContext) {
     } catch (error) {
       const errorMsg = error.message || String(error);
       errors.push({ command: registration.command, error: errorMsg });
-      console.debug(`[REGISTRATION ERROR] Failed to register ${registration.command}`, error);
+      logger8.debug(`[REGISTRATION ERROR] Failed to register ${registration.command}`, {
+        meta: error
+      });
       logger8.error(`Failed to register command ${registration.command}`, { meta: error });
       if (registration.command === "azureDevOpsInt.signOutEntra") {
-        vscode10.window.showErrorMessage(
-          `Failed to register signOutEntra command: ${errorMsg}`
-        );
+        vscode11.window.showErrorMessage(`Failed to register signOutEntra command: ${errorMsg}`);
       }
     }
   }
@@ -44711,11 +44757,11 @@ function registerCommands(_context, commandContext) {
   }
   return disposables;
 }
-var vscode10, logger8, commandRegistrations;
+var vscode11, logger8, commandRegistrations;
 var init_registration = __esm({
   "src/features/commands/registration.ts"() {
     "use strict";
-    vscode10 = __toESM(require("vscode"), 1);
+    vscode11 = __toESM(require("vscode"), 1);
     init_unifiedLogger();
     init_handlers();
     logger8 = createLogger("commands-registration");
@@ -45127,37 +45173,37 @@ var init_TraceLogger = __esm({
 // src/commands/traceCommands.ts
 function registerTraceCommands(context) {
   context.subscriptions.push(
-    vscode11.commands.registerCommand("azureDevOpsInt.showFSMTraceStatus", async () => {
+    vscode12.commands.registerCommand("azureDevOpsInt.showFSMTraceStatus", async () => {
       await showTraceStatus();
     })
   );
   context.subscriptions.push(
-    vscode11.commands.registerCommand("azureDevOpsInt.exportFSMTrace", async () => {
+    vscode12.commands.registerCommand("azureDevOpsInt.exportFSMTrace", async () => {
       await exportTrace();
     })
   );
   context.subscriptions.push(
-    vscode11.commands.registerCommand("azureDevOpsInt.importFSMTrace", async () => {
+    vscode12.commands.registerCommand("azureDevOpsInt.importFSMTrace", async () => {
       await importTrace();
     })
   );
   context.subscriptions.push(
-    vscode11.commands.registerCommand("azureDevOpsInt.analyzeFSMTrace", async () => {
+    vscode12.commands.registerCommand("azureDevOpsInt.analyzeFSMTrace", async () => {
       await analyzeTrace();
     })
   );
   context.subscriptions.push(
-    vscode11.commands.registerCommand("azureDevOpsInt.startFSMTraceSession", async () => {
+    vscode12.commands.registerCommand("azureDevOpsInt.startFSMTraceSession", async () => {
       await startTraceSession2();
     })
   );
   context.subscriptions.push(
-    vscode11.commands.registerCommand("azureDevOpsInt.stopFSMTraceSession", async () => {
+    vscode12.commands.registerCommand("azureDevOpsInt.stopFSMTraceSession", async () => {
       await stopTraceSession2();
     })
   );
   context.subscriptions.push(
-    vscode11.commands.registerCommand("azureDevOpsInt.showFSMTraceTimeline", async () => {
+    vscode12.commands.registerCommand("azureDevOpsInt.showFSMTraceTimeline", async () => {
       await showTraceTimeline();
     })
   );
@@ -45187,10 +45233,10 @@ async function showTraceStatus() {
       `- Analyze performance patterns`,
       `- Start/stop trace sessions`
     ];
-    const panel2 = vscode11.window.createWebviewPanel(
+    const panel2 = vscode12.window.createWebviewPanel(
       "traceStatus",
       "Trace Status",
-      vscode11.ViewColumn.One,
+      vscode12.ViewColumn.One,
       { enableScripts: false }
     );
     panel2.webview.html = `
@@ -45235,7 +45281,7 @@ async function showTraceStatus() {
       </html>
     `;
   } catch (error) {
-    vscode11.window.showErrorMessage(`Failed to show trace status: ${error}`);
+    vscode12.window.showErrorMessage(`Failed to show trace status: ${error}`);
     componentLogger.error("MACHINE" /* MACHINE */, "Failed to show trace status", void 0, { error });
   }
 }
@@ -45243,20 +45289,20 @@ async function exportTrace() {
   try {
     const traceData = exportCurrentTrace();
     if (!traceData) {
-      vscode11.window.showWarningMessage("No active trace session to export");
+      vscode12.window.showWarningMessage("No active trace session to export");
       return;
     }
-    const uri = await vscode11.window.showSaveDialog({
-      defaultUri: vscode11.Uri.file(`fsm-trace-${Date.now()}.json`),
+    const uri = await vscode12.window.showSaveDialog({
+      defaultUri: vscode12.Uri.file(`fsm-trace-${Date.now()}.json`),
       filters: {
         "FSM Trace Files": ["json"],
         "All Files": ["*"]
       }
     });
     if (uri) {
-      await vscode11.workspace.fs.writeFile(uri, Buffer.from(traceData, "utf8"));
-      vscode11.window.showInformationMessage(`Trace exported to: ${uri.fsPath}`);
-      const analyze = await vscode11.window.showInformationMessage(
+      await vscode12.workspace.fs.writeFile(uri, Buffer.from(traceData, "utf8"));
+      vscode12.window.showInformationMessage(`Trace exported to: ${uri.fsPath}`);
+      const analyze = await vscode12.window.showInformationMessage(
         "Trace exported successfully. Would you like to analyze it now?",
         "Yes",
         "No"
@@ -45266,13 +45312,13 @@ async function exportTrace() {
       }
     }
   } catch (error) {
-    vscode11.window.showErrorMessage(`Failed to export trace: ${error}`);
+    vscode12.window.showErrorMessage(`Failed to export trace: ${error}`);
     componentLogger.error("MACHINE" /* MACHINE */, "Failed to export trace", void 0, { error });
   }
 }
 async function importTrace() {
   try {
-    const uris = await vscode11.window.showOpenDialog({
+    const uris = await vscode12.window.showOpenDialog({
       canSelectFiles: true,
       canSelectMany: false,
       filters: {
@@ -45281,11 +45327,11 @@ async function importTrace() {
       }
     });
     if (uris && uris.length > 0) {
-      const content = await vscode11.workspace.fs.readFile(uris[0]);
+      const content = await vscode12.workspace.fs.readFile(uris[0]);
       const traceData = Buffer.from(content).toString("utf8");
       const sessionId = traceLogger.importSession(traceData);
-      vscode11.window.showInformationMessage(`Trace imported: ${sessionId}`);
-      const analyze = await vscode11.window.showInformationMessage(
+      vscode12.window.showInformationMessage(`Trace imported: ${sessionId}`);
+      const analyze = await vscode12.window.showInformationMessage(
         "Trace imported successfully. Would you like to analyze it?",
         "Yes",
         "No"
@@ -45296,7 +45342,7 @@ async function importTrace() {
       }
     }
   } catch (error) {
-    vscode11.window.showErrorMessage(`Failed to import trace: ${error}`);
+    vscode12.window.showErrorMessage(`Failed to import trace: ${error}`);
     componentLogger.error("MACHINE" /* MACHINE */, "Failed to import trace", void 0, { error });
   }
 }
@@ -45304,21 +45350,21 @@ async function analyzeTrace() {
   try {
     const analysis = analyzeCurrentTrace();
     if (!analysis) {
-      vscode11.window.showWarningMessage("No active trace session to analyze");
+      vscode12.window.showWarningMessage("No active trace session to analyze");
       return;
     }
     const currentSession = traceLogger.getCurrentSession();
     await showAnalysisResults(analysis, currentSession?.id || "current");
   } catch (error) {
-    vscode11.window.showErrorMessage(`Failed to analyze trace: ${error}`);
+    vscode12.window.showErrorMessage(`Failed to analyze trace: ${error}`);
     componentLogger.error("MACHINE" /* MACHINE */, "Failed to analyze trace", void 0, { error });
   }
 }
 async function showAnalysisResults(analysis, sessionId) {
-  const panel2 = vscode11.window.createWebviewPanel(
+  const panel2 = vscode12.window.createWebviewPanel(
     "traceAnalysis",
     `Trace Analysis - ${sessionId}`,
-    vscode11.ViewColumn.One,
+    vscode12.ViewColumn.One,
     { enableScripts: false }
   );
   const durationMs = analysis.summary.duration;
@@ -45440,16 +45486,16 @@ async function showAnalysisResults(analysis, sessionId) {
 }
 async function startTraceSession2() {
   try {
-    const description = await vscode11.window.showInputBox({
+    const description = await vscode12.window.showInputBox({
       prompt: "Enter a description for the new trace session",
       value: "Manual trace session"
     });
     if (description !== void 0) {
       const sessionId = traceLogger.startNewSession(description);
-      vscode11.window.showInformationMessage(`Started new trace session: ${sessionId}`);
+      vscode12.window.showInformationMessage(`Started new trace session: ${sessionId}`);
     }
   } catch (error) {
-    vscode11.window.showErrorMessage(`Failed to start trace session: ${error}`);
+    vscode12.window.showErrorMessage(`Failed to start trace session: ${error}`);
     componentLogger.error("MACHINE" /* MACHINE */, "Failed to start trace session", void 0, { error });
   }
 }
@@ -45457,11 +45503,11 @@ async function stopTraceSession2() {
   try {
     const currentSession = traceLogger.getCurrentSession();
     if (!currentSession) {
-      vscode11.window.showWarningMessage("No active trace session to stop");
+      vscode12.window.showWarningMessage("No active trace session to stop");
       return;
     }
     traceLogger.stopCurrentSession();
-    const action2 = await vscode11.window.showInformationMessage(
+    const action2 = await vscode12.window.showInformationMessage(
       `Stopped trace session: ${currentSession.id}`,
       "Analyze",
       "Export",
@@ -45473,7 +45519,7 @@ async function stopTraceSession2() {
       await exportTrace();
     }
   } catch (error) {
-    vscode11.window.showErrorMessage(`Failed to stop trace session: ${error}`);
+    vscode12.window.showErrorMessage(`Failed to stop trace session: ${error}`);
     componentLogger.error("MACHINE" /* MACHINE */, "Failed to stop trace session", void 0, { error });
   }
 }
@@ -45481,13 +45527,13 @@ async function showTraceTimeline() {
   try {
     const currentSession = traceLogger.getCurrentSession();
     if (!currentSession) {
-      vscode11.window.showWarningMessage("No active trace session");
+      vscode12.window.showWarningMessage("No active trace session");
       return;
     }
-    const panel2 = vscode11.window.createWebviewPanel(
+    const panel2 = vscode12.window.createWebviewPanel(
       "traceTimeline",
       `Trace Timeline - ${currentSession.id}`,
-      vscode11.ViewColumn.One,
+      vscode12.ViewColumn.One,
       { enableScripts: true }
     );
     const recentEntries = currentSession.entries.slice(-100);
@@ -45561,15 +45607,15 @@ async function showTraceTimeline() {
       </html>
     `;
   } catch (error) {
-    vscode11.window.showErrorMessage(`Failed to show trace timeline: ${error}`);
+    vscode12.window.showErrorMessage(`Failed to show trace timeline: ${error}`);
     componentLogger.error("MACHINE" /* MACHINE */, "Failed to show trace timeline", void 0, { error });
   }
 }
-var vscode11;
+var vscode12;
 var init_traceCommands = __esm({
   "src/commands/traceCommands.ts"() {
     "use strict";
-    vscode11 = __toESM(require("vscode"), 1);
+    vscode12 = __toESM(require("vscode"), 1);
     init_TraceLogger();
     init_ComponentLogger();
   }
@@ -45578,22 +45624,22 @@ var init_traceCommands = __esm({
 // src/commands/quickDebugCommands.ts
 function registerQuickDebugCommands(context) {
   context.subscriptions.push(
-    vscode12.commands.registerCommand("azureDevOpsInt.quickDebug", async () => {
+    vscode13.commands.registerCommand("azureDevOpsInt.quickDebug", async () => {
       await showInstantDebugPanel();
     })
   );
   context.subscriptions.push(
-    vscode12.commands.registerCommand("azureDevOpsInt.showFSMLogs", async () => {
+    vscode13.commands.registerCommand("azureDevOpsInt.showFSMLogs", async () => {
       showFSMLogsNow();
     })
   );
   context.subscriptions.push(
-    vscode12.commands.registerCommand("azureDevOpsInt.triageBrokenFeature", async () => {
+    vscode13.commands.registerCommand("azureDevOpsInt.triageBrokenFeature", async () => {
       await triageBrokenFeature();
     })
   );
   context.subscriptions.push(
-    vscode12.commands.registerCommand("azureDevOpsInt.debug.simulateConnectionLoad", async () => {
+    vscode13.commands.registerCommand("azureDevOpsInt.debug.simulateConnectionLoad", async () => {
       try {
         const { dispatchApplicationEvent: dispatchApplicationEvent2 } = await import("../../activation.js");
         const fakeConnection = {
@@ -45603,7 +45649,7 @@ function registerQuickDebugCommands(context) {
           label: "Simulated Connection " + (/* @__PURE__ */ new Date()).toLocaleTimeString(),
           authMethod: "pat"
         };
-        vscode12.window.showInformationMessage(`Simulating connection load: ${fakeConnection.label}`);
+        vscode13.window.showInformationMessage(`Simulating connection load: ${fakeConnection.label}`);
         dispatchApplicationEvent2({
           type: "CONNECTIONS_LOADED",
           payload: {
@@ -45612,7 +45658,7 @@ function registerQuickDebugCommands(context) {
           }
         });
       } catch (error) {
-        vscode12.window.showErrorMessage(`Simulation failed: ${error}`);
+        vscode13.window.showErrorMessage(`Simulation failed: ${error}`);
       }
     })
   );
@@ -45624,10 +45670,10 @@ async function showInstantDebugPanel() {
     const stats = traceLogger.getStats();
     const currentSession = traceLogger.getCurrentSession();
     const analysis = analyzeCurrentTrace();
-    const panel2 = vscode12.window.createWebviewPanel(
+    const panel2 = vscode13.window.createWebviewPanel(
       "instantDebug",
       "\u{1F6A8} Instant Debug Panel",
-      vscode12.ViewColumn.Beside,
+      vscode13.ViewColumn.Beside,
       // Open beside current editor
       { enableScripts: false }
     );
@@ -45760,23 +45806,23 @@ async function showInstantDebugPanel() {
       </body>
       </html>
     `;
-    vscode12.window.showInformationMessage(
+    vscode13.window.showInformationMessage(
       "\u{1F6A8} Debug panel opened! Check the Praxis Output Channel for live logs.",
       "OK"
     );
   } catch (error) {
-    vscode12.window.showErrorMessage(`Failed to show debug panel: ${error}`);
+    vscode13.window.showErrorMessage(`Failed to show debug panel: ${error}`);
   }
 }
 function showFSMLogsNow() {
   try {
     componentLogger.showOutputChannel();
-    vscode12.window.showInformationMessage(
+    vscode13.window.showInformationMessage(
       "\u{1F4FA} Output Channel opened. Also check Developer Console (Help > Toggle Developer Tools) for console.log output.",
       "Open Developer Tools"
     ).then((selection) => {
       if (selection === "Open Developer Tools") {
-        vscode12.commands.executeCommand("workbench.action.toggleDevTools");
+        vscode13.commands.executeCommand("workbench.action.toggleDevTools");
       }
     });
     componentLogger.info(
@@ -45793,13 +45839,12 @@ function showFSMLogsNow() {
     );
     componentLogger.info("APPLICATION" /* APPLICATION */, "Output Channel opened - logs are now visible");
   } catch (error) {
-    console.debug("[AzureDevOpsInt] \u274C Failed to show logs:", error);
-    vscode12.window.showErrorMessage(`Failed to show logs: ${error}`);
+    vscode13.window.showErrorMessage(`Failed to show logs: ${error}`);
   }
 }
 async function triageBrokenFeature() {
   try {
-    const featureName = await vscode12.window.showInputBox({
+    const featureName = await vscode13.window.showInputBox({
       prompt: 'What feature is broken? (e.g., "sign-in button", "query sync", "timer")',
       placeHolder: "Enter feature name..."
     });
@@ -45819,10 +45864,10 @@ async function triageBrokenFeature() {
         timestamp: (/* @__PURE__ */ new Date()).toISOString()
       }
     );
-    const panel2 = vscode12.window.createWebviewPanel(
+    const panel2 = vscode13.window.createWebviewPanel(
       "featureTriage",
       `\u{1F50D} Triaging: ${featureName}`,
-      vscode12.ViewColumn.Beside,
+      vscode13.ViewColumn.Beside,
       { enableScripts: false }
     );
     panel2.webview.html = `
@@ -45894,19 +45939,19 @@ async function triageBrokenFeature() {
       </body>
       </html>
     `;
-    vscode12.window.showInformationMessage(
+    vscode13.window.showInformationMessage(
       `\u{1F50D} Triage started for "${featureName}". Try to reproduce the issue now - everything is being logged!`,
       "OK"
     );
   } catch (error) {
-    vscode12.window.showErrorMessage(`Failed to start feature triage: ${error}`);
+    vscode13.window.showErrorMessage(`Failed to start feature triage: ${error}`);
   }
 }
-var vscode12;
+var vscode13;
 var init_quickDebugCommands = __esm({
   "src/commands/quickDebugCommands.ts"() {
     "use strict";
-    vscode12 = __toESM(require("vscode"), 1);
+    vscode13 = __toESM(require("vscode"), 1);
     init_ComponentLogger();
     init_TraceLogger();
   }
@@ -46118,12 +46163,197 @@ var init_svelte = __esm({
   }
 });
 
+// src/praxis/application/features/timer.ts
+function calculateTimerStatus(entries) {
+  let accumulatedDuration = 0;
+  let currentStartTimestamp;
+  let activeWorkItemId;
+  let isRunning = false;
+  const sorted = [...entries].sort((a, b) => a.timestamp - b.timestamp);
+  for (let i = 0; i < sorted.length; i++) {
+    const entry = sorted[i];
+    if (entry.type === "start") {
+      currentStartTimestamp = entry.timestamp;
+      activeWorkItemId = entry.workItemId;
+      isRunning = true;
+    } else if (entry.type === "pause" || entry.type === "stop") {
+      if (currentStartTimestamp !== void 0) {
+        accumulatedDuration += entry.timestamp - currentStartTimestamp;
+        currentStartTimestamp = void 0;
+      }
+      isRunning = false;
+      if (entry.type === "stop") {
+        activeWorkItemId = void 0;
+      }
+    }
+  }
+  return {
+    isRunning,
+    activeWorkItemId,
+    currentStartTimestamp,
+    accumulatedDuration
+  };
+}
+var TimerHistoryFact, StartTimerEvent, PauseTimerEvent, StopTimerEvent, RequestTimerHistoryEvent, TimerHistoryLoadedEvent, PersistTimerHistoryEvent, UpdateTimerStatusEvent, InitializeTimerRule, TimerHistoryLoadedRule, StartTimerRule, PauseTimerRule, StopTimerRule, timerRules;
+var init_timer = __esm({
+  "src/praxis/application/features/timer.ts"() {
+    "use strict";
+    init_node();
+    init_facts2();
+    TimerHistoryFact = defineFact(
+      "TimerHistory"
+    );
+    StartTimerEvent = defineEvent(
+      "StartTimer"
+    );
+    PauseTimerEvent = defineEvent(
+      "PauseTimer"
+    );
+    StopTimerEvent = defineEvent(
+      "StopTimer"
+    );
+    RequestTimerHistoryEvent = defineEvent(
+      "RequestTimerHistory"
+    );
+    TimerHistoryLoadedEvent = defineEvent(
+      "TimerHistoryLoaded"
+    );
+    PersistTimerHistoryEvent = defineEvent("PersistTimerHistory");
+    UpdateTimerStatusEvent = defineEvent(
+      "UpdateTimerStatus"
+    );
+    InitializeTimerRule = defineRule({
+      id: "timer.initialize",
+      description: "Request timer history on activation",
+      meta: {
+        triggers: ["ACTIVATE"]
+      },
+      impl: (_state, events) => {
+        if (findEvent(events, ActivateEvent)) {
+          return [RequestTimerHistoryEvent.create()];
+        }
+        return [];
+      }
+    });
+    TimerHistoryLoadedRule = defineRule({
+      id: "timer.loaded",
+      description: "Update state with loaded history",
+      meta: {
+        triggers: ["TimerHistoryLoaded"]
+      },
+      impl: (state2, events) => {
+        const event2 = findEvent(events, TimerHistoryLoadedEvent);
+        if (!event2) return [];
+        state2.context.timerHistory.entries = event2.payload.entries;
+        const status = calculateTimerStatus(state2.context.timerHistory.entries);
+        return [UpdateTimerStatusEvent.create(status)];
+      }
+    });
+    StartTimerRule = defineRule({
+      id: "timer.start",
+      description: "Start the timer for a work item",
+      meta: {
+        triggers: ["StartTimer"]
+      },
+      impl: (state2, events) => {
+        const event2 = findEvent(events, StartTimerEvent);
+        if (!event2) return [];
+        const { workItemId, timestamp: timestamp2 } = event2.payload;
+        const workItemExists = state2.context.workItems.some((wi) => wi.id === workItemId);
+        if (!workItemExists) {
+          return [];
+        }
+        const history2 = state2.context.timerHistory.entries;
+        const lastEntry = history2[history2.length - 1];
+        if (lastEntry && lastEntry.type === "start") {
+          return [];
+        }
+        const newEntry = {
+          type: "start",
+          timestamp: timestamp2,
+          workItemId
+        };
+        state2.context.timerHistory.entries.push(newEntry);
+        const status = calculateTimerStatus(state2.context.timerHistory.entries);
+        return [
+          PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
+          UpdateTimerStatusEvent.create(status)
+        ];
+      }
+    });
+    PauseTimerRule = defineRule({
+      id: "timer.pause",
+      description: "Pause the timer",
+      meta: {
+        triggers: ["PauseTimer"]
+      },
+      impl: (state2, events) => {
+        const event2 = findEvent(events, PauseTimerEvent);
+        if (!event2) return [];
+        const { workItemId, timestamp: timestamp2 } = event2.payload;
+        const history2 = state2.context.timerHistory.entries;
+        const lastEntry = history2[history2.length - 1];
+        if (!lastEntry || lastEntry.type !== "start") {
+          return [];
+        }
+        const newEntry = {
+          type: "pause",
+          timestamp: timestamp2,
+          workItemId
+        };
+        state2.context.timerHistory.entries.push(newEntry);
+        const status = calculateTimerStatus(state2.context.timerHistory.entries);
+        return [
+          PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
+          UpdateTimerStatusEvent.create(status)
+        ];
+      }
+    });
+    StopTimerRule = defineRule({
+      id: "timer.stop",
+      description: "Stop the timer",
+      meta: {
+        triggers: ["StopTimer"]
+      },
+      impl: (state2, events) => {
+        const event2 = findEvent(events, StopTimerEvent);
+        if (!event2) return [];
+        const { workItemId, timestamp: timestamp2 } = event2.payload;
+        const history2 = state2.context.timerHistory.entries;
+        const lastEntry = history2[history2.length - 1];
+        if (!lastEntry || lastEntry.type === "stop") {
+          return [];
+        }
+        const newEntry = {
+          type: "stop",
+          timestamp: timestamp2,
+          workItemId
+        };
+        state2.context.timerHistory.entries.push(newEntry);
+        const status = calculateTimerStatus(state2.context.timerHistory.entries);
+        return [
+          PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
+          UpdateTimerStatusEvent.create(status)
+        ];
+      }
+    });
+    timerRules = [
+      InitializeTimerRule,
+      TimerHistoryLoadedRule,
+      StartTimerRule,
+      PauseTimerRule,
+      StopTimerRule
+    ];
+  }
+});
+
 // src/praxis/application/facts.ts
 var ApplicationStateFact, IsActivatedFact, IsDeactivatingFact, ConnectionsFact, ActiveConnectionIdFact, ActiveQueryFact, ViewModeFact, PendingWorkItemsFact, DeviceCodeSessionFact, AuthCodeFlowSessionFact, ErrorRecoveryAttemptsFact, LastErrorFact, DebugLoggingEnabledFact, DebugViewVisibleFact, ActivateEvent, ActivationCompleteEvent, ActivationFailedEvent, DeactivateEvent, DeactivationCompleteEvent, ConnectionsLoadedEvent, ConnectionSelectedEvent, SelectConnectionEvent, QueryChangedEvent, ViewModeChangedEvent, WorkItemsLoadedEvent, WorkItemsErrorEvent, RefreshDataEvent, ConnectionStateUpdatedEvent, DeviceCodeStartedAppEvent, DeviceCodeCompletedAppEvent, DeviceCodeCancelledEvent, SyncStateEvent, ApplicationErrorEvent, DeviceCodeCopyFailedEvent, DeviceCodeBrowserOpenFailedEvent, DeviceCodeSessionNotFoundEvent, AuthCodeFlowBrowserOpenFailedEvent, AuthCodeFlowBrowserOpenedEvent, DeviceCodeBrowserOpenedEvent, RetryApplicationEvent, ResetApplicationEvent, ToggleDebugViewEvent, OpenSettingsEvent, AuthReminderRequestedEvent, AuthReminderClearedEvent, SignInEntraEvent, AuthCodeFlowStartedAppEvent, AuthCodeFlowCompletedAppEvent, AuthRedirectReceivedAppEvent, SignOutEntraEvent, AuthenticationSuccessEvent, AuthenticationFailedEvent, CreateWorkItemEvent, CreateBranchEvent, CreatePullRequestEvent, ShowPullRequestsEvent, ShowBuildStatusEvent, SelectTeamEvent, ResetPreferredRepositoriesEvent, SelfTestWebviewEvent, BulkAssignEvent, GenerateCopilotPromptEvent, ShowTimeReportEvent, WebviewReadyEvent;
 var init_facts2 = __esm({
   "src/praxis/application/facts.ts"() {
     "use strict";
     init_node();
+    init_timer();
     ApplicationStateFact = defineFact("ApplicationState");
     IsActivatedFact = defineFact("IsActivated");
     IsDeactivatingFact = defineFact("IsDeactivating");
@@ -46139,9 +46369,7 @@ var init_facts2 = __esm({
     DeviceCodeSessionFact = defineFact(
       "DeviceCodeSession"
     );
-    AuthCodeFlowSessionFact = defineFact(
-      "AuthCodeFlowSession"
-    );
+    AuthCodeFlowSessionFact = defineFact("AuthCodeFlowSession");
     ErrorRecoveryAttemptsFact = defineFact(
       "ErrorRecoveryAttempts"
     );
@@ -46915,7 +47143,8 @@ var init_miscRules = __esm({
       impl: (state2, events) => {
         const retryEvent = findEvent(events, RetryApplicationEvent);
         if (!retryEvent) return [];
-        if (state2.context.applicationState !== "error_recovery" && state2.context.applicationState !== "activation_error") return [];
+        if (state2.context.applicationState !== "error_recovery" && state2.context.applicationState !== "activation_error")
+          return [];
         state2.context.lastError = void 0;
         state2.context.applicationState = "active";
         return [];
@@ -47046,186 +47275,6 @@ var init_miscRules = __esm({
   }
 });
 
-// src/praxis/application/features/timer.ts
-function calculateTimerStatus(entries) {
-  let accumulatedDuration = 0;
-  let currentStartTimestamp;
-  let activeWorkItemId;
-  let isRunning = false;
-  const sorted = [...entries].sort((a, b) => a.timestamp - b.timestamp);
-  for (let i = 0; i < sorted.length; i++) {
-    const entry = sorted[i];
-    if (entry.type === "start") {
-      currentStartTimestamp = entry.timestamp;
-      activeWorkItemId = entry.workItemId;
-      isRunning = true;
-    } else if (entry.type === "pause" || entry.type === "stop") {
-      if (currentStartTimestamp !== void 0) {
-        accumulatedDuration += entry.timestamp - currentStartTimestamp;
-        currentStartTimestamp = void 0;
-      }
-      isRunning = false;
-      if (entry.type === "stop") {
-        activeWorkItemId = void 0;
-      }
-    }
-  }
-  return {
-    isRunning,
-    activeWorkItemId,
-    currentStartTimestamp,
-    accumulatedDuration
-  };
-}
-var TimerHistoryFact, StartTimerEvent, PauseTimerEvent, StopTimerEvent, RequestTimerHistoryEvent, TimerHistoryLoadedEvent, PersistTimerHistoryEvent, UpdateTimerStatusEvent, InitializeTimerRule, TimerHistoryLoadedRule, StartTimerRule, PauseTimerRule, StopTimerRule, timerRules;
-var init_timer = __esm({
-  "src/praxis/application/features/timer.ts"() {
-    "use strict";
-    init_node();
-    init_facts2();
-    TimerHistoryFact = defineFact(
-      "TimerHistory"
-    );
-    StartTimerEvent = defineEvent(
-      "StartTimer"
-    );
-    PauseTimerEvent = defineEvent(
-      "PauseTimer"
-    );
-    StopTimerEvent = defineEvent(
-      "StopTimer"
-    );
-    RequestTimerHistoryEvent = defineEvent(
-      "RequestTimerHistory"
-    );
-    TimerHistoryLoadedEvent = defineEvent(
-      "TimerHistoryLoaded"
-    );
-    PersistTimerHistoryEvent = defineEvent("PersistTimerHistory");
-    UpdateTimerStatusEvent = defineEvent(
-      "UpdateTimerStatus"
-    );
-    InitializeTimerRule = defineRule({
-      id: "timer.initialize",
-      description: "Request timer history on activation",
-      meta: {
-        triggers: ["ACTIVATE"]
-      },
-      impl: (_state, events) => {
-        if (findEvent(events, ActivateEvent)) {
-          return [RequestTimerHistoryEvent.create()];
-        }
-        return [];
-      }
-    });
-    TimerHistoryLoadedRule = defineRule({
-      id: "timer.loaded",
-      description: "Update state with loaded history",
-      meta: {
-        triggers: ["TimerHistoryLoaded"]
-      },
-      impl: (state2, events) => {
-        const event2 = findEvent(events, TimerHistoryLoadedEvent);
-        if (!event2) return [];
-        state2.context.timerHistory.entries = event2.payload.entries;
-        const status = calculateTimerStatus(state2.context.timerHistory.entries);
-        return [UpdateTimerStatusEvent.create(status)];
-      }
-    });
-    StartTimerRule = defineRule({
-      id: "timer.start",
-      description: "Start the timer for a work item",
-      meta: {
-        triggers: ["StartTimer"]
-      },
-      impl: (state2, events) => {
-        const event2 = findEvent(events, StartTimerEvent);
-        if (!event2) return [];
-        const { workItemId, timestamp: timestamp2 } = event2.payload;
-        const history2 = state2.context.timerHistory.entries;
-        const lastEntry = history2[history2.length - 1];
-        if (lastEntry && lastEntry.type === "start") {
-          return [];
-        }
-        const newEntry = {
-          type: "start",
-          timestamp: timestamp2,
-          workItemId
-        };
-        state2.context.timerHistory.entries.push(newEntry);
-        const status = calculateTimerStatus(state2.context.timerHistory.entries);
-        return [
-          PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
-          UpdateTimerStatusEvent.create(status)
-        ];
-      }
-    });
-    PauseTimerRule = defineRule({
-      id: "timer.pause",
-      description: "Pause the timer",
-      meta: {
-        triggers: ["PauseTimer"]
-      },
-      impl: (state2, events) => {
-        const event2 = findEvent(events, PauseTimerEvent);
-        if (!event2) return [];
-        const { workItemId, timestamp: timestamp2 } = event2.payload;
-        const history2 = state2.context.timerHistory.entries;
-        const lastEntry = history2[history2.length - 1];
-        if (!lastEntry || lastEntry.type !== "start") {
-          return [];
-        }
-        const newEntry = {
-          type: "pause",
-          timestamp: timestamp2,
-          workItemId
-        };
-        state2.context.timerHistory.entries.push(newEntry);
-        const status = calculateTimerStatus(state2.context.timerHistory.entries);
-        return [
-          PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
-          UpdateTimerStatusEvent.create(status)
-        ];
-      }
-    });
-    StopTimerRule = defineRule({
-      id: "timer.stop",
-      description: "Stop the timer",
-      meta: {
-        triggers: ["StopTimer"]
-      },
-      impl: (state2, events) => {
-        const event2 = findEvent(events, StopTimerEvent);
-        if (!event2) return [];
-        const { workItemId, timestamp: timestamp2 } = event2.payload;
-        const history2 = state2.context.timerHistory.entries;
-        const lastEntry = history2[history2.length - 1];
-        if (!lastEntry || lastEntry.type === "stop") {
-          return [];
-        }
-        const newEntry = {
-          type: "stop",
-          timestamp: timestamp2,
-          workItemId
-        };
-        state2.context.timerHistory.entries.push(newEntry);
-        const status = calculateTimerStatus(state2.context.timerHistory.entries);
-        return [
-          PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
-          UpdateTimerStatusEvent.create(status)
-        ];
-      }
-    });
-    timerRules = [
-      InitializeTimerRule,
-      TimerHistoryLoadedRule,
-      StartTimerRule,
-      PauseTimerRule,
-      StopTimerRule
-    ];
-  }
-});
-
 // src/praxis/application/rules/index.ts
 var applicationRules;
 var init_rules2 = __esm({
@@ -47316,9 +47365,9 @@ var init_store2 = __esm({
       if (hasSyncState) {
         return;
       }
-      const vscode17 = window.__vscodeApi;
-      if (vscode17) {
-        vscode17.postMessage({ type: "PRAXIS_EVENT", events });
+      const vscode18 = window.__vscodeApi;
+      if (vscode18) {
+        vscode18.postMessage({ type: "PRAXIS_EVENT", events });
       } else {
       }
     };
@@ -47337,7 +47386,6 @@ var init_store2 = __esm({
     history = {
       undo: () => {
         if (!historyEngine.canUndo()) {
-          console.debug("[History] Cannot undo - no history available");
           return false;
         }
         const historyEntries = historyEngine.getHistory();
@@ -47346,14 +47394,9 @@ var init_store2 = __esm({
           const entry = historyEntries[currentHistoryIndex];
           if (entry && entry.state && entry.state.context) {
             if (typeof frontendEngine.updateContext === "function") {
-              frontendEngine.updateContext(entry.state.context);
-              console.debug("[History] Undo: Restored state from history entry", {
-                index: currentHistoryIndex,
-                state: entry.state.state
-              });
+              const contextToRestore = entry.state.context;
+              frontendEngine.updateContext(() => contextToRestore);
               return true;
-            } else {
-              console.warn("[History] Engine does not support updateContext - cannot restore state");
             }
           }
         }
@@ -47361,7 +47404,6 @@ var init_store2 = __esm({
       },
       redo: () => {
         if (!historyEngine.canRedo()) {
-          console.debug("[History] Cannot redo - at end of history");
           return false;
         }
         const historyEntries = historyEngine.getHistory();
@@ -47370,14 +47412,9 @@ var init_store2 = __esm({
           const entry = historyEntries[currentHistoryIndex];
           if (entry && entry.state && entry.state.context) {
             if (typeof frontendEngine.updateContext === "function") {
-              frontendEngine.updateContext(entry.state.context);
-              console.debug("[History] Redo: Restored state from history entry", {
-                index: currentHistoryIndex,
-                state: entry.state.state
-              });
+              const contextToRestore = entry.state.context;
+              frontendEngine.updateContext(() => contextToRestore);
               return true;
-            } else {
-              console.warn("[History] Engine does not support updateContext - cannot restore state");
             }
           }
         }
@@ -47396,8 +47433,8 @@ var init_store2 = __esm({
           if (entry && entry.state && entry.state.context) {
             currentHistoryIndex = index2;
             if (typeof frontendEngine.updateContext === "function") {
-              frontendEngine.updateContext(entry.state.context);
-              console.debug("[History] Go to history entry", { index: index2 });
+              const contextToRestore = entry.state.context;
+              frontendEngine.updateContext(() => contextToRestore);
               return true;
             }
           }
@@ -47446,17 +47483,13 @@ function exportHistoryAsJSON(metadata) {
   return JSON.stringify(exported, null, 2);
 }
 function importHistory(exported) {
-  frontendEngine.updateContext(exported.initialContext);
+  frontendEngine.updateContext(() => exported.initialContext);
   history.clearHistory();
   for (const entry of exported.entries) {
     if (entry.events.length > 0) {
       frontendEngine.step(entry.events);
     }
   }
-  console.debug("[HistoryExport] Imported history", {
-    entryCount: exported.entries.length,
-    engineType: exported.engineType
-  });
 }
 function importHistoryFromJSON(json2) {
   try {
@@ -47492,9 +47525,7 @@ async function copyHistoryToClipboard(metadata) {
   const json2 = exportHistoryAsJSON(metadata);
   if (typeof navigator !== "undefined" && navigator.clipboard) {
     await navigator.clipboard.writeText(json2);
-    console.debug("[HistoryExport] History copied to clipboard");
   } else {
-    console.log("[HistoryExport] History JSON:", json2);
     throw new Error("Clipboard API not available");
   }
 }
@@ -47563,10 +47594,6 @@ var init_historyTestRecorder = __esm({
           finalContext: initialContext2,
           metadata: metadata || {}
         };
-        console.debug("[HistoryTestRecorder] Started recording", {
-          id: scenarioId,
-          name: scenarioName
-        });
       }
       /**
        * Stop recording and return the test scenario
@@ -47578,11 +47605,6 @@ var init_historyTestRecorder = __esm({
         this.scenario.finalContext = this.deepClone(frontendEngine.getContext());
         const scenario = this.scenario;
         this.scenario = null;
-        console.debug("[HistoryTestRecorder] Stopped recording", {
-          id: scenario.id,
-          name: scenario.name,
-          eventCount: scenario.events.length
-        });
         return scenario;
       }
       /**
@@ -47595,7 +47617,6 @@ var init_historyTestRecorder = __esm({
         if (this.options.maxDuration) {
           const elapsed = Date.now() - this.startTime;
           if (elapsed > this.options.maxDuration) {
-            console.warn("[HistoryTestRecorder] Max duration exceeded, stopping recording");
             this.stopRecording();
             return;
           }
@@ -47611,11 +47632,6 @@ var init_historyTestRecorder = __esm({
           label: eventLabel,
           expectedState,
           timestamp: Date.now(),
-          stateAfter
-        });
-        console.debug("[HistoryTestRecorder] Recorded event", {
-          event: event2.tag,
-          label: eventLabel,
           stateAfter
         });
       }
@@ -47694,21 +47710,18 @@ var init_eventReplayDebugger = __esm({
        */
       setBreakpoint(index2) {
         this.breakpoints.add(index2);
-        console.debug("[EventReplayDebugger] Breakpoint set at index", index2);
       }
       /**
        * Remove a breakpoint
        */
       removeBreakpoint(index2) {
         this.breakpoints.delete(index2);
-        console.debug("[EventReplayDebugger] Breakpoint removed at index", index2);
       }
       /**
        * Clear all breakpoints
        */
       clearBreakpoints() {
         this.breakpoints.clear();
-        console.debug("[EventReplayDebugger] All breakpoints cleared");
       }
       /**
        * Get all breakpoints
@@ -47720,27 +47733,13 @@ var init_eventReplayDebugger = __esm({
        * Replay a test scenario with breakpoint support
        */
       async replay(scenario, options = {}) {
-        const {
-          stepDelay = 0,
-          pauseOnBreakpoint = true,
-          onStep,
-          onBreakpoint
-        } = options;
-        frontendEngine.updateContext(scenario.initialContext);
+        const { stepDelay = 0, pauseOnBreakpoint = true, onStep, onBreakpoint } = options;
+        frontendEngine.updateContext(() => scenario.initialContext);
         history.clearHistory();
-        console.debug("[EventReplayDebugger] Starting replay", {
-          scenarioId: scenario.id,
-          eventCount: scenario.events.length,
-          breakpoints: this.breakpoints.size
-        });
         for (let i = 0; i < scenario.events.length; i++) {
           const eventData = scenario.events[i];
           if (this.breakpoints.has(i) && pauseOnBreakpoint) {
             this.paused = true;
-            console.debug("[EventReplayDebugger] Paused at breakpoint", {
-              index: i,
-              event: eventData.event.tag
-            });
             if (onBreakpoint) {
               onBreakpoint(i, eventData.event);
             }
@@ -47752,16 +47751,10 @@ var init_eventReplayDebugger = __esm({
             onStep(i, eventData.event, context2);
           }
           const context = frontendEngine.getContext();
-          console.debug(`[EventReplayDebugger] Step ${i}:`, {
-            event: eventData.event.tag,
-            label: eventData.label,
-            state: context.applicationState
-          });
           if (stepDelay > 0) {
             await new Promise((resolve) => setTimeout(resolve, stepDelay));
           }
         }
-        console.debug("[EventReplayDebugger] Replay complete");
       }
       /**
        * Replay from history entries
@@ -47771,16 +47764,13 @@ var init_eventReplayDebugger = __esm({
         const end = endIndex !== void 0 ? endIndex : historyEntries.length - 1;
         if (startIndex > 0 && historyEntries[startIndex - 1]) {
           const startEntry = historyEntries[startIndex - 1];
-          frontendEngine.updateContext(startEntry.state.context);
+          frontendEngine.updateContext(() => startEntry.state.context);
         } else {
-          frontendEngine.updateContext(historyEntries[0].state.context);
+          frontendEngine.updateContext(
+            () => historyEntries[0].state.context
+          );
         }
-        const {
-          stepDelay = 0,
-          pauseOnBreakpoint = true,
-          onStep,
-          onBreakpoint
-        } = options;
+        const { stepDelay = 0, pauseOnBreakpoint = true, onStep, onBreakpoint } = options;
         for (let i = startIndex; i <= end; i++) {
           const entry = historyEntries[i];
           if (!entry || !entry.events || entry.events.length === 0) {
@@ -47788,9 +47778,6 @@ var init_eventReplayDebugger = __esm({
           }
           if (this.breakpoints.has(i) && pauseOnBreakpoint) {
             this.paused = true;
-            console.debug("[EventReplayDebugger] Paused at breakpoint", {
-              index: i
-            });
             if (onBreakpoint && entry.events[0]) {
               onBreakpoint(i, entry.events[0]);
             }
@@ -47818,10 +47805,6 @@ var init_eventReplayDebugger = __esm({
         const eventData = scenario.events[currentIndex];
         frontendEngine.step([eventData.event]);
         const context = frontendEngine.getContext();
-        console.debug(`[EventReplayDebugger] Stepped forward to ${currentIndex + 1}:`, {
-          event: eventData.event.tag,
-          state: context.applicationState
-        });
         return currentIndex + 1;
       }
       /**
@@ -47832,7 +47815,6 @@ var init_eventReplayDebugger = __esm({
           return currentIndex;
         }
         history.goToHistory(currentIndex - 1);
-        console.debug(`[EventReplayDebugger] Stepped backward to ${currentIndex - 1}`);
         return currentIndex - 1;
       }
       /**
@@ -47841,7 +47823,6 @@ var init_eventReplayDebugger = __esm({
       resume() {
         if (this.paused) {
           this.paused = false;
-          console.debug("[EventReplayDebugger] Resumed");
           for (const callback of this.resumeCallbacks) {
             callback();
           }
@@ -47853,7 +47834,6 @@ var init_eventReplayDebugger = __esm({
        */
       pause() {
         this.paused = true;
-        console.debug("[EventReplayDebugger] Paused");
       }
       /**
        * Check if currently paused
@@ -47881,133 +47861,113 @@ var init_eventReplayDebugger = __esm({
 });
 
 // src/commands/historyDebugCommands.ts
+async function handleExportHistory() {
+  try {
+    const json2 = exportHistoryAsJSON();
+    const uri = await vscode14.window.showSaveDialog({
+      defaultUri: vscode14.Uri.file("history-export.json"),
+      filters: { "JSON Files": ["json"] }
+    });
+    if (uri) {
+      await vscode14.workspace.fs.writeFile(uri, Buffer.from(json2, "utf-8"));
+      vscode14.window.showInformationMessage("History exported successfully");
+    }
+  } catch (error) {
+    vscode14.window.showErrorMessage(`Failed to export history: ${error}`);
+  }
+}
+async function handleImportHistory() {
+  try {
+    const uri = await vscode14.window.showOpenDialog({
+      filters: { "JSON Files": ["json"] },
+      canSelectMany: false
+    });
+    if (uri && uri[0]) {
+      const content = await vscode14.workspace.fs.readFile(uri[0]);
+      importHistoryFromJSON(content.toString());
+      vscode14.window.showInformationMessage("History imported successfully");
+    }
+  } catch (error) {
+    vscode14.window.showErrorMessage(`Failed to import history: ${error}`);
+  }
+}
+async function handleCopyHistory() {
+  try {
+    await copyHistoryToClipboard();
+    vscode14.window.showInformationMessage("History copied to clipboard");
+  } catch (error) {
+    vscode14.window.showErrorMessage(`Failed to copy history: ${error}`);
+  }
+}
+async function handleStartRecording() {
+  try {
+    const scenarioId = await vscode14.window.showInputBox({
+      prompt: "Enter scenario ID",
+      placeHolder: "test-001"
+    });
+    if (!scenarioId) return;
+    const scenarioName = await vscode14.window.showInputBox({
+      prompt: "Enter scenario name",
+      placeHolder: "User workflow test"
+    });
+    if (!scenarioName) return;
+    startRecording(scenarioId, scenarioName);
+    vscode14.window.showInformationMessage(`Started recording: ${scenarioName}`);
+  } catch (error) {
+    vscode14.window.showErrorMessage(`Failed to start recording: ${error}`);
+  }
+}
+async function handleStopRecording() {
+  try {
+    if (!isRecording()) {
+      vscode14.window.showWarningMessage("No active recording");
+      return;
+    }
+    const scenario = stopRecording();
+    const uri = await vscode14.window.showSaveDialog({
+      defaultUri: vscode14.Uri.file(`${scenario.id}.json`),
+      filters: { "JSON Files": ["json"] }
+    });
+    if (uri) {
+      await vscode14.workspace.fs.writeFile(
+        uri,
+        Buffer.from(JSON.stringify(scenario, null, 2), "utf-8")
+      );
+      vscode14.window.showInformationMessage(`Scenario saved: ${scenario.name}`);
+    }
+  } catch (error) {
+    vscode14.window.showErrorMessage(`Failed to stop recording: ${error}`);
+  }
+}
+function handleClearBreakpoints() {
+  const replayDebugger = getEventReplayDebugger();
+  replayDebugger.clearBreakpoints();
+  vscode14.window.showInformationMessage("All breakpoints cleared");
+}
 function registerHistoryDebugCommands(context) {
-  const exportHistoryCommand = vscode13.commands.registerCommand(
-    "azureDevOpsInt.debug.history.export",
-    async () => {
-      try {
-        const json2 = exportHistoryAsJSON();
-        const uri = await vscode13.window.showSaveDialog({
-          defaultUri: vscode13.Uri.file("history-export.json"),
-          filters: {
-            "JSON Files": ["json"]
-          }
-        });
-        if (uri) {
-          await vscode13.workspace.fs.writeFile(uri, Buffer.from(json2, "utf-8"));
-          vscode13.window.showInformationMessage("History exported successfully");
-        }
-      } catch (error) {
-        vscode13.window.showErrorMessage(`Failed to export history: ${error}`);
-      }
-    }
-  );
-  const importHistoryCommand = vscode13.commands.registerCommand(
-    "azureDevOpsInt.debug.history.import",
-    async () => {
-      try {
-        const uri = await vscode13.window.showOpenDialog({
-          filters: {
-            "JSON Files": ["json"]
-          },
-          canSelectMany: false
-        });
-        if (uri && uri[0]) {
-          const content = await vscode13.workspace.fs.readFile(uri[0]);
-          const json2 = content.toString();
-          importHistoryFromJSON(json2);
-          vscode13.window.showInformationMessage("History imported successfully");
-        }
-      } catch (error) {
-        vscode13.window.showErrorMessage(`Failed to import history: ${error}`);
-      }
-    }
-  );
-  const copyHistoryCommand = vscode13.commands.registerCommand(
-    "azureDevOpsInt.debug.history.copy",
-    async () => {
-      try {
-        await copyHistoryToClipboard();
-        vscode13.window.showInformationMessage("History copied to clipboard");
-      } catch (error) {
-        vscode13.window.showErrorMessage(`Failed to copy history: ${error}`);
-      }
-    }
-  );
-  const startRecordingCommand = vscode13.commands.registerCommand(
-    "azureDevOpsInt.debug.history.startRecording",
-    async () => {
-      try {
-        const scenarioId = await vscode13.window.showInputBox({
-          prompt: "Enter scenario ID",
-          placeHolder: "test-001"
-        });
-        if (!scenarioId) {
-          return;
-        }
-        const scenarioName = await vscode13.window.showInputBox({
-          prompt: "Enter scenario name",
-          placeHolder: "User workflow test"
-        });
-        if (!scenarioName) {
-          return;
-        }
-        startRecording(scenarioId, scenarioName);
-        vscode13.window.showInformationMessage(`Started recording: ${scenarioName}`);
-      } catch (error) {
-        vscode13.window.showErrorMessage(`Failed to start recording: ${error}`);
-      }
-    }
-  );
-  const stopRecordingCommand = vscode13.commands.registerCommand(
-    "azureDevOpsInt.debug.history.stopRecording",
-    async () => {
-      try {
-        if (!isRecording()) {
-          vscode13.window.showWarningMessage("No active recording");
-          return;
-        }
-        const scenario = stopRecording();
-        const uri = await vscode13.window.showSaveDialog({
-          defaultUri: vscode13.Uri.file(`${scenario.id}.json`),
-          filters: {
-            "JSON Files": ["json"]
-          }
-        });
-        if (uri) {
-          await vscode13.workspace.fs.writeFile(
-            uri,
-            Buffer.from(JSON.stringify(scenario, null, 2), "utf-8")
-          );
-          vscode13.window.showInformationMessage(`Scenario saved: ${scenario.name}`);
-        }
-      } catch (error) {
-        vscode13.window.showErrorMessage(`Failed to stop recording: ${error}`);
-      }
-    }
-  );
-  const clearBreakpointsCommand = vscode13.commands.registerCommand(
-    "azureDevOpsInt.debug.history.clearBreakpoints",
-    () => {
-      const replayDebugger = getEventReplayDebugger();
-      replayDebugger.clearBreakpoints();
-      vscode13.window.showInformationMessage("All breakpoints cleared");
-    }
-  );
   context.subscriptions.push(
-    exportHistoryCommand,
-    importHistoryCommand,
-    copyHistoryCommand,
-    startRecordingCommand,
-    stopRecordingCommand,
-    clearBreakpointsCommand
+    vscode14.commands.registerCommand("azureDevOpsInt.debug.history.export", handleExportHistory),
+    vscode14.commands.registerCommand("azureDevOpsInt.debug.history.import", handleImportHistory),
+    vscode14.commands.registerCommand("azureDevOpsInt.debug.history.copy", handleCopyHistory),
+    vscode14.commands.registerCommand(
+      "azureDevOpsInt.debug.history.startRecording",
+      handleStartRecording
+    ),
+    vscode14.commands.registerCommand(
+      "azureDevOpsInt.debug.history.stopRecording",
+      handleStopRecording
+    ),
+    vscode14.commands.registerCommand(
+      "azureDevOpsInt.debug.history.clearBreakpoints",
+      handleClearBreakpoints
+    )
   );
 }
-var vscode13;
+var vscode14;
 var init_historyDebugCommands = __esm({
   "src/commands/historyDebugCommands.ts"() {
     "use strict";
-    vscode13 = __toESM(require("vscode"), 1);
+    vscode14 = __toESM(require("vscode"), 1);
     init_historyExport();
     init_historyTestRecorder();
     init_eventReplayDebugger();
@@ -48069,13 +48029,19 @@ function generateTestFromScenario(scenario, options = {}) {
   lines.push(`${indent}${indent}// Verify final state`);
   lines.push(`${indent}${indent}const context = getContext();`);
   if (scenario.finalContext.applicationState) {
-    lines.push(`${indent}${indent}expect(context.applicationState).toBe('${scenario.finalContext.applicationState}');`);
+    lines.push(
+      `${indent}${indent}expect(context.applicationState).toBe('${scenario.finalContext.applicationState}');`
+    );
   }
   if (scenario.finalContext.connections) {
-    lines.push(`${indent}${indent}expect(context.connections.length).toBe(${scenario.finalContext.connections.length});`);
+    lines.push(
+      `${indent}${indent}expect(context.connections.length).toBe(${scenario.finalContext.connections.length});`
+    );
   }
   if (scenario.finalContext.activeConnectionId) {
-    lines.push(`${indent}${indent}expect(context.activeConnectionId).toBe('${scenario.finalContext.activeConnectionId}');`);
+    lines.push(
+      `${indent}${indent}expect(context.activeConnectionId).toBe('${scenario.finalContext.activeConnectionId}');`
+    );
   }
   if (opts.includeSnapshots && opts.framework === "vitest") {
     lines.push("");
@@ -48104,18 +48070,20 @@ function generateImports(framework, eventImports = /* @__PURE__ */ new Set()) {
     imports.push("import { describe, it } from 'mocha';");
     imports.push("import { expect } from 'chai';");
   }
-  imports.push("import { resetEngine, dispatch, waitForStateValue, getContext } from '../../../src/testing/helpers.js';");
+  imports.push(
+    "import { resetEngine, dispatch, waitForStateValue, getContext } from '../../../src/testing/helpers.js';"
+  );
   if (eventImports.size > 0) {
     const eventNames = Array.from(eventImports).sort();
-    imports.push(`import { ${eventNames.join(", ")} } from '../../../src/praxis/application/facts.js';`);
+    imports.push(
+      `import { ${eventNames.join(", ")} } from '../../../src/praxis/application/facts.js';`
+    );
   }
   return imports.join("\n");
 }
 function convertEventTagToName(eventTag) {
   const parts = eventTag.split("_");
-  const camelCase = parts.map(
-    (part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
-  ).join("");
+  const camelCase = parts.map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join("");
   return camelCase + "Event";
 }
 function generateEventCode(event2, indent) {
@@ -48155,9 +48123,7 @@ function generateValueCode(value, indent) {
   }
   if (typeof value === "object") {
     if (value instanceof Map) {
-      const entries = Array.from(value.entries()).map(
-        ([k, v]) => `['${k}', ${generateValueCode(v, indent)}]`
-      ).join(", ");
+      const entries = Array.from(value.entries()).map(([k, v]) => `['${k}', ${generateValueCode(v, indent)}]`).join(", ");
       return `new Map([${entries}])`;
     }
     const keys = Object.keys(value);
@@ -48188,7 +48154,9 @@ function generateSnapshotTest(scenario, options = {}) {
   }
   if (eventImports.size > 0) {
     const eventNames = Array.from(eventImports).sort();
-    lines.push(`import { ${eventNames.join(", ")} } from '../../../src/praxis/application/facts.js';`);
+    lines.push(
+      `import { ${eventNames.join(", ")} } from '../../../src/praxis/application/facts.js';`
+    );
     lines.push("");
   }
   lines.push(`describe('${opts.describeName}', () => {`);
@@ -48208,7 +48176,9 @@ function generateSnapshotTest(scenario, options = {}) {
       lines.push(`${indent}${indent}${indent}${indent}{`);
       lines.push(`${indent}${indent}${indent}${indent}${indent}index: ${i + 1},`);
       lines.push(`${indent}${indent}${indent}${indent}${indent}state: '${eventData.stateAfter}',`);
-      lines.push(`${indent}${indent}${indent}${indent}${indent}contextChecks: (ctx) => ctx.applicationState === '${eventData.stateAfter}',`);
+      lines.push(
+        `${indent}${indent}${indent}${indent}${indent}contextChecks: (ctx) => ctx.applicationState === '${eventData.stateAfter}',`
+      );
       lines.push(`${indent}${indent}${indent}${indent}},`);
     }
   }
@@ -48249,23 +48219,20 @@ var init_testGenerator = __esm({
 
 // src/commands/testGeneratorCommands.ts
 function registerTestGeneratorCommands(context) {
-  const generateFromHistoryCommand = vscode14.commands.registerCommand(
+  const generateFromHistoryCommand = vscode15.commands.registerCommand(
     "azureDevOpsInt.debug.test.generateFromHistory",
     async () => {
       try {
-        const testName = await vscode14.window.showInputBox({
+        const testName = await vscode15.window.showInputBox({
           prompt: "Enter test name",
           placeHolder: "connection-authentication-test"
         });
         if (!testName) {
           return;
         }
-        const framework = await vscode14.window.showQuickPick(
-          ["vitest", "jest", "mocha"],
-          {
-            placeHolder: "Select test framework"
-          }
-        );
+        const framework = await vscode15.window.showQuickPick(["vitest", "jest", "mocha"], {
+          placeHolder: "Select test framework"
+        });
         if (!framework) {
           return;
         }
@@ -48278,26 +48245,26 @@ function registerTestGeneratorCommands(context) {
           includeSnapshots: true,
           includeComments: true
         });
-        const uri = await vscode14.window.showSaveDialog({
-          defaultUri: vscode14.Uri.file(`${testName}.test.ts`),
+        const uri = await vscode15.window.showSaveDialog({
+          defaultUri: vscode15.Uri.file(`${testName}.test.ts`),
           filters: {
             "TypeScript Files": ["ts"]
           }
         });
         if (uri) {
           await fs.writeFile(uri.fsPath, testCode, "utf-8");
-          vscode14.window.showInformationMessage(`Test generated: ${path.basename(uri.fsPath)}`);
+          vscode15.window.showInformationMessage(`Test generated: ${path.basename(uri.fsPath)}`);
         }
       } catch (error) {
-        vscode14.window.showErrorMessage(`Failed to generate test: ${error}`);
+        vscode15.window.showErrorMessage(`Failed to generate test: ${error}`);
       }
     }
   );
-  const generateFromFileCommand = vscode14.commands.registerCommand(
+  const generateFromFileCommand = vscode15.commands.registerCommand(
     "azureDevOpsInt.debug.test.generateFromFile",
     async () => {
       try {
-        const uri = await vscode14.window.showOpenDialog({
+        const uri = await vscode15.window.showOpenDialog({
           filters: {
             "JSON Files": ["json"]
           },
@@ -48306,53 +48273,48 @@ function registerTestGeneratorCommands(context) {
         if (!uri || !uri[0]) {
           return;
         }
-        const testName = await vscode14.window.showInputBox({
+        const testName = await vscode15.window.showInputBox({
           prompt: "Enter test name",
           placeHolder: "generated-test"
         });
         if (!testName) {
           return;
         }
-        const framework = await vscode14.window.showQuickPick(
-          ["vitest", "jest", "mocha"],
-          {
-            placeHolder: "Select test framework"
-          }
-        );
+        const framework = await vscode15.window.showQuickPick(["vitest", "jest", "mocha"], {
+          placeHolder: "Select test framework"
+        });
         if (!framework) {
           return;
         }
-        const outputUri = await vscode14.window.showSaveDialog({
-          defaultUri: vscode14.Uri.file(`${testName}.test.ts`),
+        const outputUri = await vscode15.window.showSaveDialog({
+          defaultUri: vscode15.Uri.file(`${testName}.test.ts`),
           filters: {
             "TypeScript Files": ["ts"]
           }
         });
         if (outputUri) {
-          await generateTestFromHistoryFile(
-            uri[0].fsPath,
-            outputUri.fsPath,
-            {
-              framework,
-              testName,
-              includeSnapshots: true,
-              includeComments: true
-            }
+          await generateTestFromHistoryFile(uri[0].fsPath, outputUri.fsPath, {
+            framework,
+            testName,
+            includeSnapshots: true,
+            includeComments: true
+          });
+          vscode15.window.showInformationMessage(
+            `Test generated: ${path.basename(outputUri.fsPath)}`
           );
-          vscode14.window.showInformationMessage(`Test generated: ${path.basename(outputUri.fsPath)}`);
         }
       } catch (error) {
-        vscode14.window.showErrorMessage(`Failed to generate test: ${error}`);
+        vscode15.window.showErrorMessage(`Failed to generate test: ${error}`);
       }
     }
   );
   context.subscriptions.push(generateFromHistoryCommand, generateFromFileCommand);
 }
-var vscode14, path, fs;
+var vscode15, path, fs;
 var init_testGeneratorCommands = __esm({
   "src/commands/testGeneratorCommands.ts"() {
     "use strict";
-    vscode14 = __toESM(require("vscode"), 1);
+    vscode15 = __toESM(require("vscode"), 1);
     path = __toESM(require("path"), 1);
     fs = __toESM(require("fs/promises"), 1);
     init_testGenerator();
@@ -48465,13 +48427,6 @@ var init_eventBus = __esm({
             try {
               subscriber(message);
             } catch (error) {
-              console.debug("[PraxisEventBus] Subscriber error:", {
-                messageType: message.type,
-                sourceEngine: message.sourceEngine,
-                connectionId: message.connectionId,
-                subscriberCount: typeSubscribers.size,
-                error: error instanceof Error ? error.message : String(error)
-              });
             }
           }
         }
@@ -48479,12 +48434,6 @@ var init_eventBus = __esm({
           try {
             subscriber(message);
           } catch (error) {
-            console.debug("[PraxisEventBus] All-subscriber error:", {
-              messageType: message.type,
-              sourceEngine: message.sourceEngine,
-              allSubscriberCount: this.allSubscribers.size,
-              error: error instanceof Error ? error.message : String(error)
-            });
           }
         }
       }
@@ -49568,7 +49517,10 @@ var init_manager4 = __esm({
         if (traceEnabled) {
           const entry = this.traceRecorder.completeDispatch(contextAfter, result?.diagnostics);
           if (entry) {
-            this.engine.updateContext((ctx) => ({ ...ctx, debugTraceLog: this.traceRecorder.getEntries() }));
+            this.engine.updateContext((ctx) => ({
+              ...ctx,
+              debugTraceLog: this.traceRecorder.getEntries()
+            }));
           }
         }
         if (!contextAfter.debugLoggingEnabled && this.traceRecorder.getEntries().length > 0) {
@@ -50484,35 +50436,40 @@ function handleApplicationEvent(manager, event2) {
     );
   }
 }
-function createApplicationStore() {
-  const applicationManager = PraxisApplicationManager.getInstance();
-  applicationManager.start();
-  const engine = applicationManager.getEngine();
-  const praxisStore2 = createPraxisStore(engine);
-  const contextStore = createContextStore(engine);
-  const connectionsDerivedStore = createDerivedStore(engine, (ctx) => ctx.connections || []);
-  const activeConnectionIdDerivedStore = createDerivedStore(engine, (ctx) => ctx.activeConnectionId);
-  const connectionStatesDerivedStore = createDerivedStore(engine, (ctx) => ctx.connectionStates || /* @__PURE__ */ new Map());
-  const pendingAuthRemindersDerivedStore = createDerivedStore(engine, (ctx) => ctx.pendingAuthReminders || /* @__PURE__ */ new Map());
-  const isActivatedDerivedStore = createDerivedStore(engine, (ctx) => ctx.isActivated ?? false);
-  const isDeactivatingDerivedStore = createDerivedStore(engine, (ctx) => ctx.isDeactivating ?? false);
-  const lastErrorDerivedStore = createDerivedStore(engine, (ctx) => ctx.lastError);
-  const currentState = writable(null);
+function createOptimizedDerivedStores(engine) {
+  return {
+    connections: createDerivedStore(engine, (ctx) => ctx.connections || []),
+    activeConnectionId: createDerivedStore(engine, (ctx) => ctx.activeConnectionId),
+    connectionStates: createDerivedStore(engine, (ctx) => ctx.connectionStates || /* @__PURE__ */ new Map()),
+    pendingAuthReminders: createDerivedStore(
+      engine,
+      (ctx) => ctx.pendingAuthReminders || /* @__PURE__ */ new Map()
+    ),
+    isActivated: createDerivedStore(engine, (ctx) => ctx.isActivated ?? false),
+    isDeactivating: createDerivedStore(engine, (ctx) => ctx.isDeactivating ?? false),
+    lastError: createDerivedStore(engine, (ctx) => ctx.lastError)
+  };
+}
+function createStateWrapper(applicationManager) {
+  return (appState, appData) => ({
+    value: appState,
+    context: appData,
+    matches: (stateValue) => {
+      if (appState === stateValue) return true;
+      if (appState.includes(stateValue)) return true;
+      if (stateValue === "activation_failed" && appState === "activation_error") return true;
+      return false;
+    },
+    can: (_event) => true
+    // Praxis handles validation internally
+  });
+}
+function setupStateSubscriptions(applicationManager, praxisStore2, currentState) {
+  const createWrapper = createStateWrapper(applicationManager);
   const managerUnsubscribe = applicationManager.subscribe(() => {
     const appState = applicationManager.getApplicationState();
     const appData = applicationManager.getContext();
-    currentState.set({
-      value: appState,
-      context: appData,
-      matches: (stateValue) => {
-        if (appState === stateValue) return true;
-        if (appState.includes(stateValue)) return true;
-        if (stateValue === "activation_failed" && appState === "activation_error") return true;
-        return false;
-      },
-      can: (_event) => true
-      // Praxis handles validation internally
-    });
+    currentState.set(createWrapper(appState, appData));
   });
   const praxisUnsubscribe = praxisStore2.subscribe((praxisState) => {
     if (!praxisState) {
@@ -50521,19 +50478,23 @@ function createApplicationStore() {
     }
     const appState = applicationManager.getApplicationState();
     const appData = applicationManager.getContext();
-    currentState.set({
-      value: appState,
-      context: appData,
-      matches: (stateValue) => {
-        if (appState === stateValue) return true;
-        if (appState.includes(stateValue)) return true;
-        if (stateValue === "activation_failed" && appState === "activation_error") return true;
-        return false;
-      },
-      can: (_event) => true
-      // Praxis handles validation internally
-    });
+    currentState.set(createWrapper(appState, appData));
   });
+  return { managerUnsubscribe, praxisUnsubscribe };
+}
+function createApplicationStore() {
+  const applicationManager = PraxisApplicationManager.getInstance();
+  applicationManager.start();
+  const engine = applicationManager.getEngine();
+  const praxisStore2 = createPraxisStore(engine);
+  const contextStore = createContextStore(engine);
+  const derivedStores = createOptimizedDerivedStores(engine);
+  const currentState = writable(null);
+  const { managerUnsubscribe, praxisUnsubscribe } = setupStateSubscriptions(
+    applicationManager,
+    praxisStore2,
+    currentState
+  );
   const applicationState2 = readable(null, (set3) => {
     const unsubscribe = currentState.subscribe(set3);
     return () => {
@@ -50549,29 +50510,17 @@ function createApplicationStore() {
   return {
     applicationState: applicationState2,
     send,
-    // Expose manager for debugging
     get actor() {
       return applicationManager;
     },
-    // Expose Praxis store for advanced usage
     get praxisStore() {
       return praxisStore2;
     },
-    // Expose context store for direct context access
     get contextStore() {
       return contextStore;
     },
-    // Expose derived stores for optimized access
     get derivedStores() {
-      return {
-        connections: connectionsDerivedStore,
-        activeConnectionId: activeConnectionIdDerivedStore,
-        connectionStates: connectionStatesDerivedStore,
-        pendingAuthReminders: pendingAuthRemindersDerivedStore,
-        isActivated: isActivatedDerivedStore,
-        isDeactivating: isDeactivatingDerivedStore,
-        lastError: lastErrorDerivedStore
-      };
+      return derivedStores;
     }
   };
 }
@@ -50780,7 +50729,7 @@ ${recentLogs.join("\n")}
 }
 function registerOutputChannelReader(context) {
   const reader = OutputChannelReader.getInstance();
-  const disposable = vscode15.commands.registerCommand(
+  const disposable = vscode16.commands.registerCommand(
     "azureDevOpsInt.getFSMLogs",
     async (options) => {
       try {
@@ -50794,32 +50743,31 @@ function registerOutputChannelReader(context) {
           return await getFSMLogsForDebugging(context);
         }
       } catch (error) {
-        console.debug("[AzureDevOpsInt] [OutputChannelReader] Error getting FSM logs:", error);
         return `Error retrieving FSM logs: ${error}`;
       }
     }
   );
   context.subscriptions.push(disposable);
-  const debugCommand = vscode15.commands.registerCommand("azureDevOpsInt.exportFSMLogs", async () => {
+  const debugCommand = vscode16.commands.registerCommand("azureDevOpsInt.exportFSMLogs", async () => {
     try {
       const logs = await getFSMLogsForDebugging(context);
-      const doc = await vscode15.workspace.openTextDocument({
+      const doc = await vscode16.workspace.openTextDocument({
         content: logs,
         language: "log"
       });
-      await vscode15.window.showTextDocument(doc);
-      vscode15.window.showInformationMessage("FSM logs exported to new document");
+      await vscode16.window.showTextDocument(doc);
+      vscode16.window.showInformationMessage("FSM logs exported to new document");
     } catch (error) {
-      vscode15.window.showErrorMessage(`Failed to export FSM logs: ${error}`);
+      vscode16.window.showErrorMessage(`Failed to export FSM logs: ${error}`);
     }
   });
   context.subscriptions.push(debugCommand);
 }
-var vscode15, OutputChannelReader;
+var vscode16, OutputChannelReader;
 var init_outputChannelReader = __esm({
   "src/commands/outputChannelReader.ts"() {
     "use strict";
-    vscode15 = __toESM(require("vscode"), 1);
+    vscode16 = __toESM(require("vscode"), 1);
     init_ComponentLogger();
     OutputChannelReader = class _OutputChannelReader {
       static instance;
@@ -54596,7 +54544,6 @@ var init_LiveCanvasBridge = __esm({
         try {
           this.ws = new wrapper_default(this.url);
           this.ws.on("open", () => {
-            console.debug("[LiveCanvasBridge] Connected to Live Canvas");
             this.sendLogicInspection();
           });
           this.ws.on("error", (_err) => {
@@ -54614,7 +54561,6 @@ var init_LiveCanvasBridge = __esm({
                 this.handleTriggerEvent(msg);
               }
             } catch (e) {
-              console.debug("[LiveCanvasBridge] Error parsing message", e);
             }
           });
         } catch {
@@ -54792,19 +54738,19 @@ function handleMessage(message) {
   switch (message?.type) {
     case "openExternal": {
       if (message.url) {
-        vscode16.env.openExternal(vscode16.Uri.parse(message.url));
+        vscode17.env.openExternal(vscode17.Uri.parse(message.url));
       }
       break;
     }
     case "createBranch": {
       if (message.suggestedName) {
-        vscode16.window.showInputBox({
+        vscode17.window.showInputBox({
           prompt: "Enter branch name",
           value: message.suggestedName,
           placeHolder: "feature/123-my-work-item"
         }).then((name3) => {
           if (name3) {
-            vscode16.commands.executeCommand("git.branch", name3);
+            vscode17.commands.executeCommand("git.branch", name3);
           }
         });
       }
@@ -54964,16 +54910,16 @@ async function migrateLegacyPAT(context) {
   }
 }
 function buildMinimalWebviewHtml(context, webview, nonce) {
-  const cfg = vscode16.workspace.getConfiguration("azureDevOpsIntegration");
+  const cfg = vscode17.workspace.getConfiguration("azureDevOpsIntegration");
   const enableSvelte = !!cfg.get("experimentalSvelteUI");
   const basePath = context.extensionPath;
   const sveltePath = path2.join(basePath, "media", "webview", "svelte-main.js");
   const scriptFile = enableSvelte && fs2.existsSync(sveltePath) ? "svelte-main.js" : "main.js";
   const scriptUri = webview.asWebviewUri(
-    vscode16.Uri.joinPath(context.extensionUri, "media", "webview", scriptFile)
+    vscode17.Uri.joinPath(context.extensionUri, "media", "webview", scriptFile)
   );
   const mainCssUri = webview.asWebviewUri(
-    vscode16.Uri.joinPath(context.extensionUri, "media", "webview", "main.css")
+    vscode17.Uri.joinPath(context.extensionUri, "media", "webview", "main.css")
   );
   const csp = `default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval'; img-src ${webview.cspSource} data:; connect-src 'self';`;
   return `<!DOCTYPE html>
@@ -55038,7 +54984,7 @@ async function showEditDialog(item, client2, provider2) {
     description: `Current: ${field2.value}`,
     field: field2
   }));
-  const selectedField = await vscode16.window.showQuickPick(fieldItems, {
+  const selectedField = await vscode17.window.showQuickPick(fieldItems, {
     placeHolder: "Select field to edit",
     title: `Edit Work Item #${item.id}`
   });
@@ -55050,20 +54996,20 @@ async function showEditDialog(item, client2, provider2) {
       label: option,
       picked: option === field.value
     }));
-    const selectedState = await vscode16.window.showQuickPick(stateItems, {
+    const selectedState = await vscode17.window.showQuickPick(stateItems, {
       placeHolder: "Select new state",
       title: `Edit ${field.label}`
     });
     if (!selectedState) return;
     newValue = selectedState.label;
   } else if (field.type === "multiline") {
-    newValue = await vscode16.window.showInputBox({
+    newValue = await vscode17.window.showInputBox({
       prompt: `Enter new ${field.label}`,
       value: field.value,
       ignoreFocusOut: true
     });
   } else {
-    newValue = await vscode16.window.showInputBox({
+    newValue = await vscode17.window.showInputBox({
       prompt: `Enter new ${field.label}`,
       value: field.value,
       ignoreFocusOut: true
@@ -55080,15 +55026,15 @@ async function showEditDialog(item, client2, provider2) {
     ];
     const updatedItem = await client2.updateWorkItem(item.id, patches);
     if (updatedItem) {
-      vscode16.window.showInformationMessage(
+      vscode17.window.showInformationMessage(
         `Successfully updated ${field.label} for work item #${item.id}`
       );
       provider2.refresh?.(getStoredQueryForConnection(activeConnectionId3));
     } else {
-      vscode16.window.showErrorMessage(`Failed to update ${field.label} for work item #${item.id}`);
+      vscode17.window.showErrorMessage(`Failed to update ${field.label} for work item #${item.id}`);
     }
   } catch (error) {
-    vscode16.window.showErrorMessage(
+    vscode17.window.showErrorMessage(
       `Error updating work item: ${error instanceof Error ? error.message : String(error)}`
     );
   }
@@ -55104,12 +55050,12 @@ async function showCreateWorkItemDialog(client2, provider2, connectionId) {
     if (workItemTypes.length === 0) {
       workItemTypes = ["Task", "Bug", "User Story", "Feature", "Epic"];
     }
-    const selectedType = await vscode16.window.showQuickPick(workItemTypes, {
+    const selectedType = await vscode17.window.showQuickPick(workItemTypes, {
       placeHolder: "Select work item type",
       title: "Create Work Item"
     });
     if (!selectedType) return;
-    const title = await vscode16.window.showInputBox({
+    const title = await vscode17.window.showInputBox({
       prompt: "Enter work item title",
       placeHolder: "Title",
       ignoreFocusOut: true,
@@ -55121,12 +55067,12 @@ async function showCreateWorkItemDialog(client2, provider2, connectionId) {
       }
     });
     if (!title) return;
-    const description = await vscode16.window.showInputBox({
+    const description = await vscode17.window.showInputBox({
       prompt: "Enter work item description (optional)",
       placeHolder: "Description",
       ignoreFocusOut: true
     });
-    const assignTo = await vscode16.window.showInputBox({
+    const assignTo = await vscode17.window.showInputBox({
       prompt: "Assign to (optional, leave empty for unassigned)",
       placeHolder: "Email or display name",
       ignoreFocusOut: true
@@ -55141,7 +55087,7 @@ async function showCreateWorkItemDialog(client2, provider2, connectionId) {
             description: i.path,
             detail: i.attributes?.startDate ? `Start: ${new Date(i.attributes.startDate).toLocaleDateString()}` : void 0
           }));
-          const selectedIteration = await vscode16.window.showQuickPick(iterationItems, {
+          const selectedIteration = await vscode17.window.showQuickPick(iterationItems, {
             placeHolder: "Select Iteration (optional)",
             title: "Iteration"
           });
@@ -55164,15 +55110,15 @@ async function showCreateWorkItemDialog(client2, provider2, connectionId) {
       extraFields
     );
     if (createdItem) {
-      vscode16.window.showInformationMessage(
+      vscode17.window.showInformationMessage(
         `Successfully created ${selectedType} #${createdItem.id}: ${title}`
       );
       provider2.refresh?.(getStoredQueryForConnection(connectionId || activeConnectionId3));
     } else {
-      vscode16.window.showErrorMessage(`Failed to create ${selectedType}`);
+      vscode17.window.showErrorMessage(`Failed to create ${selectedType}`);
     }
   } catch (error) {
-    vscode16.window.showErrorMessage(
+    vscode17.window.showErrorMessage(
       `Error creating work item: ${error instanceof Error ? error.message : String(error)}`
     );
   }
@@ -55188,12 +55134,12 @@ function dispatchApplicationEvent(event2) {
             const snapshot2 = appActor?.getSnapshot?.();
             const timerState = snapshot2?.context?.timerState;
             if (!timerState?.workItemId || !timerState?.startTime) {
-              vscode16.window.showWarningMessage("No active timer to stop");
+              vscode17.window.showWarningMessage("No active timer to stop");
               return;
             }
             const elapsed = Math.floor((Date.now() - timerState.startTime) / 1e3);
             const hours = (elapsed / 3600).toFixed(2);
-            const comment2 = await vscode16.window.showInputBox({
+            const comment2 = await vscode17.window.showInputBox({
               prompt: `Add comment for ${hours} hours logged on work item #${timerState.workItemId}`,
               placeHolder: "Optional: describe what you worked on..."
             });
@@ -55225,16 +55171,16 @@ function dispatchApplicationEvent(event2) {
                 ]);
                 const finalComment = comment2 ? `${comment2} (Logged ${hours}h)` : `Logged ${hours}h via timer stop.`;
                 await client.addWorkItemComment(timerState.workItemId, finalComment);
-                vscode16.window.showInformationMessage(
+                vscode17.window.showInformationMessage(
                   `Timer stopped. Logged ${hours} hours to work item #${timerState.workItemId}`
                 );
               } catch (error) {
-                vscode16.window.showErrorMessage(
+                vscode17.window.showErrorMessage(
                   `Timer stopped but failed to log time: ${error instanceof Error ? error.message : String(error)}`
                 );
               }
             } else {
-              vscode16.window.showInformationMessage(`Timer stopped. ${hours} hours elapsed.`);
+              vscode17.window.showInformationMessage(`Timer stopped. ${hours} hours elapsed.`);
             }
             if (snapshot2?.context?.extensionContext) {
               await snapshot2.context.extensionContext.globalState.update(
@@ -55243,7 +55189,7 @@ function dispatchApplicationEvent(event2) {
               );
             }
           } catch (error) {
-            vscode16.window.showErrorMessage(
+            vscode17.window.showErrorMessage(
               `Failed to stop timer: ${error instanceof Error ? error.message : String(error)}`
             );
           }
@@ -55257,13 +55203,13 @@ function dispatchApplicationEvent(event2) {
             if (item) {
               showEditDialog(item, client, provider);
             } else {
-              vscode16.window.showErrorMessage("Work item not found");
+              vscode17.window.showErrorMessage("Work item not found");
             }
           } else {
-            vscode16.window.showErrorMessage("Unable to edit work item: missing client or provider");
+            vscode17.window.showErrorMessage("Unable to edit work item: missing client or provider");
           }
         } catch (error) {
-          vscode16.window.showErrorMessage(
+          vscode17.window.showErrorMessage(
             `Failed to edit work item: ${error instanceof Error ? error.message : String(error)}`
           );
         }
@@ -55273,12 +55219,12 @@ function dispatchApplicationEvent(event2) {
           if (client && provider) {
             showCreateWorkItemDialog(client, provider, activeConnectionId3);
           } else {
-            vscode16.window.showErrorMessage(
+            vscode17.window.showErrorMessage(
               "Unable to create work item: missing client or provider"
             );
           }
         } catch (error) {
-          vscode16.window.showErrorMessage(
+          vscode17.window.showErrorMessage(
             `Failed to create work item: ${error instanceof Error ? error.message : String(error)}`
           );
         }
@@ -55287,14 +55233,14 @@ function dispatchApplicationEvent(event2) {
       case "OPEN_WORK_ITEM":
         if (evt.workItemId && client) {
           const url2 = client.getBrowserUrl(`/_workitems/edit/${evt.workItemId}`);
-          vscode16.env.clipboard.writeText(url2).then(
+          vscode17.env.clipboard.writeText(url2).then(
             () => {
-              vscode16.window.showInformationMessage(`Work item URL copied to clipboard`);
+              vscode17.window.showInformationMessage(`Work item URL copied to clipboard`);
             },
             (error) => {
             }
           );
-          vscode16.env.openExternal(vscode16.Uri.parse(url2));
+          vscode17.env.openExternal(vscode17.Uri.parse(url2));
         }
         break;
       case "CREATE_BRANCH":
@@ -55306,42 +55252,42 @@ function dispatchApplicationEvent(event2) {
               if (item) {
                 const title = item.fields?.["System.Title"] || "";
                 const branchName = `feature/${evt.workItemId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-                const name3 = await vscode16.window.showInputBox({
+                const name3 = await vscode17.window.showInputBox({
                   prompt: "Enter branch name",
                   value: branchName
                 });
                 if (name3) {
                   try {
-                    await vscode16.commands.executeCommand("git.branch", name3);
+                    await vscode17.commands.executeCommand("git.branch", name3);
                     if (client) {
                       const comment2 = `Created branch: ${name3}`;
                       const success = await client.addWorkItemComment(evt.workItemId, comment2);
                       if (success) {
-                        vscode16.window.showInformationMessage(
+                        vscode17.window.showInformationMessage(
                           `Branch "${name3}" created and linked to work item #${evt.workItemId}`
                         );
                       } else {
-                        vscode16.window.showWarningMessage(
+                        vscode17.window.showWarningMessage(
                           `Branch "${name3}" created but failed to link to work item #${evt.workItemId}`
                         );
                       }
                     } else {
-                      vscode16.window.showInformationMessage(`Branch "${name3}" created`);
+                      vscode17.window.showInformationMessage(`Branch "${name3}" created`);
                     }
                   } catch (error) {
-                    vscode16.window.showErrorMessage(
+                    vscode17.window.showErrorMessage(
                       `Failed to create branch: ${error instanceof Error ? error.message : String(error)}`
                     );
                   }
                 }
               } else {
-                vscode16.window.showErrorMessage("Work item not found");
+                vscode17.window.showErrorMessage("Work item not found");
               }
             } else {
-              vscode16.window.showErrorMessage("No work item ID provided for branch creation");
+              vscode17.window.showErrorMessage("No work item ID provided for branch creation");
             }
           } catch (error) {
-            vscode16.window.showErrorMessage(
+            vscode17.window.showErrorMessage(
               `Failed to create branch: ${error instanceof Error ? error.message : String(error)}`
             );
           }
@@ -55367,7 +55313,7 @@ async function ensureSharedContextBridge(context) {
     });
     context.subscriptions.push(sharedContextBridge);
     context.subscriptions.push(
-      new vscode16.Disposable(() => {
+      new vscode17.Disposable(() => {
         sharedContextBridge = void 0;
       })
     );
@@ -55519,7 +55465,7 @@ async function updateAuthStatusBar() {
       if (authMethod === "entra") {
         authStatusBarItem.text = "$(sync~spin) Entra: Connecting...";
         authStatusBarItem.tooltip = `Connecting to ${connectionLabel}...`;
-        authStatusBarItem.backgroundColor = new vscode16.ThemeColor(
+        authStatusBarItem.backgroundColor = new vscode17.ThemeColor(
           "statusBarItem.warningBackground"
         );
         authStatusBarItem.command = "azureDevOpsInt.signInWithEntra";
@@ -55528,7 +55474,7 @@ async function updateAuthStatusBar() {
       } else {
         authStatusBarItem.text = "$(sync~spin) PAT: Connecting...";
         authStatusBarItem.tooltip = `Connecting to ${connectionLabel}...`;
-        authStatusBarItem.backgroundColor = new vscode16.ThemeColor(
+        authStatusBarItem.backgroundColor = new vscode17.ThemeColor(
           "statusBarItem.warningBackground"
         );
         authStatusBarItem.command = "azureDevOpsInt.setup";
@@ -55544,13 +55490,13 @@ async function updateAuthStatusBar() {
       const remainingMinutes = Math.ceil(remainingMs / 6e4);
       authStatusBarItem.text = "$(sync~spin) Entra: Signing In...";
       authStatusBarItem.tooltip = `Authorization code flow in progress for ${connectionLabel}. Complete sign-in in browser (${remainingMinutes}m remaining).`;
-      authStatusBarItem.backgroundColor = new vscode16.ThemeColor("statusBarItem.warningBackground");
+      authStatusBarItem.backgroundColor = new vscode17.ThemeColor("statusBarItem.warningBackground");
       authStatusBarItem.command = "azureDevOpsInt.signInWithEntra";
       authStatusBarItem.show();
     } else if (hasActiveDeviceCode || isInteractiveAuth && authMethod === "entra") {
       authStatusBarItem.text = "$(sync~spin) Entra: Device Code Active";
       authStatusBarItem.tooltip = `Device code authentication in progress for ${connectionLabel}`;
-      authStatusBarItem.backgroundColor = new vscode16.ThemeColor("statusBarItem.warningBackground");
+      authStatusBarItem.backgroundColor = new vscode17.ThemeColor("statusBarItem.warningBackground");
       authStatusBarItem.command = "azureDevOpsInt.signInWithEntra";
       authStatusBarItem.show();
     } else if (isConnected && !hasActiveDeviceCode && !hasActiveAuthCodeFlow) {
@@ -55576,7 +55522,7 @@ async function updateAuthStatusBar() {
 Connection: ${connectionLabel}
 Click to sign in.`;
           authStatusBarItem.command = "azureDevOpsInt.signInWithEntra";
-          authStatusBarItem.backgroundColor = new vscode16.ThemeColor(
+          authStatusBarItem.backgroundColor = new vscode17.ThemeColor(
             "statusBarItem.warningBackground"
           );
           authStatusBarItem.show();
@@ -55586,7 +55532,7 @@ Click to sign in.`;
 
 Connection: ${connectionLabel}
 Click to manage connections.`;
-          authStatusBarItem.backgroundColor = new vscode16.ThemeColor(
+          authStatusBarItem.backgroundColor = new vscode17.ThemeColor(
             "statusBarItem.errorBackground"
           );
           authStatusBarItem.command = "azureDevOpsInt.setup";
@@ -55596,7 +55542,7 @@ Click to manage connections.`;
         if (authMethod === "entra") {
           authStatusBarItem.text = "$(sync~spin) Entra: Connecting...";
           authStatusBarItem.tooltip = `Connecting to ${connectionLabel}...`;
-          authStatusBarItem.backgroundColor = new vscode16.ThemeColor(
+          authStatusBarItem.backgroundColor = new vscode17.ThemeColor(
             "statusBarItem.warningBackground"
           );
           authStatusBarItem.command = "azureDevOpsInt.signInWithEntra";
@@ -55605,7 +55551,7 @@ Click to manage connections.`;
           authStatusBarItem.text = "$(warning) PAT: Auth Required";
           authStatusBarItem.tooltip = `Personal Access Token required for ${connectionLabel}. Click to manage connections.`;
           authStatusBarItem.command = "azureDevOpsInt.setup";
-          authStatusBarItem.backgroundColor = new vscode16.ThemeColor(
+          authStatusBarItem.backgroundColor = new vscode17.ThemeColor(
             "statusBarItem.warningBackground"
           );
           authStatusBarItem.show();
@@ -55710,9 +55656,9 @@ async function ensureActiveConnection(context, connectionId, options = {}) {
     const isAuthError = result.error.includes("invalid_grant") || result.error.includes("interaction_required") || result.error.includes("sign_in_required") || result.error.includes("Entra ID token acquisition failed");
     if (isAuthError) {
       const message = `Authentication failed for ${connection.label || connection.id}: ${result.error}`;
-      vscode16.window.showErrorMessage(message);
+      vscode17.window.showErrorMessage(message);
     } else {
-      vscode16.window.showErrorMessage(
+      vscode17.window.showErrorMessage(
         `Connection failed for ${connection.label || connection.id}: ${result.error}`
       );
     }
@@ -55727,7 +55673,7 @@ async function resolveActiveConnectionTarget(context, connectionId, options = {}
     if (options.notify !== false) {
       notifyConnectionsList();
     }
-    await vscode16.commands.executeCommand("setContext", "azureDevOpsInt.connected", false);
+    await vscode17.commands.executeCommand("setContext", "azureDevOpsInt.connected", false);
     provider = void 0;
     client = void 0;
     return void 0;
@@ -55761,7 +55707,7 @@ async function finalizeConnectionSuccess(connection, state2, options, settings) 
   configureProviderForConnection(connection, state2);
   client = state2.client;
   provider = state2.provider;
-  await vscode16.commands.executeCommand("setContext", "azureDevOpsInt.connected", true);
+  await vscode17.commands.executeCommand("setContext", "azureDevOpsInt.connected", true);
   await updateAuthStatusBar();
   if (options.refresh !== false && state2.provider) {
     const fallbackQuery = getDefaultQuery(settings);
@@ -55806,7 +55752,7 @@ async function loadConnectionsFromConfig2(context) {
       await settings.update(
         CONNECTIONS_CONFIG_KEY,
         normalized.map((entry) => ({ ...entry })),
-        vscode16.ConfigurationTarget.Global
+        vscode17.ConfigurationTarget.Global
       );
     } catch (error) {
     }
@@ -55879,7 +55825,7 @@ Code expires in ${expiresMinutes} minute${expiresMinutes === 1 ? "" : "s"}.` : "
   const copyAndOpen = "Copy & Open";
   const openBrowser = "Open Browser";
   const copyCode = "Copy Code";
-  const action2 = await vscode16.window.showInformationMessage(
+  const action2 = await vscode17.window.showInformationMessage(
     message,
     { modal: false },
     copyAndOpen,
@@ -55889,26 +55835,26 @@ Code expires in ${expiresMinutes} minute${expiresMinutes === 1 ? "" : "s"}.` : "
   try {
     if (action2 === "Copy & Open") {
       try {
-        await vscode16.env.clipboard.writeText(session.userCode);
+        await vscode17.env.clipboard.writeText(session.userCode);
       } catch (error) {
       }
-      await vscode16.env.openExternal(vscode16.Uri.parse(session.verificationUri));
-      vscode16.window.showInformationMessage(
+      await vscode17.env.openExternal(vscode17.Uri.parse(session.verificationUri));
+      vscode17.window.showInformationMessage(
         `Device code ${session.userCode} copied to clipboard. Paste it into the browser to finish signing in.`
       );
       return;
     }
     if (action2 === "Copy Code") {
-      await vscode16.env.clipboard.writeText(session.userCode);
-      vscode16.window.showInformationMessage("Device code copied to clipboard.");
+      await vscode17.env.clipboard.writeText(session.userCode);
+      vscode17.window.showInformationMessage("Device code copied to clipboard.");
     }
     if (action2 === "Open Browser") {
       try {
-        await vscode16.env.clipboard.writeText(session.userCode);
+        await vscode17.env.clipboard.writeText(session.userCode);
       } catch (error) {
       }
-      await vscode16.env.openExternal(vscode16.Uri.parse(session.verificationUri));
-      vscode16.window.showInformationMessage(
+      await vscode17.env.openExternal(vscode17.Uri.parse(session.verificationUri));
+      vscode17.window.showInformationMessage(
         `Device code ${session.userCode} copied to clipboard. Paste it into the browser to finish signing in.`
       );
     }
@@ -55925,7 +55871,7 @@ function isVSCodeTestRun() {
   }
 }
 function getConfig2() {
-  return vscode16.workspace.getConfiguration(CONFIG_NS);
+  return vscode17.workspace.getConfiguration(CONFIG_NS);
 }
 function dispatchProviderMessage(message) {
   const messageType = message?.type;
@@ -56058,7 +56004,7 @@ async function applyStartupPatches(context) {
   }
 }
 async function applyClientIdRemovalPatch() {
-  const config = vscode16.workspace.getConfiguration("azureDevOpsIntegration");
+  const config = vscode17.workspace.getConfiguration("azureDevOpsIntegration");
   const connections3 = config.get("connections", []);
   let patchedCount = 0;
   const patchedConnections = connections3.map((conn) => {
@@ -56070,7 +56016,7 @@ async function applyClientIdRemovalPatch() {
     return conn;
   });
   if (patchedCount > 0) {
-    await config.update("connections", patchedConnections, vscode16.ConfigurationTarget.Global);
+    await config.update("connections", patchedConnections, vscode17.ConfigurationTarget.Global);
   }
 }
 function getNonce() {
@@ -56125,7 +56071,7 @@ async function activate(context) {
   await applyStartupPatches(context);
   if (IS_SMOKE) {
     try {
-      vscode16.commands.executeCommand("setContext", "azureDevOpsInt.connected", false).then(
+      vscode17.commands.executeCommand("setContext", "azureDevOpsInt.connected", false).then(
         () => {
         },
         () => {
@@ -56137,7 +56083,7 @@ async function activate(context) {
   }
   const cfg = getConfig2();
   if (cfg.get("debugLogging")) {
-    const channel = getOutputChannel() ?? vscode16.window.createOutputChannel("Azure DevOps Integration");
+    const channel = getOutputChannel() ?? vscode17.window.createOutputChannel("Azure DevOps Integration");
     setOutputChannel(channel);
     standardizedLogger.info(
       "activation",
@@ -56147,10 +56093,10 @@ async function activate(context) {
     );
     bridgeConsoleToOutputChannel();
   }
-  statusBarItem = vscode16.window.createStatusBarItem(vscode16.StatusBarAlignment.Left, 100);
+  statusBarItem = vscode17.window.createStatusBarItem(vscode17.StatusBarAlignment.Left, 100);
   statusBarItem.command = "azureDevOpsInt.stopTimer";
   context.subscriptions.push(statusBarItem);
-  authStatusBarItem = vscode16.window.createStatusBarItem(vscode16.StatusBarAlignment.Left, 99);
+  authStatusBarItem = vscode17.window.createStatusBarItem(vscode17.StatusBarAlignment.Left, 99);
   authStatusBarItem.command = "azureDevOpsInt.signInWithEntra";
   context.subscriptions.push(authStatusBarItem);
   authStatusBarItem.text = "$(plug) Azure DevOps";
@@ -56161,7 +56107,7 @@ async function activate(context) {
   globalThis.__updateAuthStatusBar = updateAuthStatusBar;
   const pendingAuthProviders = /* @__PURE__ */ new Map();
   globalThis.__pendingAuthProviders = pendingAuthProviders;
-  const uriHandler = vscode16.window.registerUriHandler({
+  const uriHandler = vscode17.window.registerUriHandler({
     handleUri: async (uri) => {
       try {
         if (uri.scheme !== "vscode-azuredevops-int") {
@@ -56171,7 +56117,7 @@ async function activate(context) {
           await handleAuthRedirect(uri, context, pendingAuthProviders);
         }
       } catch (error) {
-        vscode16.window.showErrorMessage(`Authentication error: ${error.message}`);
+        vscode17.window.showErrorMessage(`Authentication error: ${error.message}`);
       }
     }
   });
@@ -56179,7 +56125,7 @@ async function activate(context) {
   await ensureSharedContextBridge(context);
   if (!viewProviderRegistered) {
     context.subscriptions.push(
-      vscode16.window.registerWebviewViewProvider(
+      vscode17.window.registerWebviewViewProvider(
         "azureDevOpsWorkItems",
         new AzureDevOpsIntViewProvider(context),
         { webviewOptions: { retainContextWhenHidden: true } }
@@ -56404,7 +56350,7 @@ async function activate(context) {
         } catch (e) {
         }
         try {
-          vscode16.commands.executeCommand(
+          vscode17.commands.executeCommand(
             "setContext",
             "azureDevOpsInt.debugViewVisible",
             !!snapshot2.context?.debugViewVisible
@@ -56431,7 +56377,7 @@ async function activate(context) {
   const commandDisposables = registerCommands(context, commandContext);
   context.subscriptions.push(...commandDisposables);
   context.subscriptions.push(
-    vscode16.workspace.onDidChangeConfiguration(async (e) => {
+    vscode17.workspace.onDidChangeConfiguration(async (e) => {
       if (e.affectsConfiguration(CONFIG_NS)) {
         await loadConnectionsFromConfig2(context);
         ensureActiveConnection(context, activeConnectionId3, { refresh: true }).catch((error) => {
@@ -56590,11 +56536,11 @@ async function handleAuthRedirect(uri, context, pendingAuthProviders) {
     const errorDescription = params.get("error_description");
     if (error) {
       const errorMsg = errorDescription || error;
-      vscode16.window.showErrorMessage(`Authentication failed: ${errorMsg}`);
+      vscode17.window.showErrorMessage(`Authentication failed: ${errorMsg}`);
       return;
     }
     if (!authorizationCode || !state2) {
-      vscode16.window.showErrorMessage("Invalid authentication response");
+      vscode17.window.showErrorMessage("Invalid authentication response");
       return;
     }
     let connectionId;
@@ -56608,7 +56554,7 @@ async function handleAuthRedirect(uri, context, pendingAuthProviders) {
       }
     }
     if (!provider2 || !connectionId) {
-      vscode16.window.showErrorMessage("Authentication session expired. Please try again.");
+      vscode17.window.showErrorMessage("Authentication session expired. Please try again.");
       return;
     }
     dispatchApplicationEvent(
@@ -56627,7 +56573,7 @@ async function handleAuthRedirect(uri, context, pendingAuthProviders) {
         })
       );
       pendingAuthProviders.delete(connectionId);
-      vscode16.window.showInformationMessage("Authentication successful!");
+      vscode17.window.showInformationMessage("Authentication successful!");
     } else {
       dispatchApplicationEvent(
         AuthCodeFlowCompletedAppEvent.create({
@@ -56636,16 +56582,16 @@ async function handleAuthRedirect(uri, context, pendingAuthProviders) {
           error: result.error
         })
       );
-      vscode16.window.showErrorMessage(`Authentication failed: ${result.error}`);
+      vscode17.window.showErrorMessage(`Authentication failed: ${result.error}`);
     }
   } catch (error) {
-    vscode16.window.showErrorMessage(`Authentication error: ${error.message}`);
+    vscode17.window.showErrorMessage(`Authentication error: ${error.message}`);
   }
 }
-var vscode16, fs2, path2, CONFIG_NS, CONNECTIONS_CONFIG_KEY, ACTIVE_CONNECTION_STATE_KEY, panel, lastStateSignature, lastResetAuthTime, RESET_AUTH_DEBOUNCE_MS, provider, sessionTelemetry, client, statusBarItem, authStatusBarItem, viewProviderRegistered, initialRefreshedConnections, connections2, connectionStates2, activeConnectionId3, recentlySignedOutConnections, tokenRefreshInterval, gcInterval, rejectionHandler, sharedContextBridge, extensionContextRef2, lastQueriedActiveConnectionId, lastQueriedQuery, DEFAULT_QUERY2, activeQueryByConnection, ACTIVE_QUERY_STATE_KEY, IS_SMOKE, AzureDevOpsIntViewProvider;
+var vscode17, fs2, path2, CONFIG_NS, CONNECTIONS_CONFIG_KEY, ACTIVE_CONNECTION_STATE_KEY, panel, lastStateSignature, lastResetAuthTime, RESET_AUTH_DEBOUNCE_MS, provider, sessionTelemetry, client, statusBarItem, authStatusBarItem, viewProviderRegistered, initialRefreshedConnections, connections2, connectionStates2, activeConnectionId3, recentlySignedOutConnections, tokenRefreshInterval, gcInterval, rejectionHandler, sharedContextBridge, extensionContextRef2, lastQueriedActiveConnectionId, lastQueriedQuery, DEFAULT_QUERY2, activeQueryByConnection, ACTIVE_QUERY_STATE_KEY, IS_SMOKE, AzureDevOpsIntViewProvider;
 var init_activation = __esm({
   "src/activation.ts"() {
-    vscode16 = __toESM(require("vscode"), 1);
+    vscode17 = __toESM(require("vscode"), 1);
     fs2 = __toESM(require("fs"), 1);
     path2 = __toESM(require("path"), 1);
     init_branchEnrichment();
@@ -56699,14 +56645,14 @@ var init_activation = __esm({
         }
         webview.options = {
           enableScripts: true,
-          localResourceRoots: [vscode16.Uri.joinPath(this.extensionUri, "media")]
+          localResourceRoots: [vscode17.Uri.joinPath(this.extensionUri, "media")]
         };
         const nonce = getNonce();
         const scriptUri = webview.asWebviewUri(
-          vscode16.Uri.joinPath(this.extensionUri, "media", "webview", "main.js")
+          vscode17.Uri.joinPath(this.extensionUri, "media", "webview", "main.js")
         );
         const mainCssUri = webview.asWebviewUri(
-          vscode16.Uri.joinPath(this.extensionUri, "media", "webview", "main.css")
+          vscode17.Uri.joinPath(this.extensionUri, "media", "webview", "main.css")
         );
         const csp = `default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval'; img-src ${webview.cspSource} data:; connect-src 'self';`;
         webview.html = `
@@ -56907,7 +56853,7 @@ var init_activation = __esm({
             } catch {
             }
             if (message.event.type === "OPEN_SETTINGS") {
-              vscode16.commands.executeCommand("azureDevOpsInt.setup").then(() => {
+              vscode17.commands.executeCommand("azureDevOpsInt.setup").then(() => {
               }).then(void 0, (err) => {
               });
               return;
@@ -56926,7 +56872,7 @@ var init_activation = __esm({
                   connectionId
                 });
               }
-              vscode16.commands.executeCommand("azureDevOpsInt.setup").then(() => {
+              vscode17.commands.executeCommand("azureDevOpsInt.setup").then(() => {
               }).then(void 0, (err) => {
               });
               return;
@@ -56937,7 +56883,7 @@ var init_activation = __esm({
               const deviceCodeSession = snapshot2?.context?.deviceCodeSession;
               if (deviceCodeSession && deviceCodeSession.connectionId === message.event.connectionId) {
                 if (!deviceCodeSession.userCode || deviceCodeSession.userCode.trim() === "") {
-                  vscode16.window.showErrorMessage(
+                  vscode17.window.showErrorMessage(
                     "Device code is not available. Please try signing in again."
                   );
                   dispatchApplicationEvent(
@@ -56948,12 +56894,12 @@ var init_activation = __esm({
                   );
                   return;
                 }
-                vscode16.env.clipboard.writeText(deviceCodeSession.userCode).then(() => {
-                  const uri = vscode16.Uri.parse(
+                vscode17.env.clipboard.writeText(deviceCodeSession.userCode).then(() => {
+                  const uri = vscode17.Uri.parse(
                     deviceCodeSession.verificationUri || "https://microsoft.com/devicelogin"
                   );
-                  vscode16.env.openExternal(uri).then(() => {
-                    vscode16.window.showInformationMessage(
+                  vscode17.env.openExternal(uri).then(() => {
+                    vscode17.window.showInformationMessage(
                       `Device code ${deviceCodeSession.userCode} copied to clipboard. Paste it into the browser to finish signing in.`
                     );
                     dispatchApplicationEvent(
@@ -56969,7 +56915,7 @@ var init_activation = __esm({
                         error: err instanceof Error ? err.message : String(err)
                       })
                     );
-                    vscode16.window.showErrorMessage(
+                    vscode17.window.showErrorMessage(
                       "Failed to open browser. Code was copied to clipboard."
                     );
                   });
@@ -56980,13 +56926,13 @@ var init_activation = __esm({
                       error: err instanceof Error ? err.message : String(err)
                     })
                   );
-                  vscode16.window.showErrorMessage(
+                  vscode17.window.showErrorMessage(
                     `Failed to copy device code to clipboard: ${err instanceof Error ? err.message : String(err)}`
                   );
-                  const uri = vscode16.Uri.parse(
+                  const uri = vscode17.Uri.parse(
                     deviceCodeSession.verificationUri || "https://microsoft.com/devicelogin"
                   );
-                  vscode16.env.openExternal(uri).then(void 0, () => {
+                  vscode17.env.openExternal(uri).then(void 0, () => {
                   });
                 });
               } else {
@@ -56995,7 +56941,7 @@ var init_activation = __esm({
                     connectionId: message.event.connectionId
                   })
                 );
-                vscode16.window.showWarningMessage(
+                vscode17.window.showWarningMessage(
                   "Device code session not found. Please try signing in again."
                 );
               }
@@ -57006,8 +56952,8 @@ var init_activation = __esm({
               const snapshot2 = actor?.getSnapshot?.();
               const authCodeFlowSession = snapshot2?.context?.authCodeFlowSession;
               if (authCodeFlowSession && authCodeFlowSession.connectionId === message.event.connectionId) {
-                const uri = vscode16.Uri.parse(authCodeFlowSession.authorizationUrl);
-                vscode16.env.openExternal(uri).then(() => {
+                const uri = vscode17.Uri.parse(authCodeFlowSession.authorizationUrl);
+                vscode17.env.openExternal(uri).then(() => {
                   dispatchApplicationEvent(
                     AuthCodeFlowBrowserOpenedEvent.create({
                       connectionId: message.event.connectionId,
@@ -57040,22 +56986,22 @@ var init_activation = __esm({
               const deviceCodeSession = snapshot2?.context?.deviceCodeSession;
               if (deviceCodeSession && deviceCodeSession.connectionId === message.event.connectionId) {
                 if (!deviceCodeSession.userCode || deviceCodeSession.userCode.trim() === "") {
-                  vscode16.window.showErrorMessage(
+                  vscode17.window.showErrorMessage(
                     "Device code is not available. Please try signing in again."
                   );
                   return;
                 }
-                vscode16.env.clipboard.writeText(deviceCodeSession.userCode).then(() => {
-                  vscode16.window.showInformationMessage(
+                vscode17.env.clipboard.writeText(deviceCodeSession.userCode).then(() => {
+                  vscode17.window.showInformationMessage(
                     `Device code ${deviceCodeSession.userCode} copied to clipboard`
                   );
                 }).then(void 0, (err) => {
-                  vscode16.window.showErrorMessage(
+                  vscode17.window.showErrorMessage(
                     `Failed to copy device code to clipboard: ${err instanceof Error ? err.message : String(err)}`
                   );
                 });
               } else {
-                vscode16.window.showWarningMessage(
+                vscode17.window.showWarningMessage(
                   "Device code session not found. Please try signing in again."
                 );
               }
