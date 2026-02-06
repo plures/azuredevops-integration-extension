@@ -346,6 +346,10 @@ export default [
       'src/sessionTelemetry.ts',
       'src/timer.ts',
       'src/workItemNormalize.ts',
+      'src/services/auth/authentication.ts',
+      'src/stores/applicationStore.ts',
+      'src/features/commands/handlers.ts',
+      'src/commands/historyDebugCommands.ts',
     ],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',

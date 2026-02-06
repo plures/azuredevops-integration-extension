@@ -1,3 +1,10 @@
 # Test artifacts
 test-artifacts/
 *.history.json
+
+# Dependencies
+node_modules/
+
+# Build artifacts
+*.vsix
+out-tests/
