@@ -1,4 +1,3 @@
- 
 /**
  * Module: src/features/commands/handlers.ts
  * Owner: application

@@ -264,7 +264,6 @@ type GetEntraIdTokenOptions = {
   }) => void;
 };
 
- 
 export async function getEntraIdToken(
   context: ExtensionContext,
   tenantId?: string,
