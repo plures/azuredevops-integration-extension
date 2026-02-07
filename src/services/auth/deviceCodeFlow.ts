@@ -4,7 +4,7 @@
  */
 
 import * as vscode from 'vscode';
-import { enrichDeviceCodeResponse } from '../../fsm/functions/auth/deviceCodeHelpers.js';
+import { enrichDeviceCodeResponse } from './deviceCodeHelpers.js';
 import { createLogger } from '../../logging/unifiedLogger.js';
 
 const logger = createLogger('auth-device-code');
