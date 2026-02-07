@@ -4,9 +4,7 @@
  */
 
 import type { ExtensionContext } from 'vscode';
-
-const OFFLINE_ACCESS_SCOPE = 'offline_access';
-const AZURE_DEVOPS_SCOPE = '499b84ac-1321-427f-aa17-267ca6975798/.default';
+import { OFFLINE_ACCESS_SCOPE, AZURE_DEVOPS_SCOPE } from './constants.js';
 
 export function isTokenExpired(token: string): boolean {
   try {

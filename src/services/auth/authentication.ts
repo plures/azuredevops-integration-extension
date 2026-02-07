@@ -7,6 +7,7 @@ import type { ExtensionContext } from 'vscode';
 import * as msal from '@azure/msal-node';
 import { createLogger } from '../../logging/unifiedLogger.js';
 import { isTokenExpired, resolveScopes, tryGetCachedToken, formatAuthError } from './tokenCache.js';
+import { DEFAULT_ENTRA_TENANT, DEFAULT_ENTRA_CLIENT_ID, AZURE_CLI_CLIENT_ID } from './constants.js';
 
 const activationLogger = createLogger('auth-authentication');
 
@@ -21,9 +22,6 @@ export async function getPat(context: ExtensionContext, patKey?: string): Promis
   return pat;
 }
 
-const DEFAULT_ENTRA_TENANT = 'organizations';
-const DEFAULT_ENTRA_CLIENT_ID = 'c6c01810-2fff-45f0-861b-2ba02ae00ddc';
-
 export async function clearEntraIdToken(
   context: ExtensionContext,
   tenantId?: string,
@@ -31,7 +29,6 @@ export async function clearEntraIdToken(
 ): Promise<void> {
   if (!tenantId) return;
 
-  const AZURE_CLI_CLIENT_ID = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
   const keys = new Set<string>();
   const clientKey = clientId ?? DEFAULT_ENTRA_CLIENT_ID;
   keys.add(`entra:${tenantId}:${clientKey}`);

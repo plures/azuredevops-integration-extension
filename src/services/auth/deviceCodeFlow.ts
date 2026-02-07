@@ -93,12 +93,10 @@ export async function notifyDeviceCode(
     .then(async (action) => {
       if (action !== openInBrowser) return;
 
-      if (info.userCode) {
-        await copyDeviceCodeToClipboard(info.userCode);
-        vscode.window.showInformationMessage(
-          `Device code ${info.userCode} copied to clipboard. Paste it into the browser to finish signing in.`
-        );
-      }
+      await copyDeviceCodeToClipboard(info.userCode);
+      vscode.window.showInformationMessage(
+        `Device code ${info.userCode} copied to clipboard. Paste it into the browser to finish signing in.`
+      );
 
       await openBrowserForDeviceCode(info);
     })

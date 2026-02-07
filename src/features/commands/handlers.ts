@@ -14,6 +14,7 @@
  */
 import * as vscode from 'vscode';
 import { createLogger } from '../../logging/unifiedLogger.js';
+import { AZURE_DEVOPS_CLIENT_ID, AZURE_CLI_CLIENT_ID } from '../../services/auth/constants.js';
 
 const logger = createLogger('commands-handlers');
 import { FSMSetupService } from '../../services/setupService.js';
@@ -118,8 +119,6 @@ async function disconnectAndClearConnection(activeConnectionId: string) {
 async function clearAllEntraTokens(context: vscode.ExtensionContext, connection: any) {
   const { clearEntraIdToken } = await import('../../services/auth/authentication.js');
   const tenantId = connection.tenantId || 'organizations';
-  const AZURE_DEVOPS_CLIENT_ID = '872cd9fa-d31f-45e0-9eab-6e460a02d1f1';
-  const AZURE_CLI_CLIENT_ID = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
 
   await clearEntraIdToken(context, tenantId, connection.clientId || AZURE_DEVOPS_CLIENT_ID);
   await clearEntraIdToken(context, tenantId, AZURE_DEVOPS_CLIENT_ID);
