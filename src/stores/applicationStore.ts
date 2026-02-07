@@ -77,6 +77,7 @@ function handleApplicationEvent(manager: PraxisApplicationManager, event: Applic
  * - Type-safe store access
  * - Better performance through event-driven updates
  */
+// eslint-disable-next-line max-lines-per-function
 function createApplicationStore() {
   // Create and start the Praxis application manager
   // Use getInstance() to ensure we share the singleton with ConnectionService

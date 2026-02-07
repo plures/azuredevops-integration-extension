@@ -19,6 +19,7 @@ export const syncStateRule = defineRule<ApplicationEngineContext>({
     triggers: ['SyncState'],
     transition: { from: '*', to: '*' }, // Allow sync in any state
   },
+  // eslint-disable-next-line max-lines-per-function
   impl: (state, events) => {
     const syncEvent = findEvent(events, SyncStateEvent);
     if (!syncEvent) return [];

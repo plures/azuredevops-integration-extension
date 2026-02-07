@@ -12,6 +12,7 @@ import { getEventReplayDebugger } from '../debugging/eventReplayDebugger.js';
 /**
  * Register all history debug commands
  */
+// eslint-disable-next-line max-lines-per-function
 export function registerHistoryDebugCommands(context: vscode.ExtensionContext): void {
   // Export history for bug report
   const exportHistoryCommand = vscode.commands.registerCommand(
