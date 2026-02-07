@@ -1,16 +1,13 @@
 /**
  * Vitest Plugin Demo
- * 
+ *
  * Demonstrates the Vitest plugin custom matchers and automatic history management.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { resetEngine, dispatch, getContext } from '../../../src/testing/helpers.js';
 import { history } from '../../../src/webview/praxis/store.js';
-import {
-  ActivateEvent,
-  ActivationCompleteEvent,
-} from '../../../src/praxis/application/facts.js';
+import { ActivateEvent, ActivationCompleteEvent } from '../../../src/praxis/application/facts.js';
 
 describe('Vitest Plugin - Custom Matchers Demo', () => {
   beforeEach(async () => {
@@ -49,10 +46,9 @@ describe('Vitest Plugin - Custom Matchers Demo', () => {
     it('should automatically reset history before each test', () => {
       // History should be reset by beforeEach in setup file
       const initialLength = history.getHistory().length;
-      
+
       // Should start with initial state
       expect(initialLength).toBeGreaterThanOrEqual(0);
     });
   });
 });
-

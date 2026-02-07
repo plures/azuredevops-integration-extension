@@ -19,15 +19,16 @@ export const syncStateRule = defineRule<ApplicationEngineContext>({
     triggers: ['SyncState'],
     transition: { from: '*', to: '*' }, // Allow sync in any state
   },
+  // eslint-disable-next-line max-lines-per-function
   impl: (state, events) => {
     const syncEvent = findEvent(events, SyncStateEvent);
     if (!syncEvent) return [];
 
     const payload = syncEvent.payload;
-    
+
     // Priority 1: Removed side effects (postMessage, console.debug)
     // Automatic logging via Praxis event system will capture this
-    
+
     // Priority 2: Explicit field updates instead of Object.assign
     // Update connections array explicitly (create new array for reactivity)
     if (Array.isArray(payload.connections)) {
@@ -37,7 +38,7 @@ export const syncStateRule = defineRule<ApplicationEngineContext>({
       // This prevents connections from being lost during sync
       // No logging needed - automatic logging will capture state changes
     }
-    
+
     // Update other context properties explicitly
     if (payload.isActivated !== undefined) {
       state.context.isActivated = payload.isActivated;
@@ -82,49 +83,69 @@ export const syncStateRule = defineRule<ApplicationEngineContext>({
       state.context.debugViewVisible = payload.debugViewVisible;
     }
     if (payload.kanbanColumns !== undefined) {
-      state.context.kanbanColumns = Array.isArray(payload.kanbanColumns) ? [...payload.kanbanColumns] : payload.kanbanColumns;
+      state.context.kanbanColumns = Array.isArray(payload.kanbanColumns)
+        ? [...payload.kanbanColumns]
+        : payload.kanbanColumns;
     }
-    
+
     // Priority 3: Make Map updates immutable (create new Map instances)
     if (payload.connectionStates !== undefined) {
       if (payload.connectionStates instanceof Map) {
         state.context.connectionStates = new Map(payload.connectionStates);
-      } else if (typeof payload.connectionStates === 'object' && payload.connectionStates !== null) {
+      } else if (
+        typeof payload.connectionStates === 'object' &&
+        payload.connectionStates !== null
+      ) {
         state.context.connectionStates = new Map(Object.entries(payload.connectionStates));
       }
     }
     if (payload.connectionWorkItems !== undefined) {
       if (payload.connectionWorkItems instanceof Map) {
         state.context.connectionWorkItems = new Map(payload.connectionWorkItems);
-      } else if (typeof payload.connectionWorkItems === 'object' && payload.connectionWorkItems !== null) {
+      } else if (
+        typeof payload.connectionWorkItems === 'object' &&
+        payload.connectionWorkItems !== null
+      ) {
         state.context.connectionWorkItems = new Map(Object.entries(payload.connectionWorkItems));
       }
     }
     if (payload.connectionQueries !== undefined) {
       if (payload.connectionQueries instanceof Map) {
         state.context.connectionQueries = new Map(payload.connectionQueries);
-      } else if (typeof payload.connectionQueries === 'object' && payload.connectionQueries !== null) {
+      } else if (
+        typeof payload.connectionQueries === 'object' &&
+        payload.connectionQueries !== null
+      ) {
         state.context.connectionQueries = new Map(Object.entries(payload.connectionQueries));
       }
     }
     if (payload.connectionFilters !== undefined) {
       if (payload.connectionFilters instanceof Map) {
         state.context.connectionFilters = new Map(payload.connectionFilters);
-      } else if (typeof payload.connectionFilters === 'object' && payload.connectionFilters !== null) {
+      } else if (
+        typeof payload.connectionFilters === 'object' &&
+        payload.connectionFilters !== null
+      ) {
         state.context.connectionFilters = new Map(Object.entries(payload.connectionFilters));
       }
     }
     if (payload.connectionViewModes !== undefined) {
       if (payload.connectionViewModes instanceof Map) {
         state.context.connectionViewModes = new Map(payload.connectionViewModes);
-      } else if (typeof payload.connectionViewModes === 'object' && payload.connectionViewModes !== null) {
+      } else if (
+        typeof payload.connectionViewModes === 'object' &&
+        payload.connectionViewModes !== null
+      ) {
         state.context.connectionViewModes = new Map(Object.entries(payload.connectionViewModes));
       }
     }
     if (payload.pendingAuthReminders !== undefined) {
       if (payload.pendingAuthReminders instanceof Map) {
         state.context.pendingAuthReminders = new Map(payload.pendingAuthReminders);
-      } else if (typeof payload.pendingAuthReminders === 'object' && payload.pendingAuthReminders !== null) {
+      } else if (
+        typeof payload.pendingAuthReminders === 'object' &&
+        payload.pendingAuthReminders !== null
+      ) {
         state.context.pendingAuthReminders = new Map(Object.entries(payload.pendingAuthReminders));
       }
     }

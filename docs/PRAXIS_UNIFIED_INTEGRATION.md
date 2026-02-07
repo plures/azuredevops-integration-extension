@@ -21,6 +21,7 @@ const pollInterval = setInterval(() => {
 ```
 
 **Problems:**
+
 - Unnecessary CPU usage (polling every 100ms)
 - Delayed updates (up to 100ms latency)
 - Not event-driven
@@ -38,6 +39,7 @@ const contextStore = createContextStore(engine);
 ```
 
 **Benefits:**
+
 - Event-driven updates (instant reactivity)
 - No polling overhead
 - Proper subscription management
@@ -107,6 +109,7 @@ PraxisApplicationManager
 ### Dual Subscription Strategy
 
 We subscribe to both:
+
 - **Manager subscription**: Ensures updates when state changes through manager methods
 - **Praxis store subscription**: Ensures updates when state changes through store dispatch
 
@@ -115,11 +118,13 @@ This ensures we get updates from all code paths.
 ## Performance Improvements
 
 ### Before (Polling)
+
 - **CPU Usage**: Constant polling every 100ms
 - **Update Latency**: Up to 100ms delay
 - **Memory**: Multiple interval timers
 
 ### After (Reactive)
+
 - **CPU Usage**: Only on state changes (event-driven)
 - **Update Latency**: Instant (event-driven)
 - **Memory**: Proper subscription cleanup
@@ -135,8 +140,8 @@ None - the public API remains the same. The internal implementation changed from
 The store now exposes additional properties:
 
 ```typescript
-applicationStore.praxisStore   // Direct access to Praxis store
-applicationStore.contextStore  // Direct access to context store
+applicationStore.praxisStore; // Direct access to Praxis store
+applicationStore.contextStore; // Direct access to context store
 ```
 
 ### Usage in Components
@@ -160,7 +165,7 @@ The integration supports history tracking:
 import { usePraxisEngine } from '@plures/praxis/svelte';
 
 const { undo, redo, canUndo, canRedo } = usePraxisEngine(engine, {
-  enableHistory: true
+  enableHistory: true,
 });
 ```
 
@@ -204,6 +209,7 @@ engine.apply((state) => {
 ### Enhanced Type Safety
 
 v1.2.0 provides:
+
 - Better TypeScript type inference
 - Typed registry with improved generics
 - Step diagnostics for debugging
@@ -212,6 +218,7 @@ v1.2.0 provides:
 ### Unified Builds
 
 All exports now ship with:
+
 - ESM builds (`import`)
 - CJS builds (`require`)
 - Type definitions (`.d.ts`)
@@ -223,4 +230,3 @@ All exports now ship with:
 - [Praxis Svelte Integration Documentation](https://github.com/plures/praxis)
 - [Praxis v1.1.3 Release Notes](./PRAXIS_V1.1.3_UPGRADE.md)
 - [Praxis Serialization Principles](./PRAXIS_SERIALIZATION_PRINCIPLES.md)
-

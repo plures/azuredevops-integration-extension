@@ -7,6 +7,7 @@ This document summarizes the comprehensive optimization work completed for the i
 ## Problem Addressed
 
 The original issue requested:
+
 > "Update the workflow to also build iOS and Android version. Be sure to research how such builds are done in pipelines in other repos, how to minimize downloaded files, leverage caching, reduce build times. Typical problems with iOS and android builds is that they timeout before completing; with that in mind, please try your best to avoid such issues."
 
 **Note**: iOS and Android builds were already present in the workflow. This work focused on optimizing them to prevent timeouts and reduce build times.
@@ -14,6 +15,7 @@ The original issue requested:
 ## Solution Summary
 
 Implemented a multi-faceted optimization strategy addressing:
+
 1. **Build time reduction** through intelligent caching
 2. **Timeout prevention** through extended limits and faster builds
 3. **Resource efficiency** through minimized downloads
@@ -23,18 +25,18 @@ Implemented a multi-faceted optimization strategy addressing:
 
 ### Expected Build Time Improvements (with warm cache)
 
-| Platform | Before | After | Improvement |
-|----------|--------|-------|-------------|
+| Platform | Before    | After     | Improvement       |
+| -------- | --------- | --------- | ----------------- |
 | Android  | 30-40 min | 12-18 min | **40-55% faster** |
 | iOS      | 35-45 min | 15-22 min | **35-50% faster** |
-| Windows  | 15-20 min | 6-10 min | **50-60% faster** |
+| Windows  | 15-20 min | 6-10 min  | **50-60% faster** |
 
 ### Timeout Configuration
 
-| Platform | Timeout | Status |
-|----------|---------|--------|
-| Android  | 60 min  | ✅ Prevents premature failures |
-| iOS      | 60 min  | ✅ Prevents premature failures |
+| Platform | Timeout | Status                            |
+| -------- | ------- | --------------------------------- |
+| Android  | 60 min  | ✅ Prevents premature failures    |
+| iOS      | 60 min  | ✅ Prevents premature failures    |
 | Windows  | 45 min  | ✅ Appropriate for desktop builds |
 
 ## Key Optimizations Implemented
@@ -44,11 +46,12 @@ Implemented a multi-faceted optimization strategy addressing:
 **Impact**: 70-80% reduction in Rust compilation time
 
 **Implementation**:
+
 ```yaml
 - name: Cache Rust
   uses: swatinem/rust-cache@v2
   with:
-    workspaces: "apps/app-desktop/src-tauri -> target"
+    workspaces: 'apps/app-desktop/src-tauri -> target'
     cache-on-failure: true
 ```
 
@@ -59,6 +62,7 @@ Implemented a multi-faceted optimization strategy addressing:
 **Impact**: 60-80% reduction in npm install time
 
 **Implementation**:
+
 ```yaml
 - name: Setup Node.js
   uses: actions/setup-node@v4
@@ -75,6 +79,7 @@ Implemented a multi-faceted optimization strategy addressing:
 ### 3. Android-Specific Optimizations
 
 #### Gradle Caching
+
 **Impact**: 40-60% reduction in Android build time
 
 ```yaml
@@ -88,6 +93,7 @@ Implemented a multi-faceted optimization strategy addressing:
 ```
 
 #### NDK Installation
+
 **Impact**: Ensures consistent builds, prevents version mismatch errors
 
 ```yaml
@@ -98,6 +104,7 @@ Implemented a multi-faceted optimization strategy addressing:
 ```
 
 #### Conditional Initialization
+
 **Impact**: Saves 2-5 minutes when project already initialized
 
 ```yaml
@@ -116,6 +123,7 @@ Implemented a multi-faceted optimization strategy addressing:
 ### 4. iOS-Specific Optimizations
 
 #### Xcode DerivedData Caching
+
 **Impact**: 30-50% reduction in iOS build time
 
 ```yaml
@@ -129,6 +137,7 @@ Implemented a multi-faceted optimization strategy addressing:
 ```
 
 #### Graceful Code Signing Handling
+
 **Impact**: Prevents build failures due to missing certificates
 
 ```yaml
@@ -138,6 +147,7 @@ Implemented a multi-faceted optimization strategy addressing:
 ```
 
 #### Enhanced Artifact Discovery
+
 **Impact**: Handles both signed and unsigned builds
 
 ```yaml
@@ -241,30 +251,36 @@ Optimizations were based on research from:
 ### Android Build Issues
 
 **Problem**: NDK not found
+
 - **Solution**: Verify `NDK_HOME` is set in logs
 - **Check**: NDK version 26.1.10909125 is installed
 
 **Problem**: Gradle cache miss
+
 - **Solution**: Verify gradle files haven't changed
 - **Check**: Cache key pattern matches
 
 ### iOS Build Issues
 
 **Problem**: Code signing failures
+
 - **Solution**: Expected in CI without certificates
 - **Check**: Workflow continues and uploads .app bundle
 
 **Problem**: Xcode cache miss
+
 - **Solution**: First run after changes is normal
 - **Check**: Subsequent runs should hit cache
 
 ### General Issues
 
 **Problem**: Timeout still occurring
+
 - **Solution**: Check for new dependencies or large assets
 - **Action**: May need to increase timeout further
 
 **Problem**: Cache size warnings
+
 - **Solution**: Review and prune old caches
 - **Action**: Adjust cache keys for better isolation
 
