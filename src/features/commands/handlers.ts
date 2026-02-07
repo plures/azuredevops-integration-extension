@@ -161,13 +161,15 @@ async function signOutEntra(
   context: vscode.ExtensionContext,
   connectionId?: string
 ): Promise<void> {
+  let activeConnectionId: string | undefined;
+  
   try {
     logger.info('[signOutEntra] Starting sign out', { connectionId });
 
     const { getApplicationStoreActor } = await import('../../activation.js');
     const actor = getApplicationStoreActor();
     const snapshot = actor?.getSnapshot?.();
-    const activeConnectionId = connectionId || snapshot?.context?.activeConnectionId;
+    activeConnectionId = connectionId || snapshot?.context?.activeConnectionId;
 
     logger.info('signOutEntra: Active connection ID', { activeConnectionId });
 
@@ -210,7 +212,7 @@ async function signOutEntra(
       stack: error?.stack,
       name: error?.name,
       code: error?.code,
-      connectionId: connectionId,
+      connectionId: activeConnectionId || connectionId,
     });
     vscode.window.showErrorMessage(`Sign out failed: ${error.message || String(error)}`);
   }
