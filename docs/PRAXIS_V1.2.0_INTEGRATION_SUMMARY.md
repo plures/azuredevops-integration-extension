@@ -21,11 +21,13 @@ Successfully implemented the Praxis v1.2.0 unified Svelte integration (`@plures/
 ### 2. Performance Improvements
 
 **Before:**
+
 - Polling every 100ms (constant CPU usage)
 - Up to 100ms update latency
 - Multiple interval timers
 
 **After:**
+
 - Event-driven updates (instant reactivity)
 - No polling overhead
 - Proper subscription management
@@ -51,6 +53,7 @@ const contextStore = createContextStore(engine);
 ### Subscription Strategy
 
 We use a dual subscription approach:
+
 1. **Manager subscription**: Updates when state changes through manager methods
 2. **Praxis store subscription**: Updates when state changes through store dispatch
 
@@ -59,6 +62,7 @@ This ensures updates from all code paths.
 ### Backward Compatibility
 
 The public API remains unchanged:
+
 - `applicationStore.applicationState` - Still works the same
 - `applicationStore.send()` - Still works the same
 - Components - No changes required
@@ -66,16 +70,19 @@ The public API remains unchanged:
 ## Benefits
 
 ### For Users
+
 - **Better Performance**: Reduced CPU usage, faster updates
 - **More Responsive**: Instant state updates instead of polling delays
 
 ### For Developers
+
 - **Better Architecture**: Follows Praxis best practices
 - **Type Safety**: Full TypeScript support
 - **Easier Debugging**: Proper subscription management
 - **Future-Ready**: Ready for history/undo-redo features
 
 ### For Community
+
 - **Example Implementation**: Shows how to use Praxis unified integration
 - **Best Practices**: Demonstrates proper reactive patterns
 - **Documentation**: Comprehensive docs for other developers
@@ -116,7 +123,7 @@ v1.2.0 provides better Svelte 5 runes integration:
 ```svelte
 <script lang="ts">
   import { usePraxisEngine } from '@plures/praxis/svelte';
-  
+
   const engine = createMyEngine();
   const { context, dispatch, undo, redo } = usePraxisEngine(engine, {
     enableHistory: true,
@@ -135,6 +142,7 @@ v1.2.0 provides better Svelte 5 runes integration:
 ### Unified Builds & Exports
 
 v1.2.0 provides unified ESM/CJS builds with proper type definitions:
+
 - `@plures/praxis` → main engine (ESM/CJS/types)
 - `@plures/praxis/svelte` → Svelte 5 integrations
 - `@plures/praxis/schema` → Schema types
@@ -152,18 +160,21 @@ v1.2.0 provides unified ESM/CJS builds with proper type definitions:
 The integration supports additional features we can enable:
 
 1. **History/Undo-Redo**:
+
    ```typescript
    import { usePraxisEngine } from '@plures/praxis/svelte';
    const { undo, redo } = usePraxisEngine(engine, { enableHistory: true });
    ```
 
 2. **Snapshot Support**:
+
    ```typescript
    import { createHistoryEngine } from '@plures/praxis/svelte';
    const { snapshots } = createHistoryEngine(engine);
    ```
 
 3. **Derived Stores**:
+
    ```typescript
    import { createDerivedStore } from '@plures/praxis/svelte';
    const workItemsStore = createDerivedStore(engine, (ctx) => ctx.workItems);
@@ -222,8 +233,8 @@ See [Praxis v1.2.0 Enhancements Implementation](./PRAXIS_V1.2.0_ENHANCEMENTS_IMP
 **Version**: v1.2.0  
 **Upgrade Date**: 2024-12-30  
 **Breaking Changes**: None  
-**New Features Implemented**: 
+**New Features Implemented**:
+
 - ✅ Derived stores for optimized performance
 - ✅ History/undo-redo with UI controls
 - ✅ Framework-agnostic engine wrapper
-

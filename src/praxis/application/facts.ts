@@ -6,7 +6,13 @@
 
 import { defineFact, defineEvent } from '@plures/praxis';
 import type { ProjectConnection } from '../connection/types.js';
-import type { ViewMode, WorkItem, DeviceCodeSession, AuthCodeFlowSession, PendingWorkItems } from './types.js';
+import type {
+  ViewMode,
+  WorkItem,
+  DeviceCodeSession,
+  AuthCodeFlowSession,
+  PendingWorkItems,
+} from './types.js';
 
 import { StartTimerEvent, PauseTimerEvent, StopTimerEvent } from './features/timer.js';
 
@@ -74,9 +80,10 @@ export const DeviceCodeSessionFact = defineFact<'DeviceCodeSession', DeviceCodeS
 /**
  * Auth code flow session fact
  */
-export const AuthCodeFlowSessionFact = defineFact<'AuthCodeFlowSession', AuthCodeFlowSession | undefined>(
-  'AuthCodeFlowSession'
-);
+export const AuthCodeFlowSessionFact = defineFact<
+  'AuthCodeFlowSession',
+  AuthCodeFlowSession | undefined
+>('AuthCodeFlowSession');
 
 /**
  * Error recovery attempts fact

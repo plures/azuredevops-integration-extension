@@ -104,6 +104,7 @@ This extension is built with modern, reactive architecture principles:
 - **Type-Safe**: Full TypeScript support with compile-time safety
 
 The extension uses the [Praxis framework v1.2.0](https://github.com/plures/praxis) for state management, providing:
+
 - **Event-driven updates**: No polling overhead, instant reactivity
 - **Type-safe rules**: Compile-time validation of state transitions
 - **Reactive subscriptions**: Proper Svelte store integration via unified integration
@@ -112,6 +113,7 @@ The extension uses the [Praxis framework v1.2.0](https://github.com/plures/praxi
 - **Enhanced Svelte 5 support**: Native runes integration with history/undo-redo capabilities
 
 **v1.2.0 Features** (All Implemented ✅):
+
 - Unified ESM/CJS builds with proper type definitions
 - Framework-agnostic reactive engine for non-Svelte environments
 - Enhanced Svelte 5 runes support with history/undo-redo
@@ -120,7 +122,8 @@ The extension uses the [Praxis framework v1.2.0](https://github.com/plures/praxi
 - **History/undo-redo** with UI controls for time-travel debugging
 - **Framework-agnostic engine wrapper** for Node.js-only code paths
 
-For developers: 
+For developers:
+
 - [Praxis Unified Integration Documentation](./docs/PRAXIS_UNIFIED_INTEGRATION.md) - Technical details
 - [Praxis v1.2.0 Enhancements](./docs/PRAXIS_V1.2.0_ENHANCEMENTS_IMPLEMENTED.md) - Implemented features
 - [History Engine Testing & Debugging Plan](./docs/PRAXIS_HISTORY_ENGINE_TESTING_DEBUGGING_PLAN.md) - Advanced testing and debugging capabilities

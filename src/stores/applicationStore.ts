@@ -1,24 +1,8 @@
 /**
  * Module: src/stores/applicationStore.ts
  * Owner: application
- * Reads: (document)
- * Writes: (document)
- * Receives: (document)
- * Emits: (document)
- * Prohibitions: Do not mutate ApplicationContext directly; Do not define new *Context types
- * Rationale: (document)
  *
- * LLM-GUARD:
- * - Follow ownership boundaries; route events to Router; do not add UI logic here
- *
- * This module now uses Praxis logic engine instead of XState.
- */
-/**
  * Central Application Store - Praxis + Svelte Integration
- *
- * This is the single source of truth for application state.
- * It wraps the Praxis application manager in Svelte stores,
- * providing reactive state to components without message passing.
  */
 
 import { readable, writable, derived } from 'svelte/store';
@@ -32,27 +16,13 @@ import { createComponentLogger, Component } from '../logging/ComponentLogger.js'
 
 const logger = createComponentLogger(Component.APPLICATION, 'applicationStore');
 
-// ============================================================================
-// TYPE DEFINITIONS FOR COMPATIBILITY
-// ============================================================================
-
-// Use PraxisApplicationContext directly instead of local interface
 type ApplicationContext = PraxisApplicationContext;
 
-// ============================================================================
-// EVENT HANDLING HELPER
-// ============================================================================
-
-/**
- * Handle application events by dispatching to the appropriate manager method.
- * Separated to reduce complexity in the main send function.
- */
 function handleApplicationEvent(manager: PraxisApplicationManager, event: ApplicationEvent): void {
   const handler = eventHandlers[event.type];
   if (handler) {
     handler(manager, event);
   } else {
-    // Log unknown event types in debug mode for development
     logger.warn(
       `[applicationStore] Unknown event type: ${event.type}`,
       { event: event.type },
@@ -61,49 +31,45 @@ function handleApplicationEvent(manager: PraxisApplicationManager, event: Applic
   }
 }
 
-// ============================================================================
-// CORE APPLICATION STATE STORE
-// ============================================================================
+function createDerivedStores(engine: any) {
+  return {
+    connections: createDerivedStore(engine, (ctx) => ctx.connections || []),
+    activeConnectionId: createDerivedStore(engine, (ctx) => ctx.activeConnectionId),
+    connectionStates: createDerivedStore(engine, (ctx) => ctx.connectionStates || new Map()),
+    pendingAuthReminders: createDerivedStore(
+      engine,
+      (ctx) => ctx.pendingAuthReminders || new Map()
+    ),
+    isActivated: createDerivedStore(engine, (ctx) => ctx.isActivated ?? false),
+    isDeactivating: createDerivedStore(engine, (ctx) => ctx.isDeactivating ?? false),
+    lastError: createDerivedStore(engine, (ctx) => ctx.lastError),
+  };
+}
 
-/**
- * Creates the main application manager and wraps it in Svelte stores
- * 
- * Uses Praxis unified Svelte integration (@plures/praxis/svelte) for reactive subscriptions
- * instead of polling, providing better performance and following Praxis best practices.
- * 
- * The integration provides:
- * - Proper reactive subscriptions (no polling overhead)
- * - Automatic cleanup and subscription management
- * - Type-safe store access
- * - Better performance through event-driven updates
- */
+function createStateWrapper(manager: PraxisApplicationManager) {
+  return {
+    value: manager.getApplicationState(),
+    context: manager.getContext() as unknown as ApplicationContext,
+    matches: (stateValue: string) => {
+      const appState = manager.getApplicationState();
+      if (appState === stateValue) return true;
+      if (appState.includes(stateValue)) return true;
+      if (stateValue === 'activation_failed' && appState === 'activation_error') return true;
+      return false;
+    },
+    can: (_event: ApplicationEvent) => true,
+  };
+}
+
 function createApplicationStore() {
-  // Create and start the Praxis application manager
-  // Use getInstance() to ensure we share the singleton with ConnectionService
   const applicationManager = PraxisApplicationManager.getInstance();
   applicationManager.start();
 
-  // Get the underlying engine for the unified integration
   const engine = applicationManager.getEngine();
-
-  // Create reactive store using Praxis unified integration
-  // This provides proper reactive subscriptions instead of polling
   const praxisStore = createPraxisStore(engine);
-  
-  // Create context store for direct context access
   const contextStore = createContextStore(engine);
+  const derivedStores = createDerivedStores(engine);
 
-  // Create optimized derived stores using Praxis integration
-  // These are more efficient than manual derived() calls
-  const connectionsDerivedStore = createDerivedStore(engine, (ctx) => ctx.connections || []);
-  const activeConnectionIdDerivedStore = createDerivedStore(engine, (ctx) => ctx.activeConnectionId);
-  const connectionStatesDerivedStore = createDerivedStore(engine, (ctx) => ctx.connectionStates || new Map());
-  const pendingAuthRemindersDerivedStore = createDerivedStore(engine, (ctx) => ctx.pendingAuthReminders || new Map());
-  const isActivatedDerivedStore = createDerivedStore(engine, (ctx) => ctx.isActivated ?? false);
-  const isDeactivatingDerivedStore = createDerivedStore(engine, (ctx) => ctx.isDeactivating ?? false);
-  const lastErrorDerivedStore = createDerivedStore(engine, (ctx) => ctx.lastError);
-
-  // Current state wrapper that bridges Praxis store to our expected interface
   const currentState = writable<{
     value: string;
     context: ApplicationContext;
@@ -111,63 +77,25 @@ function createApplicationStore() {
     can: (event: ApplicationEvent) => boolean;
   } | null>(null);
 
-  // Subscribe to manager's internal subscription system to sync with store
-  // This ensures store updates when state changes through manager methods
   const managerUnsubscribe = applicationManager.subscribe(() => {
-    // Update the wrapper state when manager state changes
-    const appState = applicationManager.getApplicationState();
-    const appData = applicationManager.getContext() as unknown as ApplicationContext;
-
-    currentState.set({
-      value: appState,
-      context: appData,
-      matches: (stateValue: string) => {
-        if (appState === stateValue) return true;
-        if (appState.includes(stateValue)) return true;
-        // Map legacy states
-        if (stateValue === 'activation_failed' && appState === 'activation_error') return true;
-        return false;
-      },
-      can: (_event: ApplicationEvent) => true, // Praxis handles validation internally
-    });
+    currentState.set(createStateWrapper(applicationManager));
   });
 
-  // Also subscribe to Praxis store for completeness
-  // This ensures we get updates from both manager and store dispatch paths
   const praxisUnsubscribe = praxisStore.subscribe((praxisState) => {
     if (!praxisState) {
       currentState.set(null);
       return;
     }
-
-    // Extract state value from Praxis state format
-    const appState = applicationManager.getApplicationState();
-    const appData = applicationManager.getContext() as unknown as ApplicationContext;
-
-    currentState.set({
-      value: appState,
-      context: appData,
-      matches: (stateValue: string) => {
-        if (appState === stateValue) return true;
-        if (appState.includes(stateValue)) return true;
-        // Map legacy states
-        if (stateValue === 'activation_failed' && appState === 'activation_error') return true;
-        return false;
-      },
-      can: (_event: ApplicationEvent) => true, // Praxis handles validation internally
-    });
+    currentState.set(createStateWrapper(applicationManager));
   });
 
-  // Application State Store (readable wrapper)
   const applicationState = readable<{
     value: string;
     context: ApplicationContext;
     matches: (state: string) => boolean;
     can: (event: ApplicationEvent) => boolean;
   } | null>(null, (set) => {
-    // Subscribe to the wrapper state
     const unsubscribe = currentState.subscribe(set);
-
     return () => {
       unsubscribe();
       praxisUnsubscribe();
@@ -176,39 +104,24 @@ function createApplicationStore() {
     };
   });
 
-  // Send events to the application manager
-  // Note: We can also use praxisStore.dispatch() for events that match Praxis format
   function send(event: ApplicationEvent) {
-    // Map XState event types to Praxis manager methods
     handleApplicationEvent(applicationManager, event);
   }
 
   return {
     applicationState,
     send,
-    // Expose manager for debugging
     get actor() {
       return applicationManager;
     },
-    // Expose Praxis store for advanced usage
     get praxisStore() {
       return praxisStore;
     },
-    // Expose context store for direct context access
     get contextStore() {
       return contextStore;
     },
-    // Expose derived stores for optimized access
     get derivedStores() {
-      return {
-        connections: connectionsDerivedStore,
-        activeConnectionId: activeConnectionIdDerivedStore,
-        connectionStates: connectionStatesDerivedStore,
-        pendingAuthReminders: pendingAuthRemindersDerivedStore,
-        isActivated: isActivatedDerivedStore,
-        isDeactivating: isDeactivatingDerivedStore,
-        lastError: lastErrorDerivedStore,
-      };
+      return derivedStores;
     },
   };
 }
