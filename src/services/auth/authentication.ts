@@ -8,6 +8,7 @@ import * as msal from '@azure/msal-node';
 import { createLogger } from '../../logging/unifiedLogger.js';
 import { isTokenExpired, resolveScopes, tryGetCachedToken, formatAuthError } from './tokenCache.js';
 import { DEFAULT_ENTRA_TENANT, DEFAULT_ENTRA_CLIENT_ID, AZURE_CLI_CLIENT_ID } from './constants.js';
+import { normalizeDeviceCodeResponse, notifyDeviceCode } from './deviceCodeFlow.js';
 
 const activationLogger = createLogger('auth-authentication');
 
@@ -62,7 +63,6 @@ async function attemptDeviceCodeFlow(
   scopes: string[],
   options: GetEntraIdTokenOptions
 ): Promise<string> {
-  const { normalizeDeviceCodeResponse, notifyDeviceCode } = await import('./deviceCodeFlow.js');
   const legacyKey = `entra:${resolvedTenantId}`;
   
   const pca = new msal.PublicClientApplication({
