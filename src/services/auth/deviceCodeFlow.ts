@@ -51,7 +51,7 @@ export function normalizeDeviceCodeResponse(response: any): DeviceCodeInfo {
 
 async function copyDeviceCodeToClipboard(userCode: string | undefined): Promise<void> {
   if (!userCode) return;
-  
+
   try {
     await vscode.env.clipboard.writeText(userCode);
   } catch (error) {

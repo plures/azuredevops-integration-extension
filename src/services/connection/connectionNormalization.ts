@@ -47,7 +47,7 @@ export function normalizeConnections(
     // This prevents duplicate connections for the same org/project/baseUrl combination
     const baseUrl = conn.baseUrl ? String(conn.baseUrl).trim() : '';
     const dedupeKey = `${String(conn.organization).trim()}|${String(conn.project).trim()}|${baseUrl}`;
-    
+
     // Check for duplicate
     if (seen.has(dedupeKey)) {
       const existing = seen.get(dedupeKey)!;

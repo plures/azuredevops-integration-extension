@@ -64,7 +64,7 @@ async function attemptDeviceCodeFlow(
   options: GetEntraIdTokenOptions
 ): Promise<string> {
   const legacyKey = `entra:${resolvedTenantId}`;
-  
+
   const pca = new msal.PublicClientApplication({
     auth: {
       clientId: resolvedClientId,
@@ -153,7 +153,14 @@ export async function getEntraIdToken(
 
   const errors: string[] = [];
   try {
-    return await attemptDeviceCodeFlow(context, resolvedClientId, authorityTenant, resolvedTenantId, scopes, options);
+    return await attemptDeviceCodeFlow(
+      context,
+      resolvedClientId,
+      authorityTenant,
+      resolvedTenantId,
+      scopes,
+      options
+    );
   } catch (error: any) {
     const formatted = formatAuthError(error);
     errors.push(`clientId=${resolvedClientId}: ${formatted}`);

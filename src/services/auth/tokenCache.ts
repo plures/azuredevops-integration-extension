@@ -10,7 +10,7 @@ export function isTokenExpired(token: string): boolean {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return true;
-    
+
     const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
     const now = Math.floor(Date.now() / 1000);
     return payload.exp < now + 300;

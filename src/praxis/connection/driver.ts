@@ -65,12 +65,16 @@ export class ConnectionDriver {
         if (state === 'authenticating' && !authStarted) {
           authStarted = true;
           if (this.context) {
-            performAuthentication(manager, config, this.context, forceInteractive, onDeviceCode).catch((err) => {
-               
+            performAuthentication(
+              manager,
+              config,
+              this.context,
+              forceInteractive,
+              onDeviceCode
+            ).catch((err) => {
               // Debug statement removed
             });
           } else {
-             
             // Debug statement removed
             manager.authFailed('Extension context not set');
           }
@@ -80,7 +84,6 @@ export class ConnectionDriver {
             if (this.context && config.authMethod === 'entra') {
               clearEntraIdToken(this.context, config.tenantId, config.clientId)
                 .catch((err) => {
-                   
                   // Debug statement removed
                 })
                 .finally(() => {
@@ -90,13 +93,11 @@ export class ConnectionDriver {
               this.onTokenExpired(config.id);
             }
           }).catch((err) => {
-             
             // Debug statement removed
           });
         } else if (state === 'creating_provider' && !providerStarted && data.client) {
           providerStarted = true;
           createProvider(manager, config, data.client as AzureDevOpsIntClient).catch((err) => {
-             
             // Debug statement removed
           });
         }
@@ -129,4 +130,3 @@ export class ConnectionDriver {
     });
   }
 }
-

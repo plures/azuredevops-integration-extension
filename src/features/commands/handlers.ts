@@ -129,7 +129,9 @@ async function clearAllEntraTokens(context: vscode.ExtensionContext, connection:
 }
 
 async function clearAuthProviders(activeConnectionId: string) {
-  const pendingAuthProviders = (globalThis as any).__pendingAuthProviders as Map<string, any> | undefined;
+  const pendingAuthProviders = (globalThis as any).__pendingAuthProviders as
+    | Map<string, any>
+    | undefined;
   if (pendingAuthProviders) {
     const provider = pendingAuthProviders.get(activeConnectionId);
     if (provider && typeof provider.signOut === 'function') {
@@ -139,7 +141,8 @@ async function clearAuthProviders(activeConnectionId: string) {
   }
 
   try {
-    const { clearPendingAuthCodeFlowProvider } = await import('../../services/auth/authentication.js');
+    const { clearPendingAuthCodeFlowProvider } =
+      await import('../../services/auth/authentication.js');
     clearPendingAuthCodeFlowProvider(activeConnectionId);
   } catch {
     // Ignore errors clearing provider
@@ -149,9 +152,13 @@ async function clearAuthProviders(activeConnectionId: string) {
 async function markAsSignedOut(activeConnectionId: string) {
   const { markConnectionSignedOut } = await import('../../activation.js');
   if (typeof markConnectionSignedOut === 'function') {
-    logger.info('[signOutEntra] Marking connection as signed out', { connectionId: activeConnectionId });
+    logger.info('[signOutEntra] Marking connection as signed out', {
+      connectionId: activeConnectionId,
+    });
     markConnectionSignedOut(activeConnectionId);
-    logger.info('[signOutEntra] Connection marked as signed out', { connectionId: activeConnectionId });
+    logger.info('[signOutEntra] Connection marked as signed out', {
+      connectionId: activeConnectionId,
+    });
   } else {
     logger.warn('[signOutEntra] markConnectionSignedOut function not available');
   }
@@ -162,7 +169,7 @@ async function signOutEntra(
   connectionId?: string
 ): Promise<void> {
   let activeConnectionId: string | undefined;
-  
+
   try {
     logger.info('[signOutEntra] Starting sign out', { connectionId });
 

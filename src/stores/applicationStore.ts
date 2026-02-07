@@ -36,7 +36,10 @@ function createDerivedStores(engine: any) {
     connections: createDerivedStore(engine, (ctx) => ctx.connections || []),
     activeConnectionId: createDerivedStore(engine, (ctx) => ctx.activeConnectionId),
     connectionStates: createDerivedStore(engine, (ctx) => ctx.connectionStates || new Map()),
-    pendingAuthReminders: createDerivedStore(engine, (ctx) => ctx.pendingAuthReminders || new Map()),
+    pendingAuthReminders: createDerivedStore(
+      engine,
+      (ctx) => ctx.pendingAuthReminders || new Map()
+    ),
     isActivated: createDerivedStore(engine, (ctx) => ctx.isActivated ?? false),
     isDeactivating: createDerivedStore(engine, (ctx) => ctx.isDeactivating ?? false),
     lastError: createDerivedStore(engine, (ctx) => ctx.lastError),
@@ -108,10 +111,18 @@ function createApplicationStore() {
   return {
     applicationState,
     send,
-    get actor() { return applicationManager; },
-    get praxisStore() { return praxisStore; },
-    get contextStore() { return contextStore; },
-    get derivedStores() { return derivedStores; },
+    get actor() {
+      return applicationManager;
+    },
+    get praxisStore() {
+      return praxisStore;
+    },
+    get contextStore() {
+      return contextStore;
+    },
+    get derivedStores() {
+      return derivedStores;
+    },
   };
 }
 

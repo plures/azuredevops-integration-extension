@@ -9339,9 +9339,7 @@ ${component_stack}
   var DeviceCodeSessionFact = defineFact(
     "DeviceCodeSession"
   );
-  var AuthCodeFlowSessionFact = defineFact(
-    "AuthCodeFlowSession"
-  );
+  var AuthCodeFlowSessionFact = defineFact("AuthCodeFlowSession");
   var ErrorRecoveryAttemptsFact = defineFact(
     "ErrorRecoveryAttempts"
   );
@@ -10628,7 +10626,8 @@ ${component_stack}
     impl: (state2, events) => {
       const retryEvent = findEvent(events, RetryApplicationEvent);
       if (!retryEvent) return [];
-      if (state2.context.applicationState !== "error_recovery" && state2.context.applicationState !== "activation_error") return [];
+      if (state2.context.applicationState !== "error_recovery" && state2.context.applicationState !== "activation_error")
+        return [];
       state2.context.lastError = void 0;
       state2.context.applicationState = "active";
       return [];
@@ -13425,11 +13424,7 @@ ${component_stack}
 
   // src/debugging/stateDiff.ts
   function diffStates(from, to, options = {}) {
-    const {
-      ignoreFields = [],
-      deep = true,
-      includeUnchanged = false
-    } = options;
+    const { ignoreFields = [], deep = true, includeUnchanged = false } = options;
     const ignoreSet = new Set(ignoreFields);
     const diff = {
       added: {},
@@ -13437,10 +13432,7 @@ ${component_stack}
       changed: {},
       unchanged: {}
     };
-    const allKeys = /* @__PURE__ */ new Set([
-      ...Object.keys(from),
-      ...Object.keys(to)
-    ]);
+    const allKeys = /* @__PURE__ */ new Set([...Object.keys(from), ...Object.keys(to)]);
     for (const key2 of allKeys) {
       if (ignoreSet.has(key2)) {
         continue;
@@ -13555,9 +13547,7 @@ ${component_stack}
       const keys = Object.keys(value);
       if (keys.length === 0) return "{}";
       if (keys.length > 3) {
-        const preview = keys.slice(0, 3).map(
-          (k) => `${k}: ${formatValue(value[k], maxDepth, currentDepth + 1)}`
-        ).join(", ");
+        const preview = keys.slice(0, 3).map((k) => `${k}: ${formatValue(value[k], maxDepth, currentDepth + 1)}`).join(", ");
         return `{ ${preview}, ... }`;
       }
       return `{ ${keys.map((k) => `${k}: ${formatValue(value[k], maxDepth, currentDepth + 1)}`).join(", ")} }`;

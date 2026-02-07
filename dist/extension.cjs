@@ -43599,7 +43599,14 @@ async function getEntraIdToken(context, tenantId, options = {}) {
   }
   const errors = [];
   try {
-    return await attemptDeviceCodeFlow(context, resolvedClientId, authorityTenant, resolvedTenantId, scopes, options);
+    return await attemptDeviceCodeFlow(
+      context,
+      resolvedClientId,
+      authorityTenant,
+      resolvedTenantId,
+      scopes,
+      options
+    );
   } catch (error) {
     const formatted = formatAuthError(error);
     errors.push(`clientId=${resolvedClientId}: ${formatted}`);
@@ -43851,7 +43858,13 @@ var init_driver = __esm({
             if (state2 === "authenticating" && !authStarted) {
               authStarted = true;
               if (this.context) {
-                performAuthentication(manager, config, this.context, forceInteractive, onDeviceCode).catch((err) => {
+                performAuthentication(
+                  manager,
+                  config,
+                  this.context,
+                  forceInteractive,
+                  onDeviceCode
+                ).catch((err) => {
                 });
               } else {
                 manager.authFailed("Extension context not set");
@@ -44295,9 +44308,13 @@ async function clearAuthProviders(activeConnectionId3) {
 async function markAsSignedOut(activeConnectionId3) {
   const { markConnectionSignedOut: markConnectionSignedOut2 } = await Promise.resolve().then(() => (init_activation(), activation_exports));
   if (typeof markConnectionSignedOut2 === "function") {
-    logger8.info("[signOutEntra] Marking connection as signed out", { connectionId: activeConnectionId3 });
+    logger8.info("[signOutEntra] Marking connection as signed out", {
+      connectionId: activeConnectionId3
+    });
     markConnectionSignedOut2(activeConnectionId3);
-    logger8.info("[signOutEntra] Connection marked as signed out", { connectionId: activeConnectionId3 });
+    logger8.info("[signOutEntra] Connection marked as signed out", {
+      connectionId: activeConnectionId3
+    });
   } else {
     logger8.warn("[signOutEntra] markConnectionSignedOut function not available");
   }
@@ -44692,10 +44709,9 @@ function registerCommands(_context, commandContext) {
       });
       disposables.push(disposable);
       if (registration.command === "azureDevOpsInt.signOutEntra") {
-        logger9.debug(
-          `[COMMAND REGISTERED] ${registration.command} - handler:`,
-          { handlerType: typeof registration.handler }
-        );
+        logger9.debug(`[COMMAND REGISTERED] ${registration.command} - handler:`, {
+          handlerType: typeof registration.handler
+        });
         logger9.info(`[Command Registration] Registered signOutEntra command`, {
           handlerType: typeof registration.handler,
           handlerName: registration.handler?.name || "anonymous"
@@ -44704,12 +44720,12 @@ function registerCommands(_context, commandContext) {
     } catch (error) {
       const errorMsg = error.message || String(error);
       errors.push({ command: registration.command, error: errorMsg });
-      logger9.debug(`[REGISTRATION ERROR] Failed to register ${registration.command}`, { meta: error });
+      logger9.debug(`[REGISTRATION ERROR] Failed to register ${registration.command}`, {
+        meta: error
+      });
       logger9.error(`Failed to register command ${registration.command}`, { meta: error });
       if (registration.command === "azureDevOpsInt.signOutEntra") {
-        vscode10.window.showErrorMessage(
-          `Failed to register signOutEntra command: ${errorMsg}`
-        );
+        vscode10.window.showErrorMessage(`Failed to register signOutEntra command: ${errorMsg}`);
       }
     }
   }
@@ -46341,9 +46357,7 @@ var init_facts2 = __esm({
     DeviceCodeSessionFact = defineFact(
       "DeviceCodeSession"
     );
-    AuthCodeFlowSessionFact = defineFact(
-      "AuthCodeFlowSession"
-    );
+    AuthCodeFlowSessionFact = defineFact("AuthCodeFlowSession");
     ErrorRecoveryAttemptsFact = defineFact(
       "ErrorRecoveryAttempts"
     );
@@ -47117,7 +47131,8 @@ var init_miscRules = __esm({
       impl: (state2, events) => {
         const retryEvent = findEvent(events, RetryApplicationEvent);
         if (!retryEvent) return [];
-        if (state2.context.applicationState !== "error_recovery" && state2.context.applicationState !== "activation_error") return [];
+        if (state2.context.applicationState !== "error_recovery" && state2.context.applicationState !== "activation_error")
+          return [];
         state2.context.lastError = void 0;
         state2.context.applicationState = "active";
         return [];
@@ -47706,12 +47721,7 @@ var init_eventReplayDebugger = __esm({
        * Replay a test scenario with breakpoint support
        */
       async replay(scenario, options = {}) {
-        const {
-          stepDelay = 0,
-          pauseOnBreakpoint = true,
-          onStep,
-          onBreakpoint
-        } = options;
+        const { stepDelay = 0, pauseOnBreakpoint = true, onStep, onBreakpoint } = options;
         frontendEngine.updateContext(() => scenario.initialContext);
         history.clearHistory();
         for (let i = 0; i < scenario.events.length; i++) {
@@ -47744,14 +47754,11 @@ var init_eventReplayDebugger = __esm({
           const startEntry = historyEntries[startIndex - 1];
           frontendEngine.updateContext(() => startEntry.state.context);
         } else {
-          frontendEngine.updateContext(() => historyEntries[0].state.context);
+          frontendEngine.updateContext(
+            () => historyEntries[0].state.context
+          );
         }
-        const {
-          stepDelay = 0,
-          pauseOnBreakpoint = true,
-          onStep,
-          onBreakpoint
-        } = options;
+        const { stepDelay = 0, pauseOnBreakpoint = true, onStep, onBreakpoint } = options;
         for (let i = startIndex; i <= end; i++) {
           const entry = historyEntries[i];
           if (!entry || !entry.events || entry.events.length === 0) {
@@ -47910,7 +47917,10 @@ async function handleStopRecording() {
       filters: { "JSON Files": ["json"] }
     });
     if (uri) {
-      await vscode13.workspace.fs.writeFile(uri, Buffer.from(JSON.stringify(scenario, null, 2), "utf-8"));
+      await vscode13.workspace.fs.writeFile(
+        uri,
+        Buffer.from(JSON.stringify(scenario, null, 2), "utf-8")
+      );
       vscode13.window.showInformationMessage(`Scenario saved: ${scenario.name}`);
     }
   } catch (error) {
@@ -47926,9 +47936,18 @@ function registerHistoryDebugCommands(context) {
     vscode13.commands.registerCommand("azureDevOpsInt.debug.history.export", handleExportHistory),
     vscode13.commands.registerCommand("azureDevOpsInt.debug.history.import", handleImportHistory),
     vscode13.commands.registerCommand("azureDevOpsInt.debug.history.copy", handleCopyHistory),
-    vscode13.commands.registerCommand("azureDevOpsInt.debug.history.startRecording", handleStartRecording),
-    vscode13.commands.registerCommand("azureDevOpsInt.debug.history.stopRecording", handleStopRecording),
-    vscode13.commands.registerCommand("azureDevOpsInt.debug.history.clearBreakpoints", handleClearBreakpoints)
+    vscode13.commands.registerCommand(
+      "azureDevOpsInt.debug.history.startRecording",
+      handleStartRecording
+    ),
+    vscode13.commands.registerCommand(
+      "azureDevOpsInt.debug.history.stopRecording",
+      handleStopRecording
+    ),
+    vscode13.commands.registerCommand(
+      "azureDevOpsInt.debug.history.clearBreakpoints",
+      handleClearBreakpoints
+    )
   );
 }
 var vscode13;
@@ -47997,13 +48016,19 @@ function generateTestFromScenario(scenario, options = {}) {
   lines.push(`${indent}${indent}// Verify final state`);
   lines.push(`${indent}${indent}const context = getContext();`);
   if (scenario.finalContext.applicationState) {
-    lines.push(`${indent}${indent}expect(context.applicationState).toBe('${scenario.finalContext.applicationState}');`);
+    lines.push(
+      `${indent}${indent}expect(context.applicationState).toBe('${scenario.finalContext.applicationState}');`
+    );
   }
   if (scenario.finalContext.connections) {
-    lines.push(`${indent}${indent}expect(context.connections.length).toBe(${scenario.finalContext.connections.length});`);
+    lines.push(
+      `${indent}${indent}expect(context.connections.length).toBe(${scenario.finalContext.connections.length});`
+    );
   }
   if (scenario.finalContext.activeConnectionId) {
-    lines.push(`${indent}${indent}expect(context.activeConnectionId).toBe('${scenario.finalContext.activeConnectionId}');`);
+    lines.push(
+      `${indent}${indent}expect(context.activeConnectionId).toBe('${scenario.finalContext.activeConnectionId}');`
+    );
   }
   if (opts.includeSnapshots && opts.framework === "vitest") {
     lines.push("");
@@ -48032,18 +48057,20 @@ function generateImports(framework, eventImports = /* @__PURE__ */ new Set()) {
     imports.push("import { describe, it } from 'mocha';");
     imports.push("import { expect } from 'chai';");
   }
-  imports.push("import { resetEngine, dispatch, waitForStateValue, getContext } from '../../../src/testing/helpers.js';");
+  imports.push(
+    "import { resetEngine, dispatch, waitForStateValue, getContext } from '../../../src/testing/helpers.js';"
+  );
   if (eventImports.size > 0) {
     const eventNames = Array.from(eventImports).sort();
-    imports.push(`import { ${eventNames.join(", ")} } from '../../../src/praxis/application/facts.js';`);
+    imports.push(
+      `import { ${eventNames.join(", ")} } from '../../../src/praxis/application/facts.js';`
+    );
   }
   return imports.join("\n");
 }
 function convertEventTagToName(eventTag) {
   const parts = eventTag.split("_");
-  const camelCase = parts.map(
-    (part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
-  ).join("");
+  const camelCase = parts.map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join("");
   return camelCase + "Event";
 }
 function generateEventCode(event2, indent) {
@@ -48083,9 +48110,7 @@ function generateValueCode(value, indent) {
   }
   if (typeof value === "object") {
     if (value instanceof Map) {
-      const entries = Array.from(value.entries()).map(
-        ([k, v]) => `['${k}', ${generateValueCode(v, indent)}]`
-      ).join(", ");
+      const entries = Array.from(value.entries()).map(([k, v]) => `['${k}', ${generateValueCode(v, indent)}]`).join(", ");
       return `new Map([${entries}])`;
     }
     const keys = Object.keys(value);
@@ -48116,7 +48141,9 @@ function generateSnapshotTest(scenario, options = {}) {
   }
   if (eventImports.size > 0) {
     const eventNames = Array.from(eventImports).sort();
-    lines.push(`import { ${eventNames.join(", ")} } from '../../../src/praxis/application/facts.js';`);
+    lines.push(
+      `import { ${eventNames.join(", ")} } from '../../../src/praxis/application/facts.js';`
+    );
     lines.push("");
   }
   lines.push(`describe('${opts.describeName}', () => {`);
@@ -48136,7 +48163,9 @@ function generateSnapshotTest(scenario, options = {}) {
       lines.push(`${indent}${indent}${indent}${indent}{`);
       lines.push(`${indent}${indent}${indent}${indent}${indent}index: ${i + 1},`);
       lines.push(`${indent}${indent}${indent}${indent}${indent}state: '${eventData.stateAfter}',`);
-      lines.push(`${indent}${indent}${indent}${indent}${indent}contextChecks: (ctx) => ctx.applicationState === '${eventData.stateAfter}',`);
+      lines.push(
+        `${indent}${indent}${indent}${indent}${indent}contextChecks: (ctx) => ctx.applicationState === '${eventData.stateAfter}',`
+      );
       lines.push(`${indent}${indent}${indent}${indent}},`);
     }
   }
@@ -48188,12 +48217,9 @@ function registerTestGeneratorCommands(context) {
         if (!testName) {
           return;
         }
-        const framework = await vscode14.window.showQuickPick(
-          ["vitest", "jest", "mocha"],
-          {
-            placeHolder: "Select test framework"
-          }
-        );
+        const framework = await vscode14.window.showQuickPick(["vitest", "jest", "mocha"], {
+          placeHolder: "Select test framework"
+        });
         if (!framework) {
           return;
         }
@@ -48241,12 +48267,9 @@ function registerTestGeneratorCommands(context) {
         if (!testName) {
           return;
         }
-        const framework = await vscode14.window.showQuickPick(
-          ["vitest", "jest", "mocha"],
-          {
-            placeHolder: "Select test framework"
-          }
-        );
+        const framework = await vscode14.window.showQuickPick(["vitest", "jest", "mocha"], {
+          placeHolder: "Select test framework"
+        });
         if (!framework) {
           return;
         }
@@ -48257,17 +48280,15 @@ function registerTestGeneratorCommands(context) {
           }
         });
         if (outputUri) {
-          await generateTestFromHistoryFile(
-            uri[0].fsPath,
-            outputUri.fsPath,
-            {
-              framework,
-              testName,
-              includeSnapshots: true,
-              includeComments: true
-            }
+          await generateTestFromHistoryFile(uri[0].fsPath, outputUri.fsPath, {
+            framework,
+            testName,
+            includeSnapshots: true,
+            includeComments: true
+          });
+          vscode14.window.showInformationMessage(
+            `Test generated: ${path.basename(outputUri.fsPath)}`
           );
-          vscode14.window.showInformationMessage(`Test generated: ${path.basename(outputUri.fsPath)}`);
         }
       } catch (error) {
         vscode14.window.showErrorMessage(`Failed to generate test: ${error}`);
@@ -49483,7 +49504,10 @@ var init_manager4 = __esm({
         if (traceEnabled) {
           const entry = this.traceRecorder.completeDispatch(contextAfter, result?.diagnostics);
           if (entry) {
-            this.engine.updateContext((ctx) => ({ ...ctx, debugTraceLog: this.traceRecorder.getEntries() }));
+            this.engine.updateContext((ctx) => ({
+              ...ctx,
+              debugTraceLog: this.traceRecorder.getEntries()
+            }));
           }
         }
         if (!contextAfter.debugLoggingEnabled && this.traceRecorder.getEntries().length > 0) {
@@ -50404,7 +50428,10 @@ function createDerivedStores(engine) {
     connections: createDerivedStore(engine, (ctx) => ctx.connections || []),
     activeConnectionId: createDerivedStore(engine, (ctx) => ctx.activeConnectionId),
     connectionStates: createDerivedStore(engine, (ctx) => ctx.connectionStates || /* @__PURE__ */ new Map()),
-    pendingAuthReminders: createDerivedStore(engine, (ctx) => ctx.pendingAuthReminders || /* @__PURE__ */ new Map()),
+    pendingAuthReminders: createDerivedStore(
+      engine,
+      (ctx) => ctx.pendingAuthReminders || /* @__PURE__ */ new Map()
+    ),
     isActivated: createDerivedStore(engine, (ctx) => ctx.isActivated ?? false),
     isDeactivating: createDerivedStore(engine, (ctx) => ctx.isDeactivating ?? false),
     lastError: createDerivedStore(engine, (ctx) => ctx.lastError)

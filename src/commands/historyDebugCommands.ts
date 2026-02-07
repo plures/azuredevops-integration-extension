@@ -1,11 +1,15 @@
 /**
  * History Debug Commands
- * 
+ *
  * VS Code commands for history debugging functionality.
  */
 
 import * as vscode from 'vscode';
-import { exportHistoryAsJSON, importHistoryFromJSON, copyHistoryToClipboard } from '../debugging/historyExport.js';
+import {
+  exportHistoryAsJSON,
+  importHistoryFromJSON,
+  copyHistoryToClipboard,
+} from '../debugging/historyExport.js';
 import { startRecording, stopRecording, isRecording } from '../testing/historyTestRecorder.js';
 import { getEventReplayDebugger } from '../debugging/eventReplayDebugger.js';
 
@@ -57,13 +61,13 @@ async function handleStartRecording() {
       placeHolder: 'test-001',
     });
     if (!scenarioId) return;
-    
+
     const scenarioName = await vscode.window.showInputBox({
       prompt: 'Enter scenario name',
       placeHolder: 'User workflow test',
     });
     if (!scenarioName) return;
-    
+
     startRecording(scenarioId, scenarioName);
     vscode.window.showInformationMessage(`Started recording: ${scenarioName}`);
   } catch (error) {
@@ -83,7 +87,10 @@ async function handleStopRecording() {
       filters: { 'JSON Files': ['json'] },
     });
     if (uri) {
-      await vscode.workspace.fs.writeFile(uri, Buffer.from(JSON.stringify(scenario, null, 2), 'utf-8'));
+      await vscode.workspace.fs.writeFile(
+        uri,
+        Buffer.from(JSON.stringify(scenario, null, 2), 'utf-8')
+      );
       vscode.window.showInformationMessage(`Scenario saved: ${scenario.name}`);
     }
   } catch (error) {
@@ -104,9 +111,17 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
     vscode.commands.registerCommand('azureDevOpsInt.debug.history.export', handleExportHistory),
     vscode.commands.registerCommand('azureDevOpsInt.debug.history.import', handleImportHistory),
     vscode.commands.registerCommand('azureDevOpsInt.debug.history.copy', handleCopyHistory),
-    vscode.commands.registerCommand('azureDevOpsInt.debug.history.startRecording', handleStartRecording),
-    vscode.commands.registerCommand('azureDevOpsInt.debug.history.stopRecording', handleStopRecording),
-    vscode.commands.registerCommand('azureDevOpsInt.debug.history.clearBreakpoints', handleClearBreakpoints)
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.debug.history.startRecording',
+      handleStartRecording
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.debug.history.stopRecording',
+      handleStopRecording
+    ),
+    vscode.commands.registerCommand(
+      'azureDevOpsInt.debug.history.clearBreakpoints',
+      handleClearBreakpoints
+    )
   );
 }
-
