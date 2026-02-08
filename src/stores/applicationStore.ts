@@ -77,6 +77,47 @@ function handleApplicationEvent(manager: PraxisApplicationManager, event: Applic
  * - Type-safe store access
  * - Better performance through event-driven updates
  */
+function createStateMatcherObject(appState: string, appData: ApplicationContext) {
+  return {
+    value: appState,
+    context: appData,
+    matches: (stateValue: string) => {
+      if (appState === stateValue) return true;
+      if (appState.includes(stateValue)) return true;
+      if (stateValue === 'activation_failed' && appState === 'activation_error') return true;
+      return false;
+    },
+    can: (_event: ApplicationEvent) => true,
+  };
+}
+
+function subscribeToManager(
+  applicationManager: PraxisApplicationManager,
+  currentState: Writable<any>
+): () => void {
+  return applicationManager.subscribe(() => {
+    const appState = applicationManager.getApplicationState();
+    const appData = applicationManager.getContext() as unknown as ApplicationContext;
+    currentState.set(createStateMatcherObject(appState, appData));
+  });
+}
+
+function subscribeToPraxisStore(
+  praxisStore: Readable<any>,
+  applicationManager: PraxisApplicationManager,
+  currentState: Writable<any>
+): () => void {
+  return praxisStore.subscribe((praxisState) => {
+    if (!praxisState) {
+      currentState.set(null);
+      return;
+    }
+    const appState = applicationManager.getApplicationState();
+    const appData = applicationManager.getContext() as unknown as ApplicationContext;
+    currentState.set(createStateMatcherObject(appState, appData));
+  });
+}
+
 function createApplicationStore() {
   // Create and start the Praxis application manager
   // Use getInstance() to ensure we share the singleton with ConnectionService
@@ -115,7 +156,6 @@ function createApplicationStore() {
   );
   const lastErrorDerivedStore = createDerivedStore(engine, (ctx) => ctx.lastError);
 
-  // Current state wrapper that bridges Praxis store to our expected interface
   const currentState = writable<{
     value: string;
     context: ApplicationContext;
@@ -123,52 +163,8 @@ function createApplicationStore() {
     can: (event: ApplicationEvent) => boolean;
   } | null>(null);
 
-  // Subscribe to manager's internal subscription system to sync with store
-  // This ensures store updates when state changes through manager methods
-  const managerUnsubscribe = applicationManager.subscribe(() => {
-    // Update the wrapper state when manager state changes
-    const appState = applicationManager.getApplicationState();
-    const appData = applicationManager.getContext() as unknown as ApplicationContext;
-
-    currentState.set({
-      value: appState,
-      context: appData,
-      matches: (stateValue: string) => {
-        if (appState === stateValue) return true;
-        if (appState.includes(stateValue)) return true;
-        // Map legacy states
-        if (stateValue === 'activation_failed' && appState === 'activation_error') return true;
-        return false;
-      },
-      can: (_event: ApplicationEvent) => true, // Praxis handles validation internally
-    });
-  });
-
-  // Also subscribe to Praxis store for completeness
-  // This ensures we get updates from both manager and store dispatch paths
-  const praxisUnsubscribe = praxisStore.subscribe((praxisState) => {
-    if (!praxisState) {
-      currentState.set(null);
-      return;
-    }
-
-    // Extract state value from Praxis state format
-    const appState = applicationManager.getApplicationState();
-    const appData = applicationManager.getContext() as unknown as ApplicationContext;
-
-    currentState.set({
-      value: appState,
-      context: appData,
-      matches: (stateValue: string) => {
-        if (appState === stateValue) return true;
-        if (appState.includes(stateValue)) return true;
-        // Map legacy states
-        if (stateValue === 'activation_failed' && appState === 'activation_error') return true;
-        return false;
-      },
-      can: (_event: ApplicationEvent) => true, // Praxis handles validation internally
-    });
-  });
+  const managerUnsubscribe = subscribeToManager(applicationManager, currentState);
+  const praxisUnsubscribe = subscribeToPraxisStore(praxisStore, applicationManager, currentState);
 
   // Application State Store (readable wrapper)
   const applicationState = readable<{
