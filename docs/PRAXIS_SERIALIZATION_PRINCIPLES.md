@@ -9,6 +9,7 @@
 ### 1. Context Shape is a Contract
 
 The context shape is a contract between:
+
 - **Praxis Rules** (which populate the context)
 - **Components** (which consume the context)
 - **Serialization** (which transfers context across boundaries)
@@ -18,6 +19,7 @@ If serialization filters or transforms data, it breaks this contract. Components
 ### 2. Business Logic Belongs in Rules
 
 **❌ WRONG**: Filtering connection states in serialization
+
 ```typescript
 // BAD: Making business decisions in serialization
 if (Object.keys(connectionStatesObj).length > 0) {
@@ -26,14 +28,16 @@ if (Object.keys(connectionStatesObj).length > 0) {
 ```
 
 **✅ CORRECT**: Let rules decide what goes in context
+
 ```typescript
 // GOOD: Serialize what's in context, period
-serialized.connectionStates = context.connectionStates 
-  ? Object.fromEntries(context.connectionStates) 
+serialized.connectionStates = context.connectionStates
+  ? Object.fromEntries(context.connectionStates)
   : {};
 ```
 
 If we want to optimize what goes into the context, we should:
+
 1. Create a Praxis rule that filters/optimizes the context
 2. Let components react to the optimized context
 3. Serialize the optimized context transparently
@@ -41,6 +45,7 @@ If we want to optimize what goes into the context, we should:
 ### 3. Components React to Context Properties
 
 The fact that a connection is `disconnected` is a **property** that components need to react to. If we omit disconnected connections from `connectionStates`, components can't:
+
 - Show connection status indicators
 - Display "Sign in required" messages
 - Iterate over all connections to show tabs
@@ -49,6 +54,7 @@ The fact that a connection is `disconnected` is a **property** that components n
 ### 4. Future Developers Depend on Shape
 
 Future developers will write code that:
+
 - Iterates over `connectionStates` expecting all connections
 - Checks `connectionStates.get(connectionId)` expecting it to exist
 - Derives UI state from connection properties
@@ -62,9 +68,7 @@ If serialization filters data, this code will break in subtle ways.
 ```typescript
 // Serialize what's in context - no filtering, no business logic
 const serialized = {
-  connectionStates: context.connectionStates 
-    ? Object.fromEntries(context.connectionStates) 
-    : {},
+  connectionStates: context.connectionStates ? Object.fromEntries(context.connectionStates) : {},
   workItems: context.pendingWorkItems?.workItems || [],
   // ... serialize all fields as they exist in context
 };
@@ -73,10 +77,11 @@ const serialized = {
 ### ✅ Handle Type Conversions Only
 
 Serialization can convert types (Map → Object, Date → number) but shouldn't filter:
+
 ```typescript
 // OK: Converting Map to Object for JSON serialization
-connectionStates: context.connectionStates 
-  ? Object.fromEntries(context.connectionStates) 
+connectionStates: context.connectionStates
+  ? Object.fromEntries(context.connectionStates)
   : {}
 
 // OK: Converting Date to number
@@ -124,6 +129,7 @@ if (context.errorRecoveryAttempts > 0) {
 ### ❌ Optimize Payload Size by Omitting Data
 
 If payload size is a concern:
+
 1. **Optimize in Rules**: Create rules that don't populate unnecessary data
 2. **Use Context Selectors**: If Praxis supports it, use selectors to only serialize relevant parts
 3. **Don't Break the Contract**: Never omit data that components expect
@@ -131,6 +137,7 @@ If payload size is a concern:
 ## Exception: Matches Object
 
 The `matches` object is a **computed view** of state, not part of the core context. Filtering false matches is acceptable because:
+
 - It's a derived/computed value, not core context
 - Components can recompute matches from state if needed
 - It's purely for convenience/performance
@@ -148,12 +155,14 @@ for (const [key, value] of Object.entries(allMatches)) {
 ## Lesson Learned
 
 **When optimizing serialization:**
+
 1. ✅ Ask: "Is this filtering business logic?" → If yes, move to rules
 2. ✅ Ask: "Do components depend on this shape?" → If yes, don't filter
 3. ✅ Ask: "Is this a computed/derived value?" → If yes, filtering may be OK
 4. ✅ Ask: "Will future developers expect this?" → If yes, include it
 
 **The Golden Rule:**
+
 > **Serialization should be a transparent pipe. If you want to change what flows through it, change the source (rules), not the pipe (serialization).**
 
 ## Related Principles
@@ -168,5 +177,3 @@ for (const [key, value] of Object.entries(allMatches)) {
 **Created**: 2025-01-27  
 **Reason**: Learned from mistake of filtering connection states in serialization  
 **Status**: Core Principle - Do Not Violate
-
-

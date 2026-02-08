@@ -1,12 +1,15 @@
 /**
  * Praxis History Testing Setup
- * 
+ *
  * Setup file for Vitest to configure Praxis history testing.
  * This file is automatically loaded by Vitest before tests run.
  */
 
 import { expect } from 'vitest';
-import { setupPraxisHistoryTesting, createMatchers } from '../../src/testing/vitest-plugin-praxis-history.js';
+import {
+  setupPraxisHistoryTesting,
+  createMatchers,
+} from '../../src/testing/vitest-plugin-praxis-history.js';
 import { beforeEach, afterEach } from 'vitest';
 
 // Setup Praxis history testing
@@ -46,4 +49,3 @@ afterEach((test) => {
 
 // Export utilities for use in tests
 export { praxisHistory };
-

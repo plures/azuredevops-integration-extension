@@ -126,13 +126,12 @@ export function registerCommands(
         }
       });
       disposables.push(disposable);
-      
+
       // Special handling for signOutEntra (debugging purposes)
       if (registration.command === 'azureDevOpsInt.signOutEntra') {
-        logger.debug(
-          `[COMMAND REGISTERED] ${registration.command} - handler:`,
-          { handlerType: typeof registration.handler }
-        );
+        logger.debug(`[COMMAND REGISTERED] ${registration.command} - handler:`, {
+          handlerType: typeof registration.handler,
+        });
         logger.info(`[Command Registration] Registered signOutEntra command`, {
           handlerType: typeof registration.handler,
           handlerName: registration.handler?.name || 'anonymous',
@@ -141,12 +140,12 @@ export function registerCommands(
     } catch (error) {
       const errorMsg = (error as any).message || String(error);
       errors.push({ command: registration.command, error: errorMsg });
-      logger.debug(`[REGISTRATION ERROR] Failed to register ${registration.command}`, { meta: error });
+      logger.debug(`[REGISTRATION ERROR] Failed to register ${registration.command}`, {
+        meta: error,
+      });
       logger.error(`Failed to register command ${registration.command}`, { meta: error });
       if (registration.command === 'azureDevOpsInt.signOutEntra') {
-        vscode.window.showErrorMessage(
-          `Failed to register signOutEntra command: ${errorMsg}`
-        );
+        vscode.window.showErrorMessage(`Failed to register signOutEntra command: ${errorMsg}`);
       }
     }
   }

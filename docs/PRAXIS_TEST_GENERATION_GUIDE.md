@@ -10,7 +10,7 @@ The automated test generation feature allows you to convert recorded history or 
 ✅ **Generate Tests from Exported History** - Convert bug reports to tests  
 ✅ **Multiple Framework Support** - Generate Vitest, Jest, or Mocha tests  
 ✅ **Snapshot Test Generation** - Generate snapshot-based tests  
-✅ **VS Code Integration** - Generate tests via commands  
+✅ **VS Code Integration** - Generate tests via commands
 
 ## Usage
 
@@ -59,11 +59,11 @@ await saveGeneratedTest(testCode, 'tests/generated/my-test.test.ts');
 ```typescript
 interface TestGenerationOptions {
   framework?: 'vitest' | 'jest' | 'mocha';
-  includeSnapshots?: boolean;      // Include snapshot assertions
-  includeComments?: boolean;        // Include comments in generated code
-  indentSize?: number;              // Indentation size (default: 2)
-  testName?: string;                // Name for the test
-  describeName?: string;            // Name for describe block
+  includeSnapshots?: boolean; // Include snapshot assertions
+  includeComments?: boolean; // Include comments in generated code
+  indentSize?: number; // Indentation size (default: 2)
+  testName?: string; // Name for the test
+  describeName?: string; // Name for describe block
 }
 ```
 
@@ -73,7 +73,12 @@ interface TestGenerationOptions {
 
 ```typescript
 import { describe, it, expect, beforeEach } from 'vitest';
-import { resetEngine, dispatch, waitForStateValue, getContext } from '../../../src/testing/helpers.js';
+import {
+  resetEngine,
+  dispatch,
+  waitForStateValue,
+  getContext,
+} from '../../../src/testing/helpers.js';
 
 /**
  * Generated test from scenario: Complete connection authentication workflow
@@ -116,10 +121,7 @@ describe('Generated Tests', () => {
   it('generated-snapshot-test', () => {
     const testFn = createSnapshotTest({
       name: 'Complete connection authentication workflow',
-      events: [
-        ActivateEvent.create({}),
-        ActivationCompleteEvent.create({}),
-      ],
+      events: [ActivateEvent.create({}), ActivationCompleteEvent.create({})],
       expectedSnapshots: [
         {
           index: 1,
@@ -219,4 +221,3 @@ See `tests/praxis/examples/test-generation-demo.test.ts` for complete examples.
 - [Testing Examples Guide](./PRAXIS_HISTORY_EXAMPLES_GUIDE.md)
 - [Vitest Plugin Guide](./PRAXIS_VITEST_PLUGIN_GUIDE.md)
 - [History Testing Implementation](./PRAXIS_HISTORY_TESTING_DEBUGGING_IMPLEMENTATION.md)
-

@@ -1,3 +1,16 @@
 # Test artifacts
 test-artifacts/
 *.history.json
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+coverage/
+
+# Generated files
+media/webview/main.js
+media/webview/main.js.map
+media/webview/main.css
+media/webview/main.css.map

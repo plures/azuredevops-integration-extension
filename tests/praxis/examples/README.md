@@ -7,11 +7,13 @@ This directory contains example test scenarios demonstrating how to use the Prax
 ### 1. Connection Authentication Workflow (`connection-authentication-workflow.test.ts`)
 
 Demonstrates:
+
 - Recording a complete connection authentication workflow
 - Snapshot testing at each step
 - Event sequence validation
 
 **Key Features**:
+
 - Record & replay workflow
 - Validate state at each step
 - Verify event processing order
@@ -19,11 +21,13 @@ Demonstrates:
 ### 2. Work Item Lifecycle (`work-item-lifecycle.test.ts`)
 
 Demonstrates:
+
 - Work item creation workflow
 - Timer start/stop functionality
 - State validation for work items
 
 **Key Features**:
+
 - Record work item operations
 - Validate timer state transitions
 - Test work item loading
@@ -31,11 +35,13 @@ Demonstrates:
 ### 3. Error Recovery (`error-recovery.test.ts`)
 
 Demonstrates:
+
 - Error scenario testing
 - Recovery workflow validation
 - Error state transitions
 
 **Key Features**:
+
 - Record error scenarios
 - Validate recovery attempts
 - Test error state handling
@@ -91,6 +97,7 @@ const result = validateEventSequence({
 ## Best Practices
 
 1. **Always reset engine** in `beforeEach`:
+
    ```typescript
    beforeEach(() => {
      resetEngine();
@@ -98,17 +105,20 @@ const result = validateEventSequence({
    ```
 
 2. **Use `waitForState`** for async operations:
+
    ```typescript
    await waitForState((ctx) => ctx.someProperty === expectedValue);
    ```
 
 3. **Validate final state** after recording:
+
    ```typescript
    const scenario = stopRecording();
    expect(scenario.finalContext.someProperty).toBe(expectedValue);
    ```
 
 4. **Use descriptive names** for scenarios:
+
    ```typescript
    startRecording('connection-auth-001', 'Complete connection authentication workflow');
    ```
@@ -118,7 +128,7 @@ const result = validateEventSequence({
    contextChecks: (ctx) => {
      // Multiple checks
      return ctx.property1 === value1 && ctx.property2 === value2;
-   }
+   };
    ```
 
 ## Running Examples
@@ -137,4 +147,3 @@ npm run test:feature tests/praxis/examples/connection-authentication-workflow.te
 - Create performance testing examples
 - Add visual regression testing examples
 - Document advanced patterns
-

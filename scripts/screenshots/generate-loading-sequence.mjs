@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Generate Loading Sequence GIF
- * 
+ *
  * Creates an animated GIF showing the complete extension workflow:
  * - Initializing (10 frames)
  * - Loading (10 frames)
@@ -147,11 +147,27 @@ function makeSampleWorkItems() {
 
 function makeSampleKanbanColumns(items) {
   const pick = (predicate) =>
-    items.filter((w) => predicate(String(w.fields?.['System.State'] || '').toLowerCase())).map((w) => w.id);
-  const todo = pick((s) => s.includes('new') || s.includes('to do') || s.includes('todo') || s.includes('proposed'));
-  const inprog = pick((s) => s.includes('in progress') || s.includes('inprogress') || s.includes('doing') || s.includes('active'));
+    items
+      .filter((w) => predicate(String(w.fields?.['System.State'] || '').toLowerCase()))
+      .map((w) => w.id);
+  const todo = pick(
+    (s) => s.includes('new') || s.includes('to do') || s.includes('todo') || s.includes('proposed')
+  );
+  const inprog = pick(
+    (s) =>
+      s.includes('in progress') ||
+      s.includes('inprogress') ||
+      s.includes('doing') ||
+      s.includes('active')
+  );
   const review = pick((s) => s.includes('review') || s.includes('testing'));
-  const done = pick((s) => s.includes('done') || s.includes('resolved') || s.includes('closed') || s.includes('completed'));
+  const done = pick(
+    (s) =>
+      s.includes('done') ||
+      s.includes('resolved') ||
+      s.includes('closed') ||
+      s.includes('completed')
+  );
   const assigned = new Set([...todo, ...inprog, ...review, ...done]);
   const leftovers = items.filter((w) => !assigned.has(w.id)).map((w) => w.id);
   if (leftovers.length) inprog.push(...leftovers);
@@ -206,7 +222,7 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: {
-      width: ((CAPTURE_WIDTH + CAPTURE_PADDING * 2) * 2),
+      width: (CAPTURE_WIDTH + CAPTURE_PADDING * 2) * 2,
       height: CAPTURE_MAX_HEIGHT,
     },
     deviceScaleFactor: 2,
@@ -313,11 +329,14 @@ async function main() {
           },
         ],
         activeConnectionId: connectionId,
-        pendingWorkItems: items && items.length > 0 ? {
-          workItems: items,
-          connectionId,
-          query: 'Demo',
-        } : undefined,
+        pendingWorkItems:
+          items && items.length > 0
+            ? {
+                workItems: items,
+                connectionId,
+                query: 'Demo',
+              }
+            : undefined,
         viewMode: view === 'kanban' ? 'kanban' : 'list',
       },
       matches: {
@@ -389,7 +408,11 @@ async function main() {
   }
 
   // Transition to Kanban: 6 frames via syncState
-  await dispatchSyncState('kanban', makeSampleWorkItems(), makeSampleKanbanColumns(makeSampleWorkItems()));
+  await dispatchSyncState(
+    'kanban',
+    makeSampleWorkItems(),
+    makeSampleKanbanColumns(makeSampleWorkItems())
+  );
   await page.waitForTimeout(300);
 
   const kanbanPng = join(PROJECT_ROOT, 'images', 'work-items-kanban.png');
@@ -412,7 +435,10 @@ async function main() {
     }
   } catch {
     try {
-      const kanbanHtml = await readFile(join(PROJECT_ROOT, 'images', 'work-items-kanban.html'), 'utf8');
+      const kanbanHtml = await readFile(
+        join(PROJECT_ROOT, 'images', 'work-items-kanban.html'),
+        'utf8'
+      );
       const sanitizedK = kanbanHtml
         .replace(/<link[^>]+svelte-main\.css[^>]*>/gi, '')
         .replace(/<script[^>]+svelte-main\.js[^>]*><\/script>/gi, '');
@@ -469,10 +495,10 @@ async function createGifFromFrames(framesDir, outputPath, frameCount) {
         if (destX < 0 || destX >= targetWidth) continue;
         const srcIdx = (y * srcPng.width + x) * 4;
         const dstIdx = (destY * targetWidth + destX) * 4;
-        canvas[dstIdx] = srcPng.data[srcIdx];       // R
-        canvas[dstIdx + 1] = srcPng.data[srcIdx+1]; // G
-        canvas[dstIdx + 2] = srcPng.data[srcIdx+2]; // B
-        canvas[dstIdx + 3] = srcPng.data[srcIdx+3]; // A
+        canvas[dstIdx] = srcPng.data[srcIdx]; // R
+        canvas[dstIdx + 1] = srcPng.data[srcIdx + 1]; // G
+        canvas[dstIdx + 2] = srcPng.data[srcIdx + 2]; // B
+        canvas[dstIdx + 3] = srcPng.data[srcIdx + 3]; // A
       }
     }
 
@@ -494,4 +520,3 @@ main().catch((error) => {
   console.error('[loading-gif] Error:', error);
   process.exit(1);
 });
-

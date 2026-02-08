@@ -1,6 +1,6 @@
 /**
  * Event Sequence Validator
- * 
+ *
  * Validates that events are processed in correct order and produce expected state.
  */
 
@@ -56,26 +56,26 @@ export interface ValidationResult {
 export function validateEventSequence(test: EventSequenceTest): ValidationResult {
   // Reset engine
   resetEngine(test.setup);
-  
+
   const errors: ValidationResult['errors'] = [];
   const warnings: ValidationResult['warnings'] = [];
-  
+
   // Apply events and validate
   for (let i = 0; i < test.sequence.length; i++) {
     const event = test.sequence[i];
-    
+
     // Dispatch event
     frontendEngine.step([event]);
-    
+
     // Run validators for this index
-    const validators = test.validators.filter(v => v.afterIndex === i);
-    
+    const validators = test.validators.filter((v) => v.afterIndex === i);
+
     for (const validatorConfig of validators) {
       const ctx = frontendEngine.getContext();
       const historyEntries = history.getHistory();
-      
+
       const result = validatorConfig.validator(ctx, historyEntries);
-      
+
       if (typeof result === 'boolean') {
         if (!result) {
           errors.push({
@@ -89,13 +89,16 @@ export function validateEventSequence(test: EventSequenceTest): ValidationResult
           errors.push({
             index: i,
             event: event.tag,
-            message: result.message || validatorConfig.errorMessage || `Validation failed after event ${i}`,
+            message:
+              result.message ||
+              validatorConfig.errorMessage ||
+              `Validation failed after event ${i}`,
           });
         }
       }
     }
   }
-  
+
   return {
     valid: errors.length === 0,
     errors,
@@ -114,14 +117,15 @@ export function checkProperty<T>(
   return (context) => {
     const actualValue = context[property] as T;
     const valid = actualValue === expectedValue;
-    
+
     if (!valid) {
       return {
         valid: false,
-        message: message || `Expected ${String(property)} to be ${expectedValue}, got ${actualValue}`,
+        message:
+          message || `Expected ${String(property)} to be ${expectedValue}, got ${actualValue}`,
       };
     }
-    
+
     return true;
   };
 }
@@ -150,7 +154,9 @@ export function checkState(expectedState: string): StateValidator {
     const valid = context.applicationState === expectedState;
     return {
       valid,
-      message: valid ? undefined : `Expected state "${expectedState}", got "${context.applicationState}"`,
+      message: valid
+        ? undefined
+        : `Expected state "${expectedState}", got "${context.applicationState}"`,
     };
   };
 }
@@ -163,7 +169,9 @@ export function checkHistoryLength(expectedLength: number): StateValidator {
     const valid = historyEntries.length === expectedLength;
     return {
       valid,
-      message: valid ? undefined : `Expected history length ${expectedLength}, got ${historyEntries.length}`,
+      message: valid
+        ? undefined
+        : `Expected history length ${expectedLength}, got ${historyEntries.length}`,
     };
   };
 }
@@ -171,7 +179,9 @@ export function checkHistoryLength(expectedLength: number): StateValidator {
 /**
  * Reset engine to initial state
  */
-function resetEngine(setup?: (context: ApplicationEngineContext) => ApplicationEngineContext): void {
+function resetEngine(
+  setup?: (context: ApplicationEngineContext) => ApplicationEngineContext
+): void {
   const initialContext: ApplicationEngineContext = {
     applicationState: 'inactive',
     applicationData: {},
@@ -199,7 +209,7 @@ function resetEngine(setup?: (context: ApplicationEngineContext) => ApplicationE
     deviceCodeSession: null,
     authCodeFlowSession: null,
   };
-  
+
   const context = setup ? setup(initialContext) : initialContext;
   frontendEngine.updateContext(() => context);
   history.clearHistory();
@@ -211,14 +221,13 @@ function resetEngine(setup?: (context: ApplicationEngineContext) => ApplicationE
 export function createEventSequenceTest(test: EventSequenceTest) {
   return () => {
     const result = validateEventSequence(test);
-    
+
     if (!result.valid) {
-      const errorMessages = result.errors.map(e => 
-        `After event ${e.index} (${e.event}): ${e.message}`
-      ).join('\n');
-      
+      const errorMessages = result.errors
+        .map((e) => `After event ${e.index} (${e.event}): ${e.message}`)
+        .join('\n');
+
       throw new Error(`Event sequence test "${test.name}" failed:\n${errorMessages}`);
     }
   };
 }
-
