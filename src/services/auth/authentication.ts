@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * Module: src/fsm/functions/auth/authentication.ts
  * Owner: application
@@ -264,6 +265,93 @@ type GetEntraIdTokenOptions = {
   }) => void;
 };
 
+async function createDeviceCodeCallback(
+  options: GetEntraIdTokenOptions
+): Promise<(response: any) => Promise<void>> {
+  return async (response: any) => {
+    try {
+      const info = normalizeDeviceCodeResponse(response);
+      if (!info || !info.userCode || info.userCode.trim() === '') {
+        activationLogger.error('[getEntraIdToken] Invalid device code response received', {
+          meta: { response, hasUserCode: !!info?.userCode },
+        });
+        try {
+          await notifyDeviceCode(
+            {
+              userCode: '',
+              verificationUri: info?.verificationUri || 'https://microsoft.com/devicelogin',
+              expiresInSeconds: info?.expiresInSeconds || 900,
+            },
+            options
+          );
+        } catch (notifyError) {
+          activationLogger.error('[getEntraIdToken] Failed to notify device code error', {
+            meta: notifyError,
+          });
+        }
+        return;
+      }
+      try {
+        await notifyDeviceCode(info, options);
+      } catch (notifyError) {
+        activationLogger.error('[getEntraIdToken] Error in notifyDeviceCode', {
+          meta: { notifyError, hasUserCode: !!info?.userCode },
+        });
+      }
+    } catch (error) {
+      activationLogger.error('[getEntraIdToken] Error in deviceCodeCallback', {
+        meta: { error, response },
+      });
+      try {
+        await notifyDeviceCode(
+          {
+            userCode: '',
+            verificationUri: 'https://microsoft.com/devicelogin',
+            expiresInSeconds: 900,
+          },
+          options
+        );
+      } catch (notifyError) {
+        activationLogger.error('[getEntraIdToken] Failed to notify device code error', {
+          meta: notifyError,
+        });
+      }
+    }
+  };
+}
+
+async function acquireTokenWithDeviceCode(
+  context: ExtensionContext,
+  clientId: string,
+  authorityTenant: string,
+  resolvedTenantId: string,
+  legacyKey: string,
+  scopes: string[],
+  options: GetEntraIdTokenOptions
+): Promise<string> {
+  const pca = new msal.PublicClientApplication({
+    auth: {
+      clientId,
+      authority: `https://login.microsoftonline.com/${authorityTenant}`,
+    },
+  });
+
+  const targetKey = `entra:${resolvedTenantId}:${clientId}`;
+  const deviceCodeCallback = await createDeviceCodeCallback(options);
+  const deviceCodeRequest = { deviceCodeCallback, scopes };
+
+  const tokenResponse = await pca.acquireTokenByDeviceCode(deviceCodeRequest);
+  if (tokenResponse && tokenResponse.accessToken) {
+    await context.secrets.store(targetKey, tokenResponse.accessToken);
+    if (legacyKey !== targetKey) {
+      await context.secrets.delete(legacyKey);
+    }
+    return tokenResponse.accessToken;
+  }
+
+  throw new Error('Failed to acquire Entra ID token.');
+}
+
 // eslint-disable-next-line complexity
 export async function getEntraIdToken(
   context: ExtensionContext,
@@ -278,7 +366,6 @@ export async function getEntraIdToken(
   const scopes = resolveScopes(options.scopes);
   const connectionId = options.connectionId || 'default';
 
-  // Try to get cached token first, unless forced (check new and legacy keys)
   if (!options.force) {
     const searchKeys = new Set<string>([secretKey, legacyKey]);
     const cachedToken = await tryGetCachedToken(context, Array.from(searchKeys), secretKey);
@@ -287,12 +374,9 @@ export async function getEntraIdToken(
     }
   }
 
-  // Check if auth code flow should be used (default for Entra)
   const { shouldUseAuthCodeFlow } = await import('../../config/authConfig.js');
   const useAuthCodeFlow = shouldUseAuthCodeFlow('entra', connectionId);
 
-  // Only try device code flow if explicitly requested (flowPreference === 'device-code')
-  // Otherwise, use auth code flow as default
   if (useAuthCodeFlow) {
     const { attemptAuthCodeFlow } = await import('./authCodeFlowHelpers.js');
     const authCodeResult = await attemptAuthCodeFlow(context, {
@@ -304,7 +388,6 @@ export async function getEntraIdToken(
     });
 
     if (authCodeResult.success && authCodeResult.accessToken) {
-      // Store token
       await context.secrets.store(secretKey, authCodeResult.accessToken);
       if (legacyKey !== secretKey) {
         await context.secrets.delete(legacyKey);
@@ -312,102 +395,26 @@ export async function getEntraIdToken(
       return authCodeResult.accessToken;
     }
 
-    // If auth code flow fails and user didn't explicitly request device code, throw error
-    // Don't silently fall back to device code
     throw new Error(
       authCodeResult.error ||
         'Authorization code flow failed. If you need device code flow, set azureDevOpsIntegration.auth.flow to "device-code"'
     );
   }
 
-  // Device code flow - only used when explicitly requested
-  const attemptAcquire = async (clientId: string) => {
-    const pca = new msal.PublicClientApplication({
-      auth: {
-        clientId,
-        authority: `https://login.microsoftonline.com/${authorityTenant}`,
-      },
-    });
-
-    const targetKey = `entra:${resolvedTenantId}:${clientId}`;
-
-    const deviceCodeRequest = {
-      deviceCodeCallback: async (response: any) => {
-        try {
-          const info = normalizeDeviceCodeResponse(response);
-          if (!info || !info.userCode || info.userCode.trim() === '') {
-            activationLogger.error('[getEntraIdToken] Invalid device code response received', {
-              meta: { response, hasUserCode: !!info?.userCode },
-            });
-            // Still try to notify, but it will show an error
-            try {
-              await notifyDeviceCode(
-                {
-                  userCode: '',
-                  verificationUri: info?.verificationUri || 'https://microsoft.com/devicelogin',
-                  expiresInSeconds: info?.expiresInSeconds || 900,
-                },
-                options
-              );
-            } catch (notifyError) {
-              activationLogger.error('[getEntraIdToken] Failed to notify device code error', {
-                meta: notifyError,
-              });
-            }
-            return;
-          }
-          try {
-            await notifyDeviceCode(info, options);
-          } catch (notifyError) {
-            activationLogger.error('[getEntraIdToken] Error in notifyDeviceCode', {
-              meta: { notifyError, hasUserCode: !!info?.userCode },
-            });
-            // Don't rethrow - allow authentication to continue even if notification fails
-          }
-        } catch (error) {
-          activationLogger.error('[getEntraIdToken] Error in deviceCodeCallback', {
-            meta: { error, response },
-          });
-          // Try to notify with minimal info so user knows something went wrong
-          try {
-            await notifyDeviceCode(
-              {
-                userCode: '',
-                verificationUri: 'https://microsoft.com/devicelogin',
-                expiresInSeconds: 900,
-              },
-              options
-            );
-          } catch (notifyError) {
-            activationLogger.error('[getEntraIdToken] Failed to notify device code error', {
-              meta: notifyError,
-            });
-            // Ignore notification errors if we're already in error state
-          }
-        }
-      },
-      scopes,
-    };
-
-    const tokenResponse = await pca.acquireTokenByDeviceCode(deviceCodeRequest);
-    if (tokenResponse && tokenResponse.accessToken) {
-      await context.secrets.store(targetKey, tokenResponse.accessToken);
-      if (legacyKey !== targetKey) {
-        await context.secrets.delete(legacyKey);
-      }
-      return tokenResponse.accessToken;
-    }
-
-    throw new Error('Failed to acquire Entra ID token.');
-  };
-
   const candidateClientIds = [resolvedClientId];
-
   const errors: string[] = [];
 
   for (const clientId of candidateClientIds) {
     try {
-      return await attemptAcquire(clientId);
+      return await acquireTokenWithDeviceCode(
+        context,
+        clientId,
+        authorityTenant,
+        resolvedTenantId,
+        legacyKey,
+        scopes,
+        options
+      );
     } catch (error: any) {
       const formatted = formatAuthError(error);
       errors.push(`clientId=${clientId}: ${formatted}`);
