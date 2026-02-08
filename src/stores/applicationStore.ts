@@ -13,6 +13,7 @@
  *
  * This module now uses Praxis logic engine instead of XState.
  */
+/* eslint-disable max-lines */
 /**
  * Central Application Store - Praxis + Svelte Integration
  *
@@ -21,16 +22,23 @@
  * providing reactive state to components without message passing.
  */
 
-import { readable, writable, derived } from 'svelte/store';
-import { createPraxisStore, createContextStore, createDerivedStore } from '@plures/praxis/svelte';
-import { PraxisApplicationManager } from '../praxis/application/manager.js';
-import type { ProjectConnection } from '../praxis/connection/types.js';
-import type { PraxisApplicationContext } from '../praxis/application/types.js';
-import { setApplicationStoreBridge } from '../services/extensionHostBridge.js';
-import { eventHandlers, type ApplicationEvent } from './eventHandlers.js';
-import { createComponentLogger, Component } from '../logging/ComponentLogger.js';
+import { readable, writable, derived } from "svelte/store";
+import {
+  createPraxisStore,
+  createContextStore,
+  createDerivedStore,
+} from "@plures/praxis/svelte";
+import { PraxisApplicationManager } from "../praxis/application/manager.js";
+import type { ProjectConnection } from "../praxis/connection/types.js";
+import type { PraxisApplicationContext } from "../praxis/application/types.js";
+import { setApplicationStoreBridge } from "../services/extensionHostBridge.js";
+import { eventHandlers, type ApplicationEvent } from "./eventHandlers.js";
+import {
+  createComponentLogger,
+  Component,
+} from "../logging/ComponentLogger.js";
 
-const logger = createComponentLogger(Component.APPLICATION, 'applicationStore');
+const logger = createComponentLogger(Component.APPLICATION, "applicationStore");
 
 // ============================================================================
 // TYPE DEFINITIONS FOR COMPATIBILITY
@@ -47,7 +55,10 @@ type ApplicationContext = PraxisApplicationContext;
  * Handle application events by dispatching to the appropriate manager method.
  * Separated to reduce complexity in the main send function.
  */
-function handleApplicationEvent(manager: PraxisApplicationManager, event: ApplicationEvent): void {
+function handleApplicationEvent(
+  manager: PraxisApplicationManager,
+  event: ApplicationEvent,
+): void {
   const handler = eventHandlers[event.type];
   if (handler) {
     handler(manager, event);
@@ -56,9 +67,75 @@ function handleApplicationEvent(manager: PraxisApplicationManager, event: Applic
     logger.warn(
       `[applicationStore] Unknown event type: ${event.type}`,
       { event: event.type },
-      event
+      event,
     );
   }
+}
+
+// ============================================================================
+// HELPER FUNCTIONS FOR STORE CREATION
+// ============================================================================
+
+/**
+ * Create derived stores for optimized context access
+ */
+function createApplicationDerivedStores(engine: any) {
+  return {
+    connections: createDerivedStore(engine, (ctx) => ctx.connections || []),
+    activeConnectionId: createDerivedStore(
+      engine,
+      (ctx) => ctx.activeConnectionId,
+    ),
+    connectionStates: createDerivedStore(
+      engine,
+      (ctx) => ctx.connectionStates || new Map(),
+    ),
+    pendingAuthReminders: createDerivedStore(
+      engine,
+      (ctx) => ctx.pendingAuthReminders || new Map(),
+    ),
+    isActivated: createDerivedStore(engine, (ctx) => ctx.isActivated ?? false),
+    isDeactivating: createDerivedStore(
+      engine,
+      (ctx) => ctx.isDeactivating ?? false,
+    ),
+    lastError: createDerivedStore(engine, (ctx) => ctx.lastError),
+  };
+}
+
+/**
+ * Create state value matcher with legacy state mapping
+ */
+function createStateMatcher(appState: string) {
+  return (stateValue: string) => {
+    if (appState === stateValue) return true;
+    if (appState.includes(stateValue)) return true;
+    // Map legacy states
+    if (stateValue === "activation_failed" && appState === "activation_error")
+      return true;
+    return false;
+  };
+}
+
+/**
+ * Create state wrapper object from manager state
+ */
+function createStateWrapper(applicationManager: PraxisApplicationManager): {
+  value: string;
+  context: ApplicationContext;
+  matches: (state: string) => boolean;
+  can: (event: ApplicationEvent) => boolean;
+} {
+  const appState = applicationManager.getApplicationState();
+  const appData =
+    applicationManager.getContext() as unknown as ApplicationContext;
+
+  return {
+    value: appState,
+    context: appData,
+    matches: createStateMatcher(appState),
+    can: (_event: ApplicationEvent) => true, // Praxis handles validation internally
+  };
 }
 
 // ============================================================================
@@ -67,10 +144,10 @@ function handleApplicationEvent(manager: PraxisApplicationManager, event: Applic
 
 /**
  * Creates the main application manager and wraps it in Svelte stores
- * 
+ *
  * Uses Praxis unified Svelte integration (@plures/praxis/svelte) for reactive subscriptions
  * instead of polling, providing better performance and following Praxis best practices.
- * 
+ *
  * The integration provides:
  * - Proper reactive subscriptions (no polling overhead)
  * - Automatic cleanup and subscription management
@@ -89,19 +166,12 @@ function createApplicationStore() {
   // Create reactive store using Praxis unified integration
   // This provides proper reactive subscriptions instead of polling
   const praxisStore = createPraxisStore(engine);
-  
+
   // Create context store for direct context access
   const contextStore = createContextStore(engine);
 
-  // Create optimized derived stores using Praxis integration
-  // These are more efficient than manual derived() calls
-  const connectionsDerivedStore = createDerivedStore(engine, (ctx) => ctx.connections || []);
-  const activeConnectionIdDerivedStore = createDerivedStore(engine, (ctx) => ctx.activeConnectionId);
-  const connectionStatesDerivedStore = createDerivedStore(engine, (ctx) => ctx.connectionStates || new Map());
-  const pendingAuthRemindersDerivedStore = createDerivedStore(engine, (ctx) => ctx.pendingAuthReminders || new Map());
-  const isActivatedDerivedStore = createDerivedStore(engine, (ctx) => ctx.isActivated ?? false);
-  const isDeactivatingDerivedStore = createDerivedStore(engine, (ctx) => ctx.isDeactivating ?? false);
-  const lastErrorDerivedStore = createDerivedStore(engine, (ctx) => ctx.lastError);
+  // Create optimized derived stores using helper
+  const derivedStores = createApplicationDerivedStores(engine);
 
   // Current state wrapper that bridges Praxis store to our expected interface
   const currentState = writable<{
@@ -112,50 +182,17 @@ function createApplicationStore() {
   } | null>(null);
 
   // Subscribe to manager's internal subscription system to sync with store
-  // This ensures store updates when state changes through manager methods
   const managerUnsubscribe = applicationManager.subscribe(() => {
-    // Update the wrapper state when manager state changes
-    const appState = applicationManager.getApplicationState();
-    const appData = applicationManager.getContext() as unknown as ApplicationContext;
-
-    currentState.set({
-      value: appState,
-      context: appData,
-      matches: (stateValue: string) => {
-        if (appState === stateValue) return true;
-        if (appState.includes(stateValue)) return true;
-        // Map legacy states
-        if (stateValue === 'activation_failed' && appState === 'activation_error') return true;
-        return false;
-      },
-      can: (_event: ApplicationEvent) => true, // Praxis handles validation internally
-    });
+    currentState.set(createStateWrapper(applicationManager));
   });
 
-  // Also subscribe to Praxis store for completeness
-  // This ensures we get updates from both manager and store dispatch paths
+  // Subscribe to Praxis store for completeness
   const praxisUnsubscribe = praxisStore.subscribe((praxisState) => {
     if (!praxisState) {
       currentState.set(null);
       return;
     }
-
-    // Extract state value from Praxis state format
-    const appState = applicationManager.getApplicationState();
-    const appData = applicationManager.getContext() as unknown as ApplicationContext;
-
-    currentState.set({
-      value: appState,
-      context: appData,
-      matches: (stateValue: string) => {
-        if (appState === stateValue) return true;
-        if (appState.includes(stateValue)) return true;
-        // Map legacy states
-        if (stateValue === 'activation_failed' && appState === 'activation_error') return true;
-        return false;
-      },
-      can: (_event: ApplicationEvent) => true, // Praxis handles validation internally
-    });
+    currentState.set(createStateWrapper(applicationManager));
   });
 
   // Application State Store (readable wrapper)
@@ -200,15 +237,7 @@ function createApplicationStore() {
     },
     // Expose derived stores for optimized access
     get derivedStores() {
-      return {
-        connections: connectionsDerivedStore,
-        activeConnectionId: activeConnectionIdDerivedStore,
-        connectionStates: connectionStatesDerivedStore,
-        pendingAuthReminders: pendingAuthRemindersDerivedStore,
-        isActivated: isActivatedDerivedStore,
-        isDeactivating: isDeactivatingDerivedStore,
-        lastError: lastErrorDerivedStore,
-      };
+      return derivedStores;
     },
   };
 }
@@ -254,7 +283,7 @@ export const isActivated = applicationStore.derivedStores.isActivated;
 
 export const isInitializing = derived(
   applicationStore.applicationState,
-  ($state) => $state?.matches('activating') ?? false
+  ($state) => $state?.matches("activating") ?? false,
 );
 
 export const isDeactivating = applicationStore.derivedStores.isDeactivating;
@@ -263,38 +292,40 @@ export const isDeactivating = applicationStore.derivedStores.isDeactivating;
 // Use Praxis derived stores for better performance
 export const connections = applicationStore.derivedStores.connections;
 
-export const activeConnectionId = applicationStore.derivedStores.activeConnectionId;
+export const activeConnectionId =
+  applicationStore.derivedStores.activeConnectionId;
 
 export const connectionStates = applicationStore.derivedStores.connectionStates;
 
 // Authentication State
-export const pendingAuthReminders = applicationStore.derivedStores.pendingAuthReminders;
+export const pendingAuthReminders =
+  applicationStore.derivedStores.pendingAuthReminders;
 
 // UI State
 export const webviewReady = derived(
   applicationStore.applicationState,
-  ($state) => $state?.matches('active.ui.ready') ?? false
+  ($state) => $state?.matches("active.ui.ready") ?? false,
 );
 
 export const uiError = derived(
   applicationStore.applicationState,
-  ($state) => $state?.matches('active.ui.ui_error') ?? false
+  ($state) => $state?.matches("active.ui.ui_error") ?? false,
 );
 
 // Data Sync State
 export const isDataLoading = derived(
   applicationStore.applicationState,
-  ($state) => $state?.matches('active.data.loading') ?? false
+  ($state) => $state?.matches("active.data.loading") ?? false,
 );
 
 export const isDataSynced = derived(
   applicationStore.applicationState,
-  ($state) => $state?.matches('active.data.synced') ?? false
+  ($state) => $state?.matches("active.data.synced") ?? false,
 );
 
 export const dataError = derived(
   applicationStore.applicationState,
-  ($state) => $state?.matches('active.data.sync_error') ?? false
+  ($state) => $state?.matches("active.data.sync_error") ?? false,
 );
 
 // Error State
@@ -303,7 +334,7 @@ export const lastError = applicationStore.derivedStores.lastError;
 
 export const isInErrorRecovery = derived(
   applicationStore.applicationState,
-  ($state) => $state?.matches('error_recovery') ?? false
+  ($state) => $state?.matches("error_recovery") ?? false,
 );
 
 // ============================================================================
@@ -316,48 +347,57 @@ export const isInErrorRecovery = derived(
  */
 export const actions = {
   // Extension Lifecycle
-  activate: (context: unknown) => applicationStore.send({ type: 'ACTIVATE', context }),
-  deactivate: () => applicationStore.send({ type: 'DEACTIVATE' }),
+  activate: (context: unknown) =>
+    applicationStore.send({ type: "ACTIVATE", context }),
+  deactivate: () => applicationStore.send({ type: "DEACTIVATE" }),
 
   // Connection Management
   loadConnections: (connections: ProjectConnection[]) =>
-    applicationStore.send({ type: 'CONNECTIONS_LOADED', connections }),
+    applicationStore.send({ type: "CONNECTIONS_LOADED", connections }),
 
   selectConnection: async (connectionId: string) => {
     // Prefer webview-owned selection via writer factory; fall back to FSM event if not available
-    const vscodeApi = (globalThis as any).__vscodeApi || (globalThis as any).acquireVsCodeApi?.();
-    if (vscodeApi && typeof vscodeApi.postMessage === 'function') {
+    const vscodeApi =
+      (globalThis as any).__vscodeApi ||
+      (globalThis as any).acquireVsCodeApi?.();
+    if (vscodeApi && typeof vscodeApi.postMessage === "function") {
       try {
-        const mod = await import('../webview/selection.writer.internal.js');
+        const mod = await import("../webview/selection.writer.internal.js");
         const evt = mod.createSelectConnection(mod.webviewOwner, connectionId);
-        vscodeApi.postMessage({ type: 'appEvent', event: evt });
+        vscodeApi.postMessage({ type: "appEvent", event: evt });
         return;
       } catch {
         // fall through to FSM event
       }
     }
-    applicationStore.send({ type: 'CONNECTION_SELECTED', connectionId });
+    applicationStore.send({ type: "CONNECTION_SELECTED", connectionId });
   },
 
   // Authentication
   requireAuthentication: (connectionId: string) =>
-    applicationStore.send({ type: 'AUTHENTICATION_REQUIRED', connectionId }),
+    applicationStore.send({ type: "AUTHENTICATION_REQUIRED", connectionId }),
 
   authenticationSuccess: (connectionId: string) =>
-    applicationStore.send({ type: 'AUTHENTICATION_SUCCESS', connectionId }),
+    applicationStore.send({ type: "AUTHENTICATION_SUCCESS", connectionId }),
 
   authenticationFailed: (connectionId: string, error: string) =>
-    applicationStore.send({ type: 'AUTHENTICATION_FAILED', connectionId, error }),
+    applicationStore.send({
+      type: "AUTHENTICATION_FAILED",
+      connectionId,
+      error,
+    }),
 
   // UI Events
-  webviewReady: () => applicationStore.send({ type: 'WEBVIEW_READY' }),
+  webviewReady: () => applicationStore.send({ type: "WEBVIEW_READY" }),
 
-  webviewMessage: (message: unknown) => applicationStore.send({ type: 'WEBVIEW_MESSAGE', message }),
+  webviewMessage: (message: unknown) =>
+    applicationStore.send({ type: "WEBVIEW_MESSAGE", message }),
 
   // Error Handling
-  reportError: (error: Error) => applicationStore.send({ type: 'ERROR', error }),
-  retry: () => applicationStore.send({ type: 'RETRY' }),
-  reset: () => applicationStore.send({ type: 'RESET' }),
+  reportError: (error: Error) =>
+    applicationStore.send({ type: "ERROR", error }),
+  retry: () => applicationStore.send({ type: "RETRY" }),
+  reset: () => applicationStore.send({ type: "RESET" }),
 };
 
 // ============================================================================
@@ -370,55 +410,64 @@ export const actions = {
  */
 export const selectors = {
   // Get initialization status with detailed sub-state
-  getInitializationStatus: derived(applicationStore.applicationState, ($state) => {
-    if (!$state) return { phase: 'inactive', progress: 0 };
+  getInitializationStatus: derived(
+    applicationStore.applicationState,
+    ($state) => {
+      if (!$state) return { phase: "inactive", progress: 0 };
 
-    if ($state.matches('inactive')) {
-      return { phase: 'inactive', progress: 0 };
-    }
-    if ($state.matches('activating')) {
-      return { phase: 'activating', progress: 25 };
-    }
-    if ($state.matches('active.ui.initializing')) {
-      return { phase: 'ui-setup', progress: 50 };
-    }
-    if ($state.matches('active.ui.ready') && !$state.matches('active.data.synced')) {
-      return { phase: 'loading-data', progress: 75 };
-    }
-    if ($state.matches('active.data.synced')) {
-      return { phase: 'ready', progress: 100 };
-    }
+      if ($state.matches("inactive")) {
+        return { phase: "inactive", progress: 0 };
+      }
+      if ($state.matches("activating")) {
+        return { phase: "activating", progress: 25 };
+      }
+      if ($state.matches("active.ui.initializing")) {
+        return { phase: "ui-setup", progress: 50 };
+      }
+      if (
+        $state.matches("active.ui.ready") &&
+        !$state.matches("active.data.synced")
+      ) {
+        return { phase: "loading-data", progress: 75 };
+      }
+      if ($state.matches("active.data.synced")) {
+        return { phase: "ready", progress: 100 };
+      }
 
-    return { phase: 'unknown', progress: 0 };
-  }),
+      return { phase: "unknown", progress: 0 };
+    },
+  ),
 
   // Get connection by ID
   getConnectionById: (connectionId: string) =>
-    derived([connections, connectionStates], ([$connections, $connectionStates]) => {
-      const config = $connections.find((c) => c.id === connectionId);
-      const state = $connectionStates.get(connectionId);
-      return config ? { ...config, state } : null;
-    }),
+    derived(
+      [connections, connectionStates],
+      ([$connections, $connectionStates]) => {
+        const config = $connections.find((c) => c.id === connectionId);
+        const state = $connectionStates.get(connectionId);
+        return config ? { ...config, state } : null;
+      },
+    ),
 
   // Get auth reminders as array
   getAuthRemindersArray: derived(pendingAuthReminders, ($reminders) =>
-    Array.from($reminders.values())
+    Array.from($reminders.values()),
   ),
 
   // Check if can perform actions
   canActivate: derived(
     applicationStore.applicationState,
-    ($state) => $state?.can({ type: 'ACTIVATE', context: null }) ?? false
+    ($state) => $state?.can({ type: "ACTIVATE", context: null }) ?? false,
   ),
 
   canDeactivate: derived(
     applicationStore.applicationState,
-    ($state) => $state?.can({ type: 'DEACTIVATE' }) ?? false
+    ($state) => $state?.can({ type: "DEACTIVATE" }) ?? false,
   ),
 
   canRetry: derived(
     applicationStore.applicationState,
-    ($state) => $state?.can({ type: 'RETRY' }) ?? false
+    ($state) => $state?.can({ type: "RETRY" }) ?? false,
   ),
 };
 
@@ -442,7 +491,7 @@ export const storeDebug = {
   // Get state as string for logging
   getStateString: () => {
     const snapshot = storeDebug.getSnapshot();
-    return snapshot ? JSON.stringify(snapshot.value) : 'not-started';
+    return snapshot ? JSON.stringify(snapshot.value) : "not-started";
   },
 
   // Send arbitrary event (for testing)
