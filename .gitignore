@@ -1,3 +1,11 @@
 # Test artifacts
 test-artifacts/
 *.history.json
+
+# Build artifacts
+dist/
+coverage/
+media/webview/
+
+# Dependencies
+node_modules/
