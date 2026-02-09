@@ -134,7 +134,7 @@ export interface PraxisApplicationContext {
 
   // Device code flow
   deviceCodeSession?: DeviceCodeSession;
-  
+
   // Auth code flow (PKCE)
   authCodeFlowSession?: AuthCodeFlowSession;
 

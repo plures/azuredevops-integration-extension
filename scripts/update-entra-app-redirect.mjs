@@ -2,10 +2,10 @@
 
 /**
  * Quick script to update existing Entra ID app registration with correct redirect URI
- * 
+ *
  * Usage:
  *   node scripts/update-entra-app-redirect.mjs <client-id>
- * 
+ *
  * Example:
  *   node scripts/update-entra-app-redirect.mjs a5243d69-523e-496b-a22c-7ff3b5a3e85b
  */
@@ -19,20 +19,27 @@ const redirectUri = 'vscode-azuredevops-int://auth/callback';
 
 function findAzBinary() {
   // Try direct path first (most common Windows installation)
-  const defaultPath = path.join(process.env['ProgramFiles'] || 'C:\\Program Files', 'Microsoft SDKs', 'Azure', 'CLI2', 'wbin', 'az.cmd');
-  
+  const defaultPath = path.join(
+    process.env['ProgramFiles'] || 'C:\\Program Files',
+    'Microsoft SDKs',
+    'Azure',
+    'CLI2',
+    'wbin',
+    'az.cmd'
+  );
+
   const candidates = [];
-  
+
   // Check if default path exists
   if (existsSync(defaultPath)) {
     candidates.push(defaultPath);
   }
-  
+
   // Add other common paths
   const pf = process.env['ProgramFiles'];
   const pf86 = process.env['ProgramFiles(x86)'];
   const localAppData = process.env['LOCALAPPDATA'];
-  
+
   if (pf) {
     const pfPath = path.join(pf, 'Microsoft SDKs', 'Azure', 'CLI2', 'wbin', 'az.cmd');
     if (existsSync(pfPath) && !candidates.includes(pfPath)) {
@@ -50,24 +57,24 @@ function findAzBinary() {
       path.join(localAppData, 'Programs', 'Azure CLI', 'az.cmd'),
       path.join(localAppData, 'Microsoft', 'Azure CLI', 'az.cmd'),
     ];
-    localPaths.forEach(p => {
+    localPaths.forEach((p) => {
       if (existsSync(p) && !candidates.includes(p)) {
         candidates.push(p);
       }
     });
   }
-  
+
   // Also try PATH-based lookups
   candidates.push('az', 'az.cmd');
 
   for (const exe of candidates) {
     try {
       // Use shell: true for Windows .cmd files
-      const probe = spawnSync(exe, ['--version'], { 
-        encoding: 'utf8', 
+      const probe = spawnSync(exe, ['--version'], {
+        encoding: 'utf8',
         shell: true,
         windowsVerbatimArguments: false,
-        timeout: 5000
+        timeout: 5000,
       });
       if (probe.status === 0 || (probe.stdout && probe.stdout.includes('azure-cli'))) {
         return exe;
@@ -83,23 +90,30 @@ function runAz(args, label) {
   let azExe = findAzBinary();
   if (!azExe) {
     // Fallback: try the known path directly
-    const knownPath = path.join(process.env['ProgramFiles'] || 'C:\\Program Files', 'Microsoft SDKs', 'Azure', 'CLI2', 'wbin', 'az.cmd');
+    const knownPath = path.join(
+      process.env['ProgramFiles'] || 'C:\\Program Files',
+      'Microsoft SDKs',
+      'Azure',
+      'CLI2',
+      'wbin',
+      'az.cmd'
+    );
     if (existsSync(knownPath)) {
       azExe = knownPath;
     } else {
       throw new Error('Azure CLI not found. Please install from https://aka.ms/azure-cli');
     }
   }
-  
+
   // Quote the path if it contains spaces (Windows paths)
   const quotedExe = azExe.includes(' ') ? `"${azExe}"` : azExe;
-  
-  const result = spawnSync(quotedExe, [...args, '--output', 'json'], { 
+
+  const result = spawnSync(quotedExe, [...args, '--output', 'json'], {
     encoding: 'utf8',
     shell: true, // Use shell to handle .cmd files and quoted paths
-    windowsVerbatimArguments: false
+    windowsVerbatimArguments: false,
   });
-  
+
   if (result.status !== 0) {
     const stderr = result.stderr || result.stdout;
     throw new Error(`Failed to run az ${label}: ${stderr}`);
@@ -134,12 +148,14 @@ function main() {
     console.log('Finding app registration...');
     // List all apps and filter in JavaScript (more reliable than OData filter)
     const allApps = runAz(['ad', 'app', 'list'], 'app list');
-    const apps = Array.isArray(allApps) ? allApps.filter(app => app.appId === clientId) : [];
-    
+    const apps = Array.isArray(allApps) ? allApps.filter((app) => app.appId === clientId) : [];
+
     if (!apps || apps.length === 0) {
       console.error(`❌ App with client ID ${clientId} not found.`);
       console.error('\nOptions:');
-      console.error('1. Create a new app registration using: node scripts/register-entra-ado-app.mjs');
+      console.error(
+        '1. Create a new app registration using: node scripts/register-entra-ado-app.mjs'
+      );
       console.error('2. Update the client ID in the code to match your existing app');
       process.exit(1);
     }
@@ -168,11 +184,12 @@ function main() {
 
     // Verify
     const updatedApp = runAz(['ad', 'app', 'show', '--id', objectId], 'app show');
-    const redirectUris = updatedApp?.spa?.redirectUris || updatedApp?.publicClient?.redirectUris || [];
-    
+    const redirectUris =
+      updatedApp?.spa?.redirectUris || updatedApp?.publicClient?.redirectUris || [];
+
     console.log('Current redirect URIs:');
-    redirectUris.forEach(uri => console.log(`  - ${uri}`));
-    
+    redirectUris.forEach((uri) => console.log(`  - ${uri}`));
+
     if (redirectUris.includes(redirectUri)) {
       console.log('\n✅ Verification successful!');
       console.log('\nNext steps:');
@@ -183,7 +200,6 @@ function main() {
       console.log('\n⚠️  Warning: Redirect URI not found in app configuration');
       console.log('You may need to add it manually in Azure Portal');
     }
-
   } catch (error) {
     console.error('\n❌ Error:', error.message);
     console.error('\nMake sure:');
@@ -195,4 +211,3 @@ function main() {
 }
 
 main();
-

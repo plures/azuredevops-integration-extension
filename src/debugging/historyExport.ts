@@ -1,6 +1,6 @@
 /**
  * History Export/Import
- * 
+ *
  * Provides functionality to export and import history for bug reports and test scenarios.
  */
 
@@ -40,12 +40,13 @@ export interface ExportedHistory {
  */
 export function exportHistory(metadata?: ExportedHistory['metadata']): ExportedHistory {
   const entries = history.getHistory();
-  
+
   const exported: ExportedHistory = {
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     engineType: 'frontend',
-    initialContext: entries[0]?.state.context as ApplicationEngineContext || frontendEngine.getContext(),
+    initialContext:
+      (entries[0]?.state.context as ApplicationEngineContext) || frontendEngine.getContext(),
     entries: entries.map((entry, index) => ({
       index,
       timestamp: entry.timestamp,
@@ -63,7 +64,7 @@ export function exportHistory(metadata?: ExportedHistory['metadata']): ExportedH
       ...metadata,
     },
   };
-  
+
   return exported;
 }
 
@@ -82,14 +83,14 @@ export function importHistory(exported: ExportedHistory): void {
   // Reset engine to initial state
   frontendEngine.updateContext(() => exported.initialContext);
   history.clearHistory();
-  
+
   // Replay events
   for (const entry of exported.entries) {
     if (entry.events.length > 0) {
       frontendEngine.step(entry.events);
     }
   }
-  
+
   // Debug statement removed
 }
 
@@ -120,15 +121,16 @@ export function historyToTestScenario(
     description,
     timestamp: exported.timestamp,
     initialContext: exported.initialContext,
-    events: exported.entries.flatMap(entry => 
-      entry.events.map(event => ({
+    events: exported.entries.flatMap((entry) =>
+      entry.events.map((event) => ({
         event,
         label: entry.label,
         timestamp: entry.timestamp,
         stateAfter: entry.state.state,
       }))
     ),
-    finalContext: exported.entries[exported.entries.length - 1]?.state.context || exported.initialContext,
+    finalContext:
+      exported.entries[exported.entries.length - 1]?.state.context || exported.initialContext,
     metadata: {
       tags: ['imported', 'history'],
       version: exported.version,
@@ -139,9 +141,11 @@ export function historyToTestScenario(
 /**
  * Copy history to clipboard (for bug reports)
  */
-export async function copyHistoryToClipboard(metadata?: ExportedHistory['metadata']): Promise<void> {
+export async function copyHistoryToClipboard(
+  metadata?: ExportedHistory['metadata']
+): Promise<void> {
   const json = exportHistoryAsJSON(metadata);
-  
+
   if (typeof navigator !== 'undefined' && navigator.clipboard) {
     await navigator.clipboard.writeText(json);
     // Debug statement removed
@@ -151,4 +155,3 @@ export async function copyHistoryToClipboard(metadata?: ExportedHistory['metadat
     throw new Error('Clipboard API not available');
   }
 }
-

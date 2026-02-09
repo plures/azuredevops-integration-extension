@@ -40,7 +40,7 @@ import { validateEventSequence, checkCondition } from './testing/eventSequenceVa
 
 const result = validateEventSequence({
   name: 'timer-validation',
-  sequence: scenario.events.map(e => e.event),
+  sequence: scenario.events.map((e) => e.event),
   validators: [
     {
       afterIndex: scenario.events.length - 1,
@@ -55,11 +55,12 @@ const result = validateEventSequence({
 
 if (!result.valid) {
   console.log('Logic error detected!');
-  result.errors.forEach(err => console.log(err.message));
+  result.errors.forEach((err) => console.log(err.message));
 }
 ```
 
 **Output:**
+
 ```
 ✅ Validation PASSED
 ✓ Logic is CORRECT - Timer did NOT start
@@ -80,6 +81,7 @@ console.log(formatDiff(diff));
 ```
 
 **Output:**
+
 ```
 State Diff Analysis:
 - Changed fields: 2
@@ -105,13 +107,14 @@ console.log(`Average transition time: ${profile.summary.averageTransitionTime}ms
 const slow = PerformanceProfiler.getSlowTransitions(100);
 if (slow.length > 0) {
   console.log('⚠️ Slow transitions detected:');
-  slow.forEach(t => {
+  slow.forEach((t) => {
     console.log(`  ${t.from} → ${t.to}: ${t.duration}ms`);
   });
 }
 ```
 
 **Output:**
+
 ```
 Performance Analysis:
 - Total transitions: 3
@@ -125,41 +128,44 @@ Performance Analysis:
 ### Scenario: Detecting Invalid Timer Start
 
 ```typescript
-import { 
-  validateEventSequence, 
-  checkCondition 
-} from './testing/eventSequenceValidator.js';
+import { validateEventSequence, checkCondition } from './testing/eventSequenceValidator.js';
 import { diffStates } from './debugging/stateDiff.js';
 import { PerformanceProfiler } from './debugging/performanceProfiler.js';
 import { dispatch, getContext } from './testing/helpers.js';
-import { 
-  ActivateEvent, 
+import {
+  ActivateEvent,
   ActivationCompleteEvent,
   ConnectionsLoadedEvent,
-  StartTimerEvent 
+  StartTimerEvent,
 } from './praxis/application/facts.js';
 
 // 1. Setup
 const initialState = getContext();
 dispatch([ActivateEvent.create({})]);
 dispatch([ActivationCompleteEvent.create({})]);
-dispatch([ConnectionsLoadedEvent.create({ 
-  connections: [testConnection], 
-  activeId: 'conn-1' 
-})]);
+dispatch([
+  ConnectionsLoadedEvent.create({
+    connections: [testConnection],
+    activeId: 'conn-1',
+  }),
+]);
 
 // 2. Attempt invalid operation
-dispatch([StartTimerEvent.create({ 
-  workItemId: null,  // ❌ No work item!
-  connectionId: 'conn-1' 
-})]);
+dispatch([
+  StartTimerEvent.create({
+    workItemId: null, // ❌ No work item!
+    connectionId: 'conn-1',
+  }),
+]);
 
 const finalState = getContext();
 
 // 3. Validate
 const validation = validateEventSequence({
   name: 'timer-logic-check',
-  sequence: [/* events */],
+  sequence: [
+    /* events */
+  ],
   validators: [
     {
       afterIndex: 3,
@@ -249,4 +255,3 @@ validateEventSequence({
 - Review the example scenarios in `tests/praxis/examples/`
 - Read the [Testing Examples Guide](./PRAXIS_HISTORY_EXAMPLES_GUIDE.md)
 - Check the [Vitest Plugin Guide](./PRAXIS_VITEST_PLUGIN_GUIDE.md) for custom matchers
-

@@ -186,8 +186,12 @@ const authenticationFailedRule = defineRule<ApplicationEngineContext>({
       reason: error,
       status: 'pending',
     };
-    
-    if (!existingReminder || existingReminder.reason !== newReminder.reason || existingReminder.status !== newReminder.status) {
+
+    if (
+      !existingReminder ||
+      existingReminder.reason !== newReminder.reason ||
+      existingReminder.status !== newReminder.status
+    ) {
       state.context.pendingAuthReminders = new Map(state.context.pendingAuthReminders);
       state.context.pendingAuthReminders.set(connectionId, newReminder);
     }
@@ -202,7 +206,11 @@ const authenticationFailedRule = defineRule<ApplicationEngineContext>({
         isConnected: false,
       };
       // Only update if changed (idempotency)
-      if (existingState.state !== updatedState.state || existingState.error !== updatedState.error || existingState.isConnected !== updatedState.isConnected) {
+      if (
+        existingState.state !== updatedState.state ||
+        existingState.error !== updatedState.error ||
+        existingState.isConnected !== updatedState.isConnected
+      ) {
         state.context.connectionStates = new Map(state.context.connectionStates);
         state.context.connectionStates.set(connectionId, updatedState);
       }

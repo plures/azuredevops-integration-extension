@@ -1,3 +1,9 @@
 # Test artifacts
 test-artifacts/
 *.history.json
+
+# Coverage reports
+coverage/
+
+# Dependencies
+node_modules/

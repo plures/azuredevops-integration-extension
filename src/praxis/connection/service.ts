@@ -81,7 +81,7 @@ export class ConnectionService {
 
     const config = manager.getConnectionData().config;
     const forceInteractive = options?.interactive === true;
-    
+
     logger.info(`Connecting to ${config.id}...`, {
       connectionId: config.id,
       authMethod: config.authMethod,
@@ -117,16 +117,12 @@ export class ConnectionService {
     );
   }
 
-
-
   private handleTokenExpired(connectionId: string): void {
     const manager = this.connectionManagers.get(connectionId);
     if (manager) {
       manager.tokenExpired();
     }
   }
-
-
 
   private updateStatusBar(): void {
     setImmediate(() => {

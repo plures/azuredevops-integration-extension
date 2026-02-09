@@ -9,7 +9,7 @@ The Praxis History Vitest Plugin provides seamless integration between Praxis hi
 ✅ **Automatic History Reset** - History is automatically reset before each test  
 ✅ **Export on Failure** - History is automatically exported when tests fail  
 ✅ **Custom Matchers** - Powerful matchers for history and state validation  
-✅ **Test Artifacts** - Automatic generation of history snapshots for failed tests  
+✅ **Test Artifacts** - Automatic generation of history snapshots for failed tests
 
 ## Installation
 
@@ -30,10 +30,10 @@ Configure the plugin in `tests/setup/praxis-history-setup.ts`:
 
 ```typescript
 const praxisHistory = setupPraxisHistoryTesting({
-  exportOnFailure: true,      // Export history when tests fail
+  exportOnFailure: true, // Export history when tests fail
   artifactsDir: 'test-artifacts', // Directory for test artifacts
-  maxHistorySize: 100,         // Maximum history entries
-  autoReset: true,             // Auto-reset before each test
+  maxHistorySize: 100, // Maximum history entries
+  autoReset: true, // Auto-reset before each test
 });
 ```
 
@@ -47,7 +47,7 @@ Check if history contains a specific state transition.
 it('should transition from inactive to active', () => {
   dispatch([ActivateEvent.create({})]);
   dispatch([ActivationCompleteEvent.create({})]);
-  
+
   expect(history.getHistory()).toHaveStateTransition('inactive', 'activating');
   expect(history.getHistory()).toHaveStateTransition('activating', 'active');
 });
@@ -61,7 +61,7 @@ Check if history has a specific length.
 it('should have correct history length', () => {
   dispatch([ActivateEvent.create({})]);
   dispatch([ActivationCompleteEvent.create({})]);
-  
+
   expect(history.getHistory()).toHaveHistoryLength(3); // Initial + 2 events
 });
 ```
@@ -74,7 +74,7 @@ Check if current state matches expected value.
 it('should be in active state', () => {
   dispatch([ActivateEvent.create({})]);
   dispatch([ActivationCompleteEvent.create({})]);
-  
+
   const context = getContext();
   expect(context).toHaveState('active');
 });
@@ -105,6 +105,7 @@ test-artifacts/
 ```
 
 Each exported file contains:
+
 - Complete history with all state snapshots
 - Events that led to the failure
 - Initial and final context
@@ -124,7 +125,7 @@ describe('State Transitions', () => {
   it('should transition through all states', () => {
     dispatch([ActivateEvent.create({})]);
     expect(history.getHistory()).toHaveStateTransition('inactive', 'activating');
-    
+
     dispatch([ActivationCompleteEvent.create({})]);
     expect(history.getHistory()).toHaveStateTransition('activating', 'active');
   });
@@ -137,7 +138,7 @@ describe('State Transitions', () => {
 it('should record all events', () => {
   dispatch([Event1.create({})]);
   expect(history.getHistory()).toHaveHistoryLength(2); // Initial + 1 event
-  
+
   dispatch([Event2.create({})]);
   expect(history.getHistory()).toHaveHistoryLength(3); // Initial + 2 events
 });
@@ -149,7 +150,7 @@ it('should record all events', () => {
 it('should reach expected state', () => {
   dispatch([ActivateEvent.create({})]);
   dispatch([ActivationCompleteEvent.create({})]);
-  
+
   const context = getContext();
   expect(context).toHaveState('active');
 });
@@ -162,29 +163,35 @@ it('should reach expected state', () => {
 When a test fails, history is exported to `test-artifacts/`. You can:
 
 1. **Import the history** to reproduce the failure:
+
    ```typescript
    import { importHistoryFromJSON } from '../../../src/debugging/historyExport.js';
    import * as fs from 'fs';
-   
+
    const historyJson = fs.readFileSync('test-artifacts/failed-test.json', 'utf-8');
    importHistoryFromJSON(historyJson);
    ```
 
 2. **Analyze the failure** by examining the history:
+
    ```typescript
    const exported = JSON.parse(historyJson);
-   console.log('Events:', exported.entries.map(e => e.events));
+   console.log(
+     'Events:',
+     exported.entries.map((e) => e.events)
+   );
    console.log('Final state:', exported.entries[exported.entries.length - 1].state);
    ```
 
 3. **Replay the scenario** using EventReplayDebugger:
+
    ```typescript
    import { getEventReplayDebugger } from '../../../src/debugging/eventReplayDebugger.js';
    import { historyToTestScenario } from '../../../src/debugging/historyExport.js';
-   
+
    const exported = JSON.parse(historyJson);
    const scenario = historyToTestScenario(exported, 'replay-001', 'Replay failed test');
-   
+
    const debugger = getEventReplayDebugger();
    await debugger.replay(scenario);
    ```
@@ -192,16 +199,18 @@ When a test fails, history is exported to `test-artifacts/`. You can:
 ## Best Practices
 
 1. **Use custom matchers** for cleaner test code:
+
    ```typescript
    // Good ✅
    expect(history.getHistory()).toHaveStateTransition('inactive', 'active');
-   
+
    // Less ideal ❌
-   const transitions = history.getHistory().map(e => e.state.state);
+   const transitions = history.getHistory().map((e) => e.state.state);
    expect(transitions).toContain('active');
    ```
 
 2. **Let the plugin handle reset** - Don't manually reset unless needed:
+
    ```typescript
    // Plugin handles this automatically ✅
    beforeEach(() => {
@@ -210,6 +219,7 @@ When a test fails, history is exported to `test-artifacts/`. You can:
    ```
 
 3. **Check test artifacts** when tests fail:
+
    ```bash
    # After a test failure
    ls test-artifacts/
@@ -217,12 +227,13 @@ When a test fails, history is exported to `test-artifacts/`. You can:
    ```
 
 4. **Use descriptive test names** - They become artifact filenames:
+
    ```typescript
    // Good ✅
    it('should authenticate connection successfully', () => {
      // ...
    });
-   
+
    // Less ideal ❌
    it('test1', () => {
      // ...
@@ -236,6 +247,7 @@ When a test fails, history is exported to `test-artifacts/`. You can:
 If custom matchers aren't recognized:
 
 1. Check that `tests/setup/praxis-history-setup.ts` is in `vitest.config.ts`:
+
    ```typescript
    test: {
      setupFiles: ['tests/setup/praxis-history-setup.ts'],
@@ -252,6 +264,7 @@ If custom matchers aren't recognized:
 If history isn't resetting:
 
 1. Check `autoReset` is `true` in setup:
+
    ```typescript
    setupPraxisHistoryTesting({
      autoReset: true,
@@ -265,6 +278,7 @@ If history isn't resetting:
 If artifacts aren't generated on failure:
 
 1. Check `exportOnFailure` is `true`:
+
    ```typescript
    setupPraxisHistoryTesting({
      exportOnFailure: true,
@@ -278,4 +292,3 @@ If artifacts aren't generated on failure:
 - [Testing Examples Guide](./PRAXIS_HISTORY_EXAMPLES_GUIDE.md)
 - [History Testing Implementation](./PRAXIS_HISTORY_TESTING_DEBUGGING_IMPLEMENTATION.md)
 - [Next Steps](./PRAXIS_HISTORY_NEXT_STEPS.md)
-

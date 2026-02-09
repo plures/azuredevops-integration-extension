@@ -7,12 +7,14 @@ The Praxis history engine provides powerful time-travel debugging and state snap
 ## Current State
 
 ✅ **History Engine Implemented**:
+
 - `createHistoryEngine` with 50 snapshot capacity
 - Undo/redo functionality with state restoration
 - History tracking for all dispatched events
 - State snapshots with full context
 
 ✅ **Existing Infrastructure**:
+
 - Vitest test framework
 - ComponentLogger and TraceLogger
 - FSM Inspector and trace commands
@@ -43,7 +45,7 @@ export interface TestScenario {
 
 export class HistoryTestRecorder {
   private scenario: TestScenario | null = null;
-  
+
   startRecording(scenarioId: string, scenarioName: string) {
     const initialState = frontendEngine.getContext();
     this.scenario = {
@@ -54,13 +56,13 @@ export class HistoryTestRecorder {
       finalState: initialState,
     };
   }
-  
+
   stopRecording(): TestScenario {
     if (!this.scenario) throw new Error('No active recording');
     this.scenario.finalState = frontendEngine.getContext();
     return this.scenario;
   }
-  
+
   // Hook into dispatch to record events
   recordEvent(event: PraxisEvent, label?: string) {
     if (!this.scenario) return;
@@ -76,25 +78,26 @@ export class HistoryTestRecorder {
 test('user workflow: create work item and start timer', async () => {
   const recorder = new HistoryTestRecorder();
   recorder.startRecording('test-001', 'Create work item and start timer');
-  
+
   // Simulate user actions
   dispatch([CreateWorkItemEvent.create({ title: 'Test Item' })]);
   await waitForState((ctx) => ctx.workItems.length > 0);
-  
+
   const workItemId = frontendEngine.getContext().workItems[0].id;
   dispatch([StartTimerEvent.create({ workItemId })]);
-  
+
   const scenario = recorder.stopRecording();
-  
+
   // Save scenario for replay
   await saveTestScenario(scenario);
-  
+
   // Verify final state
   expect(frontendEngine.getContext().timerState).toBe('running');
 });
 ```
 
 **Benefits**:
+
 - Record real user workflows
 - Replay scenarios for regression testing
 - Generate test cases from bug reports
@@ -124,12 +127,12 @@ export function createSnapshotTest(test: SnapshotTest) {
     const initialContext = getInitialContext();
     frontendEngine.updateContext(initialContext);
     history.clearHistory();
-    
+
     // Apply events
     for (const event of test.events) {
       dispatch([event]);
     }
-    
+
     // Verify snapshots
     const historyEntries = history.getHistory();
     for (const expected of test.expectedSnapshots) {
@@ -157,6 +160,7 @@ test('connection authentication flow', createSnapshotTest({
 ```
 
 **Benefits**:
+
 - Detect state regressions automatically
 - Validate state transitions at each step
 - Compare snapshots across versions
@@ -183,12 +187,12 @@ export interface EventSequenceTest {
 export function validateEventSequence(test: EventSequenceTest) {
   return () => {
     resetEngine();
-    
+
     for (let i = 0; i < test.sequence.length; i++) {
       dispatch([test.sequence[i]]);
-      
+
       // Run validators for this index
-      const validators = test.validators.filter(v => v.afterIndex === i);
+      const validators = test.validators.filter((v) => v.afterIndex === i);
       for (const validator of validators) {
         const ctx = frontendEngine.getContext();
         const historyEntries = history.getHistory();
@@ -200,22 +204,24 @@ export function validateEventSequence(test: EventSequenceTest) {
 }
 
 // Usage
-test('timer cannot start without work item', validateEventSequence({
-  name: 'timer-validation',
-  sequence: [
-    StartTimerEvent.create({ workItemId: null }),
-  ],
-  validators: [
-    {
-      afterIndex: 0,
-      validator: (ctx) => ctx.timerState === 'idle',
-      errorMessage: 'Timer should not start without work item',
-    },
-  ],
-}));
+test(
+  'timer cannot start without work item',
+  validateEventSequence({
+    name: 'timer-validation',
+    sequence: [StartTimerEvent.create({ workItemId: null })],
+    validators: [
+      {
+        afterIndex: 0,
+        validator: (ctx) => ctx.timerState === 'idle',
+        errorMessage: 'Timer should not start without work item',
+      },
+    ],
+  })
+);
 ```
 
 **Benefits**:
+
 - Validate business rules automatically
 - Test edge cases and error conditions
 - Ensure state invariants are maintained
@@ -243,15 +249,15 @@ export function testStateTransitions(transitions: StateTransition[]) {
       const initialState = createState(transition.from);
       frontendEngine.updateContext(initialState);
       history.clearHistory();
-      
+
       // Check guard if present
       if (transition.guard && !transition.guard(initialState)) {
         continue; // Skip if guard fails
       }
-      
+
       // Apply transition
       dispatch([transition.event]);
-      
+
       // Verify final state
       const finalState = frontendEngine.getContext();
       expect(finalState.applicationState).toBe(transition.to);
@@ -260,22 +266,26 @@ export function testStateTransitions(transitions: StateTransition[]) {
 }
 
 // Usage
-test('all application state transitions', testStateTransitions([
-  {
-    from: 'inactive',
-    event: ActivateEvent.create({}),
-    to: 'active',
-  },
-  {
-    from: 'active',
-    event: DeactivateEvent.create({}),
-    to: 'inactive',
-  },
-  // ... all transitions
-]));
+test(
+  'all application state transitions',
+  testStateTransitions([
+    {
+      from: 'inactive',
+      event: ActivateEvent.create({}),
+      to: 'active',
+    },
+    {
+      from: 'active',
+      event: DeactivateEvent.create({}),
+      to: 'inactive',
+    },
+    // ... all transitions
+  ])
+);
 ```
 
 **Benefits**:
+
 - Comprehensive state coverage
 - Validate all transitions work correctly
 - Ensure no invalid transitions occur
@@ -293,15 +303,15 @@ test('all application state transitions', testStateTransitions([
 // src/webview/components/HistoryTimeline.svelte
 <script lang="ts">
   import { history } from '../praxis/store.js';
-  
+
   const historyEntries = $derived(history.getHistory());
   const currentIndex = $state(historyEntries.length - 1);
-  
+
   function goToSnapshot(index: number) {
     history.goToHistory(index);
     currentIndex = index;
   }
-  
+
   function compareSnapshots(index1: number, index2: number) {
     const entry1 = historyEntries[index1];
     const entry2 = historyEntries[index2];
@@ -312,8 +322,8 @@ test('all application state transitions', testStateTransitions([
 
 <div class="history-timeline">
   {#each historyEntries as entry, index}
-    <div 
-      class="timeline-entry" 
+    <div
+      class="timeline-entry"
       class:active={index === currentIndex}
       onclick={() => goToSnapshot(index)}
     >
@@ -327,6 +337,7 @@ test('all application state transitions', testStateTransitions([
 ```
 
 **Features**:
+
 - Visual timeline of state changes
 - Click to jump to any snapshot
 - Compare any two snapshots
@@ -358,14 +369,14 @@ export function diffStates(
     changed: {},
     unchanged: {},
   };
-  
+
   // Compare all properties
   const allKeys = new Set([...Object.keys(from), ...Object.keys(to)]);
-  
+
   for (const key of allKeys) {
     const fromValue = (from as any)[key];
     const toValue = (to as any)[key];
-    
+
     if (!(key in from)) {
       diff.added[key] = toValue;
     } else if (!(key in to)) {
@@ -376,18 +387,15 @@ export function diffStates(
       diff.unchanged[key] = fromValue;
     }
   }
-  
+
   return diff;
 }
 
 // Usage in debug view
 function showStateDiff(index1: number, index2: number) {
   const entries = history.getHistory();
-  const diff = diffStates(
-    entries[index1].state.context,
-    entries[index2].state.context
-  );
-  
+  const diff = diffStates(entries[index1].state.context, entries[index2].state.context);
+
   console.log('State Diff:', {
     added: Object.keys(diff.added),
     removed: Object.keys(diff.removed),
@@ -397,6 +405,7 @@ function showStateDiff(index1: number, index2: number) {
 ```
 
 **Benefits**:
+
 - Understand what changed and why
 - Debug state mutations
 - Identify unexpected changes
@@ -413,38 +422,41 @@ function showStateDiff(index1: number, index2: number) {
 export class EventReplayDebugger {
   private breakpoints: Set<number> = new Set();
   private paused: boolean = false;
-  
+
   setBreakpoint(index: number) {
     this.breakpoints.add(index);
   }
-  
+
   removeBreakpoint(index: number) {
     this.breakpoints.delete(index);
   }
-  
-  async replay(scenario: TestScenario, options?: {
-    stepDelay?: number;
-    pauseOnBreakpoint?: boolean;
-  }) {
+
+  async replay(
+    scenario: TestScenario,
+    options?: {
+      stepDelay?: number;
+      pauseOnBreakpoint?: boolean;
+    }
+  ) {
     // Reset to initial state
     frontendEngine.updateContext(scenario.initialState);
     history.clearHistory();
-    
+
     for (let i = 0; i < scenario.events.length; i++) {
       // Check for breakpoint
       if (this.breakpoints.has(i) && options?.pauseOnBreakpoint) {
         this.paused = true;
         await this.waitForResume();
       }
-      
+
       // Dispatch event
       dispatch([scenario.events[i].event], scenario.events[i].label);
-      
+
       // Wait if step delay specified
       if (options?.stepDelay) {
-        await new Promise(resolve => setTimeout(resolve, options.stepDelay));
+        await new Promise((resolve) => setTimeout(resolve, options.stepDelay));
       }
-      
+
       // Log state after each step
       console.debug(`[Replay] Step ${i}:`, {
         event: scenario.events[i].event.tag,
@@ -452,7 +464,7 @@ export class EventReplayDebugger {
       });
     }
   }
-  
+
   private async waitForResume(): Promise<void> {
     return new Promise((resolve) => {
       const checkResume = () => {
@@ -465,11 +477,11 @@ export class EventReplayDebugger {
       checkResume();
     });
   }
-  
+
   resume() {
     this.paused = false;
   }
-  
+
   pause() {
     this.paused = true;
   }
@@ -477,6 +489,7 @@ export class EventReplayDebugger {
 ```
 
 **Benefits**:
+
 - Step through events one at a time
 - Set breakpoints at specific events
 - Inspect state at each step
@@ -508,7 +521,7 @@ export interface ExportedHistory {
 
 export function exportHistory(): ExportedHistory {
   const entries = history.getHistory();
-  
+
   return {
     version: '1.0.0',
     timestamp: new Date().toISOString(),
@@ -530,7 +543,7 @@ export function importHistory(exported: ExportedHistory) {
   // Reset engine
   frontendEngine.updateContext(exported.initialContext);
   history.clearHistory();
-  
+
   // Replay events
   for (const entry of exported.entries) {
     if (entry.events.length > 0) {
@@ -556,6 +569,7 @@ function importBugReport(json: string) {
 ```
 
 **Benefits**:
+
 - Share exact reproduction steps
 - Debug issues without access to user's environment
 - Reproduce bugs consistently
@@ -587,14 +601,14 @@ export interface PerformanceProfile {
 export function profileHistory(): PerformanceProfile {
   const entries = history.getHistory();
   const transitions: PerformanceProfile['transitions'] = [];
-  
+
   for (let i = 1; i < entries.length; i++) {
     const prev = entries[i - 1];
     const curr = entries[i];
-    
+
     const duration = curr.timestamp - prev.timestamp;
     const transition = `${prev.state.state} → ${curr.state.state}`;
-    
+
     transitions.push({
       from: prev.state.state,
       to: curr.state.state,
@@ -603,17 +617,18 @@ export function profileHistory(): PerformanceProfile {
       contextSize: JSON.stringify(curr.state.context).length,
     });
   }
-  
+
   const slowestTransitions = transitions
     .sort((a, b) => b.duration - a.duration)
     .slice(0, 10)
-    .map(t => ({
+    .map((t) => ({
       transition: `${t.from} → ${t.to}`,
       duration: t.duration,
     }));
-  
-  const averageTransitionTime = transitions.reduce((sum, t) => sum + t.duration, 0) / transitions.length;
-  
+
+  const averageTransitionTime =
+    transitions.reduce((sum, t) => sum + t.duration, 0) / transitions.length;
+
   return {
     transitions,
     slowestTransitions,
@@ -623,6 +638,7 @@ export function profileHistory(): PerformanceProfile {
 ```
 
 **Benefits**:
+
 - Identify slow state transitions
 - Optimize performance bottlenecks
 - Track performance regressions
@@ -647,7 +663,7 @@ export function registerHistoryDebugger() {
             // When debugger stops, show current history state
             const currentState = frontendEngine.getContext();
             const historyEntries = history.getHistory();
-            
+
             session.customRequest('praxis/history', {
               currentIndex: historyEntries.length - 1,
               totalEntries: historyEntries.length,
@@ -658,13 +674,13 @@ export function registerHistoryDebugger() {
       };
     },
   });
-  
+
   // Add custom debug commands
   vscode.commands.registerCommand('azureDevOpsInt.debug.history.export', () => {
     const exported = exportHistory();
     // Save to file or clipboard
   });
-  
+
   vscode.commands.registerCommand('azureDevOpsInt.debug.history.import', async () => {
     const file = await vscode.window.showOpenDialog({
       filters: { 'History Files': ['json'] },
@@ -694,7 +710,7 @@ export function setupHistoryTesting() {
     history.clearHistory();
     frontendEngine.updateContext(getInitialContext());
   });
-  
+
   afterEach(() => {
     // Export history if test failed
     if (expect.getState().testPath) {
@@ -710,18 +726,15 @@ expect.extend({
   toHaveStateTransition(received, from, to) {
     const entries = history.getHistory();
     const transition = entries.find(
-      (e, i) => 
-        i > 0 && 
-        entries[i - 1].state.state === from && 
-        e.state.state === to
+      (e, i) => i > 0 && entries[i - 1].state.state === from && e.state.state === to
     );
-    
+
     return {
       message: () => `Expected state transition ${from} → ${to}`,
       pass: !!transition,
     };
   },
-  
+
   toHaveHistoryLength(received, expected) {
     const length = history.getHistory().length;
     return {
@@ -742,20 +755,20 @@ expect.extend({
 // src/logging/historyCorrelation.ts
 export function correlateLogsWithHistory(logs: LogEntry[]) {
   const historyEntries = history.getHistory();
-  
-  return logs.map(log => {
+
+  return logs.map((log) => {
     // Find closest history entry by timestamp
     const closestEntry = historyEntries.reduce((closest, entry) => {
       const logTime = log.timestamp;
       const entryTime = entry.timestamp;
       const closestTime = closest.timestamp;
-      
+
       if (Math.abs(logTime - entryTime) < Math.abs(logTime - closestTime)) {
         return entry;
       }
       return closest;
     }, historyEntries[0]);
-    
+
     return {
       ...log,
       historyIndex: historyEntries.indexOf(closestEntry),
@@ -803,27 +816,27 @@ export function correlateLogsWithHistory(logs: LogEntry[]) {
 test('complete user workflow: setup → authenticate → load work items', async () => {
   const recorder = new HistoryTestRecorder();
   recorder.startRecording('user-workflow-001', 'Complete setup workflow');
-  
+
   // Simulate user actions
   dispatch([SetupWizardStartedEvent.create({})]);
   await waitForState((ctx) => ctx.applicationState === 'active.setup');
-  
+
   dispatch([ConnectionAddedEvent.create({ ... })]);
   await waitForState((ctx) => ctx.connections.length > 0);
-  
+
   dispatch([AuthenticationStartedEvent.create({ connectionId: '...' })]);
   await waitForState((ctx) => ctx.connectionStates.get('...')?.state === 'authenticated');
-  
+
   dispatch([WorkItemsLoadedEvent.create({ connectionId: '...', workItems: [...] })]);
   await waitForState((ctx) => ctx.connectionWorkItems.get('...')?.length > 0);
-  
+
   const scenario = recorder.stopRecording();
-  
+
   // Verify final state
   expect(frontendEngine.getContext().applicationState).toBe('active.ready');
   expect(frontendEngine.getContext().connections.length).toBe(1);
   expect(frontendEngine.getContext().connectionWorkItems.get('...')?.length).toBeGreaterThan(0);
-  
+
   // Save for regression testing
   await saveTestScenario(scenario);
 });
@@ -834,31 +847,31 @@ test('complete user workflow: setup → authenticate → load work items', async
 ```typescript
 test('error recovery: network failure → retry → success', async () => {
   resetEngine();
-  
+
   // Simulate network failure
   dispatch([NetworkErrorEvent.create({ connectionId: '...', error: 'Timeout' })]);
   await waitForState((ctx) => ctx.lastError !== null);
-  
+
   // Verify error state
   expect(frontendEngine.getContext().applicationState).toBe('active.error');
   expect(frontendEngine.getContext().errorRecoveryAttempts).toBe(0);
-  
+
   // Retry
   dispatch([RetryEvent.create({})]);
   await waitForState((ctx) => ctx.errorRecoveryAttempts > 0);
-  
+
   // Simulate success
   dispatch([NetworkSuccessEvent.create({ connectionId: '...' })]);
   await waitForState((ctx) => ctx.lastError === null);
-  
+
   // Verify recovery
   expect(frontendEngine.getContext().applicationState).toBe('active.ready');
   expect(frontendEngine.getContext().errorRecoveryAttempts).toBe(1);
-  
+
   // Verify history contains all transitions
   const entries = history.getHistory();
-  expect(entries.some(e => e.state.state === 'active.error')).toBe(true);
-  expect(entries.some(e => e.state.state === 'active.ready')).toBe(true);
+  expect(entries.some((e) => e.state.state === 'active.error')).toBe(true);
+  expect(entries.some((e) => e.state.state === 'active.ready')).toBe(true);
 });
 ```
 
@@ -867,13 +880,13 @@ test('error recovery: network failure → retry → success', async () => {
 ```typescript
 test('state invariants: timer cannot run without work item', async () => {
   resetEngine();
-  
+
   // Try to start timer without work item
   dispatch([StartTimerEvent.create({ workItemId: null })]);
-  
+
   // Verify timer remains idle
   expect(frontendEngine.getContext().timerState).toBe('idle');
-  
+
   // Verify history shows failed attempt
   const entries = history.getHistory();
   const lastEntry = entries[entries.length - 1];
@@ -884,6 +897,7 @@ test('state invariants: timer cannot run without work item', async () => {
 ## 6. Benefits Summary
 
 ### For Testing
+
 - ✅ **Record & Replay** - Capture real workflows as tests
 - ✅ **Snapshot Testing** - Detect state regressions
 - ✅ **Event Validation** - Ensure correct event processing
@@ -891,6 +905,7 @@ test('state invariants: timer cannot run without work item', async () => {
 - ✅ **Regression Detection** - Compare snapshots across versions
 
 ### For Debugging
+
 - ✅ **Time-Travel** - Navigate through state history
 - ✅ **State Inspection** - View state at any point
 - ✅ **Event Replay** - Step through events with breakpoints
@@ -898,6 +913,7 @@ test('state invariants: timer cannot run without work item', async () => {
 - ✅ **Performance Analysis** - Profile state transitions
 
 ### For Development
+
 - ✅ **Better Tests** - More comprehensive test coverage
 - ✅ **Faster Debugging** - Time-travel to find issues
 - ✅ **Better Documentation** - History shows how system works
@@ -917,4 +933,3 @@ test('state invariants: timer cannot run without work item', async () => {
 - [Praxis Unified Integration](./PRAXIS_UNIFIED_INTEGRATION.md)
 - [Testing Infrastructure](./architecture/FOUNDATION_PROGRESS.md)
 - [Logging System](./UNIFIED_LOGGING_GUIDE.md)
-

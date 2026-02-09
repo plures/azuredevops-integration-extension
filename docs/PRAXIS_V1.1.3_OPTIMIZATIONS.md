@@ -5,25 +5,31 @@
 Based on the logs and code review, several optimization opportunities have been identified:
 
 ### 1. **Large syncState Payload** ⚠️ HIGH PRIORITY
+
 **Issue**: The `syncState` message includes massive payloads with:
+
 - All connection states (even disconnected ones)
 - Empty arrays (`workItems:[]`, `kanbanColumns:[]`)
 - Empty objects (`pendingAuthReminders:{}`)
 - Pre-computed matches object with many false values
 
-**Impact**: 
+**Impact**:
+
 - Large message size (~5-10KB+ per sync)
 - Unnecessary serialization overhead
 - Webview processing overhead
 
 **Optimization**:
+
 - Omit empty arrays/objects from payload
 - Only send changed fields (delta updates)
 - Filter matches to only include `true` values
 - Use Praxis v1.1.3's incremental update capabilities
 
 ### 2. **Duplicate Connections** ⚠️ HIGH PRIORITY
+
 **Issue**: Logs show 5 connections for the same org/project:
+
 ```
 - "955aa1d6-ac3e-447b-a906-0d0b34d84c4c"
 - "arylethersystems-Developing%20Azure%20Solutions-1766727829212"
@@ -35,20 +41,25 @@ Based on the logs and code review, several optimization opportunities have been 
 **Root Cause**: Connection normalization doesn't deduplicate by `(organization, project, baseUrl)` tuple.
 
 **Optimization**:
+
 - Add deduplication logic in `normalizeConnections()`
 - Merge duplicate connections instead of creating new ones
 - Clean up existing duplicates on load
 
 ### 3. **Command Registration Verbosity** ⚠️ MEDIUM PRIORITY
+
 **Issue**: Each command registration logs individually (32 log entries).
 
 **Optimization**:
+
 - Batch registration logging
 - Reduce to single summary log
 - Only log errors, not successful registrations
 
 ### 4. **Matches Object Optimization** ⚠️ MEDIUM PRIORITY
+
 **Issue**: Pre-computing all possible state matches, including many `false` values:
+
 ```typescript
 matches: {
   inactive: false,
@@ -61,14 +72,17 @@ matches: {
 ```
 
 **Optimization**:
+
 - Only include `true` matches in payload
 - Webview can compute matches from state if needed
 - Reduces payload size by ~50%
 
 ### 5. **Connection State Serialization** ⚠️ MEDIUM PRIORITY
+
 **Issue**: Sending full connection state objects for all connections, even disconnected ones.
 
 **Optimization**:
+
 - Only send state for active connection
 - Send minimal state for inactive connections
 - Use connection ID references instead of full objects
@@ -78,6 +92,7 @@ matches: {
 ### Phase 1: Payload Optimization (Immediate)
 
 #### 1.1 Optimize syncState Payload
+
 **File**: `src/activation.ts` - `sendCurrentState()` function
 
 ```typescript
@@ -97,31 +112,31 @@ const serializableState = {
 
 function optimizeContextPayload(context: any): any {
   const optimized: any = {};
-  
+
   // Only include non-empty arrays
   if (context.workItems?.length > 0) {
     optimized.workItems = context.workItems;
   }
-  
+
   // Only include non-empty objects
   if (Object.keys(context.pendingAuthReminders || {}).length > 0) {
     optimized.pendingAuthReminders = context.pendingAuthReminders;
   }
-  
+
   // Only include active connection state
   if (context.activeConnectionId) {
     optimized.activeConnectionId = context.activeConnectionId;
     if (context.connectionStates?.has(context.activeConnectionId)) {
       optimized.connectionStates = {
-        [context.activeConnectionId]: context.connectionStates.get(context.activeConnectionId)
+        [context.activeConnectionId]: context.connectionStates.get(context.activeConnectionId),
       };
     }
   }
-  
+
   // Always include essential fields
   optimized.isActivated = context.isActivated;
   optimized.connections = context.connections; // Needed for connection list
-  
+
   return optimized;
 }
 
@@ -137,6 +152,7 @@ function filterTrueMatches(matches: Record<string, boolean>): Record<string, boo
 ```
 
 #### 1.2 Optimize Matches Object
+
 **File**: `src/activation.ts` - `sendCurrentState()` function
 
 ```typescript
@@ -153,6 +169,7 @@ for (const key of matchKeys) {
 ### Phase 2: Connection Deduplication (High Priority)
 
 #### 2.1 Add Deduplication Logic
+
 **File**: `src/services/connection/connectionNormalization.ts`
 
 ```typescript
@@ -180,7 +197,7 @@ export function normalizeConnections(
 
     // Create deduplication key: (org, project, baseUrl)
     const dedupeKey = `${conn.organization}|${conn.project}|${conn.baseUrl || ''}`;
-    
+
     // Check for duplicate
     if (seen.has(dedupeKey)) {
       const existing = seen.get(dedupeKey)!;
@@ -257,6 +274,7 @@ export function normalizeConnections(
 ### Phase 3: Command Registration Optimization (Low Priority)
 
 #### 3.1 Batch Registration Logging
+
 **File**: `src/features/commands/registration.ts`
 
 ```typescript
@@ -270,12 +288,9 @@ export function registerCommands(
 
   for (const registration of commandRegistrations) {
     try {
-      const disposable = vscode.commands.registerCommand(
-        registration.command,
-        (...args: any[]) => {
-          // ... handler code
-        }
-      );
+      const disposable = vscode.commands.registerCommand(registration.command, (...args: any[]) => {
+        // ... handler code
+      });
       disposables.push(disposable);
     } catch (error) {
       errors.push(`${registration.command}: ${(error as any).message}`);
@@ -286,12 +301,17 @@ export function registerCommands(
   // Single summary log instead of 32 individual logs
   const duration = Date.now() - startTime;
   if (errors.length > 0) {
-    logger.warn(`[Command Registration] Registered ${disposables.length}/${commandRegistrations.length} commands in ${duration}ms`, {
-      errors,
-      failed: errors.length,
-    });
+    logger.warn(
+      `[Command Registration] Registered ${disposables.length}/${commandRegistrations.length} commands in ${duration}ms`,
+      {
+        errors,
+        failed: errors.length,
+      }
+    );
   } else {
-    logger.info(`[Command Registration] Registered ${disposables.length} commands in ${duration}ms`);
+    logger.info(
+      `[Command Registration] Registered ${disposables.length} commands in ${duration}ms`
+    );
   }
 
   return disposables;
@@ -301,18 +321,22 @@ export function registerCommands(
 ### Phase 4: Leverage Praxis v1.1.3 Features
 
 #### 4.1 Incremental Updates
+
 Praxis v1.1.3 may support incremental context updates. Check if we can use:
+
 - `engine.updateContext()` with partial updates
 - Event-driven state changes instead of full syncs
 - Subscription filters to only notify on relevant changes
 
 #### 4.2 Context Selectors
+
 Use Praxis context selectors to only serialize relevant parts:
+
 ```typescript
 // Only serialize what webview needs
 const webviewContext = {
   activeConnectionId: context.activeConnectionId,
-  activeConnection: context.connections.find(c => c.id === context.activeConnectionId),
+  activeConnection: context.connections.find((c) => c.id === context.activeConnectionId),
   workItems: context.connectionWorkItems.get(context.activeConnectionId) || [],
   // ... only active connection data
 };
@@ -321,21 +345,25 @@ const webviewContext = {
 ## Expected Performance Improvements
 
 ### Payload Size Reduction
+
 - **Before**: ~5-10KB per syncState message
 - **After**: ~1-2KB per syncState message
 - **Improvement**: 60-80% reduction
 
 ### Connection Deduplication
+
 - **Before**: 5 duplicate connections
 - **After**: 1 connection
 - **Improvement**: 80% reduction in connection state overhead
 
 ### Logging Reduction
+
 - **Before**: 32+ log entries for command registration
 - **After**: 1 summary log entry
 - **Improvement**: 97% reduction in log verbosity
 
 ### Matches Object
+
 - **Before**: ~15 fields (mostly false)
 - **After**: ~1-2 fields (only true)
 - **Improvement**: 85% reduction
@@ -362,5 +390,3 @@ const webviewContext = {
 **Created**: 2025-01-27  
 **Status**: Ready for Implementation  
 **Priority**: High (Payload & Deduplication), Medium (Others)
-
-
