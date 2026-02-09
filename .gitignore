@@ -3,3 +3,4 @@ test-artifacts/
 *.history.json
 node_modules/
 coverage/
+node_modules/.bin/*
