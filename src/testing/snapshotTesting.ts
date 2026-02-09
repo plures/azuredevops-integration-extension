@@ -1,6 +1,6 @@
 /**
  * Snapshot Testing Utilities
- * 
+ *
  * Provides utilities for comparing state snapshots and detecting regressions.
  */
 
@@ -51,33 +51,35 @@ export function createSnapshotTest(test: SnapshotTest) {
     const initialContext = getInitialContext();
     frontendEngine.updateContext(() => initialContext);
     history.clearHistory();
-    
+
     // Apply events
     for (const event of test.events) {
       frontendEngine.step([event]);
     }
-    
+
     // Verify snapshots
     const historyEntries = history.getHistory();
-    
+
     for (const expected of test.expectedSnapshots) {
       const entry = historyEntries[expected.index];
-      
+
       if (!entry) {
         throw new Error(
           `Snapshot test "${test.name}": Expected snapshot at index ${expected.index} but history only has ${historyEntries.length} entries`
         );
       }
-      
+
       // Verify state
       if (entry.state.state !== expected.state) {
         throw new Error(
           `Snapshot test "${test.name}" at index ${expected.index}: Expected state "${expected.state}", got "${entry.state.state}"`
         );
       }
-      
+
       // Verify context checks
-      const contextCheckResult = expected.contextChecks(entry.state.context as ApplicationEngineContext);
+      const contextCheckResult = expected.contextChecks(
+        entry.state.context as ApplicationEngineContext
+      );
       if (!contextCheckResult) {
         throw new Error(
           `Snapshot test "${test.name}" at index ${expected.index}: Context check failed${expected.description ? `: ${expected.description}` : ''}`
@@ -100,24 +102,21 @@ export function compareSnapshots(
 ): SnapshotComparison {
   const differences: SnapshotComparison['differences'] = [];
   const ignoreFields = new Set(options?.ignoreFields || []);
-  
+
   // Get all keys from both objects
-  const allKeys = new Set([
-    ...Object.keys(expected),
-    ...Object.keys(actual),
-  ]);
-  
+  const allKeys = new Set([...Object.keys(expected), ...Object.keys(actual)]);
+
   let matchingFields = 0;
   let differentFields = 0;
-  
+
   for (const key of allKeys) {
     if (ignoreFields.has(key)) {
       continue;
     }
-    
+
     const expectedValue = (expected as any)[key];
     const actualValue = (actual as any)[key];
-    
+
     if (options?.deep) {
       // Deep comparison
       if (!deepEqual(expectedValue, actualValue)) {
@@ -144,7 +143,7 @@ export function compareSnapshots(
       }
     }
   }
-  
+
   return {
     match: differences.length === 0,
     differences,
@@ -161,25 +160,25 @@ export function compareSnapshots(
  */
 function deepEqual(a: any, b: any): boolean {
   if (a === b) return true;
-  
+
   if (a == null || b == null) return false;
-  
+
   if (typeof a !== typeof b) return false;
-  
+
   if (typeof a !== 'object') return a === b;
-  
+
   if (Array.isArray(a) !== Array.isArray(b)) return false;
-  
+
   const keysA = Object.keys(a);
   const keysB = Object.keys(b);
-  
+
   if (keysA.length !== keysB.length) return false;
-  
+
   for (const key of keysA) {
     if (!keysB.includes(key)) return false;
     if (!deepEqual(a[key], b[key])) return false;
   }
-  
+
   return true;
 }
 
@@ -227,31 +226,33 @@ export function validateScenarioSnapshots(
   // Reset to initial state
   frontendEngine.updateContext(() => scenario.initialContext);
   history.clearHistory();
-  
+
   // Replay events
   for (const eventData of scenario.events) {
     frontendEngine.step([eventData.event]);
   }
-  
+
   // Verify snapshots
   const historyEntries = history.getHistory();
-  
+
   for (const expected of expectedSnapshots) {
     const entry = historyEntries[expected.index];
-    
+
     if (!entry) {
       throw new Error(
         `Scenario "${scenario.name}": Expected snapshot at index ${expected.index} but history only has ${historyEntries.length} entries`
       );
     }
-    
+
     if (entry.state.state !== expected.state) {
       throw new Error(
         `Scenario "${scenario.name}" at index ${expected.index}: Expected state "${expected.state}", got "${entry.state.state}"`
       );
     }
-    
-    const contextCheckResult = expected.contextChecks(entry.state.context as ApplicationEngineContext);
+
+    const contextCheckResult = expected.contextChecks(
+      entry.state.context as ApplicationEngineContext
+    );
     if (!contextCheckResult) {
       throw new Error(
         `Scenario "${scenario.name}" at index ${expected.index}: Context check failed${expected.description ? `: ${expected.description}` : ''}`
@@ -259,4 +260,3 @@ export function validateScenarioSnapshots(
     }
   }
 }
-

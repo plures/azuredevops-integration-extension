@@ -2,11 +2,11 @@
  * Frontend Praxis Store
  *
  * Wraps the frontend engine in a Svelte store with history/undo-redo support.
- * 
+ *
  * Uses Praxis v1.2.0 features:
  * - createPraxisStore for reactive subscriptions
  * - History tracking for undo/redo (via createHistoryEngine)
- * 
+ *
  * IMPORTANT: The history engine tracks state snapshots, but undo/redo needs to
  * actually restore the engine state. We implement this by restoring the context
  * from history entries using engine.updateContext().
@@ -32,11 +32,11 @@ const rawStore = createPraxisStore(historyEngine.engine);
 const dispatchWithSync = (events: PraxisEvent[], label?: string) => {
   // 1. Dispatch through history engine (handles both step and history tracking)
   historyEngine.dispatch(events, label);
-  
+
   // Update history index (history grows, so we're always at the end after dispatch)
   const historyEntries = historyEngine.getHistory();
   currentHistoryIndex = historyEntries.length - 1;
-  
+
   // Notify test recorder if recording
   if (typeof (window as any).__historyTestRecorder !== 'undefined') {
     const recorder = (window as any).__historyTestRecorder;
@@ -94,12 +94,12 @@ export const history = {
       // Cannot undo - no history available
       return false;
     }
-    
+
     const historyEntries = historyEngine.getHistory();
     if (currentHistoryIndex > 0) {
       currentHistoryIndex--;
       const entry = historyEntries[currentHistoryIndex];
-      
+
       if (entry && entry.state && entry.state.context) {
         // Restore the context from the history entry
         // Check if engine supports updateContext (ReactiveLogicEngine does)
@@ -118,12 +118,12 @@ export const history = {
       // Cannot redo - at end of history
       return false;
     }
-    
+
     const historyEntries = historyEngine.getHistory();
     if (currentHistoryIndex < historyEntries.length - 1) {
       currentHistoryIndex++;
       const entry = historyEntries[currentHistoryIndex];
-      
+
       if (entry && entry.state && entry.state.context) {
         // Restore the context from the history entry
         if (typeof (frontendEngine as any).updateContext === 'function') {

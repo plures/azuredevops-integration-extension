@@ -1,6 +1,6 @@
 /**
  * Demo: Finding and Fixing Logic Errors with History Testing
- * 
+ *
  * This demo shows how the history testing infrastructure helps identify
  * and fix logic errors in Praxis rules.
  */
@@ -8,7 +8,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { startRecording, stopRecording } from '../../../src/testing/historyTestRecorder.js';
 import { createSnapshotTest } from '../../../src/testing/snapshotTesting.js';
-import { validateEventSequence, checkCondition } from '../../../src/testing/eventSequenceValidator.js';
+import {
+  validateEventSequence,
+  checkCondition,
+} from '../../../src/testing/eventSequenceValidator.js';
 import { resetEngine, waitForState, getContext, dispatch } from '../../../src/testing/helpers.js';
 import { PerformanceProfiler } from '../../../src/debugging/performanceProfiler.js';
 import { diffStates, formatDiff } from '../../../src/debugging/stateDiff.js';
@@ -32,7 +35,7 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
     it('should detect that timer cannot start without work item', () => {
       // This test demonstrates detecting a logic error where timer
       // might incorrectly start without a work item selected
-      
+
       const testConnection: ProjectConnection = {
         id: 'demo-connection',
         organization: 'demo-org',
@@ -90,7 +93,7 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
       // Validate the logic error was caught
       const result = validateEventSequence({
         name: 'timer-start-validation',
-        sequence: scenario.events.map(e => e.event),
+        sequence: scenario.events.map((e) => e.event),
         validators: [
           {
             afterIndex: scenario.events.length - 1,
@@ -105,11 +108,11 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
 
       // This should pass - the validator catches the error
       expect(result.valid).toBe(true);
-      
+
       // Verify timer state is correct
       const context = getContext();
       expect(context.timerState).toBeNull();
-      
+
       console.log('\n✅ Logic Error Detection:');
       console.log('  - Attempted to start timer without work item');
       console.log('  - Validator correctly detected timer did NOT start');
@@ -118,7 +121,7 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
 
     it('should show correct behavior when work item is selected', () => {
       // This test shows the CORRECT behavior
-      
+
       const testConnection: ProjectConnection = {
         id: 'demo-connection-correct',
         organization: 'demo-org',
@@ -168,7 +171,7 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
       // Verify timer started correctly
       const context = getContext();
       expect(context.timerState).toBe('running');
-      
+
       console.log('\n✅ Correct Behavior:');
       console.log('  - Work item selected before starting timer');
       console.log('  - Timer started successfully');
@@ -179,7 +182,7 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
   describe('Scenario 2: State Transition Error Detection', () => {
     it('should detect invalid state transitions using snapshot testing', () => {
       // This test demonstrates how snapshot testing catches invalid transitions
-      
+
       const testFn = createSnapshotTest({
         name: 'detect-invalid-transition',
         events: [
@@ -206,7 +209,7 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
 
       // This should not throw - transitions are valid
       expect(() => testFn()).not.toThrow();
-      
+
       console.log('\n✅ Snapshot Testing:');
       console.log('  - Validated state at each step');
       console.log('  - Caught any invalid transitions');
@@ -238,24 +241,24 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
 
       // Profile performance
       const profile = PerformanceProfiler.profileHistory();
-      
+
       // Check for slow transitions
       const slowTransitions = PerformanceProfiler.getSlowTransitions(50); // 50ms threshold
-      
+
       console.log('\n✅ Performance Analysis:');
       console.log(`  - Total transitions: ${profile.summary.totalTransitions}`);
       console.log(`  - Average time: ${profile.summary.averageTransitionTime.toFixed(2)}ms`);
       console.log(`  - Slow transitions (>50ms): ${slowTransitions.length}`);
-      
+
       if (slowTransitions.length > 0) {
         console.log('  ⚠️  Performance issues detected:');
-        slowTransitions.forEach(t => {
+        slowTransitions.forEach((t) => {
           console.log(`    - ${t.from} → ${t.to}: ${t.duration.toFixed(2)}ms`);
         });
       } else {
         console.log('  - All transitions are fast!');
       }
-      
+
       // Verify performance is acceptable
       expect(profile.summary.averageTransitionTime).toBeLessThan(100);
     });
@@ -275,7 +278,7 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
 
       // Get initial state
       const initialState = getContext();
-      
+
       // Perform operations
       dispatch([ActivateEvent.create({})]);
       dispatch([ActivationCompleteEvent.create({})]);
@@ -295,12 +298,12 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
 
       console.log('\n✅ State Diff Analysis:');
       console.log(formatted);
-      
+
       // Verify expected changes
       expect(diff.summary.changedCount).toBeGreaterThan(0);
       expect(diff.changed['applicationState']).toBeDefined();
       expect(diff.changed['connections']).toBeDefined();
-      
+
       console.log('\n  - Identified what changed');
       console.log('  - Shows before/after values');
       console.log('  - Helps debug unexpected changes');
@@ -310,8 +313,8 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
   describe('Scenario 5: Complete Error Detection Workflow', () => {
     it('should demonstrate complete error detection and fixing workflow', async () => {
       console.log('\n🔍 DEMO: Finding and Fixing Logic Errors');
-      console.log('=' .repeat(60));
-      
+      console.log('='.repeat(60));
+
       const testConnection: ProjectConnection = {
         id: 'demo-complete',
         organization: 'demo-org',
@@ -359,7 +362,7 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
       console.log('\n🔬 Step 3: Validating scenario...');
       const validationResult = validateEventSequence({
         name: 'complete-workflow-validation',
-        sequence: scenario.events.map(e => e.event),
+        sequence: scenario.events.map((e) => e.event),
         validators: [
           {
             afterIndex: scenario.events.length - 1,
@@ -377,7 +380,7 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
         console.log('  ✓ Timer correctly did NOT start without work item');
       } else {
         console.log('  ❌ Validation FAILED - Logic error detected!');
-        validationResult.errors.forEach(err => {
+        validationResult.errors.forEach((err) => {
           console.log(`    - ${err.message}`);
         });
       }
@@ -385,9 +388,11 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
       // STEP 4: Performance analysis
       console.log('\n📊 Step 4: Performance analysis...');
       const profile = PerformanceProfiler.profileHistory();
-      console.log(`  - Average transition time: ${profile.summary.averageTransitionTime.toFixed(2)}ms`);
+      console.log(
+        `  - Average transition time: ${profile.summary.averageTransitionTime.toFixed(2)}ms`
+      );
       console.log(`  - Total transitions: ${profile.summary.totalTransitions}`);
-      
+
       const slow = PerformanceProfiler.getSlowTransitions(100);
       if (slow.length > 0) {
         console.log(`  ⚠️  Found ${slow.length} slow transitions`);
@@ -400,13 +405,15 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
       const initialContext = scenario.initialContext;
       const finalContext = scenario.finalContext;
       const diff = diffStates(initialContext, finalContext);
-      
+
       console.log(`  - Changed fields: ${diff.summary.changedCount}`);
       console.log(`  - Added fields: ${diff.summary.addedCount}`);
       console.log(`  - Removed fields: ${diff.summary.removedCount}`);
-      
+
       if (diff.changed['applicationState']) {
-        console.log(`  - State changed: ${diff.changed['applicationState'].from} → ${diff.changed['applicationState'].to}`);
+        console.log(
+          `  - State changed: ${diff.changed['applicationState'].from} → ${diff.changed['applicationState'].to}`
+        );
       }
 
       // STEP 6: Summary
@@ -416,7 +423,7 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
       console.log('  ✅ Performance profiling: Working');
       console.log('  ✅ State diff: Working');
       console.log('\n🎉 All tools working correctly!');
-      console.log('=' .repeat(60));
+      console.log('='.repeat(60));
 
       // Final assertions
       expect(validationResult.valid).toBe(true);
@@ -425,4 +432,3 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
     });
   });
 });
-

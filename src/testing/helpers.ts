@@ -1,6 +1,6 @@
 /**
  * Testing Helpers
- * 
+ *
  * Utility functions for writing tests with history engine.
  */
 
@@ -16,24 +16,24 @@ export async function waitForState(
   timeout: number = 5000
 ): Promise<void> {
   const startTime = Date.now();
-  
+
   return new Promise((resolve, reject) => {
     const check = () => {
       const context = frontendEngine.getContext();
-      
+
       if (condition(context)) {
         resolve();
         return;
       }
-      
+
       if (Date.now() - startTime > timeout) {
         reject(new Error(`Timeout waiting for state condition after ${timeout}ms`));
         return;
       }
-      
+
       setTimeout(check, 50);
     };
-    
+
     check();
   });
 }
@@ -54,12 +54,12 @@ export async function waitForStateValue(
 export async function resetEngine(): Promise<void> {
   // Clear history first
   history.clearHistory();
-  
+
   // For testing, we'll use ResetApplicationEvent to reset state
   // This is the proper way to reset via Praxis events
   const factsModule = await import('../../src/praxis/application/facts.js');
   const { ResetApplicationEvent } = factsModule;
-  
+
   // Dispatch reset event if available
   if (ResetApplicationEvent) {
     try {
@@ -69,7 +69,7 @@ export async function resetEngine(): Promise<void> {
       // The engine will start fresh on next test
     }
   }
-  
+
   // Note: In a real scenario, we might need to recreate the engine
   // For now, clearing history and using reset events should work
 }
@@ -94,4 +94,3 @@ export function getState(): string {
 export function dispatch(events: Parameters<typeof frontendEngine.step>[0]): void {
   frontendEngine.step(events);
 }
-

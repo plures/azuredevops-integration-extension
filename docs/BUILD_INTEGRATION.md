@@ -13,6 +13,7 @@ npm run build
 ```
 
 **What it does**:
+
 1. Formats code (`npm run format`)
 2. Compiles TypeScript (`npm run compile`)
 3. Validates code (`npm run validate:all`)
@@ -25,6 +26,7 @@ npm run build:strict
 ```
 
 **What it does**:
+
 1. Formats code
 2. Compiles TypeScript
 3. Strict validation (`npm run validate:all:strict`)
@@ -37,6 +39,7 @@ npm run build:ci
 ```
 
 **What it does**:
+
 1. Compiles TypeScript
 2. Validates code
 3. **Runs all tests** (`npm run test:all`) ✨ NEW
@@ -52,6 +55,7 @@ npm run test:praxis
 ```
 
 Runs all Praxis-related tests including:
+
 - History recorder tests
 - Snapshot testing tests
 - Event sequence validator tests
@@ -65,6 +69,7 @@ npm run test:praxis:examples
 ```
 
 Runs only the example test scenarios:
+
 - Connection authentication workflow
 - Work item lifecycle
 - Error recovery scenarios
@@ -150,10 +155,11 @@ In CI, failed test artifacts are automatically uploaded:
 The `vitest.config.ts` automatically loads:
 
 ```typescript
-setupFiles: ['tests/setup/praxis-history-setup.ts']
+setupFiles: ['tests/setup/praxis-history-setup.ts'];
 ```
 
 This provides:
+
 - Custom matchers
 - Auto-reset history
 - Export on failure
@@ -161,6 +167,7 @@ This provides:
 ### Test Patterns
 
 Tests are discovered automatically:
+
 - `tests/praxis/**/*.test.ts` - All Praxis tests
 - `tests/praxis/examples/**/*.test.ts` - Example tests
 - `src/**/*.test.ts` - Source tests (excluding legacy)
@@ -196,6 +203,7 @@ npm run validate:all
 ```
 
 This includes:
+
 - Type checking
 - Linting
 - (Tests can be added here if needed)
@@ -237,16 +245,19 @@ Coverage reports are uploaded to Codecov in CI.
 ## Best Practices
 
 1. **Run tests before committing**:
+
    ```bash
    npm run test:praxis
    ```
 
 2. **Use watch mode during development**:
+
    ```bash
    npm run test:praxis:watch
    ```
 
 3. **Check artifacts on failure**:
+
    ```bash
    ls test-artifacts/
    ```
@@ -282,4 +293,3 @@ Coverage reports are uploaded to Codecov in CI.
 - [Vitest Plugin Guide](./PRAXIS_VITEST_PLUGIN_GUIDE.md)
 - [Testing Examples Guide](./PRAXIS_HISTORY_EXAMPLES_GUIDE.md)
 - [Test Generation Guide](./PRAXIS_TEST_GENERATION_GUIDE.md)
-

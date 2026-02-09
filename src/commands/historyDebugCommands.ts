@@ -1,12 +1,16 @@
 /* eslint-disable max-lines-per-function */
 /**
  * History Debug Commands
- * 
+ *
  * VS Code commands for history debugging functionality.
  */
 
 import * as vscode from 'vscode';
-import { exportHistoryAsJSON, importHistoryFromJSON, copyHistoryToClipboard } from '../debugging/historyExport.js';
+import {
+  exportHistoryAsJSON,
+  importHistoryFromJSON,
+  copyHistoryToClipboard,
+} from '../debugging/historyExport.js';
 import { startRecording, stopRecording, isRecording } from '../testing/historyTestRecorder.js';
 import { getEventReplayDebugger } from '../debugging/eventReplayDebugger.js';
 
@@ -20,7 +24,7 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
     async () => {
       try {
         const json = exportHistoryAsJSON();
-        
+
         // Save to file
         const uri = await vscode.window.showSaveDialog({
           defaultUri: vscode.Uri.file('history-export.json'),
@@ -28,7 +32,7 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
             'JSON Files': ['json'],
           },
         });
-        
+
         if (uri) {
           await vscode.workspace.fs.writeFile(uri, Buffer.from(json, 'utf-8'));
           vscode.window.showInformationMessage('History exported successfully');
@@ -38,7 +42,7 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
       }
     }
   );
-  
+
   // Import history from file
   const importHistoryCommand = vscode.commands.registerCommand(
     'azureDevOpsInt.debug.history.import',
@@ -50,7 +54,7 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
           },
           canSelectMany: false,
         });
-        
+
         if (uri && uri[0]) {
           const content = await vscode.workspace.fs.readFile(uri[0]);
           const json = content.toString();
@@ -62,7 +66,7 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
       }
     }
   );
-  
+
   // Copy history to clipboard
   const copyHistoryCommand = vscode.commands.registerCommand(
     'azureDevOpsInt.debug.history.copy',
@@ -75,7 +79,7 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
       }
     }
   );
-  
+
   // Start recording test scenario
   const startRecordingCommand = vscode.commands.registerCommand(
     'azureDevOpsInt.debug.history.startRecording',
@@ -85,20 +89,20 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
           prompt: 'Enter scenario ID',
           placeHolder: 'test-001',
         });
-        
+
         if (!scenarioId) {
           return;
         }
-        
+
         const scenarioName = await vscode.window.showInputBox({
           prompt: 'Enter scenario name',
           placeHolder: 'User workflow test',
         });
-        
+
         if (!scenarioName) {
           return;
         }
-        
+
         startRecording(scenarioId, scenarioName);
         vscode.window.showInformationMessage(`Started recording: ${scenarioName}`);
       } catch (error) {
@@ -106,7 +110,7 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
       }
     }
   );
-  
+
   // Stop recording and save scenario
   const stopRecordingCommand = vscode.commands.registerCommand(
     'azureDevOpsInt.debug.history.stopRecording',
@@ -116,9 +120,9 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
           vscode.window.showWarningMessage('No active recording');
           return;
         }
-        
+
         const scenario = stopRecording();
-        
+
         // Save to file
         const uri = await vscode.window.showSaveDialog({
           defaultUri: vscode.Uri.file(`${scenario.id}.json`),
@@ -126,7 +130,7 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
             'JSON Files': ['json'],
           },
         });
-        
+
         if (uri) {
           await vscode.workspace.fs.writeFile(
             uri,
@@ -139,7 +143,7 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
       }
     }
   );
-  
+
   // Clear breakpoints
   const clearBreakpointsCommand = vscode.commands.registerCommand(
     'azureDevOpsInt.debug.history.clearBreakpoints',
@@ -149,7 +153,7 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
       vscode.window.showInformationMessage('All breakpoints cleared');
     }
   );
-  
+
   context.subscriptions.push(
     exportHistoryCommand,
     importHistoryCommand,
@@ -159,4 +163,3 @@ export function registerHistoryDebugCommands(context: vscode.ExtensionContext): 
     clearBreakpointsCommand
   );
 }
-

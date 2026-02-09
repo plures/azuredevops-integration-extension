@@ -1,6 +1,6 @@
 /**
  * Error Recovery Test Example
- * 
+ *
  * Demonstrates testing error scenarios and recovery workflows
  * using the history testing infrastructure.
  */
@@ -8,7 +8,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { startRecording, stopRecording } from '../../../src/testing/historyTestRecorder.js';
 import { createSnapshotTest } from '../../../src/testing/snapshotTesting.js';
-import { validateEventSequence, checkState, checkProperty } from '../../../src/testing/eventSequenceValidator.js';
+import {
+  validateEventSequence,
+  checkState,
+  checkProperty,
+} from '../../../src/testing/eventSequenceValidator.js';
 import { resetEngine, waitForState, getContext, dispatch } from '../../../src/testing/helpers.js';
 import {
   ActivateEvent,
@@ -90,7 +94,7 @@ describe('Error Recovery - History Testing Examples', () => {
         }),
       ]);
 
-      // Clear error (simulate successful refresh) - Note: WorkItemsErrorEvent doesn't support null, 
+      // Clear error (simulate successful refresh) - Note: WorkItemsErrorEvent doesn't support null,
       // so we'll just verify the retry happened. In real scenarios, a RefreshDataEvent would clear the error.
 
       // Note: Error clearing would happen via a successful refresh, not shown here
@@ -218,4 +222,3 @@ describe('Error Recovery - History Testing Examples', () => {
     });
   });
 });
-
