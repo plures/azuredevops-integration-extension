@@ -1,3 +1,4 @@
+/* eslint-disable max-lines-per-function */
 /**
  * Praxis Application Rules - Sync
  *

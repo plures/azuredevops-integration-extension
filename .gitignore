@@ -1,3 +1,4 @@
 # Test artifacts
 test-artifacts/
 *.history.json
+node_modules/
