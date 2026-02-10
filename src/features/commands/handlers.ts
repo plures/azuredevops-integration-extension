@@ -97,6 +97,7 @@ async function signInWithEntra(
   }
 }
 
+// eslint-disable-next-line max-lines-per-function
 async function signOutEntra(
   context: vscode.ExtensionContext,
   connectionId?: string
