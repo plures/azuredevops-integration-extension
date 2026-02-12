@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * Module: src/fsm/functions/auth/authentication.ts
  * Owner: application
@@ -264,7 +265,7 @@ type GetEntraIdTokenOptions = {
   }) => void;
 };
 
-// eslint-disable-next-line complexity
+// eslint-disable-next-line complexity, max-lines-per-function
 export async function getEntraIdToken(
   context: ExtensionContext,
   tenantId?: string,
