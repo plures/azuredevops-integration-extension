@@ -1,4 +1,4 @@
-/* eslint-disable max-lines */
+/* eslint-disable max-lines, max-lines-per-function */
 /**
  * Module: src/fsm/functions/auth/authentication.ts
  * Owner: application

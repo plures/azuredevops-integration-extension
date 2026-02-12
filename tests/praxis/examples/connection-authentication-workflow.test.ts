@@ -1,6 +1,6 @@
 /**
  * Connection Authentication Workflow Test Example
- * 
+ *
  * Demonstrates recording and replaying a complete connection authentication workflow
  * using the history testing infrastructure.
  */
@@ -8,7 +8,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { startRecording, stopRecording } from '../../../src/testing/historyTestRecorder.js';
 import { createSnapshotTest } from '../../../src/testing/snapshotTesting.js';
-import { validateEventSequence, checkState, checkProperty } from '../../../src/testing/eventSequenceValidator.js';
+import {
+  validateEventSequence,
+  checkState,
+  checkProperty,
+} from '../../../src/testing/eventSequenceValidator.js';
 import { resetEngine, waitForState, getContext, dispatch } from '../../../src/testing/helpers.js';
 import {
   ActivateEvent,
@@ -72,7 +76,9 @@ describe('Connection Authentication Workflow - History Testing Examples', () => 
 
       await waitForState((ctx) => {
         const connectionState = ctx.connectionStates?.get(testConnection.id);
-        return connectionState?.state === 'authenticating' || connectionState?.state === 'authenticated';
+        return (
+          connectionState?.state === 'authenticating' || connectionState?.state === 'authenticated'
+        );
       });
 
       // Step 5: Complete authentication
@@ -170,7 +176,8 @@ describe('Connection Authentication Workflow - History Testing Examples', () => 
           {
             index: 3,
             state: 'active',
-            contextChecks: (ctx) => ctx.connections.length === 1 && ctx.activeConnectionId === testConnection.id,
+            contextChecks: (ctx) =>
+              ctx.connections.length === 1 && ctx.activeConnectionId === testConnection.id,
             description: 'Connections should be loaded and active connection set',
           },
           {
@@ -258,4 +265,3 @@ describe('Connection Authentication Workflow - History Testing Examples', () => 
     });
   });
 });
-
