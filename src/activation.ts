@@ -2773,10 +2773,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Register quick debug commands for instant troubleshooting
   registerQuickDebugCommands(context);
-  
+
   // Register history debug commands for testing and debugging
   registerHistoryDebugCommands(context);
-  
+
   // Register test generator commands
   registerTestGeneratorCommands(context);
   // Automatic logging will capture this
@@ -3693,7 +3693,7 @@ class AzureDevOpsIntViewProvider implements vscode.WebviewViewProvider {
             }),
             'active.ready.error': matchesFn({ active: { ready: 'error' } }),
           };
-          
+
           // Filter to only include true matches (optimization: reduce payload size)
           const matches: Record<string, boolean> = {};
           for (const [key, value] of Object.entries(allMatches)) {

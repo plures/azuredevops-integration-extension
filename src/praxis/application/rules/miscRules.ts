@@ -195,7 +195,11 @@ const retryRule = defineRule<ApplicationEngineContext>({
     const retryEvent = findEvent(events, RetryApplicationEvent);
     if (!retryEvent) return [];
 
-    if (state.context.applicationState !== 'error_recovery' && state.context.applicationState !== 'activation_error') return [];
+    if (
+      state.context.applicationState !== 'error_recovery' &&
+      state.context.applicationState !== 'activation_error'
+    )
+      return [];
 
     state.context.lastError = undefined;
     state.context.applicationState = 'active';
@@ -285,7 +289,7 @@ const authReminderRequestedRule = defineRule<ApplicationEngineContext>({
       reason: detail || reason,
       status: 'pending',
     };
-    
+
     if (!existing || existing.reason !== newValue.reason || existing.status !== newValue.status) {
       state.context.pendingAuthReminders = new Map(state.context.pendingAuthReminders);
       state.context.pendingAuthReminders.set(connectionId, newValue);

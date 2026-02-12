@@ -134,4 +134,3 @@ export function wrapRuleWithTracing<TContext>(
       : undefined,
   };
 }
-

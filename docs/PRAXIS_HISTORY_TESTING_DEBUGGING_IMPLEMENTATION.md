@@ -9,6 +9,7 @@ Successfully implemented Phase 1 of the history engine testing and debugging fea
 ### 1. Core Testing Infrastructure
 
 #### HistoryTestRecorder (`src/testing/historyTestRecorder.ts`)
+
 - ✅ Record test scenarios with initial state, events, and final state
 - ✅ Automatic event labeling
 - ✅ Max duration support
@@ -16,6 +17,7 @@ Successfully implemented Phase 1 of the history engine testing and debugging fea
 - ✅ Global recorder instance for easy access
 
 **Usage:**
+
 ```typescript
 import { startRecording, stopRecording } from './testing/historyTestRecorder.js';
 
@@ -25,6 +27,7 @@ const scenario = stopRecording();
 ```
 
 #### SnapshotTesting (`src/testing/snapshotTesting.ts`)
+
 - ✅ Snapshot comparison utilities
 - ✅ State validation at specific points
 - ✅ Deep equality checking
@@ -32,6 +35,7 @@ const scenario = stopRecording();
 - ✅ Scenario validation
 
 **Usage:**
+
 ```typescript
 import { createSnapshotTest, compareSnapshots } from './testing/snapshotTesting.js';
 
@@ -49,12 +53,14 @@ const testFn = createSnapshotTest({
 ```
 
 #### EventSequenceValidator (`src/testing/eventSequenceValidator.ts`)
+
 - ✅ Validate event processing order
 - ✅ State validators (property checks, conditions, state checks)
 - ✅ History length validation
 - ✅ Comprehensive validation results
 
 **Usage:**
+
 ```typescript
 import { validateEventSequence, checkState, checkProperty } from './testing/eventSequenceValidator.js';
 
@@ -71,6 +77,7 @@ const result = validateEventSequence({
 ```
 
 #### Testing Helpers (`src/testing/helpers.ts`)
+
 - ✅ `waitForState()` - Wait for state conditions
 - ✅ `waitForStateValue()` - Wait for specific state
 - ✅ `resetEngine()` - Reset to initial state
@@ -81,6 +88,7 @@ const result = validateEventSequence({
 ### 2. Debugging Utilities
 
 #### StateDiff (`src/debugging/stateDiff.ts`)
+
 - ✅ Compare two state snapshots
 - ✅ Deep equality checking
 - ✅ Field ignore options
@@ -88,6 +96,7 @@ const result = validateEventSequence({
 - ✅ Human-readable summaries
 
 **Usage:**
+
 ```typescript
 import { diffStates, formatDiff, getDiffSummary } from './debugging/stateDiff.js';
 
@@ -97,6 +106,7 @@ console.log(getDiffSummary(diff));
 ```
 
 #### HistoryExport (`src/debugging/historyExport.ts`)
+
 - ✅ Export history as JSON
 - ✅ Import history from JSON
 - ✅ Copy to clipboard
@@ -104,14 +114,20 @@ console.log(getDiffSummary(diff));
 - ✅ Metadata support
 
 **Usage:**
+
 ```typescript
-import { exportHistoryAsJSON, importHistoryFromJSON, copyHistoryToClipboard } from './debugging/historyExport.js';
+import {
+  exportHistoryAsJSON,
+  importHistoryFromJSON,
+  copyHistoryToClipboard,
+} from './debugging/historyExport.js';
 
 const json = exportHistoryAsJSON();
 await copyHistoryToClipboard();
 ```
 
 #### EventReplayDebugger (`src/debugging/eventReplayDebugger.ts`)
+
 - ✅ Step-by-step event replay
 - ✅ Breakpoint support
 - ✅ Pause/resume functionality
@@ -120,6 +136,7 @@ await copyHistoryToClipboard();
 - ✅ Step callbacks
 
 **Usage:**
+
 ```typescript
 import { getEventReplayDebugger } from './debugging/eventReplayDebugger.js';
 
@@ -137,6 +154,7 @@ await debugger.replay(scenario, {
 ### 3. UI Components
 
 #### HistoryTimeline (`src/webview/components/HistoryTimeline.svelte`)
+
 - ✅ Visual timeline of state changes
 - ✅ Click to jump to any snapshot
 - ✅ Compare snapshots (diff view)
@@ -145,6 +163,7 @@ await debugger.replay(scenario, {
 - ✅ Active/selected state highlighting
 
 **Features:**
+
 - Shows all history entries with state, events, and timestamps
 - Click any entry to jump to that snapshot
 - Click "Diff" button to compare with previous entry
@@ -153,6 +172,7 @@ await debugger.replay(scenario, {
 ### 4. VS Code Commands
 
 #### History Debug Commands (`src/commands/historyDebugCommands.ts`)
+
 - ✅ `azureDevOpsInt.debug.history.export` - Export history to file
 - ✅ `azureDevOpsInt.debug.history.import` - Import history from file
 - ✅ `azureDevOpsInt.debug.history.copy` - Copy history to clipboard
@@ -242,9 +262,7 @@ import { validateEventSequence, checkState } from './testing/eventSequenceValida
 
 const result = validateEventSequence({
   name: 'timer-validation',
-  sequence: [
-    StartTimerEvent.create({ workItemId: null }),
-  ],
+  sequence: [StartTimerEvent.create({ workItemId: null })],
   validators: [
     {
       afterIndex: 0,
@@ -305,22 +323,29 @@ debugger.resume();
 ## 🔧 Integration Points
 
 ### VS Code Commands
+
 All commands are registered automatically in `src/activation.ts`:
+
 - `registerHistoryDebugCommands(context)`
 
 ### Webview Integration
+
 HistoryTimeline component is integrated into debug view:
+
 - Automatically shown when `debugViewVisible` is true
 - Accessible via debug panel in webview
 
 ### Test Integration
+
 Testing utilities are ready for use in Vitest tests:
+
 - Import from `src/testing/index.ts`
 - Use helpers from `src/testing/helpers.ts`
 
 ## 📊 Benefits
 
 ### For Testing
+
 - ✅ **Record & Replay** - Capture real workflows as tests
 - ✅ **Snapshot Testing** - Detect state regressions
 - ✅ **Event Validation** - Ensure correct event processing
@@ -328,6 +353,7 @@ Testing utilities are ready for use in Vitest tests:
 - ✅ **Regression Detection** - Compare snapshots across versions
 
 ### For Debugging
+
 - ✅ **Time-Travel** - Navigate through state history
 - ✅ **State Inspection** - View state at any point
 - ✅ **Event Replay** - Step through events with breakpoints
@@ -335,6 +361,7 @@ Testing utilities are ready for use in Vitest tests:
 - ✅ **Performance Analysis** - Profile state transitions
 
 ### For Development
+
 - ✅ **Better Tests** - More comprehensive test coverage
 - ✅ **Faster Debugging** - Time-travel to find issues
 - ✅ **Better Documentation** - History shows how system works
@@ -343,6 +370,7 @@ Testing utilities are ready for use in Vitest tests:
 ## 🚀 Next Steps
 
 ### Phase 2: Advanced Features (Future)
+
 - [ ] Automated test generation from history
 - [ ] Visual test reports with history
 - [ ] Performance profiling dashboard
@@ -350,6 +378,7 @@ Testing utilities are ready for use in Vitest tests:
 - [ ] Regression detection automation
 
 ### Phase 3: Integration Enhancements (Future)
+
 - [ ] VS Code debugger integration
 - [ ] Vitest plugin for history testing
 - [ ] Logging correlation with history
@@ -364,6 +393,7 @@ Testing utilities are ready for use in Vitest tests:
 ## 🎉 Summary
 
 Phase 1 implementation is complete! We now have:
+
 - ✅ Complete testing infrastructure
 - ✅ Advanced debugging utilities
 - ✅ Visual timeline UI
@@ -371,4 +401,3 @@ Phase 1 implementation is complete! We now have:
 - ✅ Comprehensive test coverage
 
 The history engine is now a powerful tool for both automated testing and advanced debugging, enabling time-travel debugging, test scenario recording, and comprehensive state validation.
-
