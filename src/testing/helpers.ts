@@ -5,8 +5,9 @@
  */
 
 import { frontendEngine } from '../webview/praxis/frontendEngine.js';
-import { history } from '../webview/praxis/store.js';
+import { history, historyEngine } from '../webview/praxis/store.js';
 import type { ApplicationEngineContext } from '../praxis/application/engine.js';
+import type { PraxisEvent } from '@plures/praxis';
 
 /**
  * Wait for a specific state condition
@@ -90,7 +91,8 @@ export function getState(): string {
 
 /**
  * Dispatch events (for testing)
+ * Uses history engine dispatch to ensure events are tracked in history
  */
-export function dispatch(events: Parameters<typeof frontendEngine.step>[0]): void {
-  frontendEngine.step(events);
+export function dispatch(events: PraxisEvent[], label?: string): void {
+  historyEngine.dispatch(events, label);
 }

@@ -6,7 +6,7 @@
 
 import type { ApplicationEngineContext } from '../praxis/application/engine.js';
 import type { PraxisEvent } from '@plures/praxis';
-import { history } from '../webview/praxis/store.js';
+import { history, historyEngine } from '../webview/praxis/store.js';
 import { frontendEngine } from '../webview/praxis/frontendEngine.js';
 import type { TestScenario } from './historyTestRecorder.js';
 
@@ -52,9 +52,9 @@ export function createSnapshotTest(test: SnapshotTest) {
     frontendEngine.updateContext(() => initialContext);
     history.clearHistory();
 
-    // Apply events
+    // Apply events using history engine dispatch to ensure they're recorded
     for (const event of test.events) {
-      frontendEngine.step([event]);
+      historyEngine.dispatch([event]);
     }
 
     // Verify snapshots
@@ -69,17 +69,18 @@ export function createSnapshotTest(test: SnapshotTest) {
         );
       }
 
+      // Get context from history entry
+      const context = entry.state.context as ApplicationEngineContext;
+
       // Verify state
-      if (entry.state.state !== expected.state) {
+      if (context.applicationState !== expected.state) {
         throw new Error(
-          `Snapshot test "${test.name}" at index ${expected.index}: Expected state "${expected.state}", got "${entry.state.state}"`
+          `Snapshot test "${test.name}" at index ${expected.index}: Expected state "${expected.state}", got "${context.applicationState}"`
         );
       }
 
       // Verify context checks
-      const contextCheckResult = expected.contextChecks(
-        entry.state.context as ApplicationEngineContext
-      );
+      const contextCheckResult = expected.contextChecks(context);
       if (!contextCheckResult) {
         throw new Error(
           `Snapshot test "${test.name}" at index ${expected.index}: Context check failed${expected.description ? `: ${expected.description}` : ''}`
@@ -227,9 +228,9 @@ export function validateScenarioSnapshots(
   frontendEngine.updateContext(() => scenario.initialContext);
   history.clearHistory();
 
-  // Replay events
+  // Replay events using history engine dispatch to ensure they're recorded
   for (const eventData of scenario.events) {
-    frontendEngine.step([eventData.event]);
+    historyEngine.dispatch([eventData.event]);
   }
 
   // Verify snapshots
@@ -244,15 +245,16 @@ export function validateScenarioSnapshots(
       );
     }
 
-    if (entry.state.state !== expected.state) {
+    // Get context from history entry
+    const context = entry.state.context as ApplicationEngineContext;
+
+    if (context.applicationState !== expected.state) {
       throw new Error(
-        `Scenario "${scenario.name}" at index ${expected.index}: Expected state "${expected.state}", got "${entry.state.state}"`
+        `Scenario "${scenario.name}" at index ${expected.index}: Expected state "${expected.state}", got "${context.applicationState}"`
       );
     }
 
-    const contextCheckResult = expected.contextChecks(
-      entry.state.context as ApplicationEngineContext
-    );
+    const contextCheckResult = expected.contextChecks(context);
     if (!contextCheckResult) {
       throw new Error(
         `Scenario "${scenario.name}" at index ${expected.index}: Context check failed${expected.description ? `: ${expected.description}` : ''}`

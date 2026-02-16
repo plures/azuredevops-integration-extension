@@ -85,6 +85,9 @@ const initHistory = () => {
 };
 initHistory();
 
+// Export history engine for testing
+export { historyEngine };
+
 // Export history/undo-redo functionality with actual state restoration
 // IMPORTANT: createHistoryEngine's undo/redo only navigates history but doesn't restore state.
 // We need to manually restore the engine context from history entries using updateContext.
