@@ -1219,11 +1219,6 @@ function createSharedContextBridge({
     try {
       logger10?.(message, meta);
     } catch (error) {
-      console.debug("[AzureDevOpsInt] [SharedContextBridge] Logger failed", {
-        message,
-        meta,
-        error
-      });
     }
   }
   function startPolling() {
@@ -1768,7 +1763,6 @@ async function migrateGlobalPATToConnections(context, connections3) {
       await context.secrets.delete(LEGACY_PAT_KEY);
     }
   } catch (error) {
-    console.debug("[PAT Migration] Failed to migrate global PAT:", error);
   }
 }
 var LEGACY_PAT_KEY;
@@ -3336,6 +3330,55 @@ var init_error_handling = __esm({
   }
 });
 
+// node_modules/svelte/src/internal/client/reactivity/status.js
+function set_signal_status(signal, status) {
+  signal.f = signal.f & STATUS_MASK | status;
+}
+function update_derived_status(derived3) {
+  if ((derived3.f & CONNECTED) !== 0 || derived3.deps === null) {
+    set_signal_status(derived3, CLEAN);
+  } else {
+    set_signal_status(derived3, MAYBE_DIRTY);
+  }
+}
+var STATUS_MASK;
+var init_status = __esm({
+  "node_modules/svelte/src/internal/client/reactivity/status.js"() {
+    init_constants2();
+    STATUS_MASK = ~(DIRTY | MAYBE_DIRTY | CLEAN);
+  }
+});
+
+// node_modules/svelte/src/internal/client/reactivity/utils.js
+function clear_marked(deps) {
+  if (deps === null) return;
+  for (const dep of deps) {
+    if ((dep.f & DERIVED) === 0 || (dep.f & WAS_MARKED) === 0) {
+      continue;
+    }
+    dep.f ^= WAS_MARKED;
+    clear_marked(
+      /** @type {Derived} */
+      dep.deps
+    );
+  }
+}
+function defer_effect(effect2, dirty_effects, maybe_dirty_effects) {
+  if ((effect2.f & DIRTY) !== 0) {
+    dirty_effects.add(effect2);
+  } else if ((effect2.f & MAYBE_DIRTY) !== 0) {
+    maybe_dirty_effects.add(effect2);
+  }
+  clear_marked(effect2.deps);
+  set_signal_status(effect2, CLEAN);
+}
+var init_utils2 = __esm({
+  "node_modules/svelte/src/internal/client/reactivity/utils.js"() {
+    init_constants2();
+    init_status();
+  }
+});
+
 // node_modules/svelte/src/internal/client/reactivity/batch.js
 function flushSync(fn) {
   var was_flushing_sync = is_flushing_sync;
@@ -3367,12 +3410,10 @@ function flushSync(fn) {
   }
 }
 function flush_effects() {
-  var was_updating_effect = is_updating_effect;
   is_flushing = true;
   var source_stacks = dev_fallback_default ? /* @__PURE__ */ new Set() : null;
   try {
     var flush_count = 0;
-    set_is_updating_effect(true);
     while (queued_root_effects.length > 0) {
       var batch = Batch.ensure();
       if (flush_count++ > 1e3) {
@@ -3406,7 +3447,6 @@ function flush_effects() {
     }
   } finally {
     is_flushing = false;
-    set_is_updating_effect(was_updating_effect);
     last_scheduled_effect = null;
     if (dev_fallback_default) {
       for (
@@ -3548,6 +3588,9 @@ var init_batch = __esm({
     init_error_handling();
     init_sources();
     init_effects();
+    init_utils2();
+    init_constants();
+    init_status();
     batches = /* @__PURE__ */ new Set();
     current_batch = null;
     previous_batch = null;
@@ -3612,6 +3655,7 @@ var init_batch = __esm({
        */
       skipped_effects = /* @__PURE__ */ new Set();
       is_fork = false;
+      #decrement_queued = false;
       is_deferred() {
         return this.is_fork || this.#blocking_pending > 0;
       }
@@ -3621,28 +3665,25 @@ var init_batch = __esm({
        */
       process(root_effects) {
         queued_root_effects = [];
-        previous_batch = null;
         this.apply();
-        var target = {
-          parent: null,
-          effect: null,
-          effects: [],
-          render_effects: []
-        };
+        var effects = [];
+        var render_effects = [];
         for (const root of root_effects) {
-          this.#traverse_effect_tree(root, target);
-        }
-        if (!this.is_fork) {
-          this.#resolve();
+          this.#traverse_effect_tree(root, effects, render_effects);
         }
         if (this.is_deferred()) {
-          this.#defer_effects(target.effects);
-          this.#defer_effects(target.render_effects);
+          this.#defer_effects(render_effects);
+          this.#defer_effects(effects);
         } else {
+          for (const fn of this.#commit_callbacks) fn();
+          this.#commit_callbacks.clear();
+          if (this.#pending === 0) {
+            this.#commit();
+          }
           previous_batch = this;
           current_batch = null;
-          flush_queued_effects(target.render_effects);
-          flush_queued_effects(target.effects);
+          flush_queued_effects(render_effects);
+          flush_queued_effects(effects);
           previous_batch = null;
           this.#deferred?.resolve();
         }
@@ -3652,33 +3693,32 @@ var init_batch = __esm({
        * Traverse the effect tree, executing effects or stashing
        * them for later execution as appropriate
        * @param {Effect} root
-       * @param {EffectTarget} target
+       * @param {Effect[]} effects
+       * @param {Effect[]} render_effects
        */
-      #traverse_effect_tree(root, target) {
+      #traverse_effect_tree(root, effects, render_effects) {
         root.f ^= CLEAN;
         var effect2 = root.first;
+        var pending_boundary = null;
         while (effect2 !== null) {
           var flags2 = effect2.f;
           var is_branch = (flags2 & (BRANCH_EFFECT | ROOT_EFFECT)) !== 0;
           var is_skippable_branch = is_branch && (flags2 & CLEAN) !== 0;
           var skip = is_skippable_branch || (flags2 & INERT) !== 0 || this.skipped_effects.has(effect2);
-          if ((effect2.f & BOUNDARY_EFFECT) !== 0 && effect2.b?.is_pending()) {
-            target = {
-              parent: target,
-              effect: effect2,
-              effects: [],
-              render_effects: []
-            };
+          if (async_mode_flag && pending_boundary === null && (flags2 & BOUNDARY_EFFECT) !== 0 && effect2.b?.is_pending) {
+            pending_boundary = effect2;
           }
           if (!skip && effect2.fn !== null) {
             if (is_branch) {
               effect2.f ^= CLEAN;
+            } else if (pending_boundary !== null && (flags2 & (EFFECT | RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
+              pending_boundary.b.defer_effect(effect2);
             } else if ((flags2 & EFFECT) !== 0) {
-              target.effects.push(effect2);
+              effects.push(effect2);
             } else if (async_mode_flag && (flags2 & (RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
-              target.render_effects.push(effect2);
+              render_effects.push(effect2);
             } else if (is_dirty(effect2)) {
-              if ((effect2.f & BLOCK_EFFECT) !== 0) this.#dirty_effects.add(effect2);
+              if ((flags2 & BLOCK_EFFECT) !== 0) this.#dirty_effects.add(effect2);
               update_effect(effect2);
             }
             var child2 = effect2.first;
@@ -3690,11 +3730,8 @@ var init_batch = __esm({
           var parent = effect2.parent;
           effect2 = effect2.next;
           while (effect2 === null && parent !== null) {
-            if (parent === target.effect) {
-              this.#defer_effects(target.effects);
-              this.#defer_effects(target.render_effects);
-              target = /** @type {EffectTarget} */
-              target.parent;
+            if (parent === pending_boundary) {
+              pending_boundary = null;
             }
             effect2 = parent.next;
             parent = parent.parent;
@@ -3705,30 +3742,8 @@ var init_batch = __esm({
        * @param {Effect[]} effects
        */
       #defer_effects(effects) {
-        for (const e of effects) {
-          if ((e.f & DIRTY) !== 0) {
-            this.#dirty_effects.add(e);
-          } else if ((e.f & MAYBE_DIRTY) !== 0) {
-            this.#maybe_dirty_effects.add(e);
-          }
-          this.#clear_marked(e.deps);
-          set_signal_status(e, CLEAN);
-        }
-      }
-      /**
-       * @param {Value[] | null} deps
-       */
-      #clear_marked(deps) {
-        if (deps === null) return;
-        for (const dep of deps) {
-          if ((dep.f & DERIVED) === 0 || (dep.f & WAS_MARKED) === 0) {
-            continue;
-          }
-          dep.f ^= WAS_MARKED;
-          this.#clear_marked(
-            /** @type {Derived} */
-            dep.deps
-          );
+        for (var i = 0; i < effects.length; i += 1) {
+          defer_effect(effects[i], this.#dirty_effects, this.#maybe_dirty_effects);
         }
       }
       /**
@@ -3738,7 +3753,7 @@ var init_batch = __esm({
        * @param {any} value
        */
       capture(source2, value) {
-        if (!this.previous.has(source2)) {
+        if (value !== UNINITIALIZED && !this.previous.has(source2)) {
           this.previous.set(source2, value);
         }
         if ((source2.f & ERROR_VALUE) === 0) {
@@ -3771,26 +3786,11 @@ var init_batch = __esm({
         for (const fn of this.#discard_callbacks) fn(this);
         this.#discard_callbacks.clear();
       }
-      #resolve() {
-        if (this.#blocking_pending === 0) {
-          for (const fn of this.#commit_callbacks) fn();
-          this.#commit_callbacks.clear();
-        }
-        if (this.#pending === 0) {
-          this.#commit();
-        }
-      }
       #commit() {
         if (batches.size > 1) {
           this.previous.clear();
           var previous_batch_values = batch_values;
           var is_earlier = true;
-          var dummy_target = {
-            parent: null,
-            effect: null,
-            effects: [],
-            render_effects: []
-          };
           for (const batch of batches) {
             if (batch === this) {
               is_earlier = false;
@@ -3823,7 +3823,7 @@ var init_batch = __esm({
                 current_batch = batch;
                 batch.apply();
                 for (const root of queued_root_effects) {
-                  batch.#traverse_effect_tree(root, dummy_target);
+                  batch.#traverse_effect_tree(root, [], []);
                 }
                 batch.deactivate();
               }
@@ -3851,7 +3851,16 @@ var init_batch = __esm({
       decrement(blocking) {
         this.#pending -= 1;
         if (blocking) this.#blocking_pending -= 1;
-        this.revive();
+        if (this.#decrement_queued) return;
+        this.#decrement_queued = true;
+        queue_micro_task(() => {
+          this.#decrement_queued = false;
+          if (!this.is_deferred()) {
+            this.revive();
+          } else if (queued_root_effects.length > 0) {
+            this.flush();
+          }
+        });
       }
       revive() {
         for (const e of this.#dirty_effects) {
@@ -3881,7 +3890,7 @@ var init_batch = __esm({
           const batch = current_batch = new _Batch();
           batches.add(current_batch);
           if (!is_flushing_sync) {
-            _Batch.enqueue(() => {
+            queue_micro_task(() => {
               if (current_batch !== batch) {
                 return;
               }
@@ -3890,10 +3899,6 @@ var init_batch = __esm({
           }
         }
         return current_batch;
-      }
-      /** @param {() => void} task */
-      static enqueue(task) {
-        queue_micro_task(task);
       }
       apply() {
         if (!async_mode_flag || !this.is_fork && batches.size === 1) return;
@@ -3976,11 +3981,13 @@ var init_boundary = __esm({
     init_tracing();
     init_create_subscriber();
     init_operations();
+    init_utils2();
+    init_status();
     flags = EFFECT_TRANSPARENT | EFFECT_PRESERVED | BOUNDARY_EFFECT;
     Boundary = class {
       /** @type {Boundary | null} */
       parent;
-      #pending = false;
+      is_pending = false;
       /** @type {TemplateNode} */
       #anchor;
       /** @type {TemplateNode | null} */
@@ -4003,7 +4010,12 @@ var init_boundary = __esm({
       #pending_anchor = null;
       #local_pending_count = 0;
       #pending_count = 0;
+      #pending_count_update_queued = false;
       #is_creating_fallback = false;
+      /** @type {Set<Effect>} */
+      #dirty_effects = /* @__PURE__ */ new Set();
+      /** @type {Set<Effect>} */
+      #maybe_dirty_effects = /* @__PURE__ */ new Set();
       /**
        * A source containing the number of pending async deriveds/expressions.
        * Only created if `$effect.pending()` is used inside the boundary,
@@ -4032,7 +4044,7 @@ var init_boundary = __esm({
         this.#children = children;
         this.parent = /** @type {Effect} */
         active_effect.b;
-        this.#pending = !!this.#props.pending;
+        this.is_pending = !!this.#props.pending;
         this.#effect = block(() => {
           active_effect.b = this;
           if (hydrating) {
@@ -4047,6 +4059,9 @@ var init_boundary = __esm({
               this.#hydrate_pending_content();
             } else {
               this.#hydrate_resolved_content();
+              if (this.#pending_count === 0) {
+                this.is_pending = false;
+              }
             }
           } else {
             var anchor = this.#get_anchor();
@@ -4058,7 +4073,7 @@ var init_boundary = __esm({
             if (this.#pending_count > 0) {
               this.#show_pending_snippet();
             } else {
-              this.#pending = false;
+              this.is_pending = false;
             }
           }
           return () => {
@@ -4075,15 +4090,12 @@ var init_boundary = __esm({
         } catch (error) {
           this.error(error);
         }
-        this.#pending = false;
       }
       #hydrate_pending_content() {
         const pending2 = this.#props.pending;
-        if (!pending2) {
-          return;
-        }
+        if (!pending2) return;
         this.#pending_effect = branch(() => pending2(this.#anchor));
-        Batch.enqueue(() => {
+        queue_micro_task(() => {
           var anchor = this.#get_anchor();
           this.#main_effect = this.#run(() => {
             Batch.ensure();
@@ -4099,13 +4111,13 @@ var init_boundary = __esm({
                 this.#pending_effect = null;
               }
             );
-            this.#pending = false;
+            this.is_pending = false;
           }
         });
       }
       #get_anchor() {
         var anchor = this.#anchor;
-        if (this.#pending) {
+        if (this.is_pending) {
           this.#pending_anchor = create_text();
           this.#anchor.before(this.#pending_anchor);
           anchor = this.#pending_anchor;
@@ -4113,11 +4125,18 @@ var init_boundary = __esm({
         return anchor;
       }
       /**
-       * Returns `true` if the effect exists inside a boundary whose pending snippet is shown
+       * Defer an effect inside a pending boundary until the boundary resolves
+       * @param {Effect} effect
+       */
+      defer_effect(effect2) {
+        defer_effect(effect2, this.#dirty_effects, this.#maybe_dirty_effects);
+      }
+      /**
+       * Returns `false` if the effect exists inside a boundary whose pending snippet is shown
        * @returns {boolean}
        */
-      is_pending() {
-        return this.#pending || !!this.parent && this.parent.is_pending();
+      is_rendered() {
+        return !this.is_pending && (!this.parent || this.parent.is_rendered());
       }
       has_pending_snippet() {
         return !!this.#props.pending;
@@ -4174,7 +4193,17 @@ var init_boundary = __esm({
         }
         this.#pending_count += d;
         if (this.#pending_count === 0) {
-          this.#pending = false;
+          this.is_pending = false;
+          for (const e of this.#dirty_effects) {
+            set_signal_status(e, DIRTY);
+            schedule_effect(e);
+          }
+          for (const e of this.#maybe_dirty_effects) {
+            set_signal_status(e, MAYBE_DIRTY);
+            schedule_effect(e);
+          }
+          this.#dirty_effects.clear();
+          this.#maybe_dirty_effects.clear();
           if (this.#pending_effect) {
             pause_effect(this.#pending_effect, () => {
               this.#pending_effect = null;
@@ -4195,9 +4224,14 @@ var init_boundary = __esm({
       update_pending_count(d) {
         this.#update_pending_count(d);
         this.#local_pending_count += d;
-        if (this.#effect_pending) {
-          internal_set(this.#effect_pending, this.#local_pending_count);
-        }
+        if (!this.#effect_pending || this.#pending_count_update_queued) return;
+        this.#pending_count_update_queued = true;
+        queue_micro_task(() => {
+          this.#pending_count_update_queued = false;
+          if (this.#effect_pending) {
+            internal_set(this.#effect_pending, this.#local_pending_count);
+          }
+        });
       }
       get_effect_pending() {
         this.#effect_pending_subscriber();
@@ -4251,7 +4285,7 @@ var init_boundary = __esm({
               this.#failed_effect = null;
             });
           }
-          this.#pending = this.has_pending_snippet();
+          this.is_pending = this.has_pending_snippet();
           this.#main_effect = this.#run(() => {
             this.#is_creating_fallback = false;
             return branch(() => this.#children(this.#anchor));
@@ -4259,7 +4293,7 @@ var init_boundary = __esm({
           if (this.#pending_count > 0) {
             this.#show_pending_snippet();
           } else {
-            this.#pending = false;
+            this.is_pending = false;
           }
         };
         var previous_reaction = active_reaction;
@@ -4316,7 +4350,6 @@ var init_async = __esm({
     init_batch();
     init_deriveds();
     init_effects();
-    init_hydration();
   }
 });
 
@@ -4380,10 +4413,14 @@ function execute_derived(derived3) {
 function update_derived(derived3) {
   var value = execute_derived(derived3);
   if (!derived3.equals(value)) {
-    if (!current_batch?.is_fork) {
-      derived3.v = value;
-    }
     derived3.wv = increment_write_version();
+    if (!current_batch?.is_fork || derived3.deps === null) {
+      derived3.v = value;
+      if (derived3.deps === null) {
+        set_signal_status(derived3, CLEAN);
+        return;
+      }
+    }
   }
   if (is_destroying_effect) {
     return;
@@ -4393,8 +4430,7 @@ function update_derived(derived3) {
       batch_values.set(derived3, value);
     }
   } else {
-    var status = (derived3.f & CONNECTED) === 0 ? MAYBE_DIRTY : CLEAN;
-    set_signal_status(derived3, status);
+    update_derived_status(derived3);
   }
 }
 var recent_async_deriveds, stack;
@@ -4416,6 +4452,7 @@ var init_deriveds = __esm({
     init_batch();
     init_async();
     init_utils();
+    init_status();
     recent_async_deriveds = /* @__PURE__ */ new Set();
     stack = [];
   }
@@ -4515,13 +4552,14 @@ function internal_set(source2, value) {
       }
     }
     if ((source2.f & DERIVED) !== 0) {
+      const derived3 = (
+        /** @type {Derived} */
+        source2
+      );
       if ((source2.f & DIRTY) !== 0) {
-        execute_derived(
-          /** @type {Derived} */
-          source2
-        );
+        execute_derived(derived3);
       }
-      set_signal_status(source2, (source2.f & CONNECTED) !== 0 ? CLEAN : MAYBE_DIRTY);
+      update_derived_status(derived3);
     }
     source2.wv = increment_write_version();
     mark_reactions(source2, DIRTY);
@@ -4540,20 +4578,13 @@ function internal_set(source2, value) {
 }
 function flush_eager_effects() {
   eager_effects_deferred = false;
-  var prev_is_updating_effect = is_updating_effect;
-  set_is_updating_effect(true);
-  const inspects = Array.from(eager_effects);
-  try {
-    for (const effect2 of inspects) {
-      if ((effect2.f & CLEAN) !== 0) {
-        set_signal_status(effect2, MAYBE_DIRTY);
-      }
-      if (is_dirty(effect2)) {
-        update_effect(effect2);
-      }
+  for (const effect2 of eager_effects) {
+    if ((effect2.f & CLEAN) !== 0) {
+      set_signal_status(effect2, MAYBE_DIRTY);
     }
-  } finally {
-    set_is_updating_effect(prev_is_updating_effect);
+    if (is_dirty(effect2)) {
+      update_effect(effect2);
+    }
   }
   eager_effects.clear();
 }
@@ -4618,6 +4649,7 @@ var init_sources = __esm({
     init_batch();
     init_proxy();
     init_deriveds();
+    init_status();
     eager_effects = /* @__PURE__ */ new Set();
     old_values = /* @__PURE__ */ new Map();
     eager_effects_deferred = false;
@@ -4629,8 +4661,8 @@ function proxy(value) {
   if (typeof value !== "object" || value === null || STATE_SYMBOL in value) {
     return value;
   }
-  const prototype3 = get_prototype_of(value);
-  if (prototype3 !== object_prototype && prototype3 !== array_prototype) {
+  const prototype2 = get_prototype_of(value);
+  if (prototype2 !== object_prototype && prototype2 !== array_prototype) {
     return value;
   }
   var sources = /* @__PURE__ */ new Map();
@@ -5336,6 +5368,7 @@ var init_effects = __esm({
     init_batch();
     init_async();
     init_shared();
+    init_status();
   }
 });
 
@@ -5350,9 +5383,6 @@ var init_legacy = __esm({
 });
 
 // node_modules/svelte/src/internal/client/runtime.js
-function set_is_updating_effect(value) {
-  is_updating_effect = value;
-}
 function set_is_destroying_effect(value) {
   is_destroying_effect = value;
 }
@@ -5389,23 +5419,24 @@ function is_dirty(reaction) {
     reaction.f &= ~WAS_MARKED;
   }
   if ((flags2 & MAYBE_DIRTY) !== 0) {
-    var dependencies = reaction.deps;
-    if (dependencies !== null) {
-      var length = dependencies.length;
-      for (var i = 0; i < length; i++) {
-        var dependency = dependencies[i];
-        if (is_dirty(
+    var dependencies = (
+      /** @type {Value[]} */
+      reaction.deps
+    );
+    var length = dependencies.length;
+    for (var i = 0; i < length; i++) {
+      var dependency = dependencies[i];
+      if (is_dirty(
+        /** @type {Derived} */
+        dependency
+      )) {
+        update_derived(
           /** @type {Derived} */
           dependency
-        )) {
-          update_derived(
-            /** @type {Derived} */
-            dependency
-          );
-        }
-        if (dependency.wv > reaction.wv) {
-          return true;
-        }
+        );
+      }
+      if (dependency.wv > reaction.wv) {
+        return true;
       }
     }
     if ((flags2 & CONNECTED) !== 0 && // During time traveling we don't want to reset the status so that
@@ -5509,6 +5540,16 @@ function update_reaction(reaction) {
     }
     if (previous_reaction !== null && previous_reaction !== reaction) {
       read_version++;
+      if (previous_reaction.deps !== null) {
+        for (let i2 = 0; i2 < previous_skipped_deps; i2 += 1) {
+          previous_reaction.deps[i2].rv = read_version;
+        }
+      }
+      if (previous_deps !== null) {
+        for (const dep of previous_deps) {
+          dep.rv = read_version;
+        }
+      }
       if (untracked_writes !== null) {
         if (previous_untracked_writes === null) {
           previous_untracked_writes = untracked_writes;
@@ -5554,20 +5595,17 @@ function remove_reaction(signal, dependency) {
   // to be unused, when in fact it is used by the currently-updating parent. Checking `new_deps`
   // allows us to skip the expensive work of disconnecting and immediately reconnecting it
   (new_deps === null || !new_deps.includes(dependency))) {
-    set_signal_status(dependency, MAYBE_DIRTY);
-    if ((dependency.f & CONNECTED) !== 0) {
-      dependency.f ^= CONNECTED;
-      dependency.f &= ~WAS_MARKED;
-    }
-    destroy_derived_effects(
-      /** @type {Derived} **/
+    var derived3 = (
+      /** @type {Derived} */
       dependency
     );
-    remove_reactions(
-      /** @type {Derived} **/
-      dependency,
-      0
-    );
+    if ((derived3.f & CONNECTED) !== 0) {
+      derived3.f ^= CONNECTED;
+      derived3.f &= ~WAS_MARKED;
+    }
+    update_derived_status(derived3);
+    destroy_derived_effects(derived3);
+    remove_reactions(derived3, 0);
   }
 }
 function remove_reactions(signal, start_index) {
@@ -5638,7 +5676,7 @@ function get(signal) {
             skipped_deps++;
           } else if (new_deps === null) {
             new_deps = [signal];
-          } else if (!new_deps.includes(signal)) {
+          } else {
             new_deps.push(signal);
           }
         }
@@ -5674,15 +5712,15 @@ function get(signal) {
       }
     }
   }
-  if (is_destroying_effect) {
-    if (old_values.has(signal)) {
-      return old_values.get(signal);
-    }
-    if (is_derived) {
-      var derived3 = (
-        /** @type {Derived} */
-        signal
-      );
+  if (is_destroying_effect && old_values.has(signal)) {
+    return old_values.get(signal);
+  }
+  if (is_derived) {
+    var derived3 = (
+      /** @type {Derived} */
+      signal
+    );
+    if (is_destroying_effect) {
       var value = derived3.v;
       if ((derived3.f & CLEAN) === 0 && derived3.reactions !== null || depends_on_old_values(derived3)) {
         value = execute_derived(derived3);
@@ -5690,13 +5728,15 @@ function get(signal) {
       old_values.set(derived3, value);
       return value;
     }
-  } else if (is_derived && (!batch_values?.has(signal) || current_batch?.is_fork && !effect_tracking())) {
-    derived3 = /** @type {Derived} */
-    signal;
+    var should_connect = (derived3.f & CONNECTED) === 0 && !untracking && active_reaction !== null && (is_updating_effect || (active_reaction.f & CONNECTED) !== 0);
+    var is_new = derived3.deps === null;
     if (is_dirty(derived3)) {
+      if (should_connect) {
+        derived3.f |= CONNECTED;
+      }
       update_derived(derived3);
     }
-    if (is_updating_effect && effect_tracking() && (derived3.f & CONNECTED) === 0) {
+    if (should_connect && !is_new) {
       reconnect(derived3);
     }
   }
@@ -5710,7 +5750,7 @@ function get(signal) {
 }
 function reconnect(derived3) {
   if (derived3.deps === null) return;
-  derived3.f ^= CONNECTED;
+  derived3.f |= CONNECTED;
   for (const dep of derived3.deps) {
     (dep.reactions ??= []).push(derived3);
     if ((dep.f & DERIVED) !== 0 && (dep.f & CONNECTED) === 0) {
@@ -5746,10 +5786,7 @@ function untrack(fn) {
     untracking = previous_untracking;
   }
 }
-function set_signal_status(signal, status) {
-  signal.f = signal.f & STATUS_MASK | status;
-}
-var is_updating_effect, is_destroying_effect, active_reaction, untracking, active_effect, current_sources, new_deps, skipped_deps, untracked_writes, write_version, read_version, update_version, STATUS_MASK;
+var is_updating_effect, is_destroying_effect, active_reaction, untracking, active_effect, current_sources, new_deps, skipped_deps, untracked_writes, write_version, read_version, update_version;
 var init_runtime = __esm({
   "node_modules/svelte/src/internal/client/runtime.js"() {
     init_esm_env();
@@ -5762,12 +5799,12 @@ var init_runtime = __esm({
     init_tracing();
     init_dev();
     init_context();
-    init_warnings();
     init_batch();
     init_error_handling();
     init_constants();
     init_legacy();
     init_shared();
+    init_status();
     is_updating_effect = false;
     is_destroying_effect = false;
     active_reaction = null;
@@ -5780,7 +5817,6 @@ var init_runtime = __esm({
     write_version = 1;
     read_version = 0;
     update_version = read_version;
-    STATUS_MASK = ~(DIRTY | MAYBE_DIRTY | CLEAN);
   }
 });
 
@@ -5949,7 +5985,7 @@ function is_passive_event(name3) {
   return PASSIVE_EVENTS.includes(name3);
 }
 var DOM_BOOLEAN_ATTRIBUTES, DOM_PROPERTIES, PASSIVE_EVENTS, STATE_CREATION_RUNES, RUNES;
-var init_utils2 = __esm({
+var init_utils3 = __esm({
   "node_modules/svelte/src/utils.js"() {
     DOM_BOOLEAN_ATTRIBUTES = [
       "allowfullscreen",
@@ -6195,7 +6231,7 @@ var init_render = __esm({
     init_warnings();
     init_errors2();
     init_template();
-    init_utils2();
+    init_utils3();
     init_constants2();
     init_boundary();
     should_intro = true;
@@ -6207,7 +6243,7 @@ var init_render = __esm({
 // node_modules/svelte/src/internal/shared/validate.js
 var init_validate = __esm({
   "node_modules/svelte/src/internal/shared/validate.js"() {
-    init_utils2();
+    init_utils3();
     init_warnings2();
     init_errors();
     init_errors();
@@ -6300,7 +6336,7 @@ var init_attachments = __esm({
 // node_modules/svelte/src/internal/client/dev/assign.js
 var init_assign = __esm({
   "node_modules/svelte/src/internal/client/dev/assign.js"() {
-    init_utils2();
+    init_utils3();
     init_runtime();
     init_warnings();
   }
@@ -6343,7 +6379,7 @@ var init_ownership = __esm({
     init_constants();
     init_context();
     init_warnings();
-    init_utils2();
+    init_utils3();
   }
 });
 
@@ -6458,7 +6494,7 @@ var init_html = __esm({
     init_reconciler();
     init_template();
     init_warnings();
-    init_utils2();
+    init_utils3();
     init_esm_env();
     init_context();
     init_operations();
@@ -6527,7 +6563,7 @@ var init_svelte_element = __esm({
     init_esm_env();
     init_constants2();
     init_template();
-    init_utils2();
+    init_utils3();
     init_branches();
     init_transitions();
   }
@@ -6629,7 +6665,7 @@ var init_attributes2 = __esm({
     init_warnings();
     init_constants2();
     init_task();
-    init_utils2();
+    init_utils3();
     init_runtime();
     init_attachments2();
     init_attributes();
@@ -6639,6 +6675,15 @@ var init_attributes2 = __esm({
     init_effects();
     init_select();
     init_async();
+  }
+});
+
+// node_modules/svelte/src/internal/client/dom/elements/customizable-select.js
+var init_customizable_select = __esm({
+  "node_modules/svelte/src/internal/client/dom/elements/customizable-select.js"() {
+    init_hydration();
+    init_operations();
+    init_attachments2();
   }
 });
 
@@ -6767,7 +6812,7 @@ function subscribe_to_store(store, run3, invalidate) {
   );
   return unsub.unsubscribe ? () => unsub.unsubscribe() : unsub;
 }
-var init_utils3 = __esm({
+var init_utils4 = __esm({
   "node_modules/svelte/src/store/utils.js"() {
     init_index_client();
     init_utils();
@@ -6880,7 +6925,7 @@ var init_shared2 = __esm({
   "node_modules/svelte/src/store/shared/index.js"() {
     init_utils();
     init_equality();
-    init_utils3();
+    init_utils4();
     subscriber_queue = [];
   }
 });
@@ -6888,7 +6933,7 @@ var init_shared2 = __esm({
 // node_modules/svelte/src/internal/client/reactivity/store.js
 var init_store = __esm({
   "node_modules/svelte/src/internal/client/reactivity/store.js"() {
-    init_utils3();
+    init_utils4();
     init_shared2();
     init_utils();
     init_runtime();
@@ -6949,6 +6994,7 @@ var init_legacy_client = __esm({
     init_constants();
     init_context();
     init_flags();
+    init_status();
     init_event_modifiers();
     Svelte4Component = class {
       /** @type {any} */
@@ -7315,6 +7361,7 @@ var init_client = __esm({
     init_class();
     init_events();
     init_misc();
+    init_customizable_select();
     init_style();
     init_transitions();
     init_document();
@@ -10880,7 +10927,6 @@ var init_ComponentLogger = __esm({
           }
           this.configListeners.forEach((listener) => listener(this.config));
         } catch (error) {
-          console.debug("[ComponentLogger] Failed to load configuration:", error);
           this.config = { ...DEFAULT_CONFIG };
         }
       }
@@ -10895,7 +10941,6 @@ var init_ComponentLogger = __esm({
             });
           }
         } catch (error) {
-          console.debug("[ComponentLogger] Failed to persist configuration:", error);
         }
       }
       onConfigurationChange(listener) {
@@ -11008,20 +11053,31 @@ var init_ComponentLogger = __esm({
           try {
             listener(entry);
           } catch (e) {
-            console.debug("Error in log listener", e);
           }
         });
         if (this.config.destinations.console) {
-          const consoleMethod = entry.level >= 3 /* ERROR */ ? "error" : entry.level >= 2 /* WARN */ ? "warn" : entry.level >= 1 /* INFO */ ? "info" : "log";
-          const emoji = entry.level >= 3 /* ERROR */ ? "\u{1F534}" : entry.level >= 2 /* WARN */ ? "\u{1F7E1}" : entry.level >= 1 /* INFO */ ? "\u{1F7E2}" : "\u{1F535}";
-          const enhancedFormatted = `${emoji} [AzureDevOpsInt][Praxis][${entry.component}] ${formatted}`;
-          console.debug(enhancedFormatted);
-          if (consoleMethod === "error") {
-            console.debug(`\u21B3 ${formatted}`);
-          } else if (consoleMethod === "warn") {
-            console.debug(`\u21B3 ${formatted}`);
-          } else if (consoleMethod === "info") {
-            console.debug(`\u21B3 ${formatted}`);
+          const levelName = LOG_LEVEL_NAMES[entry.level];
+          switch (levelName) {
+            case "ERROR":
+              console.error(formatted);
+              break;
+            case "WARN":
+              console.warn(formatted);
+              break;
+            case "INFO":
+              console.info(formatted);
+              break;
+            case "DEBUG":
+            case "TRACE":
+              if (typeof console.debug === "function") {
+                console.debug(formatted);
+              } else {
+                console.log(formatted);
+              }
+              break;
+            default:
+              console.log(formatted);
+              break;
           }
         }
         if (this.config.destinations.outputChannel) {
@@ -11228,6 +11284,9 @@ function merge2() {
   const { caseless, skipUndefined } = isContextDefined(this) && this || {};
   const result = {};
   const assignValue = (val, key2) => {
+    if (key2 === "__proto__" || key2 === "constructor" || key2 === "prototype") {
+      return;
+    }
     const targetKey = caseless && findKey(result, key2) || key2;
     if (isPlainObject(result[targetKey]) && isPlainObject(val)) {
       result[targetKey] = merge2(result[targetKey], val);
@@ -11248,7 +11307,7 @@ function isSpecCompliantForm(thing) {
   return !!(thing && isFunction(thing.append) && thing[toStringTag] === "FormData" && thing[iterator]);
 }
 var toString2, getPrototypeOf, iterator, toStringTag, kindOf, kindOfTest, typeOfTest, isArray, isUndefined, isArrayBuffer, isString, isFunction, isNumber, isObject2, isBoolean2, isPlainObject, isEmptyObject, isDate, isFile, isBlob, isFileList, isStream, isFormData, isURLSearchParams, isReadableStream, isRequest, isResponse, isHeaders, trim, _global, isContextDefined, extend3, stripBOM, inherits, toFlatObject, endsWith, toArray2, isTypedArray, forEachEntry, matchAll, isHTMLForm, toCamelCase, hasOwnProperty, isRegExp, reduceDescriptors, freezeMethods, toObjectSet, noop2, toFiniteNumber, toJSONObject, isAsyncFn, isThenable, _setImmediate, asap, isIterable, utils_default;
-var init_utils4 = __esm({
+var init_utils5 = __esm({
   "node_modules/axios/lib/utils.js"() {
     "use strict";
     init_bind();
@@ -11276,8 +11335,8 @@ var init_utils4 = __esm({
       if (kindOf(val) !== "object") {
         return false;
       }
-      const prototype3 = getPrototypeOf(val);
-      return (prototype3 === null || prototype3 === Object.prototype || Object.getPrototypeOf(prototype3) === null) && !(toStringTag in val) && !(iterator in val);
+      const prototype2 = getPrototypeOf(val);
+      return (prototype2 === null || prototype2 === Object.prototype || Object.getPrototypeOf(prototype2) === null) && !(toStringTag in val) && !(iterator in val);
     };
     isEmptyObject = (val) => {
       if (!isObject2(val) || isBuffer(val)) {
@@ -11300,7 +11359,12 @@ var init_utils4 = __esm({
       kind === "object" && isFunction(thing.toString) && thing.toString() === "[object FormData]"));
     };
     isURLSearchParams = kindOfTest("URLSearchParams");
-    [isReadableStream, isRequest, isResponse, isHeaders] = ["ReadableStream", "Request", "Response", "Headers"].map(kindOfTest);
+    [isReadableStream, isRequest, isResponse, isHeaders] = [
+      "ReadableStream",
+      "Request",
+      "Response",
+      "Headers"
+    ].map(kindOfTest);
     trim = (str2) => str2.trim ? str2.trim() : str2.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, "");
     _global = (() => {
       if (typeof globalThis !== "undefined") return globalThis;
@@ -11308,13 +11372,27 @@ var init_utils4 = __esm({
     })();
     isContextDefined = (context) => !isUndefined(context) && context !== _global;
     extend3 = (a, b, thisArg, { allOwnKeys } = {}) => {
-      forEach(b, (val, key2) => {
-        if (thisArg && isFunction(val)) {
-          a[key2] = bind(val, thisArg);
-        } else {
-          a[key2] = val;
-        }
-      }, { allOwnKeys });
+      forEach(
+        b,
+        (val, key2) => {
+          if (thisArg && isFunction(val)) {
+            Object.defineProperty(a, key2, {
+              value: bind(val, thisArg),
+              writable: true,
+              enumerable: true,
+              configurable: true
+            });
+          } else {
+            Object.defineProperty(a, key2, {
+              value: val,
+              writable: true,
+              enumerable: true,
+              configurable: true
+            });
+          }
+        },
+        { allOwnKeys }
+      );
       return a;
     };
     stripBOM = (content) => {
@@ -11323,9 +11401,17 @@ var init_utils4 = __esm({
       }
       return content;
     };
-    inherits = (constructor, superConstructor, props, descriptors2) => {
-      constructor.prototype = Object.create(superConstructor.prototype, descriptors2);
-      constructor.prototype.constructor = constructor;
+    inherits = (constructor, superConstructor, props, descriptors) => {
+      constructor.prototype = Object.create(
+        superConstructor.prototype,
+        descriptors
+      );
+      Object.defineProperty(constructor.prototype, "constructor", {
+        value: constructor,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      });
       Object.defineProperty(constructor, "super", {
         value: superConstructor.prototype
       });
@@ -11396,19 +11482,16 @@ var init_utils4 = __esm({
     };
     isHTMLForm = kindOfTest("HTMLFormElement");
     toCamelCase = (str2) => {
-      return str2.toLowerCase().replace(
-        /[-_\s]([a-z\d])(\w*)/g,
-        function replacer(m, p1, p2) {
-          return p1.toUpperCase() + p2;
-        }
-      );
+      return str2.toLowerCase().replace(/[-_\s]([a-z\d])(\w*)/g, function replacer(m, p1, p2) {
+        return p1.toUpperCase() + p2;
+      });
     };
     hasOwnProperty = (({ hasOwnProperty: hasOwnProperty2 }) => (obj, prop2) => hasOwnProperty2.call(obj, prop2))(Object.prototype);
     isRegExp = kindOfTest("RegExp");
     reduceDescriptors = (obj, reducer) => {
-      const descriptors2 = Object.getOwnPropertyDescriptors(obj);
+      const descriptors = Object.getOwnPropertyDescriptors(obj);
       const reducedDescriptors = {};
-      forEach(descriptors2, (descriptor, name3) => {
+      forEach(descriptors, (descriptor, name3) => {
         let ret;
         if ((ret = reducer(descriptor, name3, obj)) !== false) {
           reducedDescriptors[name3] = ret || descriptor;
@@ -11482,20 +11565,21 @@ var init_utils4 = __esm({
         return setImmediate;
       }
       return postMessageSupported ? ((token, callbacks) => {
-        _global.addEventListener("message", ({ source: source2, data }) => {
-          if (source2 === _global && data === token) {
-            callbacks.length && callbacks.shift()();
-          }
-        }, false);
+        _global.addEventListener(
+          "message",
+          ({ source: source2, data }) => {
+            if (source2 === _global && data === token) {
+              callbacks.length && callbacks.shift()();
+            }
+          },
+          false
+        );
         return (cb) => {
           callbacks.push(cb);
           _global.postMessage(token, "*");
         };
       })(`axios@${Math.random()}`, []) : (cb) => setTimeout(cb);
-    })(
-      typeof setImmediate === "function",
-      isFunction(_global.postMessage)
-    );
+    })(typeof setImmediate === "function", isFunction(_global.postMessage));
     asap = typeof queueMicrotask !== "undefined" ? queueMicrotask.bind(_global) : typeof process !== "undefined" && process.nextTick || _setImmediate;
     isIterable = (thing) => thing != null && isFunction(thing[iterator]);
     utils_default = {
@@ -11562,30 +11646,43 @@ var init_utils4 = __esm({
 });
 
 // node_modules/axios/lib/core/AxiosError.js
-function AxiosError(message, code, config, request, response) {
-  Error.call(this);
-  if (Error.captureStackTrace) {
-    Error.captureStackTrace(this, this.constructor);
-  } else {
-    this.stack = new Error().stack;
-  }
-  this.message = message;
-  this.name = "AxiosError";
-  code && (this.code = code);
-  config && (this.config = config);
-  request && (this.request = request);
-  if (response) {
-    this.response = response;
-    this.status = response.status ? response.status : null;
-  }
-}
-var prototype, descriptors, AxiosError_default;
+var AxiosError, AxiosError_default;
 var init_AxiosError = __esm({
   "node_modules/axios/lib/core/AxiosError.js"() {
     "use strict";
-    init_utils4();
-    utils_default.inherits(AxiosError, Error, {
-      toJSON: function toJSON() {
+    init_utils5();
+    AxiosError = class _AxiosError extends Error {
+      static from(error, code, config, request, response, customProps) {
+        const axiosError = new _AxiosError(error.message, code || error.code, config, request, response);
+        axiosError.cause = error;
+        axiosError.name = error.name;
+        customProps && Object.assign(axiosError, customProps);
+        return axiosError;
+      }
+      /**
+       * Create an Error with the specified message, config, error code, request and response.
+       *
+       * @param {string} message The error message.
+       * @param {string} [code] The error code (for example, 'ECONNABORTED').
+       * @param {Object} [config] The config.
+       * @param {Object} [request] The request.
+       * @param {Object} [response] The response.
+       *
+       * @returns {Error} The created error.
+       */
+      constructor(message, code, config, request, response) {
+        super(message);
+        this.name = "AxiosError";
+        this.isAxiosError = true;
+        code && (this.code = code);
+        config && (this.config = config);
+        request && (this.request = request);
+        if (response) {
+          this.response = response;
+          this.status = response.status;
+        }
+      }
+      toJSON() {
         return {
           // Standard
           message: this.message,
@@ -11604,45 +11701,19 @@ var init_AxiosError = __esm({
           status: this.status
         };
       }
-    });
-    prototype = AxiosError.prototype;
-    descriptors = {};
-    [
-      "ERR_BAD_OPTION_VALUE",
-      "ERR_BAD_OPTION",
-      "ECONNABORTED",
-      "ETIMEDOUT",
-      "ERR_NETWORK",
-      "ERR_FR_TOO_MANY_REDIRECTS",
-      "ERR_DEPRECATED",
-      "ERR_BAD_RESPONSE",
-      "ERR_BAD_REQUEST",
-      "ERR_CANCELED",
-      "ERR_NOT_SUPPORT",
-      "ERR_INVALID_URL"
-      // eslint-disable-next-line func-names
-    ].forEach((code) => {
-      descriptors[code] = { value: code };
-    });
-    Object.defineProperties(AxiosError, descriptors);
-    Object.defineProperty(prototype, "isAxiosError", { value: true });
-    AxiosError.from = (error, code, config, request, response, customProps) => {
-      const axiosError = Object.create(prototype);
-      utils_default.toFlatObject(error, axiosError, function filter2(obj) {
-        return obj !== Error.prototype;
-      }, (prop2) => {
-        return prop2 !== "isAxiosError";
-      });
-      const msg = error && error.message ? error.message : "Error";
-      const errCode = code == null && error ? error.code : code;
-      AxiosError.call(axiosError, msg, errCode, config, request, response);
-      if (error && axiosError.cause == null) {
-        Object.defineProperty(axiosError, "cause", { value: error, configurable: true });
-      }
-      axiosError.name = error && error.name || "Error";
-      customProps && Object.assign(axiosError, customProps);
-      return axiosError;
     };
+    AxiosError.ERR_BAD_OPTION_VALUE = "ERR_BAD_OPTION_VALUE";
+    AxiosError.ERR_BAD_OPTION = "ERR_BAD_OPTION";
+    AxiosError.ECONNABORTED = "ECONNABORTED";
+    AxiosError.ETIMEDOUT = "ETIMEDOUT";
+    AxiosError.ERR_NETWORK = "ERR_NETWORK";
+    AxiosError.ERR_FR_TOO_MANY_REDIRECTS = "ERR_FR_TOO_MANY_REDIRECTS";
+    AxiosError.ERR_DEPRECATED = "ERR_DEPRECATED";
+    AxiosError.ERR_BAD_RESPONSE = "ERR_BAD_RESPONSE";
+    AxiosError.ERR_BAD_REQUEST = "ERR_BAD_REQUEST";
+    AxiosError.ERR_CANCELED = "ERR_CANCELED";
+    AxiosError.ERR_NOT_SUPPORT = "ERR_NOT_SUPPORT";
+    AxiosError.ERR_INVALID_URL = "ERR_INVALID_URL";
     AxiosError_default = AxiosError;
   }
 });
@@ -22039,7 +22110,7 @@ var predicates, toFormData_default;
 var init_toFormData = __esm({
   "node_modules/axios/lib/helpers/toFormData.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_AxiosError();
     init_FormData();
     predicates = utils_default.toFlatObject(utils_default, {}, null, function filter(prop2) {
@@ -22068,16 +22139,16 @@ function AxiosURLSearchParams(params, options) {
   this._pairs = [];
   params && toFormData_default(params, this, options);
 }
-var prototype2, AxiosURLSearchParams_default;
+var prototype, AxiosURLSearchParams_default;
 var init_AxiosURLSearchParams = __esm({
   "node_modules/axios/lib/helpers/AxiosURLSearchParams.js"() {
     "use strict";
     init_toFormData();
-    prototype2 = AxiosURLSearchParams.prototype;
-    prototype2.append = function append2(name3, value) {
+    prototype = AxiosURLSearchParams.prototype;
+    prototype.append = function append2(name3, value) {
       this._pairs.push([name3, value]);
     };
-    prototype2.toString = function toString3(encoder) {
+    prototype.toString = function toString3(encoder) {
       const _encode = encoder ? function(value) {
         return encoder.call(this, value, encode);
       } : encode;
@@ -22098,17 +22169,15 @@ function buildURL(url2, params, options) {
     return url2;
   }
   const _encode = options && options.encode || encode2;
-  if (utils_default.isFunction(options)) {
-    options = {
-      serialize: options
-    };
-  }
-  const serializeFn = options && options.serialize;
+  const _options = utils_default.isFunction(options) ? {
+    serialize: options
+  } : options;
+  const serializeFn = _options && _options.serialize;
   let serializedParams;
   if (serializeFn) {
-    serializedParams = serializeFn(params, options);
+    serializedParams = serializeFn(params, _options);
   } else {
-    serializedParams = utils_default.isURLSearchParams(params) ? params.toString() : new AxiosURLSearchParams_default(params, options).toString(_encode);
+    serializedParams = utils_default.isURLSearchParams(params) ? params.toString() : new AxiosURLSearchParams_default(params, _options).toString(_encode);
   }
   if (serializedParams) {
     const hashmarkIndex = url2.indexOf("#");
@@ -22122,7 +22191,7 @@ function buildURL(url2, params, options) {
 var init_buildURL = __esm({
   "node_modules/axios/lib/helpers/buildURL.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_AxiosURLSearchParams();
   }
 });
@@ -22132,7 +22201,7 @@ var InterceptorManager, InterceptorManager_default;
 var init_InterceptorManager = __esm({
   "node_modules/axios/lib/core/InterceptorManager.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     InterceptorManager = class {
       constructor() {
         this.handlers = [];
@@ -22142,6 +22211,7 @@ var init_InterceptorManager = __esm({
        *
        * @param {Function} fulfilled The function to handle `then` for a `Promise`
        * @param {Function} rejected The function to handle `reject` for a `Promise`
+       * @param {Object} options The options for the interceptor, synchronous and runWhen
        *
        * @return {Number} An ID used to remove interceptor later
        */
@@ -22206,7 +22276,8 @@ var init_transitional = __esm({
     transitional_default = {
       silentJSONParsing: true,
       forcedJSONParsing: true,
-      clarifyTimeoutError: false
+      clarifyTimeoutError: false,
+      legacyInterceptorReqResOrdering: true
     };
   }
 });
@@ -22269,7 +22340,7 @@ __export(utils_exports, {
   origin: () => origin
 });
 var hasBrowserEnv, _navigator, hasStandardBrowserEnv, hasStandardBrowserWebWorkerEnv, origin;
-var init_utils5 = __esm({
+var init_utils6 = __esm({
   "node_modules/axios/lib/platform/common/utils.js"() {
     hasBrowserEnv = typeof window !== "undefined" && typeof document !== "undefined";
     _navigator = typeof navigator === "object" && navigator || void 0;
@@ -22287,7 +22358,7 @@ var platform_default;
 var init_platform = __esm({
   "node_modules/axios/lib/platform/index.js"() {
     init_node2();
-    init_utils5();
+    init_utils6();
     platform_default = {
       ...utils_exports,
       ...node_default
@@ -22311,7 +22382,7 @@ function toURLEncodedForm(data, options) {
 var init_toURLEncodedForm = __esm({
   "node_modules/axios/lib/helpers/toURLEncodedForm.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_toFormData();
     init_platform();
   }
@@ -22372,7 +22443,7 @@ var formDataToJSON_default;
 var init_formDataToJSON = __esm({
   "node_modules/axios/lib/helpers/formDataToJSON.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     formDataToJSON_default = formDataToJSON;
   }
 });
@@ -22395,7 +22466,7 @@ var defaults, defaults_default;
 var init_defaults = __esm({
   "node_modules/axios/lib/defaults/index.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_AxiosError();
     init_transitional();
     init_toFormData();
@@ -22504,7 +22575,7 @@ var ignoreDuplicateOf, parseHeaders_default;
 var init_parseHeaders = __esm({
   "node_modules/axios/lib/helpers/parseHeaders.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     ignoreDuplicateOf = utils_default.toObjectSet([
       "age",
       "authorization",
@@ -22605,7 +22676,7 @@ var $internals, isValidHeaderName, AxiosHeaders, AxiosHeaders_default;
 var init_AxiosHeaders = __esm({
   "node_modules/axios/lib/core/AxiosHeaders.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_parseHeaders();
     $internals = /* @__PURE__ */ Symbol("internals");
     isValidHeaderName = (str2) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str2.trim());
@@ -22761,11 +22832,11 @@ var init_AxiosHeaders = __esm({
           accessors: {}
         };
         const accessors = internals.accessors;
-        const prototype3 = this.prototype;
+        const prototype2 = this.prototype;
         function defineAccessor(_header) {
           const lHeader = normalizeHeader(_header);
           if (!accessors[lHeader]) {
-            buildAccessors(prototype3, _header);
+            buildAccessors(prototype2, _header);
             accessors[lHeader] = true;
           }
         }
@@ -22803,7 +22874,7 @@ function transformData(fns, response) {
 var init_transformData = __esm({
   "node_modules/axios/lib/core/transformData.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_defaults();
     init_AxiosHeaders();
   }
@@ -22820,19 +22891,27 @@ var init_isCancel = __esm({
 });
 
 // node_modules/axios/lib/cancel/CanceledError.js
-function CanceledError(message, config, request) {
-  AxiosError_default.call(this, message == null ? "canceled" : message, AxiosError_default.ERR_CANCELED, config, request);
-  this.name = "CanceledError";
-}
-var CanceledError_default;
+var CanceledError, CanceledError_default;
 var init_CanceledError = __esm({
   "node_modules/axios/lib/cancel/CanceledError.js"() {
     "use strict";
     init_AxiosError();
-    init_utils4();
-    utils_default.inherits(CanceledError, AxiosError_default, {
-      __CANCEL__: true
-    });
+    CanceledError = class extends AxiosError_default {
+      /**
+       * A `CanceledError` is an object that is thrown when an operation is canceled.
+       *
+       * @param {string=} message The message.
+       * @param {Object=} config The config.
+       * @param {Object=} request The request.
+       *
+       * @returns {CanceledError} The created error.
+       */
+      constructor(message, config, request) {
+        super(message == null ? "canceled" : message, AxiosError_default.ERR_CANCELED, config, request);
+        this.name = "CanceledError";
+        this.__CANCEL__ = true;
+      }
+    };
     CanceledError_default = CanceledError;
   }
 });
@@ -22861,6 +22940,9 @@ var init_settle = __esm({
 
 // node_modules/axios/lib/helpers/isAbsoluteURL.js
 function isAbsoluteURL(url2) {
+  if (typeof url2 !== "string") {
+    return false;
+  }
   return /^([a-z][a-z\d+\-.]*:)?\/\//i.test(url2);
 }
 var init_isAbsoluteURL = __esm({
@@ -24260,7 +24342,7 @@ var require_follow_redirects = __commonJS({
 var VERSION;
 var init_data = __esm({
   "node_modules/axios/lib/env/data.js"() {
-    VERSION = "1.13.2";
+    VERSION = "1.13.5";
   }
 });
 
@@ -24319,7 +24401,7 @@ var init_AxiosTransformStream = __esm({
   "node_modules/axios/lib/helpers/AxiosTransformStream.js"() {
     "use strict";
     import_stream = __toESM(require("stream"), 1);
-    init_utils4();
+    init_utils5();
     kInternals = /* @__PURE__ */ Symbol("internals");
     AxiosTransformStream = class extends import_stream.default.Transform {
       constructor(options) {
@@ -24461,7 +24543,7 @@ var init_formDataToStream = __esm({
   "node_modules/axios/lib/helpers/formDataToStream.js"() {
     import_util = __toESM(require("util"), 1);
     import_stream2 = require("stream");
-    init_utils4();
+    init_utils5();
     init_readBlob();
     init_platform();
     BOUNDARY_ALPHABET = platform_default.ALPHABET.ALPHA_DIGIT + "-_";
@@ -24576,7 +24658,7 @@ var init_ZlibHeaderTransformStream = __esm({
 var callbackify, callbackify_default;
 var init_callbackify = __esm({
   "node_modules/axios/lib/helpers/callbackify.js"() {
-    init_utils4();
+    init_utils5();
     callbackify = (fn, reducer) => {
       return utils_default.isAsyncFn(fn) ? function(...args) {
         const cb = args.pop();
@@ -24681,7 +24763,7 @@ var init_progressEventReducer = __esm({
   "node_modules/axios/lib/helpers/progressEventReducer.js"() {
     init_speedometer();
     init_throttle();
-    init_utils4();
+    init_utils5();
     progressEventReducer = (listener, isDownloadStream, freq = 3) => {
       let bytesNotified = 0;
       const _speedometer = speedometer_default(50, 250);
@@ -24795,8 +24877,11 @@ function setProxy(options, configProxy, location) {
       proxy2.auth = (proxy2.username || "") + ":" + (proxy2.password || "");
     }
     if (proxy2.auth) {
-      if (proxy2.auth.username || proxy2.auth.password) {
+      const validProxyAuth = Boolean(proxy2.auth.username || proxy2.auth.password);
+      if (validProxyAuth) {
         proxy2.auth = (proxy2.auth.username || "") + ":" + (proxy2.auth.password || "");
+      } else if (typeof proxy2.auth === "object") {
+        throw new AxiosError_default("Invalid proxy authorization", AxiosError_default.ERR_BAD_OPTION, { proxy: proxy2 });
       }
       const base64 = Buffer.from(proxy2.auth, "utf8").toString("base64");
       options.headers["Proxy-Authorization"] = "Basic " + base64;
@@ -24818,7 +24903,7 @@ function setProxy(options, configProxy, location) {
 var import_proxy_from_env, import_http, import_https, import_http2, import_util2, import_follow_redirects, import_zlib, import_stream4, import_events5, zlibOptions, brotliOptions, isBrotliSupported, httpFollow, httpsFollow, isHttps, supportedProtocols, flushOnFinish, Http2Sessions, http2Sessions, isHttpAdapterSupported, wrapAsync, resolveFamily, buildAddressEntry, http2Transport, http_default;
 var init_http = __esm({
   "node_modules/axios/lib/adapters/http.js"() {
-    init_utils4();
+    init_utils5();
     init_settle();
     init_buildFullPath();
     init_buildURL();
@@ -24966,7 +25051,7 @@ var init_http = __esm({
     buildAddressEntry = (address, family) => resolveFamily(utils_default.isObject(address) ? address : { address, family });
     http2Transport = {
       request(options, cb) {
-        const authority = options.protocol + "//" + options.hostname + ":" + (options.port || 80);
+        const authority = options.protocol + "//" + options.hostname + ":" + (options.port || (options.protocol === "https:" ? 443 : 80));
         const { http2Options, headers } = options;
         const session = http2Sessions.getSession(authority, http2Options);
         const {
@@ -25466,7 +25551,7 @@ var init_isURLSameOrigin = __esm({
 var cookies_default;
 var init_cookies = __esm({
   "node_modules/axios/lib/helpers/cookies.js"() {
-    init_utils4();
+    init_utils5();
     init_platform();
     cookies_default = platform_default.hasStandardBrowserEnv ? (
       // Standard browser envs support document.cookie
@@ -25586,18 +25671,23 @@ function mergeConfig(config1, config2) {
     validateStatus: mergeDirectKeys,
     headers: (a, b, prop2) => mergeDeepProperties(headersToObject(a), headersToObject(b), prop2, true)
   };
-  utils_default.forEach(Object.keys({ ...config1, ...config2 }), function computeConfigValue(prop2) {
-    const merge3 = mergeMap[prop2] || mergeDeepProperties;
-    const configValue = merge3(config1[prop2], config2[prop2], prop2);
-    utils_default.isUndefined(configValue) && merge3 !== mergeDirectKeys || (config[prop2] = configValue);
-  });
+  utils_default.forEach(
+    Object.keys({ ...config1, ...config2 }),
+    function computeConfigValue(prop2) {
+      if (prop2 === "__proto__" || prop2 === "constructor" || prop2 === "prototype")
+        return;
+      const merge3 = utils_default.hasOwnProp(mergeMap, prop2) ? mergeMap[prop2] : mergeDeepProperties;
+      const configValue = merge3(config1[prop2], config2[prop2], prop2);
+      utils_default.isUndefined(configValue) && merge3 !== mergeDirectKeys || (config[prop2] = configValue);
+    }
+  );
   return config;
 }
 var headersToObject;
 var init_mergeConfig = __esm({
   "node_modules/axios/lib/core/mergeConfig.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_AxiosHeaders();
     headersToObject = (thing) => thing instanceof AxiosHeaders_default ? { ...thing } : thing;
   }
@@ -25608,7 +25698,7 @@ var resolveConfig_default;
 var init_resolveConfig = __esm({
   "node_modules/axios/lib/helpers/resolveConfig.js"() {
     init_platform();
-    init_utils4();
+    init_utils5();
     init_isURLSameOrigin();
     init_cookies();
     init_buildFullPath();
@@ -25657,7 +25747,7 @@ var init_resolveConfig = __esm({
 var isXHRAdapterSupported, xhr_default;
 var init_xhr = __esm({
   "node_modules/axios/lib/adapters/xhr.js"() {
-    init_utils4();
+    init_utils5();
     init_settle();
     init_transitional();
     init_AxiosError();
@@ -25804,7 +25894,7 @@ var init_composeSignals = __esm({
   "node_modules/axios/lib/helpers/composeSignals.js"() {
     init_CanceledError();
     init_AxiosError();
-    init_utils4();
+    init_utils5();
     composeSignals = (signals, timeout) => {
       const { length } = signals = signals ? signals.filter(Boolean) : [];
       if (timeout || length) {
@@ -25820,7 +25910,7 @@ var init_composeSignals = __esm({
         };
         let timer = timeout && setTimeout(() => {
           timer = null;
-          onabort(new AxiosError_default(`timeout ${timeout} of ms exceeded`, AxiosError_default.ETIMEDOUT));
+          onabort(new AxiosError_default(`timeout of ${timeout}ms exceeded`, AxiosError_default.ETIMEDOUT));
         }, timeout);
         const unsubscribe = () => {
           if (signals) {
@@ -25929,7 +26019,7 @@ var DEFAULT_CHUNK_SIZE, isFunction2, globalFetchAPI, ReadableStream2, TextEncode
 var init_fetch = __esm({
   "node_modules/axios/lib/adapters/fetch.js"() {
     init_platform();
-    init_utils4();
+    init_utils5();
     init_AxiosError();
     init_composeSignals();
     init_trackStream();
@@ -26115,13 +26205,13 @@ var init_fetch = __esm({
           unsubscribe && unsubscribe();
           if (err && err.name === "TypeError" && /Load failed|fetch/i.test(err.message)) {
             throw Object.assign(
-              new AxiosError_default("Network Error", AxiosError_default.ERR_NETWORK, config, request),
+              new AxiosError_default("Network Error", AxiosError_default.ERR_NETWORK, config, request, err && err.response),
               {
                 cause: err.cause || err
               }
             );
           }
-          throw AxiosError_default.from(err, err && err.code, config, request);
+          throw AxiosError_default.from(err, err && err.code, config, request, err && err.response);
         }
       };
     };
@@ -26184,7 +26274,7 @@ function getAdapter(adapters, config) {
 var knownAdapters, renderReason, isResolvedHandle, adapters_default;
 var init_adapters = __esm({
   "node_modules/axios/lib/adapters/adapters.js"() {
-    init_utils4();
+    init_utils5();
     init_http();
     init_xhr();
     init_fetch();
@@ -26355,7 +26445,7 @@ var validators2, Axios, Axios_default;
 var init_Axios = __esm({
   "node_modules/axios/lib/core/Axios.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_buildURL();
     init_InterceptorManager();
     init_dispatchRequest();
@@ -26363,6 +26453,7 @@ var init_Axios = __esm({
     init_buildFullPath();
     init_validator();
     init_AxiosHeaders();
+    init_transitional();
     validators2 = validator_default.validators;
     Axios = class {
       constructor(instanceConfig) {
@@ -26413,7 +26504,8 @@ var init_Axios = __esm({
           validator_default.assertOptions(transitional2, {
             silentJSONParsing: validators2.transitional(validators2.boolean),
             forcedJSONParsing: validators2.transitional(validators2.boolean),
-            clarifyTimeoutError: validators2.transitional(validators2.boolean)
+            clarifyTimeoutError: validators2.transitional(validators2.boolean),
+            legacyInterceptorReqResOrdering: validators2.transitional(validators2.boolean)
           }, false);
         }
         if (paramsSerializer != null) {
@@ -26457,7 +26549,13 @@ var init_Axios = __esm({
             return;
           }
           synchronousRequestInterceptors = synchronousRequestInterceptors && interceptor.synchronous;
-          requestInterceptorChain.unshift(interceptor.fulfilled, interceptor.rejected);
+          const transitional3 = config.transitional || transitional_default;
+          const legacyInterceptorReqResOrdering = transitional3 && transitional3.legacyInterceptorReqResOrdering;
+          if (legacyInterceptorReqResOrdering) {
+            requestInterceptorChain.unshift(interceptor.fulfilled, interceptor.rejected);
+          } else {
+            requestInterceptorChain.push(interceptor.fulfilled, interceptor.rejected);
+          }
         });
         const responseInterceptorChain = [];
         this.interceptors.response.forEach(function pushResponseInterceptors(interceptor) {
@@ -26660,7 +26758,7 @@ function isAxiosError(payload) {
 var init_isAxiosError = __esm({
   "node_modules/axios/lib/helpers/isAxiosError.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
   }
 });
 
@@ -26761,7 +26859,7 @@ var axios, axios_default;
 var init_axios = __esm({
   "node_modules/axios/lib/axios.js"() {
     "use strict";
-    init_utils4();
+    init_utils5();
     init_bind();
     init_Axios();
     init_mergeConfig();
@@ -43830,11 +43928,15 @@ var init_driver = __esm({
             if (state2 === "authenticating" && !authStarted) {
               authStarted = true;
               if (this.context) {
-                performAuthentication(manager, config, this.context, forceInteractive, onDeviceCode).catch((err) => {
-                  console.debug(`[ConnectionDriver] Auth error: ${err}`);
+                performAuthentication(
+                  manager,
+                  config,
+                  this.context,
+                  forceInteractive,
+                  onDeviceCode
+                ).catch((err) => {
                 });
               } else {
-                console.debug("[ConnectionDriver] Extension context not set, cannot authenticate");
                 manager.authFailed("Extension context not set");
               }
             } else if (state2 === "creating_client" && !clientStarted && data.credential) {
@@ -43842,7 +43944,6 @@ var init_driver = __esm({
               createClient(manager, config, data.credential, () => {
                 if (this.context && config.authMethod === "entra") {
                   clearEntraIdToken(this.context, config.tenantId, config.clientId).catch((err) => {
-                    console.debug(`[ConnectionDriver] Failed to clear Entra ID token: ${err}`);
                   }).finally(() => {
                     this.onTokenExpired(config.id);
                   });
@@ -43850,12 +43951,10 @@ var init_driver = __esm({
                   this.onTokenExpired(config.id);
                 }
               }).catch((err) => {
-                console.debug(`[ConnectionDriver] Client creation error: ${err}`);
               });
             } else if (state2 === "creating_provider" && !providerStarted && data.client) {
               providerStarted = true;
               createProvider(manager, config, data.client).catch((err) => {
-                console.debug(`[ConnectionDriver] Provider creation error: ${err}`);
               });
             }
             if (state2 === "connected") {
@@ -44650,7 +44749,7 @@ function registerCommands(_context, commandContext) {
   for (const registration of commandRegistrations) {
     try {
       const disposable = vscode10.commands.registerCommand(registration.command, (...args) => {
-        console.debug(`[COMMAND INVOKED] ${registration.command}`, {
+        logger8.debug(`[COMMAND INVOKED] ${registration.command}`, {
           args,
           timestamp: (/* @__PURE__ */ new Date()).toISOString()
         });
@@ -44659,25 +44758,24 @@ function registerCommands(_context, commandContext) {
           const result = registration.handler(commandContext, ...args);
           if (result instanceof Promise) {
             result.then(() => {
-              console.debug(`[COMMAND SUCCESS] ${registration.command}`);
+              logger8.debug(`[COMMAND SUCCESS] ${registration.command}`);
             }).catch((error) => {
-              console.debug(`[COMMAND ERROR] ${registration.command}`, error);
+              logger8.debug(`[COMMAND ERROR] ${registration.command}`, { meta: error });
               logger8.error(`Error in command ${registration.command}`, { meta: error });
               vscode10.window.showErrorMessage(`Command failed: ${error.message}`);
             });
           }
         } catch (error) {
-          console.debug(`[COMMAND SYNC ERROR] ${registration.command}`, error);
+          logger8.debug(`[COMMAND SYNC ERROR] ${registration.command}`, { meta: error });
           logger8.error(`Error in command ${registration.command}`, { meta: error });
           vscode10.window.showErrorMessage(`Command failed: ${error.message}`);
         }
       });
       disposables.push(disposable);
       if (registration.command === "azureDevOpsInt.signOutEntra") {
-        console.debug(
-          `[COMMAND REGISTERED] ${registration.command} - handler:`,
-          typeof registration.handler
-        );
+        logger8.debug(`[COMMAND REGISTERED] ${registration.command} - handler:`, {
+          handlerType: typeof registration.handler
+        });
         logger8.info(`[Command Registration] Registered signOutEntra command`, {
           handlerType: typeof registration.handler,
           handlerName: registration.handler?.name || "anonymous"
@@ -44686,12 +44784,12 @@ function registerCommands(_context, commandContext) {
     } catch (error) {
       const errorMsg = error.message || String(error);
       errors.push({ command: registration.command, error: errorMsg });
-      console.debug(`[REGISTRATION ERROR] Failed to register ${registration.command}`, error);
+      logger8.debug(`[REGISTRATION ERROR] Failed to register ${registration.command}`, {
+        meta: error
+      });
       logger8.error(`Failed to register command ${registration.command}`, { meta: error });
       if (registration.command === "azureDevOpsInt.signOutEntra") {
-        vscode10.window.showErrorMessage(
-          `Failed to register signOutEntra command: ${errorMsg}`
-        );
+        vscode10.window.showErrorMessage(`Failed to register signOutEntra command: ${errorMsg}`);
       }
     }
   }
@@ -45793,7 +45891,6 @@ function showFSMLogsNow() {
     );
     componentLogger.info("APPLICATION" /* APPLICATION */, "Output Channel opened - logs are now visible");
   } catch (error) {
-    console.debug("[AzureDevOpsInt] \u274C Failed to show logs:", error);
     vscode12.window.showErrorMessage(`Failed to show logs: ${error}`);
   }
 }
@@ -46118,12 +46215,197 @@ var init_svelte = __esm({
   }
 });
 
+// src/praxis/application/features/timer.ts
+function calculateTimerStatus(entries) {
+  let accumulatedDuration = 0;
+  let currentStartTimestamp;
+  let activeWorkItemId;
+  let isRunning = false;
+  const sorted = [...entries].sort((a, b) => a.timestamp - b.timestamp);
+  for (let i = 0; i < sorted.length; i++) {
+    const entry = sorted[i];
+    if (entry.type === "start") {
+      currentStartTimestamp = entry.timestamp;
+      activeWorkItemId = entry.workItemId;
+      isRunning = true;
+    } else if (entry.type === "pause" || entry.type === "stop") {
+      if (currentStartTimestamp !== void 0) {
+        accumulatedDuration += entry.timestamp - currentStartTimestamp;
+        currentStartTimestamp = void 0;
+      }
+      isRunning = false;
+      if (entry.type === "stop") {
+        activeWorkItemId = void 0;
+      }
+    }
+  }
+  return {
+    isRunning,
+    activeWorkItemId,
+    currentStartTimestamp,
+    accumulatedDuration
+  };
+}
+var TimerHistoryFact, StartTimerEvent, PauseTimerEvent, StopTimerEvent, RequestTimerHistoryEvent, TimerHistoryLoadedEvent, PersistTimerHistoryEvent, UpdateTimerStatusEvent, InitializeTimerRule, TimerHistoryLoadedRule, StartTimerRule, PauseTimerRule, StopTimerRule, timerRules;
+var init_timer = __esm({
+  "src/praxis/application/features/timer.ts"() {
+    "use strict";
+    init_node();
+    init_facts2();
+    TimerHistoryFact = defineFact(
+      "TimerHistory"
+    );
+    StartTimerEvent = defineEvent(
+      "StartTimer"
+    );
+    PauseTimerEvent = defineEvent(
+      "PauseTimer"
+    );
+    StopTimerEvent = defineEvent(
+      "StopTimer"
+    );
+    RequestTimerHistoryEvent = defineEvent(
+      "RequestTimerHistory"
+    );
+    TimerHistoryLoadedEvent = defineEvent(
+      "TimerHistoryLoaded"
+    );
+    PersistTimerHistoryEvent = defineEvent("PersistTimerHistory");
+    UpdateTimerStatusEvent = defineEvent(
+      "UpdateTimerStatus"
+    );
+    InitializeTimerRule = defineRule({
+      id: "timer.initialize",
+      description: "Request timer history on activation",
+      meta: {
+        triggers: ["ACTIVATE"]
+      },
+      impl: (_state, events) => {
+        if (findEvent(events, ActivateEvent)) {
+          return [RequestTimerHistoryEvent.create()];
+        }
+        return [];
+      }
+    });
+    TimerHistoryLoadedRule = defineRule({
+      id: "timer.loaded",
+      description: "Update state with loaded history",
+      meta: {
+        triggers: ["TimerHistoryLoaded"]
+      },
+      impl: (state2, events) => {
+        const event2 = findEvent(events, TimerHistoryLoadedEvent);
+        if (!event2) return [];
+        state2.context.timerHistory.entries = event2.payload.entries;
+        const status = calculateTimerStatus(state2.context.timerHistory.entries);
+        return [UpdateTimerStatusEvent.create(status)];
+      }
+    });
+    StartTimerRule = defineRule({
+      id: "timer.start",
+      description: "Start the timer for a work item",
+      meta: {
+        triggers: ["StartTimer"]
+      },
+      impl: (state2, events) => {
+        const event2 = findEvent(events, StartTimerEvent);
+        if (!event2) return [];
+        const { workItemId, timestamp: timestamp2 } = event2.payload;
+        const workItemExists = state2.context.workItems.some((wi) => wi.id === workItemId);
+        if (!workItemExists) {
+          return [];
+        }
+        const history2 = state2.context.timerHistory.entries;
+        const lastEntry = history2[history2.length - 1];
+        if (lastEntry && lastEntry.type === "start") {
+          return [];
+        }
+        const newEntry = {
+          type: "start",
+          timestamp: timestamp2,
+          workItemId
+        };
+        state2.context.timerHistory.entries.push(newEntry);
+        const status = calculateTimerStatus(state2.context.timerHistory.entries);
+        return [
+          PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
+          UpdateTimerStatusEvent.create(status)
+        ];
+      }
+    });
+    PauseTimerRule = defineRule({
+      id: "timer.pause",
+      description: "Pause the timer",
+      meta: {
+        triggers: ["PauseTimer"]
+      },
+      impl: (state2, events) => {
+        const event2 = findEvent(events, PauseTimerEvent);
+        if (!event2) return [];
+        const { workItemId, timestamp: timestamp2 } = event2.payload;
+        const history2 = state2.context.timerHistory.entries;
+        const lastEntry = history2[history2.length - 1];
+        if (!lastEntry || lastEntry.type !== "start") {
+          return [];
+        }
+        const newEntry = {
+          type: "pause",
+          timestamp: timestamp2,
+          workItemId
+        };
+        state2.context.timerHistory.entries.push(newEntry);
+        const status = calculateTimerStatus(state2.context.timerHistory.entries);
+        return [
+          PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
+          UpdateTimerStatusEvent.create(status)
+        ];
+      }
+    });
+    StopTimerRule = defineRule({
+      id: "timer.stop",
+      description: "Stop the timer",
+      meta: {
+        triggers: ["StopTimer"]
+      },
+      impl: (state2, events) => {
+        const event2 = findEvent(events, StopTimerEvent);
+        if (!event2) return [];
+        const { workItemId, timestamp: timestamp2 } = event2.payload;
+        const history2 = state2.context.timerHistory.entries;
+        const lastEntry = history2[history2.length - 1];
+        if (!lastEntry || lastEntry.type === "stop") {
+          return [];
+        }
+        const newEntry = {
+          type: "stop",
+          timestamp: timestamp2,
+          workItemId
+        };
+        state2.context.timerHistory.entries.push(newEntry);
+        const status = calculateTimerStatus(state2.context.timerHistory.entries);
+        return [
+          PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
+          UpdateTimerStatusEvent.create(status)
+        ];
+      }
+    });
+    timerRules = [
+      InitializeTimerRule,
+      TimerHistoryLoadedRule,
+      StartTimerRule,
+      PauseTimerRule,
+      StopTimerRule
+    ];
+  }
+});
+
 // src/praxis/application/facts.ts
 var ApplicationStateFact, IsActivatedFact, IsDeactivatingFact, ConnectionsFact, ActiveConnectionIdFact, ActiveQueryFact, ViewModeFact, PendingWorkItemsFact, DeviceCodeSessionFact, AuthCodeFlowSessionFact, ErrorRecoveryAttemptsFact, LastErrorFact, DebugLoggingEnabledFact, DebugViewVisibleFact, ActivateEvent, ActivationCompleteEvent, ActivationFailedEvent, DeactivateEvent, DeactivationCompleteEvent, ConnectionsLoadedEvent, ConnectionSelectedEvent, SelectConnectionEvent, QueryChangedEvent, ViewModeChangedEvent, WorkItemsLoadedEvent, WorkItemsErrorEvent, RefreshDataEvent, ConnectionStateUpdatedEvent, DeviceCodeStartedAppEvent, DeviceCodeCompletedAppEvent, DeviceCodeCancelledEvent, SyncStateEvent, ApplicationErrorEvent, DeviceCodeCopyFailedEvent, DeviceCodeBrowserOpenFailedEvent, DeviceCodeSessionNotFoundEvent, AuthCodeFlowBrowserOpenFailedEvent, AuthCodeFlowBrowserOpenedEvent, DeviceCodeBrowserOpenedEvent, RetryApplicationEvent, ResetApplicationEvent, ToggleDebugViewEvent, OpenSettingsEvent, AuthReminderRequestedEvent, AuthReminderClearedEvent, SignInEntraEvent, AuthCodeFlowStartedAppEvent, AuthCodeFlowCompletedAppEvent, AuthRedirectReceivedAppEvent, SignOutEntraEvent, AuthenticationSuccessEvent, AuthenticationFailedEvent, CreateWorkItemEvent, CreateBranchEvent, CreatePullRequestEvent, ShowPullRequestsEvent, ShowBuildStatusEvent, SelectTeamEvent, ResetPreferredRepositoriesEvent, SelfTestWebviewEvent, BulkAssignEvent, GenerateCopilotPromptEvent, ShowTimeReportEvent, WebviewReadyEvent;
 var init_facts2 = __esm({
   "src/praxis/application/facts.ts"() {
     "use strict";
     init_node();
+    init_timer();
     ApplicationStateFact = defineFact("ApplicationState");
     IsActivatedFact = defineFact("IsActivated");
     IsDeactivatingFact = defineFact("IsDeactivating");
@@ -46139,9 +46421,7 @@ var init_facts2 = __esm({
     DeviceCodeSessionFact = defineFact(
       "DeviceCodeSession"
     );
-    AuthCodeFlowSessionFact = defineFact(
-      "AuthCodeFlowSession"
-    );
+    AuthCodeFlowSessionFact = defineFact("AuthCodeFlowSession");
     ErrorRecoveryAttemptsFact = defineFact(
       "ErrorRecoveryAttempts"
     );
@@ -46915,7 +47195,8 @@ var init_miscRules = __esm({
       impl: (state2, events) => {
         const retryEvent = findEvent(events, RetryApplicationEvent);
         if (!retryEvent) return [];
-        if (state2.context.applicationState !== "error_recovery" && state2.context.applicationState !== "activation_error") return [];
+        if (state2.context.applicationState !== "error_recovery" && state2.context.applicationState !== "activation_error")
+          return [];
         state2.context.lastError = void 0;
         state2.context.applicationState = "active";
         return [];
@@ -47046,186 +47327,6 @@ var init_miscRules = __esm({
   }
 });
 
-// src/praxis/application/features/timer.ts
-function calculateTimerStatus(entries) {
-  let accumulatedDuration = 0;
-  let currentStartTimestamp;
-  let activeWorkItemId;
-  let isRunning = false;
-  const sorted = [...entries].sort((a, b) => a.timestamp - b.timestamp);
-  for (let i = 0; i < sorted.length; i++) {
-    const entry = sorted[i];
-    if (entry.type === "start") {
-      currentStartTimestamp = entry.timestamp;
-      activeWorkItemId = entry.workItemId;
-      isRunning = true;
-    } else if (entry.type === "pause" || entry.type === "stop") {
-      if (currentStartTimestamp !== void 0) {
-        accumulatedDuration += entry.timestamp - currentStartTimestamp;
-        currentStartTimestamp = void 0;
-      }
-      isRunning = false;
-      if (entry.type === "stop") {
-        activeWorkItemId = void 0;
-      }
-    }
-  }
-  return {
-    isRunning,
-    activeWorkItemId,
-    currentStartTimestamp,
-    accumulatedDuration
-  };
-}
-var TimerHistoryFact, StartTimerEvent, PauseTimerEvent, StopTimerEvent, RequestTimerHistoryEvent, TimerHistoryLoadedEvent, PersistTimerHistoryEvent, UpdateTimerStatusEvent, InitializeTimerRule, TimerHistoryLoadedRule, StartTimerRule, PauseTimerRule, StopTimerRule, timerRules;
-var init_timer = __esm({
-  "src/praxis/application/features/timer.ts"() {
-    "use strict";
-    init_node();
-    init_facts2();
-    TimerHistoryFact = defineFact(
-      "TimerHistory"
-    );
-    StartTimerEvent = defineEvent(
-      "StartTimer"
-    );
-    PauseTimerEvent = defineEvent(
-      "PauseTimer"
-    );
-    StopTimerEvent = defineEvent(
-      "StopTimer"
-    );
-    RequestTimerHistoryEvent = defineEvent(
-      "RequestTimerHistory"
-    );
-    TimerHistoryLoadedEvent = defineEvent(
-      "TimerHistoryLoaded"
-    );
-    PersistTimerHistoryEvent = defineEvent("PersistTimerHistory");
-    UpdateTimerStatusEvent = defineEvent(
-      "UpdateTimerStatus"
-    );
-    InitializeTimerRule = defineRule({
-      id: "timer.initialize",
-      description: "Request timer history on activation",
-      meta: {
-        triggers: ["ACTIVATE"]
-      },
-      impl: (_state, events) => {
-        if (findEvent(events, ActivateEvent)) {
-          return [RequestTimerHistoryEvent.create()];
-        }
-        return [];
-      }
-    });
-    TimerHistoryLoadedRule = defineRule({
-      id: "timer.loaded",
-      description: "Update state with loaded history",
-      meta: {
-        triggers: ["TimerHistoryLoaded"]
-      },
-      impl: (state2, events) => {
-        const event2 = findEvent(events, TimerHistoryLoadedEvent);
-        if (!event2) return [];
-        state2.context.timerHistory.entries = event2.payload.entries;
-        const status = calculateTimerStatus(state2.context.timerHistory.entries);
-        return [UpdateTimerStatusEvent.create(status)];
-      }
-    });
-    StartTimerRule = defineRule({
-      id: "timer.start",
-      description: "Start the timer for a work item",
-      meta: {
-        triggers: ["StartTimer"]
-      },
-      impl: (state2, events) => {
-        const event2 = findEvent(events, StartTimerEvent);
-        if (!event2) return [];
-        const { workItemId, timestamp: timestamp2 } = event2.payload;
-        const history2 = state2.context.timerHistory.entries;
-        const lastEntry = history2[history2.length - 1];
-        if (lastEntry && lastEntry.type === "start") {
-          return [];
-        }
-        const newEntry = {
-          type: "start",
-          timestamp: timestamp2,
-          workItemId
-        };
-        state2.context.timerHistory.entries.push(newEntry);
-        const status = calculateTimerStatus(state2.context.timerHistory.entries);
-        return [
-          PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
-          UpdateTimerStatusEvent.create(status)
-        ];
-      }
-    });
-    PauseTimerRule = defineRule({
-      id: "timer.pause",
-      description: "Pause the timer",
-      meta: {
-        triggers: ["PauseTimer"]
-      },
-      impl: (state2, events) => {
-        const event2 = findEvent(events, PauseTimerEvent);
-        if (!event2) return [];
-        const { workItemId, timestamp: timestamp2 } = event2.payload;
-        const history2 = state2.context.timerHistory.entries;
-        const lastEntry = history2[history2.length - 1];
-        if (!lastEntry || lastEntry.type !== "start") {
-          return [];
-        }
-        const newEntry = {
-          type: "pause",
-          timestamp: timestamp2,
-          workItemId
-        };
-        state2.context.timerHistory.entries.push(newEntry);
-        const status = calculateTimerStatus(state2.context.timerHistory.entries);
-        return [
-          PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
-          UpdateTimerStatusEvent.create(status)
-        ];
-      }
-    });
-    StopTimerRule = defineRule({
-      id: "timer.stop",
-      description: "Stop the timer",
-      meta: {
-        triggers: ["StopTimer"]
-      },
-      impl: (state2, events) => {
-        const event2 = findEvent(events, StopTimerEvent);
-        if (!event2) return [];
-        const { workItemId, timestamp: timestamp2 } = event2.payload;
-        const history2 = state2.context.timerHistory.entries;
-        const lastEntry = history2[history2.length - 1];
-        if (!lastEntry || lastEntry.type === "stop") {
-          return [];
-        }
-        const newEntry = {
-          type: "stop",
-          timestamp: timestamp2,
-          workItemId
-        };
-        state2.context.timerHistory.entries.push(newEntry);
-        const status = calculateTimerStatus(state2.context.timerHistory.entries);
-        return [
-          PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
-          UpdateTimerStatusEvent.create(status)
-        ];
-      }
-    });
-    timerRules = [
-      InitializeTimerRule,
-      TimerHistoryLoadedRule,
-      StartTimerRule,
-      PauseTimerRule,
-      StopTimerRule
-    ];
-  }
-});
-
 // src/praxis/application/rules/index.ts
 var applicationRules;
 var init_rules2 = __esm({
@@ -47337,7 +47438,6 @@ var init_store2 = __esm({
     history = {
       undo: () => {
         if (!historyEngine.canUndo()) {
-          console.debug("[History] Cannot undo - no history available");
           return false;
         }
         const historyEntries = historyEngine.getHistory();
@@ -47346,14 +47446,9 @@ var init_store2 = __esm({
           const entry = historyEntries[currentHistoryIndex];
           if (entry && entry.state && entry.state.context) {
             if (typeof frontendEngine.updateContext === "function") {
-              frontendEngine.updateContext(entry.state.context);
-              console.debug("[History] Undo: Restored state from history entry", {
-                index: currentHistoryIndex,
-                state: entry.state.state
-              });
+              const contextToRestore = entry.state.context;
+              frontendEngine.updateContext(() => contextToRestore);
               return true;
-            } else {
-              console.warn("[History] Engine does not support updateContext - cannot restore state");
             }
           }
         }
@@ -47361,7 +47456,6 @@ var init_store2 = __esm({
       },
       redo: () => {
         if (!historyEngine.canRedo()) {
-          console.debug("[History] Cannot redo - at end of history");
           return false;
         }
         const historyEntries = historyEngine.getHistory();
@@ -47370,14 +47464,9 @@ var init_store2 = __esm({
           const entry = historyEntries[currentHistoryIndex];
           if (entry && entry.state && entry.state.context) {
             if (typeof frontendEngine.updateContext === "function") {
-              frontendEngine.updateContext(entry.state.context);
-              console.debug("[History] Redo: Restored state from history entry", {
-                index: currentHistoryIndex,
-                state: entry.state.state
-              });
+              const contextToRestore = entry.state.context;
+              frontendEngine.updateContext(() => contextToRestore);
               return true;
-            } else {
-              console.warn("[History] Engine does not support updateContext - cannot restore state");
             }
           }
         }
@@ -47396,8 +47485,8 @@ var init_store2 = __esm({
           if (entry && entry.state && entry.state.context) {
             currentHistoryIndex = index2;
             if (typeof frontendEngine.updateContext === "function") {
-              frontendEngine.updateContext(entry.state.context);
-              console.debug("[History] Go to history entry", { index: index2 });
+              const contextToRestore = entry.state.context;
+              frontendEngine.updateContext(() => contextToRestore);
               return true;
             }
           }
@@ -47446,17 +47535,13 @@ function exportHistoryAsJSON(metadata) {
   return JSON.stringify(exported, null, 2);
 }
 function importHistory(exported) {
-  frontendEngine.updateContext(exported.initialContext);
+  frontendEngine.updateContext(() => exported.initialContext);
   history.clearHistory();
   for (const entry of exported.entries) {
     if (entry.events.length > 0) {
       frontendEngine.step(entry.events);
     }
   }
-  console.debug("[HistoryExport] Imported history", {
-    entryCount: exported.entries.length,
-    engineType: exported.engineType
-  });
 }
 function importHistoryFromJSON(json2) {
   try {
@@ -47492,9 +47577,7 @@ async function copyHistoryToClipboard(metadata) {
   const json2 = exportHistoryAsJSON(metadata);
   if (typeof navigator !== "undefined" && navigator.clipboard) {
     await navigator.clipboard.writeText(json2);
-    console.debug("[HistoryExport] History copied to clipboard");
   } else {
-    console.log("[HistoryExport] History JSON:", json2);
     throw new Error("Clipboard API not available");
   }
 }
@@ -47563,10 +47646,6 @@ var init_historyTestRecorder = __esm({
           finalContext: initialContext2,
           metadata: metadata || {}
         };
-        console.debug("[HistoryTestRecorder] Started recording", {
-          id: scenarioId,
-          name: scenarioName
-        });
       }
       /**
        * Stop recording and return the test scenario
@@ -47578,11 +47657,6 @@ var init_historyTestRecorder = __esm({
         this.scenario.finalContext = this.deepClone(frontendEngine.getContext());
         const scenario = this.scenario;
         this.scenario = null;
-        console.debug("[HistoryTestRecorder] Stopped recording", {
-          id: scenario.id,
-          name: scenario.name,
-          eventCount: scenario.events.length
-        });
         return scenario;
       }
       /**
@@ -47595,7 +47669,6 @@ var init_historyTestRecorder = __esm({
         if (this.options.maxDuration) {
           const elapsed = Date.now() - this.startTime;
           if (elapsed > this.options.maxDuration) {
-            console.warn("[HistoryTestRecorder] Max duration exceeded, stopping recording");
             this.stopRecording();
             return;
           }
@@ -47611,11 +47684,6 @@ var init_historyTestRecorder = __esm({
           label: eventLabel,
           expectedState,
           timestamp: Date.now(),
-          stateAfter
-        });
-        console.debug("[HistoryTestRecorder] Recorded event", {
-          event: event2.tag,
-          label: eventLabel,
           stateAfter
         });
       }
@@ -47694,21 +47762,18 @@ var init_eventReplayDebugger = __esm({
        */
       setBreakpoint(index2) {
         this.breakpoints.add(index2);
-        console.debug("[EventReplayDebugger] Breakpoint set at index", index2);
       }
       /**
        * Remove a breakpoint
        */
       removeBreakpoint(index2) {
         this.breakpoints.delete(index2);
-        console.debug("[EventReplayDebugger] Breakpoint removed at index", index2);
       }
       /**
        * Clear all breakpoints
        */
       clearBreakpoints() {
         this.breakpoints.clear();
-        console.debug("[EventReplayDebugger] All breakpoints cleared");
       }
       /**
        * Get all breakpoints
@@ -47720,27 +47785,13 @@ var init_eventReplayDebugger = __esm({
        * Replay a test scenario with breakpoint support
        */
       async replay(scenario, options = {}) {
-        const {
-          stepDelay = 0,
-          pauseOnBreakpoint = true,
-          onStep,
-          onBreakpoint
-        } = options;
-        frontendEngine.updateContext(scenario.initialContext);
+        const { stepDelay = 0, pauseOnBreakpoint = true, onStep, onBreakpoint } = options;
+        frontendEngine.updateContext(() => scenario.initialContext);
         history.clearHistory();
-        console.debug("[EventReplayDebugger] Starting replay", {
-          scenarioId: scenario.id,
-          eventCount: scenario.events.length,
-          breakpoints: this.breakpoints.size
-        });
         for (let i = 0; i < scenario.events.length; i++) {
           const eventData = scenario.events[i];
           if (this.breakpoints.has(i) && pauseOnBreakpoint) {
             this.paused = true;
-            console.debug("[EventReplayDebugger] Paused at breakpoint", {
-              index: i,
-              event: eventData.event.tag
-            });
             if (onBreakpoint) {
               onBreakpoint(i, eventData.event);
             }
@@ -47752,16 +47803,10 @@ var init_eventReplayDebugger = __esm({
             onStep(i, eventData.event, context2);
           }
           const context = frontendEngine.getContext();
-          console.debug(`[EventReplayDebugger] Step ${i}:`, {
-            event: eventData.event.tag,
-            label: eventData.label,
-            state: context.applicationState
-          });
           if (stepDelay > 0) {
             await new Promise((resolve) => setTimeout(resolve, stepDelay));
           }
         }
-        console.debug("[EventReplayDebugger] Replay complete");
       }
       /**
        * Replay from history entries
@@ -47771,16 +47816,13 @@ var init_eventReplayDebugger = __esm({
         const end = endIndex !== void 0 ? endIndex : historyEntries.length - 1;
         if (startIndex > 0 && historyEntries[startIndex - 1]) {
           const startEntry = historyEntries[startIndex - 1];
-          frontendEngine.updateContext(startEntry.state.context);
+          frontendEngine.updateContext(() => startEntry.state.context);
         } else {
-          frontendEngine.updateContext(historyEntries[0].state.context);
+          frontendEngine.updateContext(
+            () => historyEntries[0].state.context
+          );
         }
-        const {
-          stepDelay = 0,
-          pauseOnBreakpoint = true,
-          onStep,
-          onBreakpoint
-        } = options;
+        const { stepDelay = 0, pauseOnBreakpoint = true, onStep, onBreakpoint } = options;
         for (let i = startIndex; i <= end; i++) {
           const entry = historyEntries[i];
           if (!entry || !entry.events || entry.events.length === 0) {
@@ -47788,9 +47830,6 @@ var init_eventReplayDebugger = __esm({
           }
           if (this.breakpoints.has(i) && pauseOnBreakpoint) {
             this.paused = true;
-            console.debug("[EventReplayDebugger] Paused at breakpoint", {
-              index: i
-            });
             if (onBreakpoint && entry.events[0]) {
               onBreakpoint(i, entry.events[0]);
             }
@@ -47818,10 +47857,6 @@ var init_eventReplayDebugger = __esm({
         const eventData = scenario.events[currentIndex];
         frontendEngine.step([eventData.event]);
         const context = frontendEngine.getContext();
-        console.debug(`[EventReplayDebugger] Stepped forward to ${currentIndex + 1}:`, {
-          event: eventData.event.tag,
-          state: context.applicationState
-        });
         return currentIndex + 1;
       }
       /**
@@ -47832,7 +47867,6 @@ var init_eventReplayDebugger = __esm({
           return currentIndex;
         }
         history.goToHistory(currentIndex - 1);
-        console.debug(`[EventReplayDebugger] Stepped backward to ${currentIndex - 1}`);
         return currentIndex - 1;
       }
       /**
@@ -47841,7 +47875,6 @@ var init_eventReplayDebugger = __esm({
       resume() {
         if (this.paused) {
           this.paused = false;
-          console.debug("[EventReplayDebugger] Resumed");
           for (const callback of this.resumeCallbacks) {
             callback();
           }
@@ -47853,7 +47886,6 @@ var init_eventReplayDebugger = __esm({
        */
       pause() {
         this.paused = true;
-        console.debug("[EventReplayDebugger] Paused");
       }
       /**
        * Check if currently paused
@@ -48069,13 +48101,19 @@ function generateTestFromScenario(scenario, options = {}) {
   lines.push(`${indent}${indent}// Verify final state`);
   lines.push(`${indent}${indent}const context = getContext();`);
   if (scenario.finalContext.applicationState) {
-    lines.push(`${indent}${indent}expect(context.applicationState).toBe('${scenario.finalContext.applicationState}');`);
+    lines.push(
+      `${indent}${indent}expect(context.applicationState).toBe('${scenario.finalContext.applicationState}');`
+    );
   }
   if (scenario.finalContext.connections) {
-    lines.push(`${indent}${indent}expect(context.connections.length).toBe(${scenario.finalContext.connections.length});`);
+    lines.push(
+      `${indent}${indent}expect(context.connections.length).toBe(${scenario.finalContext.connections.length});`
+    );
   }
   if (scenario.finalContext.activeConnectionId) {
-    lines.push(`${indent}${indent}expect(context.activeConnectionId).toBe('${scenario.finalContext.activeConnectionId}');`);
+    lines.push(
+      `${indent}${indent}expect(context.activeConnectionId).toBe('${scenario.finalContext.activeConnectionId}');`
+    );
   }
   if (opts.includeSnapshots && opts.framework === "vitest") {
     lines.push("");
@@ -48104,18 +48142,20 @@ function generateImports(framework, eventImports = /* @__PURE__ */ new Set()) {
     imports.push("import { describe, it } from 'mocha';");
     imports.push("import { expect } from 'chai';");
   }
-  imports.push("import { resetEngine, dispatch, waitForStateValue, getContext } from '../../../src/testing/helpers.js';");
+  imports.push(
+    "import { resetEngine, dispatch, waitForStateValue, getContext } from '../../../src/testing/helpers.js';"
+  );
   if (eventImports.size > 0) {
     const eventNames = Array.from(eventImports).sort();
-    imports.push(`import { ${eventNames.join(", ")} } from '../../../src/praxis/application/facts.js';`);
+    imports.push(
+      `import { ${eventNames.join(", ")} } from '../../../src/praxis/application/facts.js';`
+    );
   }
   return imports.join("\n");
 }
 function convertEventTagToName(eventTag) {
   const parts = eventTag.split("_");
-  const camelCase = parts.map(
-    (part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
-  ).join("");
+  const camelCase = parts.map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join("");
   return camelCase + "Event";
 }
 function generateEventCode(event2, indent) {
@@ -48155,9 +48195,7 @@ function generateValueCode(value, indent) {
   }
   if (typeof value === "object") {
     if (value instanceof Map) {
-      const entries = Array.from(value.entries()).map(
-        ([k, v]) => `['${k}', ${generateValueCode(v, indent)}]`
-      ).join(", ");
+      const entries = Array.from(value.entries()).map(([k, v]) => `['${k}', ${generateValueCode(v, indent)}]`).join(", ");
       return `new Map([${entries}])`;
     }
     const keys = Object.keys(value);
@@ -48188,7 +48226,9 @@ function generateSnapshotTest(scenario, options = {}) {
   }
   if (eventImports.size > 0) {
     const eventNames = Array.from(eventImports).sort();
-    lines.push(`import { ${eventNames.join(", ")} } from '../../../src/praxis/application/facts.js';`);
+    lines.push(
+      `import { ${eventNames.join(", ")} } from '../../../src/praxis/application/facts.js';`
+    );
     lines.push("");
   }
   lines.push(`describe('${opts.describeName}', () => {`);
@@ -48208,7 +48248,9 @@ function generateSnapshotTest(scenario, options = {}) {
       lines.push(`${indent}${indent}${indent}${indent}{`);
       lines.push(`${indent}${indent}${indent}${indent}${indent}index: ${i + 1},`);
       lines.push(`${indent}${indent}${indent}${indent}${indent}state: '${eventData.stateAfter}',`);
-      lines.push(`${indent}${indent}${indent}${indent}${indent}contextChecks: (ctx) => ctx.applicationState === '${eventData.stateAfter}',`);
+      lines.push(
+        `${indent}${indent}${indent}${indent}${indent}contextChecks: (ctx) => ctx.applicationState === '${eventData.stateAfter}',`
+      );
       lines.push(`${indent}${indent}${indent}${indent}},`);
     }
   }
@@ -48260,12 +48302,9 @@ function registerTestGeneratorCommands(context) {
         if (!testName) {
           return;
         }
-        const framework = await vscode14.window.showQuickPick(
-          ["vitest", "jest", "mocha"],
-          {
-            placeHolder: "Select test framework"
-          }
-        );
+        const framework = await vscode14.window.showQuickPick(["vitest", "jest", "mocha"], {
+          placeHolder: "Select test framework"
+        });
         if (!framework) {
           return;
         }
@@ -48313,12 +48352,9 @@ function registerTestGeneratorCommands(context) {
         if (!testName) {
           return;
         }
-        const framework = await vscode14.window.showQuickPick(
-          ["vitest", "jest", "mocha"],
-          {
-            placeHolder: "Select test framework"
-          }
-        );
+        const framework = await vscode14.window.showQuickPick(["vitest", "jest", "mocha"], {
+          placeHolder: "Select test framework"
+        });
         if (!framework) {
           return;
         }
@@ -48329,17 +48365,15 @@ function registerTestGeneratorCommands(context) {
           }
         });
         if (outputUri) {
-          await generateTestFromHistoryFile(
-            uri[0].fsPath,
-            outputUri.fsPath,
-            {
-              framework,
-              testName,
-              includeSnapshots: true,
-              includeComments: true
-            }
+          await generateTestFromHistoryFile(uri[0].fsPath, outputUri.fsPath, {
+            framework,
+            testName,
+            includeSnapshots: true,
+            includeComments: true
+          });
+          vscode14.window.showInformationMessage(
+            `Test generated: ${path.basename(outputUri.fsPath)}`
           );
-          vscode14.window.showInformationMessage(`Test generated: ${path.basename(outputUri.fsPath)}`);
         }
       } catch (error) {
         vscode14.window.showErrorMessage(`Failed to generate test: ${error}`);
@@ -48465,13 +48499,6 @@ var init_eventBus = __esm({
             try {
               subscriber(message);
             } catch (error) {
-              console.debug("[PraxisEventBus] Subscriber error:", {
-                messageType: message.type,
-                sourceEngine: message.sourceEngine,
-                connectionId: message.connectionId,
-                subscriberCount: typeSubscribers.size,
-                error: error instanceof Error ? error.message : String(error)
-              });
             }
           }
         }
@@ -48479,12 +48506,6 @@ var init_eventBus = __esm({
           try {
             subscriber(message);
           } catch (error) {
-            console.debug("[PraxisEventBus] All-subscriber error:", {
-              messageType: message.type,
-              sourceEngine: message.sourceEngine,
-              allSubscriberCount: this.allSubscribers.size,
-              error: error instanceof Error ? error.message : String(error)
-            });
           }
         }
       }
@@ -49568,7 +49589,10 @@ var init_manager4 = __esm({
         if (traceEnabled) {
           const entry = this.traceRecorder.completeDispatch(contextAfter, result?.diagnostics);
           if (entry) {
-            this.engine.updateContext((ctx) => ({ ...ctx, debugTraceLog: this.traceRecorder.getEntries() }));
+            this.engine.updateContext((ctx) => ({
+              ...ctx,
+              debugTraceLog: this.traceRecorder.getEntries()
+            }));
           }
         }
         if (!contextAfter.debugLoggingEnabled && this.traceRecorder.getEntries().length > 0) {
@@ -50491,11 +50515,23 @@ function createApplicationStore() {
   const praxisStore2 = createPraxisStore(engine);
   const contextStore = createContextStore(engine);
   const connectionsDerivedStore = createDerivedStore(engine, (ctx) => ctx.connections || []);
-  const activeConnectionIdDerivedStore = createDerivedStore(engine, (ctx) => ctx.activeConnectionId);
-  const connectionStatesDerivedStore = createDerivedStore(engine, (ctx) => ctx.connectionStates || /* @__PURE__ */ new Map());
-  const pendingAuthRemindersDerivedStore = createDerivedStore(engine, (ctx) => ctx.pendingAuthReminders || /* @__PURE__ */ new Map());
+  const activeConnectionIdDerivedStore = createDerivedStore(
+    engine,
+    (ctx) => ctx.activeConnectionId
+  );
+  const connectionStatesDerivedStore = createDerivedStore(
+    engine,
+    (ctx) => ctx.connectionStates || /* @__PURE__ */ new Map()
+  );
+  const pendingAuthRemindersDerivedStore = createDerivedStore(
+    engine,
+    (ctx) => ctx.pendingAuthReminders || /* @__PURE__ */ new Map()
+  );
   const isActivatedDerivedStore = createDerivedStore(engine, (ctx) => ctx.isActivated ?? false);
-  const isDeactivatingDerivedStore = createDerivedStore(engine, (ctx) => ctx.isDeactivating ?? false);
+  const isDeactivatingDerivedStore = createDerivedStore(
+    engine,
+    (ctx) => ctx.isDeactivating ?? false
+  );
   const lastErrorDerivedStore = createDerivedStore(engine, (ctx) => ctx.lastError);
   const currentState = writable(null);
   const managerUnsubscribe = applicationManager.subscribe(() => {
@@ -50794,7 +50830,6 @@ function registerOutputChannelReader(context) {
           return await getFSMLogsForDebugging(context);
         }
       } catch (error) {
-        console.debug("[AzureDevOpsInt] [OutputChannelReader] Error getting FSM logs:", error);
         return `Error retrieving FSM logs: ${error}`;
       }
     }
@@ -54596,7 +54631,6 @@ var init_LiveCanvasBridge = __esm({
         try {
           this.ws = new wrapper_default(this.url);
           this.ws.on("open", () => {
-            console.debug("[LiveCanvasBridge] Connected to Live Canvas");
             this.sendLogicInspection();
           });
           this.ws.on("error", (_err) => {
@@ -54614,7 +54648,6 @@ var init_LiveCanvasBridge = __esm({
                 this.handleTriggerEvent(msg);
               }
             } catch (e) {
-              console.debug("[LiveCanvasBridge] Error parsing message", e);
             }
           });
         } catch {

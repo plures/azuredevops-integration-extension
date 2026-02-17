@@ -1102,6 +1102,43 @@ ${component_stack}
     }
   }
 
+  // node_modules/svelte/src/internal/client/reactivity/status.js
+  var STATUS_MASK = ~(DIRTY | MAYBE_DIRTY | CLEAN);
+  function set_signal_status(signal, status) {
+    signal.f = signal.f & STATUS_MASK | status;
+  }
+  function update_derived_status(derived3) {
+    if ((derived3.f & CONNECTED) !== 0 || derived3.deps === null) {
+      set_signal_status(derived3, CLEAN);
+    } else {
+      set_signal_status(derived3, MAYBE_DIRTY);
+    }
+  }
+
+  // node_modules/svelte/src/internal/client/reactivity/utils.js
+  function clear_marked(deps) {
+    if (deps === null) return;
+    for (const dep of deps) {
+      if ((dep.f & DERIVED) === 0 || (dep.f & WAS_MARKED) === 0) {
+        continue;
+      }
+      dep.f ^= WAS_MARKED;
+      clear_marked(
+        /** @type {Derived} */
+        dep.deps
+      );
+    }
+  }
+  function defer_effect(effect2, dirty_effects, maybe_dirty_effects) {
+    if ((effect2.f & DIRTY) !== 0) {
+      dirty_effects.add(effect2);
+    } else if ((effect2.f & MAYBE_DIRTY) !== 0) {
+      maybe_dirty_effects.add(effect2);
+    }
+    clear_marked(effect2.deps);
+    set_signal_status(effect2, CLEAN);
+  }
+
   // node_modules/svelte/src/internal/client/reactivity/batch.js
   var batches = /* @__PURE__ */ new Set();
   var current_batch = null;
@@ -1111,7 +1148,7 @@ ${component_stack}
   var last_scheduled_effect = null;
   var is_flushing = false;
   var is_flushing_sync = false;
-  var _commit_callbacks, _discard_callbacks, _pending, _blocking_pending, _deferred, _dirty_effects, _maybe_dirty_effects, _Batch_instances, traverse_effect_tree_fn, defer_effects_fn, clear_marked_fn, resolve_fn, commit_fn;
+  var _commit_callbacks, _discard_callbacks, _pending, _blocking_pending, _deferred, _dirty_effects, _maybe_dirty_effects, _decrement_queued, _Batch_instances, traverse_effect_tree_fn, defer_effects_fn, commit_fn;
   var _Batch = class _Batch {
     constructor() {
       __privateAdd(this, _Batch_instances);
@@ -1170,6 +1207,7 @@ ${component_stack}
        */
       __publicField(this, "skipped_effects", /* @__PURE__ */ new Set());
       __publicField(this, "is_fork", false);
+      __privateAdd(this, _decrement_queued, false);
     }
     is_deferred() {
       return this.is_fork || __privateGet(this, _blocking_pending) > 0;
@@ -1180,28 +1218,25 @@ ${component_stack}
      */
     process(root_effects) {
       queued_root_effects = [];
-      previous_batch = null;
       this.apply();
-      var target = {
-        parent: null,
-        effect: null,
-        effects: [],
-        render_effects: []
-      };
+      var effects = [];
+      var render_effects = [];
       for (const root17 of root_effects) {
-        __privateMethod(this, _Batch_instances, traverse_effect_tree_fn).call(this, root17, target);
-      }
-      if (!this.is_fork) {
-        __privateMethod(this, _Batch_instances, resolve_fn).call(this);
+        __privateMethod(this, _Batch_instances, traverse_effect_tree_fn).call(this, root17, effects, render_effects);
       }
       if (this.is_deferred()) {
-        __privateMethod(this, _Batch_instances, defer_effects_fn).call(this, target.effects);
-        __privateMethod(this, _Batch_instances, defer_effects_fn).call(this, target.render_effects);
+        __privateMethod(this, _Batch_instances, defer_effects_fn).call(this, render_effects);
+        __privateMethod(this, _Batch_instances, defer_effects_fn).call(this, effects);
       } else {
+        for (const fn of __privateGet(this, _commit_callbacks)) fn();
+        __privateGet(this, _commit_callbacks).clear();
+        if (__privateGet(this, _pending) === 0) {
+          __privateMethod(this, _Batch_instances, commit_fn).call(this);
+        }
         previous_batch = this;
         current_batch = null;
-        flush_queued_effects(target.render_effects);
-        flush_queued_effects(target.effects);
+        flush_queued_effects(render_effects);
+        flush_queued_effects(effects);
         previous_batch = null;
         __privateGet(this, _deferred)?.resolve();
       }
@@ -1214,7 +1249,7 @@ ${component_stack}
      * @param {any} value
      */
     capture(source2, value) {
-      if (!this.previous.has(source2)) {
+      if (value !== UNINITIALIZED && !this.previous.has(source2)) {
         this.previous.set(source2, value);
       }
       if ((source2.f & ERROR_VALUE) === 0) {
@@ -1262,7 +1297,16 @@ ${component_stack}
     decrement(blocking) {
       __privateSet(this, _pending, __privateGet(this, _pending) - 1);
       if (blocking) __privateSet(this, _blocking_pending, __privateGet(this, _blocking_pending) - 1);
-      this.revive();
+      if (__privateGet(this, _decrement_queued)) return;
+      __privateSet(this, _decrement_queued, true);
+      queue_micro_task(() => {
+        __privateSet(this, _decrement_queued, false);
+        if (!this.is_deferred()) {
+          this.revive();
+        } else if (queued_root_effects.length > 0) {
+          this.flush();
+        }
+      });
     }
     revive() {
       for (const e of __privateGet(this, _dirty_effects)) {
@@ -1292,7 +1336,7 @@ ${component_stack}
         const batch = current_batch = new _Batch();
         batches.add(current_batch);
         if (!is_flushing_sync) {
-          _Batch.enqueue(() => {
+          queue_micro_task(() => {
             if (current_batch !== batch) {
               return;
             }
@@ -1301,10 +1345,6 @@ ${component_stack}
         }
       }
       return current_batch;
-    }
-    /** @param {() => void} task */
-    static enqueue(task) {
-      queue_micro_task(task);
     }
     apply() {
       if (!async_mode_flag || !this.is_fork && batches.size === 1) return;
@@ -1326,38 +1366,38 @@ ${component_stack}
   _deferred = new WeakMap();
   _dirty_effects = new WeakMap();
   _maybe_dirty_effects = new WeakMap();
+  _decrement_queued = new WeakMap();
   _Batch_instances = new WeakSet();
   /**
    * Traverse the effect tree, executing effects or stashing
    * them for later execution as appropriate
    * @param {Effect} root
-   * @param {EffectTarget} target
+   * @param {Effect[]} effects
+   * @param {Effect[]} render_effects
    */
-  traverse_effect_tree_fn = function(root17, target) {
+  traverse_effect_tree_fn = function(root17, effects, render_effects) {
     root17.f ^= CLEAN;
     var effect2 = root17.first;
+    var pending_boundary = null;
     while (effect2 !== null) {
       var flags2 = effect2.f;
       var is_branch = (flags2 & (BRANCH_EFFECT | ROOT_EFFECT)) !== 0;
       var is_skippable_branch = is_branch && (flags2 & CLEAN) !== 0;
       var skip = is_skippable_branch || (flags2 & INERT) !== 0 || this.skipped_effects.has(effect2);
-      if ((effect2.f & BOUNDARY_EFFECT) !== 0 && effect2.b?.is_pending()) {
-        target = {
-          parent: target,
-          effect: effect2,
-          effects: [],
-          render_effects: []
-        };
+      if (async_mode_flag && pending_boundary === null && (flags2 & BOUNDARY_EFFECT) !== 0 && effect2.b?.is_pending) {
+        pending_boundary = effect2;
       }
       if (!skip && effect2.fn !== null) {
         if (is_branch) {
           effect2.f ^= CLEAN;
+        } else if (pending_boundary !== null && (flags2 & (EFFECT | RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
+          pending_boundary.b.defer_effect(effect2);
         } else if ((flags2 & EFFECT) !== 0) {
-          target.effects.push(effect2);
+          effects.push(effect2);
         } else if (async_mode_flag && (flags2 & (RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
-          target.render_effects.push(effect2);
+          render_effects.push(effect2);
         } else if (is_dirty(effect2)) {
-          if ((effect2.f & BLOCK_EFFECT) !== 0) __privateGet(this, _dirty_effects).add(effect2);
+          if ((flags2 & BLOCK_EFFECT) !== 0) __privateGet(this, _dirty_effects).add(effect2);
           update_effect(effect2);
         }
         var child2 = effect2.first;
@@ -1369,11 +1409,8 @@ ${component_stack}
       var parent = effect2.parent;
       effect2 = effect2.next;
       while (effect2 === null && parent !== null) {
-        if (parent === target.effect) {
-          __privateMethod(this, _Batch_instances, defer_effects_fn).call(this, target.effects);
-          __privateMethod(this, _Batch_instances, defer_effects_fn).call(this, target.render_effects);
-          target = /** @type {EffectTarget} */
-          target.parent;
+        if (parent === pending_boundary) {
+          pending_boundary = null;
         }
         effect2 = parent.next;
         parent = parent.parent;
@@ -1384,40 +1421,8 @@ ${component_stack}
    * @param {Effect[]} effects
    */
   defer_effects_fn = function(effects) {
-    for (const e of effects) {
-      if ((e.f & DIRTY) !== 0) {
-        __privateGet(this, _dirty_effects).add(e);
-      } else if ((e.f & MAYBE_DIRTY) !== 0) {
-        __privateGet(this, _maybe_dirty_effects).add(e);
-      }
-      __privateMethod(this, _Batch_instances, clear_marked_fn).call(this, e.deps);
-      set_signal_status(e, CLEAN);
-    }
-  };
-  /**
-   * @param {Value[] | null} deps
-   */
-  clear_marked_fn = function(deps) {
-    if (deps === null) return;
-    for (const dep of deps) {
-      if ((dep.f & DERIVED) === 0 || (dep.f & WAS_MARKED) === 0) {
-        continue;
-      }
-      dep.f ^= WAS_MARKED;
-      __privateMethod(this, _Batch_instances, clear_marked_fn).call(
-        this,
-        /** @type {Derived} */
-        dep.deps
-      );
-    }
-  };
-  resolve_fn = function() {
-    if (__privateGet(this, _blocking_pending) === 0) {
-      for (const fn of __privateGet(this, _commit_callbacks)) fn();
-      __privateGet(this, _commit_callbacks).clear();
-    }
-    if (__privateGet(this, _pending) === 0) {
-      __privateMethod(this, _Batch_instances, commit_fn).call(this);
+    for (var i = 0; i < effects.length; i += 1) {
+      defer_effect(effects[i], __privateGet(this, _dirty_effects), __privateGet(this, _maybe_dirty_effects));
     }
   };
   commit_fn = function() {
@@ -1426,12 +1431,6 @@ ${component_stack}
       this.previous.clear();
       var previous_batch_values = batch_values;
       var is_earlier = true;
-      var dummy_target = {
-        parent: null,
-        effect: null,
-        effects: [],
-        render_effects: []
-      };
       for (const batch of batches) {
         if (batch === this) {
           is_earlier = false;
@@ -1464,7 +1463,7 @@ ${component_stack}
             current_batch = batch;
             batch.apply();
             for (const root17 of queued_root_effects) {
-              __privateMethod(_a2 = batch, _Batch_instances, traverse_effect_tree_fn).call(_a2, root17, dummy_target);
+              __privateMethod(_a2 = batch, _Batch_instances, traverse_effect_tree_fn).call(_a2, root17, [], []);
             }
             batch.deactivate();
           }
@@ -1508,12 +1507,10 @@ ${component_stack}
     }
   }
   function flush_effects() {
-    var was_updating_effect = is_updating_effect;
     is_flushing = true;
     var source_stacks = dev_fallback_default ? /* @__PURE__ */ new Set() : null;
     try {
       var flush_count = 0;
-      set_is_updating_effect(true);
       while (queued_root_effects.length > 0) {
         var batch = Batch.ensure();
         if (flush_count++ > 1e3) {
@@ -1547,7 +1544,6 @@ ${component_stack}
       }
     } finally {
       is_flushing = false;
-      set_is_updating_effect(was_updating_effect);
       last_scheduled_effect = null;
       if (dev_fallback_default) {
         for (
@@ -1714,7 +1710,7 @@ ${component_stack}
   function boundary(node, props, children) {
     new Boundary(node, props, children);
   }
-  var _pending2, _anchor, _hydrate_open, _props, _children, _effect, _main_effect, _pending_effect, _failed_effect, _offscreen_fragment, _pending_anchor, _local_pending_count, _pending_count, _is_creating_fallback, _effect_pending, _effect_pending_subscriber, _Boundary_instances, hydrate_resolved_content_fn, hydrate_pending_content_fn, get_anchor_fn, run_fn, show_pending_snippet_fn, update_pending_count_fn;
+  var _anchor, _hydrate_open, _props, _children, _effect, _main_effect, _pending_effect, _failed_effect, _offscreen_fragment, _pending_anchor, _local_pending_count, _pending_count, _pending_count_update_queued, _is_creating_fallback, _dirty_effects2, _maybe_dirty_effects2, _effect_pending, _effect_pending_subscriber, _Boundary_instances, hydrate_resolved_content_fn, hydrate_pending_content_fn, get_anchor_fn, run_fn, show_pending_snippet_fn, update_pending_count_fn;
   var Boundary = class {
     /**
      * @param {TemplateNode} node
@@ -1725,7 +1721,7 @@ ${component_stack}
       __privateAdd(this, _Boundary_instances);
       /** @type {Boundary | null} */
       __publicField(this, "parent");
-      __privateAdd(this, _pending2, false);
+      __publicField(this, "is_pending", false);
       /** @type {TemplateNode} */
       __privateAdd(this, _anchor);
       /** @type {TemplateNode | null} */
@@ -1748,7 +1744,12 @@ ${component_stack}
       __privateAdd(this, _pending_anchor, null);
       __privateAdd(this, _local_pending_count, 0);
       __privateAdd(this, _pending_count, 0);
+      __privateAdd(this, _pending_count_update_queued, false);
       __privateAdd(this, _is_creating_fallback, false);
+      /** @type {Set<Effect>} */
+      __privateAdd(this, _dirty_effects2, /* @__PURE__ */ new Set());
+      /** @type {Set<Effect>} */
+      __privateAdd(this, _maybe_dirty_effects2, /* @__PURE__ */ new Set());
       /**
        * A source containing the number of pending async deriveds/expressions.
        * Only created if `$effect.pending()` is used inside the boundary,
@@ -1771,7 +1772,7 @@ ${component_stack}
       __privateSet(this, _children, children);
       this.parent = /** @type {Effect} */
       active_effect.b;
-      __privateSet(this, _pending2, !!__privateGet(this, _props).pending);
+      this.is_pending = !!__privateGet(this, _props).pending;
       __privateSet(this, _effect, block(() => {
         active_effect.b = this;
         if (hydrating) {
@@ -1786,6 +1787,9 @@ ${component_stack}
             __privateMethod(this, _Boundary_instances, hydrate_pending_content_fn).call(this);
           } else {
             __privateMethod(this, _Boundary_instances, hydrate_resolved_content_fn).call(this);
+            if (__privateGet(this, _pending_count) === 0) {
+              this.is_pending = false;
+            }
           }
         } else {
           var anchor = __privateMethod(this, _Boundary_instances, get_anchor_fn).call(this);
@@ -1797,7 +1801,7 @@ ${component_stack}
           if (__privateGet(this, _pending_count) > 0) {
             __privateMethod(this, _Boundary_instances, show_pending_snippet_fn).call(this);
           } else {
-            __privateSet(this, _pending2, false);
+            this.is_pending = false;
           }
         }
         return () => {
@@ -1809,11 +1813,18 @@ ${component_stack}
       }
     }
     /**
-     * Returns `true` if the effect exists inside a boundary whose pending snippet is shown
+     * Defer an effect inside a pending boundary until the boundary resolves
+     * @param {Effect} effect
+     */
+    defer_effect(effect2) {
+      defer_effect(effect2, __privateGet(this, _dirty_effects2), __privateGet(this, _maybe_dirty_effects2));
+    }
+    /**
+     * Returns `false` if the effect exists inside a boundary whose pending snippet is shown
      * @returns {boolean}
      */
-    is_pending() {
-      return __privateGet(this, _pending2) || !!this.parent && this.parent.is_pending();
+    is_rendered() {
+      return !this.is_pending && (!this.parent || this.parent.is_rendered());
     }
     has_pending_snippet() {
       return !!__privateGet(this, _props).pending;
@@ -1827,9 +1838,14 @@ ${component_stack}
     update_pending_count(d) {
       __privateMethod(this, _Boundary_instances, update_pending_count_fn).call(this, d);
       __privateSet(this, _local_pending_count, __privateGet(this, _local_pending_count) + d);
-      if (__privateGet(this, _effect_pending)) {
-        internal_set(__privateGet(this, _effect_pending), __privateGet(this, _local_pending_count));
-      }
+      if (!__privateGet(this, _effect_pending) || __privateGet(this, _pending_count_update_queued)) return;
+      __privateSet(this, _pending_count_update_queued, true);
+      queue_micro_task(() => {
+        __privateSet(this, _pending_count_update_queued, false);
+        if (__privateGet(this, _effect_pending)) {
+          internal_set(__privateGet(this, _effect_pending), __privateGet(this, _local_pending_count));
+        }
+      });
     }
     get_effect_pending() {
       __privateGet(this, _effect_pending_subscriber).call(this);
@@ -1883,7 +1899,7 @@ ${component_stack}
             __privateSet(this, _failed_effect, null);
           });
         }
-        __privateSet(this, _pending2, this.has_pending_snippet());
+        this.is_pending = this.has_pending_snippet();
         __privateSet(this, _main_effect, __privateMethod(this, _Boundary_instances, run_fn).call(this, () => {
           __privateSet(this, _is_creating_fallback, false);
           return branch(() => __privateGet(this, _children).call(this, __privateGet(this, _anchor)));
@@ -1891,7 +1907,7 @@ ${component_stack}
         if (__privateGet(this, _pending_count) > 0) {
           __privateMethod(this, _Boundary_instances, show_pending_snippet_fn).call(this);
         } else {
-          __privateSet(this, _pending2, false);
+          this.is_pending = false;
         }
       };
       var previous_reaction = active_reaction;
@@ -1933,7 +1949,6 @@ ${component_stack}
       }
     }
   };
-  _pending2 = new WeakMap();
   _anchor = new WeakMap();
   _hydrate_open = new WeakMap();
   _props = new WeakMap();
@@ -1946,7 +1961,10 @@ ${component_stack}
   _pending_anchor = new WeakMap();
   _local_pending_count = new WeakMap();
   _pending_count = new WeakMap();
+  _pending_count_update_queued = new WeakMap();
   _is_creating_fallback = new WeakMap();
+  _dirty_effects2 = new WeakMap();
+  _maybe_dirty_effects2 = new WeakMap();
   _effect_pending = new WeakMap();
   _effect_pending_subscriber = new WeakMap();
   _Boundary_instances = new WeakSet();
@@ -1956,15 +1974,12 @@ ${component_stack}
     } catch (error) {
       this.error(error);
     }
-    __privateSet(this, _pending2, false);
   };
   hydrate_pending_content_fn = function() {
     const pending2 = __privateGet(this, _props).pending;
-    if (!pending2) {
-      return;
-    }
+    if (!pending2) return;
     __privateSet(this, _pending_effect, branch(() => pending2(__privateGet(this, _anchor))));
-    Batch.enqueue(() => {
+    queue_micro_task(() => {
       var anchor = __privateMethod(this, _Boundary_instances, get_anchor_fn).call(this);
       __privateSet(this, _main_effect, __privateMethod(this, _Boundary_instances, run_fn).call(this, () => {
         Batch.ensure();
@@ -1980,13 +1995,13 @@ ${component_stack}
             __privateSet(this, _pending_effect, null);
           }
         );
-        __privateSet(this, _pending2, false);
+        this.is_pending = false;
       }
     });
   };
   get_anchor_fn = function() {
     var anchor = __privateGet(this, _anchor);
-    if (__privateGet(this, _pending2)) {
+    if (this.is_pending) {
       __privateSet(this, _pending_anchor, create_text());
       __privateGet(this, _anchor).before(__privateGet(this, _pending_anchor));
       anchor = __privateGet(this, _pending_anchor);
@@ -2046,7 +2061,17 @@ ${component_stack}
     }
     __privateSet(this, _pending_count, __privateGet(this, _pending_count) + d);
     if (__privateGet(this, _pending_count) === 0) {
-      __privateSet(this, _pending2, false);
+      this.is_pending = false;
+      for (const e of __privateGet(this, _dirty_effects2)) {
+        set_signal_status(e, DIRTY);
+        schedule_effect(e);
+      }
+      for (const e of __privateGet(this, _maybe_dirty_effects2)) {
+        set_signal_status(e, MAYBE_DIRTY);
+        schedule_effect(e);
+      }
+      __privateGet(this, _dirty_effects2).clear();
+      __privateGet(this, _maybe_dirty_effects2).clear();
       if (__privateGet(this, _pending_effect)) {
         pause_effect(__privateGet(this, _pending_effect), () => {
           __privateSet(this, _pending_effect, null);
@@ -2062,7 +2087,8 @@ ${component_stack}
   // node_modules/svelte/src/internal/client/reactivity/async.js
   function flatten(blockers, sync, async2, fn) {
     const d = is_runes() ? derived : derived_safe_equal;
-    if (async2.length === 0 && blockers.length === 0) {
+    var pending2 = blockers.filter((b) => !b.settled);
+    if (async2.length === 0 && pending2.length === 0) {
       fn(sync.map(d));
       return;
     }
@@ -2072,32 +2098,29 @@ ${component_stack}
       active_effect
     );
     var restore = capture();
-    function run3() {
-      Promise.all(async2.map((expression) => async_derived(expression))).then((result) => {
-        restore();
-        try {
-          fn([...sync.map(d), ...result]);
-        } catch (error) {
-          if ((parent.f & DESTROYED) === 0) {
-            invoke_error_boundary(error, parent);
-          }
+    var blocker_promise = pending2.length === 1 ? pending2[0].promise : pending2.length > 1 ? Promise.all(pending2.map((b) => b.promise)) : null;
+    function finish(values) {
+      restore();
+      try {
+        fn(values);
+      } catch (error) {
+        if ((parent.f & DESTROYED) === 0) {
+          invoke_error_boundary(error, parent);
         }
-        batch?.deactivate();
-        unset_context();
-      }).catch((error) => {
-        invoke_error_boundary(error, parent);
-      });
+      }
+      batch?.deactivate();
+      unset_context();
     }
-    if (blockers.length > 0) {
-      Promise.all(blockers).then(() => {
-        restore();
-        try {
-          return run3();
-        } finally {
-          batch?.deactivate();
-          unset_context();
-        }
-      });
+    if (async2.length === 0) {
+      blocker_promise.then(() => finish(sync.map(d)));
+      return;
+    }
+    function run3() {
+      restore();
+      Promise.all(async2.map((expression) => async_derived(expression))).then((result) => finish([...sync.map(d), ...result])).catch((error) => invoke_error_boundary(error, parent));
+    }
+    if (blocker_promise) {
+      blocker_promise.then(run3);
     } else {
       run3();
     }
@@ -2170,7 +2193,7 @@ ${component_stack}
     return signal;
   }
   // @__NO_SIDE_EFFECTS__
-  function async_derived(fn, location) {
+  function async_derived(fn, label, location) {
     let parent = (
       /** @type {Effect | null} */
       active_effect
@@ -2191,6 +2214,7 @@ ${component_stack}
       /** @type {V} */
       UNINITIALIZED
     );
+    if (dev_fallback_default) signal.label = label;
     var should_suspend = !active_reaction;
     var deferreds = /* @__PURE__ */ new Map();
     async_effect(() => {
@@ -2214,7 +2238,7 @@ ${component_stack}
         current_batch
       );
       if (should_suspend) {
-        var blocking = !boundary2.is_pending();
+        var blocking = boundary2.is_rendered();
         boundary2.update_pending_count(1);
         batch.increment(blocking);
         deferreds.get(batch)?.reject(STALE_REACTION);
@@ -2354,10 +2378,14 @@ ${component_stack}
   function update_derived(derived3) {
     var value = execute_derived(derived3);
     if (!derived3.equals(value)) {
-      if (!current_batch?.is_fork) {
-        derived3.v = value;
-      }
       derived3.wv = increment_write_version();
+      if (!current_batch?.is_fork || derived3.deps === null) {
+        derived3.v = value;
+        if (derived3.deps === null) {
+          set_signal_status(derived3, CLEAN);
+          return;
+        }
+      }
     }
     if (is_destroying_effect) {
       return;
@@ -2367,8 +2395,7 @@ ${component_stack}
         batch_values.set(derived3, value);
       }
     } else {
-      var status = (derived3.f & CONNECTED) === 0 ? MAYBE_DIRTY : CLEAN;
-      set_signal_status(derived3, status);
+      update_derived_status(derived3);
     }
   }
 
@@ -2470,13 +2497,14 @@ ${component_stack}
         }
       }
       if ((source2.f & DERIVED) !== 0) {
+        const derived3 = (
+          /** @type {Derived} */
+          source2
+        );
         if ((source2.f & DIRTY) !== 0) {
-          execute_derived(
-            /** @type {Derived} */
-            source2
-          );
+          execute_derived(derived3);
         }
-        set_signal_status(source2, (source2.f & CONNECTED) !== 0 ? CLEAN : MAYBE_DIRTY);
+        update_derived_status(derived3);
       }
       source2.wv = increment_write_version();
       mark_reactions(source2, DIRTY);
@@ -2495,20 +2523,13 @@ ${component_stack}
   }
   function flush_eager_effects() {
     eager_effects_deferred = false;
-    var prev_is_updating_effect = is_updating_effect;
-    set_is_updating_effect(true);
-    const inspects = Array.from(eager_effects);
-    try {
-      for (const effect2 of inspects) {
-        if ((effect2.f & CLEAN) !== 0) {
-          set_signal_status(effect2, MAYBE_DIRTY);
-        }
-        if (is_dirty(effect2)) {
-          update_effect(effect2);
-        }
+    for (const effect2 of eager_effects) {
+      if ((effect2.f & CLEAN) !== 0) {
+        set_signal_status(effect2, MAYBE_DIRTY);
       }
-    } finally {
-      set_is_updating_effect(prev_is_updating_effect);
+      if (is_dirty(effect2)) {
+        update_effect(effect2);
+      }
     }
     eager_effects.clear();
   }
@@ -3251,7 +3272,7 @@ ${component_stack}
       for (var token of context.l.$) {
         token.deps();
         var effect2 = token.effect;
-        if ((effect2.f & CLEAN) !== 0) {
+        if ((effect2.f & CLEAN) !== 0 && effect2.deps !== null) {
           set_signal_status(effect2, MAYBE_DIRTY);
         }
         if (is_dirty(effect2)) {
@@ -3454,9 +3475,6 @@ ${component_stack}
 
   // node_modules/svelte/src/internal/client/runtime.js
   var is_updating_effect = false;
-  function set_is_updating_effect(value) {
-    is_updating_effect = value;
-  }
   var is_destroying_effect = false;
   function set_is_destroying_effect(value) {
     is_destroying_effect = value;
@@ -3504,23 +3522,24 @@ ${component_stack}
       reaction.f &= ~WAS_MARKED;
     }
     if ((flags2 & MAYBE_DIRTY) !== 0) {
-      var dependencies = reaction.deps;
-      if (dependencies !== null) {
-        var length = dependencies.length;
-        for (var i = 0; i < length; i++) {
-          var dependency = dependencies[i];
-          if (is_dirty(
+      var dependencies = (
+        /** @type {Value[]} */
+        reaction.deps
+      );
+      var length = dependencies.length;
+      for (var i = 0; i < length; i++) {
+        var dependency = dependencies[i];
+        if (is_dirty(
+          /** @type {Derived} */
+          dependency
+        )) {
+          update_derived(
             /** @type {Derived} */
             dependency
-          )) {
-            update_derived(
-              /** @type {Derived} */
-              dependency
-            );
-          }
-          if (dependency.wv > reaction.wv) {
-            return true;
-          }
+          );
+        }
+        if (dependency.wv > reaction.wv) {
+          return true;
         }
       }
       if ((flags2 & CONNECTED) !== 0 && // During time traveling we don't want to reset the status so that
@@ -3625,6 +3644,16 @@ ${component_stack}
       }
       if (previous_reaction !== null && previous_reaction !== reaction) {
         read_version++;
+        if (previous_reaction.deps !== null) {
+          for (let i2 = 0; i2 < previous_skipped_deps; i2 += 1) {
+            previous_reaction.deps[i2].rv = read_version;
+          }
+        }
+        if (previous_deps !== null) {
+          for (const dep of previous_deps) {
+            dep.rv = read_version;
+          }
+        }
         if (untracked_writes !== null) {
           if (previous_untracked_writes === null) {
             previous_untracked_writes = untracked_writes;
@@ -3670,20 +3699,17 @@ ${component_stack}
     // to be unused, when in fact it is used by the currently-updating parent. Checking `new_deps`
     // allows us to skip the expensive work of disconnecting and immediately reconnecting it
     (new_deps === null || !new_deps.includes(dependency))) {
-      set_signal_status(dependency, MAYBE_DIRTY);
-      if ((dependency.f & CONNECTED) !== 0) {
-        dependency.f ^= CONNECTED;
-        dependency.f &= ~WAS_MARKED;
-      }
-      destroy_derived_effects(
-        /** @type {Derived} **/
+      var derived3 = (
+        /** @type {Derived} */
         dependency
       );
-      remove_reactions(
-        /** @type {Derived} **/
-        dependency,
-        0
-      );
+      if ((derived3.f & CONNECTED) !== 0) {
+        derived3.f ^= CONNECTED;
+        derived3.f &= ~WAS_MARKED;
+      }
+      update_derived_status(derived3);
+      destroy_derived_effects(derived3);
+      remove_reactions(derived3, 0);
     }
   }
   function remove_reactions(signal, start_index) {
@@ -3764,7 +3790,7 @@ ${component_stack}
               skipped_deps++;
             } else if (new_deps === null) {
               new_deps = [signal];
-            } else if (!new_deps.includes(signal)) {
+            } else {
               new_deps.push(signal);
             }
           }
@@ -3800,15 +3826,15 @@ ${component_stack}
         }
       }
     }
-    if (is_destroying_effect) {
-      if (old_values.has(signal)) {
-        return old_values.get(signal);
-      }
-      if (is_derived) {
-        var derived3 = (
-          /** @type {Derived} */
-          signal
-        );
+    if (is_destroying_effect && old_values.has(signal)) {
+      return old_values.get(signal);
+    }
+    if (is_derived) {
+      var derived3 = (
+        /** @type {Derived} */
+        signal
+      );
+      if (is_destroying_effect) {
         var value = derived3.v;
         if ((derived3.f & CLEAN) === 0 && derived3.reactions !== null || depends_on_old_values(derived3)) {
           value = execute_derived(derived3);
@@ -3816,13 +3842,15 @@ ${component_stack}
         old_values.set(derived3, value);
         return value;
       }
-    } else if (is_derived && (!batch_values?.has(signal) || current_batch?.is_fork && !effect_tracking())) {
-      derived3 = /** @type {Derived} */
-      signal;
+      var should_connect = (derived3.f & CONNECTED) === 0 && !untracking && active_reaction !== null && (is_updating_effect || (active_reaction.f & CONNECTED) !== 0);
+      var is_new = derived3.deps === null;
       if (is_dirty(derived3)) {
+        if (should_connect) {
+          derived3.f |= CONNECTED;
+        }
         update_derived(derived3);
       }
-      if (is_updating_effect && effect_tracking() && (derived3.f & CONNECTED) === 0) {
+      if (should_connect && !is_new) {
         reconnect(derived3);
       }
     }
@@ -3836,7 +3864,7 @@ ${component_stack}
   }
   function reconnect(derived3) {
     if (derived3.deps === null) return;
-    derived3.f ^= CONNECTED;
+    derived3.f |= CONNECTED;
     for (const dep of derived3.deps) {
       (dep.reactions ?? (dep.reactions = [])).push(derived3);
       if ((dep.f & DERIVED) !== 0 && (dep.f & CONNECTED) === 0) {
@@ -3871,10 +3899,6 @@ ${component_stack}
     } finally {
       untracking = previous_untracking;
     }
-  }
-  var STATUS_MASK = ~(DIRTY | MAYBE_DIRTY | CLEAN);
-  function set_signal_status(signal, status) {
-    signal.f = signal.f & STATUS_MASK | status;
   }
   function deep_read_state(value) {
     if (typeof value !== "object" || !value || value instanceof EventTarget) {
@@ -9123,6 +9147,182 @@ ${component_stack}
     return events.find(definition.is);
   }
 
+  // src/praxis/application/features/timer.ts
+  var TimerHistoryFact = defineFact(
+    "TimerHistory"
+  );
+  var StartTimerEvent = defineEvent(
+    "StartTimer"
+  );
+  var PauseTimerEvent = defineEvent(
+    "PauseTimer"
+  );
+  var StopTimerEvent = defineEvent(
+    "StopTimer"
+  );
+  var RequestTimerHistoryEvent = defineEvent(
+    "RequestTimerHistory"
+  );
+  var TimerHistoryLoadedEvent = defineEvent(
+    "TimerHistoryLoaded"
+  );
+  var PersistTimerHistoryEvent = defineEvent("PersistTimerHistory");
+  var UpdateTimerStatusEvent = defineEvent(
+    "UpdateTimerStatus"
+  );
+  function calculateTimerStatus(entries) {
+    let accumulatedDuration = 0;
+    let currentStartTimestamp;
+    let activeWorkItemId;
+    let isRunning = false;
+    const sorted = [...entries].sort((a, b) => a.timestamp - b.timestamp);
+    for (let i = 0; i < sorted.length; i++) {
+      const entry = sorted[i];
+      if (entry.type === "start") {
+        currentStartTimestamp = entry.timestamp;
+        activeWorkItemId = entry.workItemId;
+        isRunning = true;
+      } else if (entry.type === "pause" || entry.type === "stop") {
+        if (currentStartTimestamp !== void 0) {
+          accumulatedDuration += entry.timestamp - currentStartTimestamp;
+          currentStartTimestamp = void 0;
+        }
+        isRunning = false;
+        if (entry.type === "stop") {
+          activeWorkItemId = void 0;
+        }
+      }
+    }
+    return {
+      isRunning,
+      activeWorkItemId,
+      currentStartTimestamp,
+      accumulatedDuration
+    };
+  }
+  var InitializeTimerRule = defineRule({
+    id: "timer.initialize",
+    description: "Request timer history on activation",
+    meta: {
+      triggers: ["ACTIVATE"]
+    },
+    impl: (_state, events) => {
+      if (findEvent(events, ActivateEvent)) {
+        return [RequestTimerHistoryEvent.create()];
+      }
+      return [];
+    }
+  });
+  var TimerHistoryLoadedRule = defineRule({
+    id: "timer.loaded",
+    description: "Update state with loaded history",
+    meta: {
+      triggers: ["TimerHistoryLoaded"]
+    },
+    impl: (state2, events) => {
+      const event2 = findEvent(events, TimerHistoryLoadedEvent);
+      if (!event2) return [];
+      state2.context.timerHistory.entries = event2.payload.entries;
+      const status = calculateTimerStatus(state2.context.timerHistory.entries);
+      return [UpdateTimerStatusEvent.create(status)];
+    }
+  });
+  var StartTimerRule = defineRule({
+    id: "timer.start",
+    description: "Start the timer for a work item",
+    meta: {
+      triggers: ["StartTimer"]
+    },
+    impl: (state2, events) => {
+      const event2 = findEvent(events, StartTimerEvent);
+      if (!event2) return [];
+      const { workItemId, timestamp: timestamp2 } = event2.payload;
+      const workItemExists = state2.context.workItems.some((wi) => wi.id === workItemId);
+      if (!workItemExists) {
+        return [];
+      }
+      const history2 = state2.context.timerHistory.entries;
+      const lastEntry = history2[history2.length - 1];
+      if (lastEntry && lastEntry.type === "start") {
+        return [];
+      }
+      const newEntry = {
+        type: "start",
+        timestamp: timestamp2,
+        workItemId
+      };
+      state2.context.timerHistory.entries.push(newEntry);
+      const status = calculateTimerStatus(state2.context.timerHistory.entries);
+      return [
+        PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
+        UpdateTimerStatusEvent.create(status)
+      ];
+    }
+  });
+  var PauseTimerRule = defineRule({
+    id: "timer.pause",
+    description: "Pause the timer",
+    meta: {
+      triggers: ["PauseTimer"]
+    },
+    impl: (state2, events) => {
+      const event2 = findEvent(events, PauseTimerEvent);
+      if (!event2) return [];
+      const { workItemId, timestamp: timestamp2 } = event2.payload;
+      const history2 = state2.context.timerHistory.entries;
+      const lastEntry = history2[history2.length - 1];
+      if (!lastEntry || lastEntry.type !== "start") {
+        return [];
+      }
+      const newEntry = {
+        type: "pause",
+        timestamp: timestamp2,
+        workItemId
+      };
+      state2.context.timerHistory.entries.push(newEntry);
+      const status = calculateTimerStatus(state2.context.timerHistory.entries);
+      return [
+        PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
+        UpdateTimerStatusEvent.create(status)
+      ];
+    }
+  });
+  var StopTimerRule = defineRule({
+    id: "timer.stop",
+    description: "Stop the timer",
+    meta: {
+      triggers: ["StopTimer"]
+    },
+    impl: (state2, events) => {
+      const event2 = findEvent(events, StopTimerEvent);
+      if (!event2) return [];
+      const { workItemId, timestamp: timestamp2 } = event2.payload;
+      const history2 = state2.context.timerHistory.entries;
+      const lastEntry = history2[history2.length - 1];
+      if (!lastEntry || lastEntry.type === "stop") {
+        return [];
+      }
+      const newEntry = {
+        type: "stop",
+        timestamp: timestamp2,
+        workItemId
+      };
+      state2.context.timerHistory.entries.push(newEntry);
+      const status = calculateTimerStatus(state2.context.timerHistory.entries);
+      return [
+        PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
+        UpdateTimerStatusEvent.create(status)
+      ];
+    }
+  });
+  var timerRules = [
+    InitializeTimerRule,
+    TimerHistoryLoadedRule,
+    StartTimerRule,
+    PauseTimerRule,
+    StopTimerRule
+  ];
+
   // src/praxis/application/facts.ts
   var ApplicationStateFact = defineFact("ApplicationState");
   var IsActivatedFact = defineFact("IsActivated");
@@ -9139,9 +9339,7 @@ ${component_stack}
   var DeviceCodeSessionFact = defineFact(
     "DeviceCodeSession"
   );
-  var AuthCodeFlowSessionFact = defineFact(
-    "AuthCodeFlowSession"
-  );
+  var AuthCodeFlowSessionFact = defineFact("AuthCodeFlowSession");
   var ErrorRecoveryAttemptsFact = defineFact(
     "ErrorRecoveryAttempts"
   );
@@ -9655,7 +9853,6 @@ ${component_stack}
         }
         this.configListeners.forEach((listener) => listener(this.config));
       } catch (error) {
-        console.debug("[ComponentLogger] Failed to load configuration:", error);
         this.config = { ...DEFAULT_CONFIG };
       }
     }
@@ -9670,7 +9867,6 @@ ${component_stack}
           });
         }
       } catch (error) {
-        console.debug("[ComponentLogger] Failed to persist configuration:", error);
       }
     }
     onConfigurationChange(listener) {
@@ -9783,20 +9979,31 @@ ${component_stack}
         try {
           listener(entry);
         } catch (e) {
-          console.debug("Error in log listener", e);
         }
       });
       if (this.config.destinations.console) {
-        const consoleMethod = entry.level >= 3 /* ERROR */ ? "error" : entry.level >= 2 /* WARN */ ? "warn" : entry.level >= 1 /* INFO */ ? "info" : "log";
-        const emoji = entry.level >= 3 /* ERROR */ ? "\u{1F534}" : entry.level >= 2 /* WARN */ ? "\u{1F7E1}" : entry.level >= 1 /* INFO */ ? "\u{1F7E2}" : "\u{1F535}";
-        const enhancedFormatted = `${emoji} [AzureDevOpsInt][Praxis][${entry.component}] ${formatted}`;
-        console.debug(enhancedFormatted);
-        if (consoleMethod === "error") {
-          console.debug(`\u21B3 ${formatted}`);
-        } else if (consoleMethod === "warn") {
-          console.debug(`\u21B3 ${formatted}`);
-        } else if (consoleMethod === "info") {
-          console.debug(`\u21B3 ${formatted}`);
+        const levelName = LOG_LEVEL_NAMES[entry.level];
+        switch (levelName) {
+          case "ERROR":
+            console.error(formatted);
+            break;
+          case "WARN":
+            console.warn(formatted);
+            break;
+          case "INFO":
+            console.info(formatted);
+            break;
+          case "DEBUG":
+          case "TRACE":
+            if (typeof console.debug === "function") {
+              console.debug(formatted);
+            } else {
+              console.log(formatted);
+            }
+            break;
+          default:
+            console.log(formatted);
+            break;
         }
       }
       if (this.config.destinations.outputChannel) {
@@ -10419,7 +10626,8 @@ ${component_stack}
     impl: (state2, events) => {
       const retryEvent = findEvent(events, RetryApplicationEvent);
       if (!retryEvent) return [];
-      if (state2.context.applicationState !== "error_recovery" && state2.context.applicationState !== "activation_error") return [];
+      if (state2.context.applicationState !== "error_recovery" && state2.context.applicationState !== "activation_error")
+        return [];
       state2.context.lastError = void 0;
       state2.context.applicationState = "active";
       return [];
@@ -10548,178 +10756,6 @@ ${component_stack}
     authenticationSuccessRule
   ];
 
-  // src/praxis/application/features/timer.ts
-  var TimerHistoryFact = defineFact(
-    "TimerHistory"
-  );
-  var StartTimerEvent = defineEvent(
-    "StartTimer"
-  );
-  var PauseTimerEvent = defineEvent(
-    "PauseTimer"
-  );
-  var StopTimerEvent = defineEvent(
-    "StopTimer"
-  );
-  var RequestTimerHistoryEvent = defineEvent(
-    "RequestTimerHistory"
-  );
-  var TimerHistoryLoadedEvent = defineEvent(
-    "TimerHistoryLoaded"
-  );
-  var PersistTimerHistoryEvent = defineEvent("PersistTimerHistory");
-  var UpdateTimerStatusEvent = defineEvent(
-    "UpdateTimerStatus"
-  );
-  function calculateTimerStatus(entries) {
-    let accumulatedDuration = 0;
-    let currentStartTimestamp;
-    let activeWorkItemId;
-    let isRunning = false;
-    const sorted = [...entries].sort((a, b) => a.timestamp - b.timestamp);
-    for (let i = 0; i < sorted.length; i++) {
-      const entry = sorted[i];
-      if (entry.type === "start") {
-        currentStartTimestamp = entry.timestamp;
-        activeWorkItemId = entry.workItemId;
-        isRunning = true;
-      } else if (entry.type === "pause" || entry.type === "stop") {
-        if (currentStartTimestamp !== void 0) {
-          accumulatedDuration += entry.timestamp - currentStartTimestamp;
-          currentStartTimestamp = void 0;
-        }
-        isRunning = false;
-        if (entry.type === "stop") {
-          activeWorkItemId = void 0;
-        }
-      }
-    }
-    return {
-      isRunning,
-      activeWorkItemId,
-      currentStartTimestamp,
-      accumulatedDuration
-    };
-  }
-  var InitializeTimerRule = defineRule({
-    id: "timer.initialize",
-    description: "Request timer history on activation",
-    meta: {
-      triggers: ["ACTIVATE"]
-    },
-    impl: (_state, events) => {
-      if (findEvent(events, ActivateEvent)) {
-        return [RequestTimerHistoryEvent.create()];
-      }
-      return [];
-    }
-  });
-  var TimerHistoryLoadedRule = defineRule({
-    id: "timer.loaded",
-    description: "Update state with loaded history",
-    meta: {
-      triggers: ["TimerHistoryLoaded"]
-    },
-    impl: (state2, events) => {
-      const event2 = findEvent(events, TimerHistoryLoadedEvent);
-      if (!event2) return [];
-      state2.context.timerHistory.entries = event2.payload.entries;
-      const status = calculateTimerStatus(state2.context.timerHistory.entries);
-      return [UpdateTimerStatusEvent.create(status)];
-    }
-  });
-  var StartTimerRule = defineRule({
-    id: "timer.start",
-    description: "Start the timer for a work item",
-    meta: {
-      triggers: ["StartTimer"]
-    },
-    impl: (state2, events) => {
-      const event2 = findEvent(events, StartTimerEvent);
-      if (!event2) return [];
-      const { workItemId, timestamp: timestamp2 } = event2.payload;
-      const history2 = state2.context.timerHistory.entries;
-      const lastEntry = history2[history2.length - 1];
-      if (lastEntry && lastEntry.type === "start") {
-        return [];
-      }
-      const newEntry = {
-        type: "start",
-        timestamp: timestamp2,
-        workItemId
-      };
-      state2.context.timerHistory.entries.push(newEntry);
-      const status = calculateTimerStatus(state2.context.timerHistory.entries);
-      return [
-        PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
-        UpdateTimerStatusEvent.create(status)
-      ];
-    }
-  });
-  var PauseTimerRule = defineRule({
-    id: "timer.pause",
-    description: "Pause the timer",
-    meta: {
-      triggers: ["PauseTimer"]
-    },
-    impl: (state2, events) => {
-      const event2 = findEvent(events, PauseTimerEvent);
-      if (!event2) return [];
-      const { workItemId, timestamp: timestamp2 } = event2.payload;
-      const history2 = state2.context.timerHistory.entries;
-      const lastEntry = history2[history2.length - 1];
-      if (!lastEntry || lastEntry.type !== "start") {
-        return [];
-      }
-      const newEntry = {
-        type: "pause",
-        timestamp: timestamp2,
-        workItemId
-      };
-      state2.context.timerHistory.entries.push(newEntry);
-      const status = calculateTimerStatus(state2.context.timerHistory.entries);
-      return [
-        PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
-        UpdateTimerStatusEvent.create(status)
-      ];
-    }
-  });
-  var StopTimerRule = defineRule({
-    id: "timer.stop",
-    description: "Stop the timer",
-    meta: {
-      triggers: ["StopTimer"]
-    },
-    impl: (state2, events) => {
-      const event2 = findEvent(events, StopTimerEvent);
-      if (!event2) return [];
-      const { workItemId, timestamp: timestamp2 } = event2.payload;
-      const history2 = state2.context.timerHistory.entries;
-      const lastEntry = history2[history2.length - 1];
-      if (!lastEntry || lastEntry.type === "stop") {
-        return [];
-      }
-      const newEntry = {
-        type: "stop",
-        timestamp: timestamp2,
-        workItemId
-      };
-      state2.context.timerHistory.entries.push(newEntry);
-      const status = calculateTimerStatus(state2.context.timerHistory.entries);
-      return [
-        PersistTimerHistoryEvent.create({ entries: state2.context.timerHistory.entries }),
-        UpdateTimerStatusEvent.create(status)
-      ];
-    }
-  });
-  var timerRules = [
-    InitializeTimerRule,
-    TimerHistoryLoadedRule,
-    StartTimerRule,
-    PauseTimerRule,
-    StopTimerRule
-  ];
-
   // src/praxis/application/rules/index.ts
   var applicationRules = [
     ...lifecycleRules,
@@ -10797,7 +10833,6 @@ ${component_stack}
   var history = {
     undo: () => {
       if (!historyEngine.canUndo()) {
-        console.debug("[History] Cannot undo - no history available");
         return false;
       }
       const historyEntries = historyEngine.getHistory();
@@ -10806,14 +10841,9 @@ ${component_stack}
         const entry = historyEntries[currentHistoryIndex];
         if (entry && entry.state && entry.state.context) {
           if (typeof frontendEngine.updateContext === "function") {
-            frontendEngine.updateContext(entry.state.context);
-            console.debug("[History] Undo: Restored state from history entry", {
-              index: currentHistoryIndex,
-              state: entry.state.state
-            });
+            const contextToRestore = entry.state.context;
+            frontendEngine.updateContext(() => contextToRestore);
             return true;
-          } else {
-            console.warn("[History] Engine does not support updateContext - cannot restore state");
           }
         }
       }
@@ -10821,7 +10851,6 @@ ${component_stack}
     },
     redo: () => {
       if (!historyEngine.canRedo()) {
-        console.debug("[History] Cannot redo - at end of history");
         return false;
       }
       const historyEntries = historyEngine.getHistory();
@@ -10830,14 +10859,9 @@ ${component_stack}
         const entry = historyEntries[currentHistoryIndex];
         if (entry && entry.state && entry.state.context) {
           if (typeof frontendEngine.updateContext === "function") {
-            frontendEngine.updateContext(entry.state.context);
-            console.debug("[History] Redo: Restored state from history entry", {
-              index: currentHistoryIndex,
-              state: entry.state.state
-            });
+            const contextToRestore = entry.state.context;
+            frontendEngine.updateContext(() => contextToRestore);
             return true;
-          } else {
-            console.warn("[History] Engine does not support updateContext - cannot restore state");
           }
         }
       }
@@ -10856,8 +10880,8 @@ ${component_stack}
         if (entry && entry.state && entry.state.context) {
           currentHistoryIndex = index2;
           if (typeof frontendEngine.updateContext === "function") {
-            frontendEngine.updateContext(entry.state.context);
-            console.debug("[History] Go to history entry", { index: index2 });
+            const contextToRestore = entry.state.context;
+            frontendEngine.updateContext(() => contextToRestore);
             return true;
           }
         }
@@ -13400,11 +13424,7 @@ ${component_stack}
 
   // src/debugging/stateDiff.ts
   function diffStates(from, to, options = {}) {
-    const {
-      ignoreFields = [],
-      deep = true,
-      includeUnchanged = false
-    } = options;
+    const { ignoreFields = [], deep = true, includeUnchanged = false } = options;
     const ignoreSet = new Set(ignoreFields);
     const diff = {
       added: {},
@@ -13412,10 +13432,7 @@ ${component_stack}
       changed: {},
       unchanged: {}
     };
-    const allKeys = /* @__PURE__ */ new Set([
-      ...Object.keys(from),
-      ...Object.keys(to)
-    ]);
+    const allKeys = /* @__PURE__ */ new Set([...Object.keys(from), ...Object.keys(to)]);
     for (const key2 of allKeys) {
       if (ignoreSet.has(key2)) {
         continue;
@@ -13530,9 +13547,7 @@ ${component_stack}
       const keys = Object.keys(value);
       if (keys.length === 0) return "{}";
       if (keys.length > 3) {
-        const preview = keys.slice(0, 3).map(
-          (k) => `${k}: ${formatValue(value[k], maxDepth, currentDepth + 1)}`
-        ).join(", ");
+        const preview = keys.slice(0, 3).map((k) => `${k}: ${formatValue(value[k], maxDepth, currentDepth + 1)}`).join(", ");
         return `{ ${preview}, ... }`;
       }
       return `{ ${keys.map((k) => `${k}: ${formatValue(value[k], maxDepth, currentDepth + 1)}`).join(", ")} }`;
