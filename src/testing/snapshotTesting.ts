@@ -6,7 +6,7 @@
 
 import type { ApplicationEngineContext } from '../praxis/application/engine.js';
 import type { PraxisEvent } from '@plures/praxis';
-import { history } from '../webview/praxis/store.js';
+import { history, historyEngine } from '../webview/praxis/store.js';
 import { frontendEngine } from '../webview/praxis/frontendEngine.js';
 import type { TestScenario } from './historyTestRecorder.js';
 
@@ -54,7 +54,7 @@ export function createSnapshotTest(test: SnapshotTest) {
 
     // Apply events
     for (const event of test.events) {
-      frontendEngine.step([event]);
+      historyEngine.dispatch([event]);
     }
 
     // Verify snapshots
@@ -70,9 +70,9 @@ export function createSnapshotTest(test: SnapshotTest) {
       }
 
       // Verify state
-      if (entry.state.state !== expected.state) {
+      if (entry.state.context.applicationState !== expected.state) {
         throw new Error(
-          `Snapshot test "${test.name}" at index ${expected.index}: Expected state "${expected.state}", got "${entry.state.state}"`
+          `Snapshot test "${test.name}" at index ${expected.index}: Expected state "${expected.state}", got "${entry.state.context.applicationState}"`
         );
       }
 
@@ -229,7 +229,7 @@ export function validateScenarioSnapshots(
 
   // Replay events
   for (const eventData of scenario.events) {
-    frontendEngine.step([eventData.event]);
+    historyEngine.dispatch([eventData.event]);
   }
 
   // Verify snapshots
@@ -244,9 +244,9 @@ export function validateScenarioSnapshots(
       );
     }
 
-    if (entry.state.state !== expected.state) {
+    if (entry.state.context.applicationState !== expected.state) {
       throw new Error(
-        `Scenario "${scenario.name}" at index ${expected.index}: Expected state "${expected.state}", got "${entry.state.state}"`
+        `Scenario "${scenario.name}" at index ${expected.index}: Expected state "${expected.state}", got "${entry.state.context.applicationState}"`
       );
     }
 

@@ -73,6 +73,9 @@ export const praxisStore = {
 // Export dispatch for convenience
 export const dispatch = dispatchWithSync;
 
+// Export historyEngine for test usage
+export { historyEngine };
+
 // Track current history index for undo/redo
 let currentHistoryIndex = 0;
 
