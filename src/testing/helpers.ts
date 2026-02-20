@@ -64,7 +64,7 @@ export async function resetEngine(): Promise<void> {
   // Dispatch reset event if available
   if (ResetApplicationEvent) {
     try {
-      frontendEngine.step([ResetApplicationEvent.create({})]);
+      historyEngine.dispatch([ResetApplicationEvent.create({})]);
     } catch (_e) {
       // If reset event doesn't work, just clear history
       // The engine will start fresh on next test
