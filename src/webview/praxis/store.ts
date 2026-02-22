@@ -73,6 +73,9 @@ export const praxisStore = {
 // Export dispatch for convenience
 export const dispatch = dispatchWithSync;
 
+// Export history engine for testing
+export { historyEngine };
+
 // Track current history index for undo/redo
 let currentHistoryIndex = 0;
 
@@ -84,9 +87,6 @@ const initHistory = () => {
   }
 };
 initHistory();
-
-// Export history engine for testing
-export { historyEngine };
 
 // Export history/undo-redo functionality with actual state restoration
 // IMPORTANT: createHistoryEngine's undo/redo only navigates history but doesn't restore state.
