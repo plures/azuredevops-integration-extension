@@ -89,9 +89,10 @@ const createWorkItemRule = defineRule<ApplicationEngineContext>({
 
     const { connectionId, workItemType, title } = event.payload;
     const existing = state.context.connectionWorkItems.get(connectionId) ?? [];
-    const maxId = existing.length > 0 ? Math.max(...existing.map((wi) => wi.id)) : 0;
     const newWorkItem: WorkItem = {
-      id: maxId + 1,
+      // Use a negative timestamp-based ID as a temporary placeholder
+      // (will be replaced by the server-assigned ID on next WorkItemsLoadedEvent)
+      id: -(Date.now() % 2147483647),
       fields: { Title: title ?? 'New Work Item', 'Work Item Type': workItemType ?? 'Task' },
       url: '',
     };

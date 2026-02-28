@@ -245,13 +245,11 @@ export function validateScenarioSnapshots(
       );
     }
 
-    if (entry.state.state !== expected.state) {
-      const entryState = (entry.state.context as ApplicationEngineContext).applicationState;
-      if (entryState !== expected.state) {
-        throw new Error(
-          `Scenario "${scenario.name}" at index ${expected.index}: Expected state "${expected.state}", got "${entryState}"`
-        );
-      }
+    const entryState = (entry.state.context as ApplicationEngineContext).applicationState;
+    if (entryState !== expected.state) {
+      throw new Error(
+        `Scenario "${scenario.name}" at index ${expected.index}: Expected state "${expected.state}", got "${entryState}"`
+      );
     }
 
     const contextCheckResult = expected.contextChecks(
