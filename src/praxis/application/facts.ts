@@ -417,9 +417,15 @@ export const AuthenticationFailedEvent = defineEvent<
 /**
  * Create work item event
  */
-export const CreateWorkItemEvent = defineEvent<'CREATE_WORK_ITEM', { connectionId: string }>(
-  'CREATE_WORK_ITEM'
-);
+export const CreateWorkItemEvent = defineEvent<
+  'CREATE_WORK_ITEM',
+  {
+    connectionId: string;
+    workItemType?: string;
+    title?: string;
+    description?: string;
+  }
+>('CREATE_WORK_ITEM');
 
 /**
  * Create branch event

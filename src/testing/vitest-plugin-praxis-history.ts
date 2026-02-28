@@ -129,7 +129,9 @@ export function createMatchers() {
       const hasTransition = historyEntries.some((entry, index) => {
         if (index === 0) return false;
         const prevEntry = historyEntries[index - 1];
-        return prevEntry.state.state === from && entry.state.state === to;
+        const prevState = (prevEntry.state.context as ApplicationEngineContext).applicationState;
+        const curState = (entry.state.context as ApplicationEngineContext).applicationState;
+        return prevState === from && curState === to;
       });
 
       return {

@@ -5,8 +5,34 @@
  */
 
 import { frontendEngine } from '../webview/praxis/frontendEngine.js';
-import { history } from '../webview/praxis/store.js';
+import { history, historyEngine } from '../webview/praxis/store.js';
 import type { ApplicationEngineContext } from '../praxis/application/engine.js';
+import { isRecording, getHistoryTestRecorder } from './historyTestRecorder.js';
+
+/**
+ * Initial context used when resetting the engine in tests.
+ * Includes all fields that tests rely on, including runtime-only properties.
+ */
+const testInitialContext: ApplicationEngineContext = {
+  applicationState: 'inactive',
+  applicationData: {} as ApplicationEngineContext['applicationData'],
+  timerHistory: { entries: [] },
+  isActivated: false,
+  isDeactivating: false,
+  connections: [],
+  viewMode: 'list',
+  errorRecoveryAttempts: 0,
+  debugLoggingEnabled: false,
+  debugViewVisible: false,
+  connectionStates: new Map(),
+  connectionWorkItems: new Map(),
+  connectionQueries: new Map(),
+  connectionFilters: new Map(),
+  connectionViewModes: new Map(),
+  pendingAuthReminders: new Map(),
+  timerState: null,
+  kanbanColumns: [],
+};
 
 /**
  * Wait for a specific state condition
@@ -49,29 +75,15 @@ export async function waitForStateValue(
 }
 
 /**
- * Reset engine to initial state
+ * Reset engine to initial state.
+ * Resets the engine context directly and records an initial history entry.
  */
-export async function resetEngine(): Promise<void> {
-  // Clear history first
+export function resetEngine(): void {
+  frontendEngine.updateContext(() => ({ ...testInitialContext }));
   history.clearHistory();
-
-  // For testing, we'll use ResetApplicationEvent to reset state
-  // This is the proper way to reset via Praxis events
-  const factsModule = await import('../../src/praxis/application/facts.js');
-  const { ResetApplicationEvent } = factsModule;
-
-  // Dispatch reset event if available
-  if (ResetApplicationEvent) {
-    try {
-      frontendEngine.step([ResetApplicationEvent.create({})]);
-    } catch (_e) {
-      // If reset event doesn't work, just clear history
-      // The engine will start fresh on next test
-    }
-  }
-
-  // Note: In a real scenario, we might need to recreate the engine
-  // For now, clearing history and using reset events should work
+  // Record initial state as the first history entry (index 0) so that
+  // tests expecting "Initial + N events" = N+1 total entries work correctly.
+  historyEngine.dispatch([], 'Reset');
 }
 
 /**
@@ -89,8 +101,16 @@ export function getState(): string {
 }
 
 /**
- * Dispatch events (for testing)
+ * Dispatch events through the history engine so that history entries are
+ * recorded and the test recorder (if active) is notified.
  */
 export function dispatch(events: Parameters<typeof frontendEngine.step>[0]): void {
-  frontendEngine.step(events);
+  historyEngine.dispatch(events);
+  // Notify test recorder if a recording session is active
+  if (isRecording()) {
+    const recorder = getHistoryTestRecorder();
+    for (const event of events) {
+      recorder.recordEvent(event);
+    }
+  }
 }

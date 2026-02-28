@@ -200,8 +200,10 @@ export const StartTimerRule = defineRule<ApplicationEngineContext>({
 
     const { workItemId, timestamp } = event.payload;
 
-    // Validation: Work item must exist in loaded work items
-    const workItemExists = state.context.workItems.some((wi) => wi.id === workItemId);
+    // Validation: Work item must exist in any connection's loaded work items
+    const workItemExists = Array.from(state.context.connectionWorkItems.values())
+      .flat()
+      .some((wi) => wi.id === workItemId);
     if (!workItemExists) {
       // Do not start timer for invalid/non-existent work item
       return [];
@@ -222,6 +224,7 @@ export const StartTimerRule = defineRule<ApplicationEngineContext>({
     };
 
     state.context.timerHistory.entries.push(newEntry);
+    state.context.timerState = 'running';
 
     // Side Effects: Persist and Update UI
     const status = calculateTimerStatus(state.context.timerHistory.entries);
@@ -262,6 +265,7 @@ export const PauseTimerRule = defineRule<ApplicationEngineContext>({
     };
 
     state.context.timerHistory.entries.push(newEntry);
+    state.context.timerState = 'paused';
 
     // Side Effects: Persist and Update UI
     const status = calculateTimerStatus(state.context.timerHistory.entries);
@@ -302,6 +306,7 @@ export const StopTimerRule = defineRule<ApplicationEngineContext>({
     };
 
     state.context.timerHistory.entries.push(newEntry);
+    state.context.timerState = null;
 
     // Side Effects: Persist and Update UI
     const status = calculateTimerStatus(state.context.timerHistory.entries);

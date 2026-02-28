@@ -25,6 +25,7 @@ const initialContext: ApplicationEngineContext = {
   debugViewVisible: false,
   connectionStates: new Map(),
   connectionWorkItems: new Map(),
+  timerState: null,
 };
 
 const registry = new PraxisRegistry<ApplicationEngineContext>();

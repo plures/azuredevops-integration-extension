@@ -19,7 +19,7 @@ import type { ApplicationEngineContext } from '../../praxis/application/engine.j
 
 // Create history-enabled engine wrapper for undo/redo support
 // This tracks state snapshots for time-travel debugging
-const historyEngine = createHistoryEngine(frontendEngine, {
+export const historyEngine = createHistoryEngine(frontendEngine, {
   maxHistorySize: 50, // Keep last 50 state snapshots
 });
 

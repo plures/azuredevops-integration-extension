@@ -66,6 +66,9 @@ export interface ApplicationEngineContext {
   // Timer snapshot from timer engine
   timerSnapshot?: PraxisTimerSnapshot;
 
+  // Timer state shortcut (derived from timerHistory)
+  timerState: null | 'running' | 'paused';
+
   // Kanban columns
   kanbanColumns: KanbanColumn[];
 }
@@ -108,6 +111,9 @@ function createInitialContext(
 
     // Timer snapshot
     timerSnapshot: undefined,
+
+    // Timer state shortcut
+    timerState: null,
 
     // Kanban columns
     kanbanColumns: merged.kanbanColumns ?? [],
