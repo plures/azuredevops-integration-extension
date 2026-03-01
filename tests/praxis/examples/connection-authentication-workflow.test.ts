@@ -162,26 +162,26 @@ describe('Connection Authentication Workflow - History Testing Examples', () => 
         ],
         expectedSnapshots: [
           {
-            index: 1,
+            index: 0,
             state: 'activating',
             contextChecks: (ctx) => ctx.applicationState === 'activating',
             description: 'Application should be activating after ActivateEvent',
           },
           {
-            index: 2,
+            index: 1,
             state: 'active',
             contextChecks: (ctx) => ctx.applicationState === 'active' && ctx.isActivated === true,
             description: 'Application should be active after ActivationCompleteEvent',
           },
           {
-            index: 3,
+            index: 2,
             state: 'active',
             contextChecks: (ctx) =>
               ctx.connections.length === 1 && ctx.activeConnectionId === testConnection.id,
             description: 'Connections should be loaded and active connection set',
           },
           {
-            index: 5,
+            index: 4,
             state: 'active',
             contextChecks: (ctx) => {
               const connectionState = ctx.connectionStates?.get(testConnection.id);

@@ -71,6 +71,10 @@ export interface ApplicationEngineContext {
 
   // Kanban columns
   kanbanColumns: KanbanColumn[];
+
+  // Work items error state
+  workItemsError: string | null;
+  workItemsErrorConnectionId: string | null;
 }
 
 /**
@@ -117,6 +121,10 @@ function createInitialContext(
 
     // Kanban columns
     kanbanColumns: merged.kanbanColumns ?? [],
+
+    // Work items error state
+    workItemsError: null,
+    workItemsErrorConnectionId: null,
   };
 }
 

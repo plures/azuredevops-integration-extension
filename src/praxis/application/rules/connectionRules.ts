@@ -14,6 +14,7 @@ import {
   ViewModeChangedEvent,
   ConnectionStateUpdatedEvent,
   AuthenticationFailedEvent,
+  SignInEntraEvent,
 } from '../facts.js';
 import type { PraxisConnectionSnapshot, PraxisConnectionState } from '../../connection/types.js';
 
@@ -237,6 +238,16 @@ const authenticationFailedRule = defineRule<ApplicationEngineContext>({
 });
 
 /**
+ * Legacy connection state format (used before PraxisConnectionSnapshot was standardized)
+ */
+interface LegacyConnectionState {
+  status?: string;
+  client?: unknown;
+  provider?: unknown;
+  authMethod?: string;
+}
+
+/**
  * Handle connection state updated
  */
 const connectionStateUpdatedRule = defineRule<ApplicationEngineContext>({
@@ -250,23 +261,23 @@ const connectionStateUpdatedRule = defineRule<ApplicationEngineContext>({
     if (!event) return [];
     const { connectionId, state: connState } = event.payload;
 
-    // Map legacy state to PraxisConnectionSnapshot
-    // Legacy state: { status: 'connected', connection: {...}, authMethod: '...', id: '...' }
-    // PraxisConnectionSnapshot: { state: PraxisConnectionState, connectionId: string, isConnected: boolean, ... }
-
-    const status = connState.status || 'disconnected';
-    const isConnected = status === 'connected';
-    const praxisState: PraxisConnectionState = isConnected ? 'connected' : 'disconnected';
+    // Support both PraxisConnectionSnapshot (state field) and legacy format (status field)
+    const legacy = connState as unknown as LegacyConnectionState;
+    const praxisState: PraxisConnectionState =
+      (connState.state as PraxisConnectionState) ||
+      (legacy.status === 'connected' ? 'connected' : 'disconnected');
+    const isConnected =
+      connState.isConnected !== undefined ? connState.isConnected : legacy.status === 'connected';
 
     const snapshot: PraxisConnectionSnapshot = {
       state: praxisState,
       connectionId: connectionId,
       isConnected: isConnected,
-      authMethod: connState.authMethod || 'pat',
-      hasClient: !!connState.client,
-      hasProvider: !!connState.provider,
-      retryCount: 0,
-      error: undefined,
+      authMethod: connState.authMethod || legacy.authMethod || 'pat',
+      hasClient: connState.hasClient !== undefined ? connState.hasClient : !!legacy.client,
+      hasProvider: connState.hasProvider !== undefined ? connState.hasProvider : !!legacy.provider,
+      retryCount: connState.retryCount ?? 0,
+      error: connState.error,
     };
 
     // Priority 3: Make Map updates immutable (create new Map instance)
@@ -280,6 +291,46 @@ const connectionStateUpdatedRule = defineRule<ApplicationEngineContext>({
   },
 });
 
+/**
+ * Handle sign-in entra: set connection state to authenticating
+ */
+const signInEntraRule = defineRule<ApplicationEngineContext>({
+  id: 'application.signInEntra',
+  description: 'Set connection state to authenticating when sign-in is initiated',
+  meta: {
+    triggers: ['SIGN_IN_ENTRA'],
+  },
+  impl: (state, events) => {
+    const event = findEvent(events, SignInEntraEvent);
+    if (!event) return [];
+
+    const { connectionId } = event.payload;
+    const existingState = state.context.connectionStates.get(connectionId);
+    const connection = state.context.connections.find((c) => c.id === connectionId);
+
+    if (!connection) return [];
+
+    const updatedState: PraxisConnectionSnapshot = existingState
+      ? { ...existingState, state: 'authenticating' }
+      : {
+          state: 'authenticating',
+          connectionId,
+          isConnected: false,
+          authMethod: connection.authMethod || 'pat',
+          hasClient: false,
+          hasProvider: false,
+          retryCount: 0,
+        };
+
+    if (!existingState || existingState.state !== 'authenticating') {
+      state.context.connectionStates = new Map(state.context.connectionStates);
+      state.context.connectionStates.set(connectionId, updatedState);
+    }
+
+    return [];
+  },
+});
+
 export const connectionRules = [
   connectionsLoadedRule,
   connectionSelectedRule,
@@ -287,4 +338,5 @@ export const connectionRules = [
   viewModeChangedRule,
   connectionStateUpdatedRule,
   authenticationFailedRule,
+  signInEntraRule,
 ];

@@ -68,6 +68,8 @@ const workItemsErrorRule = defineRule<ApplicationEngineContext>({
       message: error,
       connectionId,
     };
+    state.context.workItemsError = error;
+    state.context.workItemsErrorConnectionId = connectionId;
 
     return [];
   },

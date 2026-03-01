@@ -107,6 +107,23 @@ export function validateEventSequence(test: EventSequenceTest): ValidationResult
 }
 
 /**
+ * Recursive deep equality check for objects and arrays
+ */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null || a === undefined || b === undefined) return false;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== 'object') return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const keysA = Object.keys(a as object);
+  const keysB = Object.keys(b as object);
+  if (keysA.length !== keysB.length) return false;
+  return keysA.every((key) =>
+    deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])
+  );
+}
+
+/**
  * Create a validator function that checks a specific context property
  */
 export function checkProperty<T>(
@@ -116,7 +133,11 @@ export function checkProperty<T>(
 ): StateValidator {
   return (context) => {
     const actualValue = context[property] as T;
-    const valid = actualValue === expectedValue;
+    // Use deep equality for objects and arrays, strict equality for primitives
+    const valid =
+      typeof expectedValue === 'object' && expectedValue !== null
+        ? deepEqual(actualValue, expectedValue)
+        : actualValue === expectedValue;
 
     if (!valid) {
       return {

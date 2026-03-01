@@ -32,6 +32,9 @@ const testInitialContext: ApplicationEngineContext = {
   pendingAuthReminders: new Map(),
   timerState: null,
   kanbanColumns: [],
+  lastError: null,
+  workItemsError: null,
+  workItemsErrorConnectionId: null,
 };
 
 /**
