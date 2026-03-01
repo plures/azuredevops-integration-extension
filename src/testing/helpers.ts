@@ -6,6 +6,7 @@
 
 import { frontendEngine } from '../webview/praxis/frontendEngine.js';
 import { history, historyEngine } from '../webview/praxis/store.js';
+import { getHistoryTestRecorder } from './historyTestRecorder.js';
 import type { ApplicationEngineContext } from '../praxis/application/engine.js';
 
 /**
@@ -93,4 +94,12 @@ export function getState(): string {
  */
 export function dispatch(events: Parameters<typeof historyEngine.dispatch>[0]): void {
   historyEngine.dispatch(events);
+
+  // Notify global recorder if a recording is in progress
+  const recorder = getHistoryTestRecorder();
+  if (recorder.isRecording()) {
+    for (const event of events) {
+      recorder.recordEvent(event);
+    }
+  }
 }

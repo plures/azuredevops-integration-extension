@@ -35,8 +35,8 @@ expect.extend({
 });
 
 // Auto-reset history before each test
-beforeEach(() => {
-  praxisHistory.reset();
+beforeEach(async () => {
+  await praxisHistory.reset();
 });
 
 // Export history on test failure

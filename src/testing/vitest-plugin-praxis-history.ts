@@ -129,7 +129,10 @@ export function createMatchers() {
       const hasTransition = historyEntries.some((entry, index) => {
         if (index === 0) return false;
         const prevEntry = historyEntries[index - 1];
-        return prevEntry.state.state === from && entry.state.state === to;
+        return (
+          prevEntry.state.context.applicationState === from &&
+          entry.state.context.applicationState === to
+        );
       });
 
       return {
@@ -219,9 +222,9 @@ export function setupPraxisHistoryTesting(options: PraxisHistoryPluginOptions = 
   return {
     matchers,
     config,
-    reset: () => {
+    reset: async () => {
       if (config.autoReset) {
-        resetEngine();
+        await resetEngine();
       }
     },
     exportHistory: (testName: string) => {

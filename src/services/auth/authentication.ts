@@ -265,7 +265,7 @@ type GetEntraIdTokenOptions = {
   }) => void;
 };
 
-// eslint-disable-next-line complexity, max-lines-per-function
+// eslint-disable-next-line complexity
 export async function getEntraIdToken(
   context: ExtensionContext,
   tenantId?: string,
