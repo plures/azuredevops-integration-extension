@@ -6,7 +6,7 @@
 
 import type { ApplicationEngineContext } from '../praxis/application/engine.js';
 import type { PraxisEvent } from '@plures/praxis';
-import { history } from '../webview/praxis/store.js';
+import { history, historyEngine } from '../webview/praxis/store.js';
 import { frontendEngine } from '../webview/praxis/frontendEngine.js';
 import type { HistoryEntry } from '@plures/praxis/svelte';
 
@@ -65,7 +65,7 @@ export function validateEventSequence(test: EventSequenceTest): ValidationResult
     const event = test.sequence[i];
 
     // Dispatch event
-    frontendEngine.step([event]);
+    historyEngine.dispatch([event]);
 
     // Run validators for this index
     const validators = test.validators.filter((v) => v.afterIndex === i);

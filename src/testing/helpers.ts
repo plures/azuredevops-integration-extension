@@ -5,7 +5,7 @@
  */
 
 import { frontendEngine } from '../webview/praxis/frontendEngine.js';
-import { history } from '../webview/praxis/store.js';
+import { history, historyEngine } from '../webview/praxis/store.js';
 import type { ApplicationEngineContext } from '../praxis/application/engine.js';
 
 /**
@@ -63,7 +63,7 @@ export async function resetEngine(): Promise<void> {
   // Dispatch reset event if available
   if (ResetApplicationEvent) {
     try {
-      frontendEngine.step([ResetApplicationEvent.create({})]);
+      historyEngine.dispatch([ResetApplicationEvent.create({})]);
     } catch (_e) {
       // If reset event doesn't work, just clear history
       // The engine will start fresh on next test
@@ -91,6 +91,6 @@ export function getState(): string {
 /**
  * Dispatch events (for testing)
  */
-export function dispatch(events: Parameters<typeof frontendEngine.step>[0]): void {
-  frontendEngine.step(events);
+export function dispatch(events: Parameters<typeof historyEngine.dispatch>[0]): void {
+  historyEngine.dispatch(events);
 }
