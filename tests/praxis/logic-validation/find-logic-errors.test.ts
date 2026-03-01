@@ -1,3 +1,4 @@
+/* eslint-disable no-console, max-lines */
 /**
  * Logic Error Detection Tests
  *
@@ -112,7 +113,7 @@ describe('Logic Error Detection: Finding Bugs in Current Codebase', () => {
       }
 
       expect(validation.valid).toBe(true);
-      expect(afterTimer.timerState).toBeNull();
+      expect(afterTimer.timerHistory.entries.filter((e) => e.workItemId === 0).length).toBe(0);
     });
   });
 

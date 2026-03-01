@@ -9237,7 +9237,9 @@ ${component_stack}
       const event2 = findEvent(events, StartTimerEvent);
       if (!event2) return [];
       const { workItemId, timestamp: timestamp2 } = event2.payload;
-      const workItemExists = state2.context.workItems.some((wi) => wi.id === workItemId);
+      const workItemExists = Array.from(state2.context.connectionWorkItems.values()).some(
+        (items) => items.some((wi) => wi.id === workItemId)
+      );
       if (!workItemExists) {
         return [];
       }
