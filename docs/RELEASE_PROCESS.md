@@ -181,7 +181,9 @@ The workflows require these GitHub permissions (configured in workflow files):
 ```yaml
 permissions:
   contents: write # For creating tags and releases
+  id-token: write # For OIDC token authentication (package publishing)
   issues: write # For creating failure notifications
+  packages: write # For publishing to GitHub Packages
 ```
 
 ## Changelog Management
