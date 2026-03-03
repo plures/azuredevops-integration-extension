@@ -195,14 +195,20 @@ const retryRule = defineRule<ApplicationEngineContext>({
     const retryEvent = findEvent(events, RetryApplicationEvent);
     if (!retryEvent) return [];
 
-    if (
-      state.context.applicationState !== 'error_recovery' &&
-      state.context.applicationState !== 'activation_error'
-    )
-      return [];
+    const isErrorState =
+      state.context.applicationState === 'error_recovery' ||
+      state.context.applicationState === 'activation_error';
+    const isActiveWithError =
+      state.context.applicationState === 'active' && state.context.lastError != null;
+
+    if (!isErrorState && !isActiveWithError) return [];
 
     state.context.lastError = undefined;
-    state.context.applicationState = 'active';
+    state.context.errorRecoveryAttempts++;
+
+    if (isErrorState) {
+      state.context.applicationState = 'active';
+    }
 
     return [];
   },

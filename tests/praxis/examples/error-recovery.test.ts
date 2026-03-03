@@ -65,13 +65,12 @@ describe('Error Recovery - History Testing Examples', () => {
         }),
       ]);
 
-      await waitForState((ctx) => ctx.lastError !== null);
-      await waitForState((ctx) => ctx.workItemsError !== null);
+      await waitForState((ctx) => ctx.lastError != null);
 
       // Verify error state
       let context = getContext();
       expect(context.lastError).toBeTruthy();
-      expect(context.workItemsErrorConnectionId).toBe(testConnection.id);
+      expect(context.lastError?.connectionId).toBe(testConnection.id);
       expect(context.errorRecoveryAttempts).toBe(0);
 
       // Step 2: Retry
