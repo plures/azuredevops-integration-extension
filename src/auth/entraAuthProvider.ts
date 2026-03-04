@@ -22,6 +22,12 @@ import type * as vscode from 'vscode';
 import { createLogger } from '../logging/unifiedLogger.js';
 import { AuthorizationCodeFlowProvider } from '../services/auth/authorizationCodeProvider.js';
 import { shouldUseAuthCodeFlow } from '../config/authConfig.js';
+import {
+  recordAuthSuccess,
+  recordAuthFailure,
+  recordAuthFlowSelected,
+  classifyAuthFailure,
+} from './authTelemetry.js';
 
 const logger = createLogger('entraAuth');
 // Inline type definitions (previously from deleted types.js)
@@ -76,9 +82,17 @@ export interface EntraAuthProviderOptions {
 const AZURE_DEVOPS_RESOURCE_ID = '499b84ac-1321-427f-aa17-267ca6975798';
 
 /**
- * Default scopes for Azure DevOps access
+ * Least-privilege scopes for Azure DevOps access.
+ * Uses specific permissions rather than the broad /.default scope.
+ * - vso.work_write : Read/write work items, queries, boards (time tracking, comments)
+ * - vso.code       : Read source code, commits, and branches (branch context)
+ * - vso.build      : Read build and release definitions
  */
-const DEFAULT_BASE_SCOPES = [`${AZURE_DEVOPS_RESOURCE_ID}/.default`];
+const DEFAULT_BASE_SCOPES = [
+  `${AZURE_DEVOPS_RESOURCE_ID}/vso.work_write`,
+  `${AZURE_DEVOPS_RESOURCE_ID}/vso.code`,
+  `${AZURE_DEVOPS_RESOURCE_ID}/vso.build`,
+];
 const OFFLINE_ACCESS_SCOPE = 'offline_access';
 
 export class EntraAuthProvider implements IAuthProvider {
@@ -86,23 +100,19 @@ export class EntraAuthProvider implements IAuthProvider {
   private secretStorage: vscode.SecretStorage;
   private connectionId: string;
   private deviceCodeCallback?: DeviceCodeCallback;
+  private onStatusUpdate?: EntraAuthProviderOptions['onStatusUpdate'];
   private msalClient: msal.PublicClientApplication;
   private cachedToken?: TokenInfo;
   private refreshTokenKey: string;
   private tokenCacheKey: string;
   private authCodeFlowProvider?: AuthorizationCodeFlowProvider;
 
-  // Refresh failure tracking to prevent constant retry attempts
-  // private refreshFailureCount = 0;
-  // private lastRefreshFailure: Date | undefined;
-  // private refreshBackoffUntil: Date | undefined;
-  // private readonly maxRefreshFailures = 3;
-
   constructor(options: EntraAuthProviderOptions) {
     this.config = options.config;
     this.secretStorage = options.secretStorage;
     this.connectionId = options.connectionId;
     this.deviceCodeCallback = options.deviceCodeCallback;
+    this.onStatusUpdate = options.onStatusUpdate;
     this.refreshTokenKey = `azureDevOpsInt.entra.refreshToken.${this.connectionId}`;
     this.tokenCacheKey = `azureDevOpsInt.entra.tokenCache.${this.connectionId}`;
 
@@ -224,13 +234,16 @@ export class EntraAuthProvider implements IAuthProvider {
    * @param forceInteractive If true, skips silent authentication and forces interactive flow
    */
   async authenticate(forceInteractive: boolean = false): Promise<AuthenticationResult> {
+    let activeFlow: 'auth-code-pkce' | 'device-code' = 'device-code';
     try {
       const scopes = this.resolveScopes();
 
-      // Check if auth code flow should be used
+      // Check if auth code flow should be used (primary path)
       const useAuthCodeFlow = shouldUseAuthCodeFlow('entra', this.connectionId);
 
       if (useAuthCodeFlow) {
+        activeFlow = 'auth-code-pkce';
+        recordAuthFlowSelected({ connectionId: this.connectionId, flow: 'auth-code-pkce' });
         try {
           const provider = this.getAuthCodeFlowProvider();
 
@@ -240,23 +253,54 @@ export class EntraAuthProvider implements IAuthProvider {
           }
           (globalThis as any).__pendingAuthProviders.set(this.connectionId, provider);
 
-          return await provider.authenticate(forceInteractive);
+          const result = await provider.authenticate(forceInteractive);
+          if (result.success) {
+            const expiresInSecs = result.expiresAt
+              ? Math.floor((result.expiresAt.getTime() - Date.now()) / 1000)
+              : undefined;
+            recordAuthSuccess({
+              connectionId: this.connectionId,
+              flow: 'auth-code-pkce',
+              scopes,
+              silentRefresh: false,
+              expiresInSeconds: expiresInSecs,
+            });
+          } else {
+            recordAuthFailure({
+              connectionId: this.connectionId,
+              flow: 'auth-code-pkce',
+              reason: classifyAuthFailure(result.error || ''),
+              retryCount: 0,
+            });
+          }
+          return result;
         } catch (error: any) {
           logger.warn('Auth code flow failed, falling back to device code', {
             meta: { error: error.message, connectionId: this.connectionId },
           });
+          recordAuthFlowSelected({
+            connectionId: this.connectionId,
+            flow: 'device-code',
+            fallbackFromFlow: 'auth-code-pkce',
+          });
+          activeFlow = 'device-code';
           // Fall through to device code flow
         }
+      } else {
+        activeFlow = 'device-code';
+        recordAuthFlowSelected({ connectionId: this.connectionId, flow: 'device-code' });
       }
 
       // Try silent authentication first (unless forced)
       if (!forceInteractive) {
         const silentResult = await this.trySilentAuthentication(scopes);
         if (silentResult.success) {
-          // Reset refresh failure tracking on successful authentication
-          // this.refreshFailureCount = 0;
-          // this.lastRefreshFailure = undefined;
-          // this.refreshBackoffUntil = undefined;
+          recordAuthSuccess({
+            connectionId: this.connectionId,
+            flow: 'device-code',
+            scopes,
+            silentRefresh: true,
+          });
           return silentResult;
         }
       } else {
@@ -283,6 +327,12 @@ export class EntraAuthProvider implements IAuthProvider {
 
       const response = await this.msalClient.acquireTokenByDeviceCode(deviceCodeRequest);
       if (!response) {
+        recordAuthFailure({
+          connectionId: this.connectionId,
+          flow: 'device-code',
+          reason: 'token_exchange_failed',
+          retryCount: 0,
+        });
         return {
           success: false,
           error: 'Failed to acquire token via device code flow',
@@ -302,10 +352,16 @@ export class EntraAuthProvider implements IAuthProvider {
         await this.storeAccount(account);
       }
 
-      // Reset refresh failure tracking on successful authentication
-      // this.refreshFailureCount = 0;
-      // this.lastRefreshFailure = undefined;
-      // this.refreshBackoffUntil = undefined;
+      const expiresInSecs = response.expiresOn
+        ? Math.floor((response.expiresOn.getTime() - Date.now()) / 1000)
+        : undefined;
+      recordAuthSuccess({
+        connectionId: this.connectionId,
+        flow: 'device-code',
+        scopes,
+        silentRefresh: false,
+        expiresInSeconds: expiresInSecs,
+      });
 
       return {
         success: true,
@@ -314,6 +370,13 @@ export class EntraAuthProvider implements IAuthProvider {
       };
     } catch (error: any) {
       logger.error('Authentication failed', { meta: error });
+      recordAuthFailure({
+        connectionId: this.connectionId,
+        flow: activeFlow,
+        reason: classifyAuthFailure(error.message || ''),
+        msalErrorCode: extractMsalErrorCode(error.message || ''),
+        retryCount: 0,
+      });
       return {
         success: false,
         error: error.message || 'Authentication failed',
@@ -509,4 +572,13 @@ export class EntraAuthProvider implements IAuthProvider {
   async clearTokens(): Promise<void> {
     await this.signOut();
   }
+}
+
+/**
+ * Extract AADSTS error code from an MSAL error message.
+ * Returns undefined when no AADSTS code is present.
+ */
+function extractMsalErrorCode(message: string): string | undefined {
+  const match = /AADSTS\d+/i.exec(message);
+  return match ? match[0].toUpperCase() : undefined;
 }

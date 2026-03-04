@@ -14,7 +14,24 @@ const componentLogger = createComponentLogger(Component.AUTH, 'AuthorizationCode
 
 // Constants
 const AZURE_DEVOPS_RESOURCE_ID = '499b84ac-1321-427f-aa17-267ca6975798';
-const DEFAULT_SCOPES = [`${AZURE_DEVOPS_RESOURCE_ID}/.default`, 'offline_access'];
+
+/**
+ * Least-privilege scopes for Azure DevOps access.
+ * Requests only specific permissions rather than the broad /.default scope.
+ *
+ * Scope reference: https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth#scopes
+ * - vso.work_write  : Read and write work items, queries, and boards (time tracking, comments)
+ * - vso.code        : Read source code, commits, and branches (branch context)
+ * - vso.build       : Read build and release definitions
+ */
+export const MINIMUM_SCOPES = [
+  `${AZURE_DEVOPS_RESOURCE_ID}/vso.work_write`,
+  `${AZURE_DEVOPS_RESOURCE_ID}/vso.code`,
+  `${AZURE_DEVOPS_RESOURCE_ID}/vso.build`,
+  'offline_access',
+];
+
+const DEFAULT_SCOPES = MINIMUM_SCOPES;
 const AUTH_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 
 export interface AuthenticationResult {

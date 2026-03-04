@@ -349,7 +349,7 @@
       },
       {
         "command": "azureDevOpsInt.quickDebug",
-        "title": "🚨 Quick Debug Panel",
+        "title": "\ud83d\udea8 Quick Debug Panel",
         "category": "Azure DevOps Int (Debug)",
         "icon": "$(bug)"
       },
@@ -361,7 +361,7 @@
       },
       {
         "command": "azureDevOpsInt.triageBrokenFeature",
-        "title": "🔍 Triage Broken Feature",
+        "title": "\ud83d\udd0d Triage Broken Feature",
         "category": "Azure DevOps Int (Debug)",
         "icon": "$(search-save)"
       },
@@ -877,6 +877,11 @@
           ],
           "default": "auto",
           "description": "Authentication flow preference: 'auto' uses auth-code if available, 'device-code' forces device code, 'auth-code' forces authorization code flow"
+        },
+        "azureDevOpsIntegration.auth.allowPat": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Allow Personal Access Token (PAT) authentication. **Not recommended** \u2014 PATs are long-lived credentials that bypass Entra ID policy controls. Enable only if your organization does not yet support Entra ID OAuth for Azure DevOps. Prefer `entra` auth with Authorization Code + PKCE as the primary flow."
         }
       }
     }
