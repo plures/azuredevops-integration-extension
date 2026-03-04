@@ -22,6 +22,7 @@ import type { PraxisConnectionSnapshot } from '../connection/types.js';
 import { applicationRules } from './rules/index.js';
 import type { TimerEntry } from './features/timer.js';
 import { TraceRecorder, wrapRuleWithTracing } from './tracing.js';
+import { createDecisionLedgerState, type DecisionLedgerState } from '../../decision-ledger/index.js';
 
 // Simple clock helper to allow tests to stub time if needed
 const defaultClock = { now: () => Date.now() };
@@ -68,6 +69,9 @@ export interface ApplicationEngineContext {
 
   // Kanban columns
   kanbanColumns: KanbanColumn[];
+
+  // Decision ledger – records every mutating operation for auditability and replay
+  decisionLedger: DecisionLedgerState;
 }
 
 /**
@@ -111,6 +115,9 @@ function createInitialContext(
 
     // Kanban columns
     kanbanColumns: merged.kanbanColumns ?? [],
+
+    // Decision ledger – starts empty on each fresh engine
+    decisionLedger: createDecisionLedgerState(),
   };
 }
 
