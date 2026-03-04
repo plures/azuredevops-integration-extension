@@ -276,6 +276,7 @@
   // node_modules/svelte/src/internal/shared/utils.js
   var is_array = Array.isArray;
   var index_of = Array.prototype.indexOf;
+  var includes = Array.prototype.includes;
   var array_from = Array.from;
   var object_keys = Object.keys;
   var define_property = Object.defineProperty;
@@ -320,14 +321,14 @@
   var MAYBE_DIRTY = 1 << 12;
   var INERT = 1 << 13;
   var DESTROYED = 1 << 14;
-  var EFFECT_RAN = 1 << 15;
+  var REACTION_RAN = 1 << 15;
   var EFFECT_TRANSPARENT = 1 << 16;
   var EAGER_EFFECT = 1 << 17;
   var HEAD_EFFECT = 1 << 18;
   var EFFECT_PRESERVED = 1 << 19;
   var USER_EFFECT = 1 << 20;
   var EFFECT_OFFSCREEN = 1 << 25;
-  var WAS_MARKED = 1 << 15;
+  var WAS_MARKED = 1 << 16;
   var REACTION_IS_UPDATING = 1 << 21;
   var ASYNC = 1 << 22;
   var ERROR_VALUE = 1 << 23;
@@ -342,6 +343,10 @@
       __publicField(this, "message", "The reaction that called `getAbortSignal()` was re-run or destroyed");
     }
   }();
+  var IS_XHTML = (
+    // We gotta write it like this because after downleveling the pure comment may end up in the wrong location
+    !!globalThis.document?.contentType && /* @__PURE__ */ globalThis.document.contentType.includes("xml")
+  );
   var ELEMENT_NODE = 1;
   var TEXT_NODE = 3;
   var COMMENT_NODE = 8;
@@ -425,6 +430,17 @@ https://svelte.dev/e/each_key_duplicate`);
       throw error;
     } else {
       throw new Error(`https://svelte.dev/e/each_key_duplicate`);
+    }
+  }
+  function each_key_volatile(index2, a, b) {
+    if (dev_fallback_default) {
+      const error = new Error(`each_key_volatile
+Keyed each block has key that is not idempotent \u2014 the key for item at index ${index2} was \`${a}\` but is now \`${b}\`. Keys must be the same each time for a given item
+https://svelte.dev/e/each_key_volatile`);
+      error.name = "Svelte error";
+      throw error;
+    } else {
+      throw new Error(`https://svelte.dev/e/each_key_volatile`);
     }
   }
   function effect_in_teardown(rune) {
@@ -568,6 +584,7 @@ https://svelte.dev/e/svelte_boundary_reset_onerror`);
   var TEMPLATE_USE_MATHML = 1 << 3;
   var HYDRATION_START = "[";
   var HYDRATION_START_ELSE = "[!";
+  var HYDRATION_START_FAILED = "[?";
   var HYDRATION_END = "]";
   var HYDRATION_ERROR = {};
   var ELEMENT_PRESERVE_ATTRIBUTE_CASE = 1 << 1;
@@ -712,7 +729,8 @@ https://svelte.dev/e/svelte_boundary_reset_noop`, bold, normal);
         if (data === HYDRATION_END) {
           if (depth === 0) return node;
           depth -= 1;
-        } else if (data === HYDRATION_START || data === HYDRATION_START_ELSE) {
+        } else if (data === HYDRATION_START || data === HYDRATION_START_ELSE || // "[1", "[2", etc. for if blocks
+        data[0] === "[" && !isNaN(Number(data.slice(1)))) {
           depth += 1;
         }
       }
@@ -828,7 +846,7 @@ https://svelte.dev/e/state_snapshot_uncloneable`,
         if (original !== null) {
           cloned.set(original, copy);
         }
-        for (var key2 in value) {
+        for (var key2 of Object.keys(value)) {
           copy[key2] = clone(
             // @ts-expect-error
             value[key2],
@@ -1042,21 +1060,20 @@ https://svelte.dev/e/state_snapshot_uncloneable`,
     if (dev_fallback_default && error instanceof Error && !adjustments.has(error)) {
       adjustments.set(error, get_adjustments(error, effect2));
     }
-    if ((effect2.f & EFFECT_RAN) === 0) {
-      if ((effect2.f & BOUNDARY_EFFECT) === 0) {
-        if (dev_fallback_default && !effect2.parent && error instanceof Error) {
-          apply_adjustments(error);
-        }
-        throw error;
+    if ((effect2.f & REACTION_RAN) === 0 && (effect2.f & EFFECT) === 0) {
+      if (dev_fallback_default && !effect2.parent && error instanceof Error) {
+        apply_adjustments(error);
       }
-      effect2.b.error(error);
-    } else {
-      invoke_error_boundary(error, effect2);
+      throw error;
     }
+    invoke_error_boundary(error, effect2);
   }
   function invoke_error_boundary(error, effect2) {
     while (effect2 !== null) {
       if ((effect2.f & BOUNDARY_EFFECT) !== 0) {
+        if ((effect2.f & REACTION_RAN) === 0) {
+          throw error;
+        }
         try {
           effect2.b.error(error);
           return;
@@ -1146,13 +1163,12 @@ ${component_stack}
   var batch_values = null;
   var queued_root_effects = [];
   var last_scheduled_effect = null;
-  var is_flushing = false;
   var is_flushing_sync = false;
-  var _commit_callbacks, _discard_callbacks, _pending, _blocking_pending, _deferred, _dirty_effects, _maybe_dirty_effects, _decrement_queued, _Batch_instances, traverse_effect_tree_fn, defer_effects_fn, commit_fn;
+  var collected_effects = null;
+  var _commit_callbacks, _discard_callbacks, _pending, _blocking_pending, _deferred, _dirty_effects, _maybe_dirty_effects, _skipped_branches, _decrement_queued, _Batch_instances, is_deferred_fn, traverse_effect_tree_fn, defer_effects_fn, commit_fn;
   var _Batch = class _Batch {
     constructor() {
       __privateAdd(this, _Batch_instances);
-      __publicField(this, "committed", false);
       /**
        * The current values of any sources that are updated in this batch
        * They keys of this map are identical to `this.#previous`
@@ -1168,7 +1184,7 @@ ${component_stack}
       /**
        * When the batch is committed (and the DOM is updated), we need to remove old branches
        * and append new ones by calling the functions added inside (if/each/key/etc) blocks
-       * @type {Set<() => void>}
+       * @type {Set<(batch: Batch) => void>}
        */
       __privateAdd(this, _commit_callbacks, /* @__PURE__ */ new Set());
       /**
@@ -1201,16 +1217,43 @@ ${component_stack}
        */
       __privateAdd(this, _maybe_dirty_effects, /* @__PURE__ */ new Set());
       /**
-       * A set of branches that still exist, but will be destroyed when this batch
-       * is committed — we skip over these during `process`
-       * @type {Set<Effect>}
+       * A map of branches that still exist, but will be destroyed when this batch
+       * is committed — we skip over these during `process`.
+       * The value contains child effects that were dirty/maybe_dirty before being reset,
+       * so they can be rescheduled if the branch survives.
+       * @type {Map<Effect, { d: Effect[], m: Effect[] }>}
        */
-      __publicField(this, "skipped_effects", /* @__PURE__ */ new Set());
+      __privateAdd(this, _skipped_branches, /* @__PURE__ */ new Map());
       __publicField(this, "is_fork", false);
       __privateAdd(this, _decrement_queued, false);
     }
-    is_deferred() {
-      return this.is_fork || __privateGet(this, _blocking_pending) > 0;
+    /**
+     * Add an effect to the #skipped_branches map and reset its children
+     * @param {Effect} effect
+     */
+    skip_effect(effect2) {
+      if (!__privateGet(this, _skipped_branches).has(effect2)) {
+        __privateGet(this, _skipped_branches).set(effect2, { d: [], m: [] });
+      }
+    }
+    /**
+     * Remove an effect from the #skipped_branches map and reschedule
+     * any tracked dirty/maybe_dirty child effects
+     * @param {Effect} effect
+     */
+    unskip_effect(effect2) {
+      var tracked = __privateGet(this, _skipped_branches).get(effect2);
+      if (tracked) {
+        __privateGet(this, _skipped_branches).delete(effect2);
+        for (var e of tracked.d) {
+          set_signal_status(e, DIRTY);
+          schedule_effect(e);
+        }
+        for (e of tracked.m) {
+          set_signal_status(e, MAYBE_DIRTY);
+          schedule_effect(e);
+        }
+      }
     }
     /**
      *
@@ -1219,24 +1262,30 @@ ${component_stack}
     process(root_effects) {
       queued_root_effects = [];
       this.apply();
-      var effects = [];
+      var effects = collected_effects = [];
       var render_effects = [];
       for (const root17 of root_effects) {
         __privateMethod(this, _Batch_instances, traverse_effect_tree_fn).call(this, root17, effects, render_effects);
       }
-      if (this.is_deferred()) {
+      collected_effects = null;
+      if (__privateMethod(this, _Batch_instances, is_deferred_fn).call(this)) {
         __privateMethod(this, _Batch_instances, defer_effects_fn).call(this, render_effects);
         __privateMethod(this, _Batch_instances, defer_effects_fn).call(this, effects);
+        for (const [e, t] of __privateGet(this, _skipped_branches)) {
+          reset_branch(e, t);
+        }
       } else {
-        for (const fn of __privateGet(this, _commit_callbacks)) fn();
+        previous_batch = this;
+        current_batch = null;
+        for (const fn of __privateGet(this, _commit_callbacks)) fn(this);
         __privateGet(this, _commit_callbacks).clear();
         if (__privateGet(this, _pending) === 0) {
           __privateMethod(this, _Batch_instances, commit_fn).call(this);
         }
-        previous_batch = this;
-        current_batch = null;
         flush_queued_effects(render_effects);
         flush_queued_effects(effects);
+        __privateGet(this, _dirty_effects).clear();
+        __privateGet(this, _maybe_dirty_effects).clear();
         previous_batch = null;
         __privateGet(this, _deferred)?.resolve();
       }
@@ -1267,14 +1316,14 @@ ${component_stack}
       batch_values = null;
     }
     flush() {
-      this.activate();
       if (queued_root_effects.length > 0) {
+        current_batch = this;
         flush_effects();
-        if (current_batch !== null && current_batch !== this) {
-          return;
-        }
-      } else if (__privateGet(this, _pending) === 0) {
-        this.process([]);
+      } else if (__privateGet(this, _pending) === 0 && !this.is_fork) {
+        for (const fn of __privateGet(this, _commit_callbacks)) fn(this);
+        __privateGet(this, _commit_callbacks).clear();
+        __privateMethod(this, _Batch_instances, commit_fn).call(this);
+        __privateGet(this, _deferred)?.resolve();
       }
       this.deactivate();
     }
@@ -1301,7 +1350,7 @@ ${component_stack}
       __privateSet(this, _decrement_queued, true);
       queue_micro_task(() => {
         __privateSet(this, _decrement_queued, false);
-        if (!this.is_deferred()) {
+        if (!__privateMethod(this, _Batch_instances, is_deferred_fn).call(this)) {
           this.revive();
         } else if (queued_root_effects.length > 0) {
           this.flush();
@@ -1320,7 +1369,7 @@ ${component_stack}
       }
       this.flush();
     }
-    /** @param {() => void} fn */
+    /** @param {(batch: Batch) => void} fn */
     oncommit(fn) {
       __privateGet(this, _commit_callbacks).add(fn);
     }
@@ -1366,8 +1415,12 @@ ${component_stack}
   _deferred = new WeakMap();
   _dirty_effects = new WeakMap();
   _maybe_dirty_effects = new WeakMap();
+  _skipped_branches = new WeakMap();
   _decrement_queued = new WeakMap();
   _Batch_instances = new WeakSet();
+  is_deferred_fn = function() {
+    return this.is_fork || __privateGet(this, _blocking_pending) > 0;
+  };
   /**
    * Traverse the effect tree, executing effects or stashing
    * them for later execution as appropriate
@@ -1378,26 +1431,20 @@ ${component_stack}
   traverse_effect_tree_fn = function(root17, effects, render_effects) {
     root17.f ^= CLEAN;
     var effect2 = root17.first;
-    var pending_boundary = null;
     while (effect2 !== null) {
       var flags2 = effect2.f;
       var is_branch = (flags2 & (BRANCH_EFFECT | ROOT_EFFECT)) !== 0;
       var is_skippable_branch = is_branch && (flags2 & CLEAN) !== 0;
-      var skip = is_skippable_branch || (flags2 & INERT) !== 0 || this.skipped_effects.has(effect2);
-      if (async_mode_flag && pending_boundary === null && (flags2 & BOUNDARY_EFFECT) !== 0 && effect2.b?.is_pending) {
-        pending_boundary = effect2;
-      }
+      var skip = is_skippable_branch || (flags2 & INERT) !== 0 || __privateGet(this, _skipped_branches).has(effect2);
       if (!skip && effect2.fn !== null) {
         if (is_branch) {
           effect2.f ^= CLEAN;
-        } else if (pending_boundary !== null && (flags2 & (EFFECT | RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
-          pending_boundary.b.defer_effect(effect2);
         } else if ((flags2 & EFFECT) !== 0) {
           effects.push(effect2);
         } else if (async_mode_flag && (flags2 & (RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
           render_effects.push(effect2);
         } else if (is_dirty(effect2)) {
-          if ((flags2 & BLOCK_EFFECT) !== 0) __privateGet(this, _dirty_effects).add(effect2);
+          if ((flags2 & BLOCK_EFFECT) !== 0) __privateGet(this, _maybe_dirty_effects).add(effect2);
           update_effect(effect2);
         }
         var child2 = effect2.first;
@@ -1406,14 +1453,13 @@ ${component_stack}
           continue;
         }
       }
-      var parent = effect2.parent;
-      effect2 = effect2.next;
-      while (effect2 === null && parent !== null) {
-        if (parent === pending_boundary) {
-          pending_boundary = null;
+      while (effect2 !== null) {
+        var next2 = effect2.next;
+        if (next2 !== null) {
+          effect2 = next2;
+          break;
         }
-        effect2 = parent.next;
-        parent = parent.parent;
+        effect2 = effect2.parent;
       }
     }
   };
@@ -1429,6 +1475,7 @@ ${component_stack}
     var _a2;
     if (batches.size > 1) {
       this.previous.clear();
+      var previous_batch2 = current_batch;
       var previous_batch_values = batch_values;
       var is_earlier = true;
       for (const batch of batches) {
@@ -1470,10 +1517,10 @@ ${component_stack}
           queued_root_effects = prev_queued_root_effects;
         }
       }
-      current_batch = null;
+      current_batch = previous_batch2;
       batch_values = previous_batch_values;
     }
-    this.committed = true;
+    __privateGet(this, _skipped_branches).clear();
     batches.delete(this);
   };
   var Batch = _Batch;
@@ -1507,7 +1554,6 @@ ${component_stack}
     }
   }
   function flush_effects() {
-    is_flushing = true;
     var source_stacks = dev_fallback_default ? /* @__PURE__ */ new Set() : null;
     try {
       var flush_count = 0;
@@ -1543,8 +1589,9 @@ ${component_stack}
         }
       }
     } finally {
-      is_flushing = false;
+      queued_root_effects = [];
       last_scheduled_effect = null;
+      collected_effects = null;
       if (dev_fallback_default) {
         for (
           const source2 of
@@ -1576,12 +1623,8 @@ ${component_stack}
       if ((effect2.f & (DESTROYED | INERT)) === 0 && is_dirty(effect2)) {
         eager_block_effects = /* @__PURE__ */ new Set();
         update_effect(effect2);
-        if (effect2.deps === null && effect2.first === null && effect2.nodes === null) {
-          if (effect2.teardown === null && effect2.ac === null) {
-            unlink_effect(effect2);
-          } else {
-            effect2.fn = null;
-          }
+        if (effect2.deps === null && effect2.first === null && effect2.nodes === null && effect2.teardown === null && effect2.ac === null) {
+          unlink_effect(effect2);
         }
         if (eager_block_effects?.size > 0) {
           old_values.clear();
@@ -1637,7 +1680,7 @@ ${component_stack}
     if (depends !== void 0) return depends;
     if (reaction.deps !== null) {
       for (const dep of reaction.deps) {
-        if (sources.includes(dep)) {
+        if (includes.call(sources, dep)) {
           return true;
         }
         if ((dep.f & DERIVED) !== 0 && depends_on(
@@ -1660,18 +1703,43 @@ ${component_stack}
   }
   function schedule_effect(signal) {
     var effect2 = last_scheduled_effect = signal;
+    var boundary2 = effect2.b;
+    if (boundary2?.is_pending && (signal.f & (EFFECT | RENDER_EFFECT | MANAGED_EFFECT)) !== 0 && (signal.f & REACTION_RAN) === 0) {
+      boundary2.defer_effect(signal);
+      return;
+    }
     while (effect2.parent !== null) {
       effect2 = effect2.parent;
       var flags2 = effect2.f;
-      if (is_flushing && effect2 === active_effect && (flags2 & BLOCK_EFFECT) !== 0 && (flags2 & HEAD_EFFECT) === 0) {
-        return;
+      if (collected_effects !== null && effect2 === active_effect) {
+        if (async_mode_flag || (signal.f & RENDER_EFFECT) === 0) {
+          return;
+        }
       }
       if ((flags2 & (ROOT_EFFECT | BRANCH_EFFECT)) !== 0) {
-        if ((flags2 & CLEAN) === 0) return;
+        if ((flags2 & CLEAN) === 0) {
+          return;
+        }
         effect2.f ^= CLEAN;
       }
     }
     queued_root_effects.push(effect2);
+  }
+  function reset_branch(effect2, tracked) {
+    if ((effect2.f & BRANCH_EFFECT) !== 0 && (effect2.f & CLEAN) !== 0) {
+      return;
+    }
+    if ((effect2.f & DIRTY) !== 0) {
+      tracked.d.push(effect2);
+    } else if ((effect2.f & MAYBE_DIRTY) !== 0) {
+      tracked.m.push(effect2);
+    }
+    set_signal_status(effect2, CLEAN);
+    var e = effect2.first;
+    while (e !== null) {
+      reset_branch(e, tracked);
+      e = e.next;
+    }
   }
 
   // node_modules/svelte/src/reactivity/create-subscriber.js
@@ -1706,22 +1774,29 @@ ${component_stack}
   }
 
   // node_modules/svelte/src/internal/client/dom/blocks/boundary.js
-  var flags = EFFECT_TRANSPARENT | EFFECT_PRESERVED | BOUNDARY_EFFECT;
-  function boundary(node, props, children) {
-    new Boundary(node, props, children);
+  var flags = EFFECT_TRANSPARENT | EFFECT_PRESERVED;
+  function boundary(node, props, children, transform_error) {
+    new Boundary(node, props, children, transform_error);
   }
-  var _anchor, _hydrate_open, _props, _children, _effect, _main_effect, _pending_effect, _failed_effect, _offscreen_fragment, _pending_anchor, _local_pending_count, _pending_count, _pending_count_update_queued, _is_creating_fallback, _dirty_effects2, _maybe_dirty_effects2, _effect_pending, _effect_pending_subscriber, _Boundary_instances, hydrate_resolved_content_fn, hydrate_pending_content_fn, get_anchor_fn, run_fn, show_pending_snippet_fn, update_pending_count_fn;
+  var _anchor, _hydrate_open, _props, _children, _effect, _main_effect, _pending_effect, _failed_effect, _offscreen_fragment, _local_pending_count, _pending_count, _pending_count_update_queued, _dirty_effects2, _maybe_dirty_effects2, _effect_pending, _effect_pending_subscriber, _Boundary_instances, hydrate_resolved_content_fn, hydrate_failed_content_fn, hydrate_pending_content_fn, render_fn, resolve_fn, run_fn, update_pending_count_fn;
   var Boundary = class {
     /**
      * @param {TemplateNode} node
      * @param {BoundaryProps} props
      * @param {((anchor: Node) => void)} children
+     * @param {((error: unknown) => unknown) | undefined} [transform_error]
      */
-    constructor(node, props, children) {
+    constructor(node, props, children, transform_error) {
       __privateAdd(this, _Boundary_instances);
       /** @type {Boundary | null} */
       __publicField(this, "parent");
       __publicField(this, "is_pending", false);
+      /**
+       * API-level transformError transform function. Transforms errors before they reach the `failed` snippet.
+       * Inherited from parent boundary, or defaults to identity.
+       * @type {(error: unknown) => unknown}
+       */
+      __publicField(this, "transform_error");
       /** @type {TemplateNode} */
       __privateAdd(this, _anchor);
       /** @type {TemplateNode | null} */
@@ -1740,12 +1815,9 @@ ${component_stack}
       __privateAdd(this, _failed_effect, null);
       /** @type {DocumentFragment | null} */
       __privateAdd(this, _offscreen_fragment, null);
-      /** @type {TemplateNode | null} */
-      __privateAdd(this, _pending_anchor, null);
       __privateAdd(this, _local_pending_count, 0);
       __privateAdd(this, _pending_count, 0);
       __privateAdd(this, _pending_count_update_queued, false);
-      __privateAdd(this, _is_creating_fallback, false);
       /** @type {Set<Effect>} */
       __privateAdd(this, _dirty_effects2, /* @__PURE__ */ new Set());
       /** @type {Set<Effect>} */
@@ -1769,44 +1841,38 @@ ${component_stack}
       }));
       __privateSet(this, _anchor, node);
       __privateSet(this, _props, props);
-      __privateSet(this, _children, children);
+      __privateSet(this, _children, (anchor) => {
+        var effect2 = (
+          /** @type {Effect} */
+          active_effect
+        );
+        effect2.b = this;
+        effect2.f |= BOUNDARY_EFFECT;
+        children(anchor);
+      });
       this.parent = /** @type {Effect} */
       active_effect.b;
-      this.is_pending = !!__privateGet(this, _props).pending;
+      this.transform_error = transform_error ?? this.parent?.transform_error ?? ((e) => e);
       __privateSet(this, _effect, block(() => {
-        active_effect.b = this;
         if (hydrating) {
-          const comment2 = __privateGet(this, _hydrate_open);
-          hydrate_next();
-          const server_rendered_pending = (
+          const comment2 = (
             /** @type {Comment} */
-            comment2.nodeType === COMMENT_NODE && /** @type {Comment} */
-            comment2.data === HYDRATION_START_ELSE
+            __privateGet(this, _hydrate_open)
           );
-          if (server_rendered_pending) {
+          hydrate_next();
+          const server_rendered_pending = comment2.data === HYDRATION_START_ELSE;
+          const server_rendered_failed = comment2.data.startsWith(HYDRATION_START_FAILED);
+          if (server_rendered_failed) {
+            const serialized_error = JSON.parse(comment2.data.slice(HYDRATION_START_FAILED.length));
+            __privateMethod(this, _Boundary_instances, hydrate_failed_content_fn).call(this, serialized_error);
+          } else if (server_rendered_pending) {
             __privateMethod(this, _Boundary_instances, hydrate_pending_content_fn).call(this);
           } else {
             __privateMethod(this, _Boundary_instances, hydrate_resolved_content_fn).call(this);
-            if (__privateGet(this, _pending_count) === 0) {
-              this.is_pending = false;
-            }
           }
         } else {
-          var anchor = __privateMethod(this, _Boundary_instances, get_anchor_fn).call(this);
-          try {
-            __privateSet(this, _main_effect, branch(() => children(anchor)));
-          } catch (error) {
-            this.error(error);
-          }
-          if (__privateGet(this, _pending_count) > 0) {
-            __privateMethod(this, _Boundary_instances, show_pending_snippet_fn).call(this);
-          } else {
-            this.is_pending = false;
-          }
+          __privateMethod(this, _Boundary_instances, render_fn).call(this);
         }
-        return () => {
-          __privateGet(this, _pending_anchor)?.remove();
-        };
       }, flags));
       if (hydrating) {
         __privateSet(this, _anchor, hydrate_node);
@@ -1858,7 +1924,7 @@ ${component_stack}
     error(error) {
       var onerror = __privateGet(this, _props).onerror;
       let failed = __privateGet(this, _props).failed;
-      if (__privateGet(this, _is_creating_fallback) || !onerror && !failed) {
+      if (!onerror && !failed) {
         throw error;
       }
       if (__privateGet(this, _main_effect)) {
@@ -1892,45 +1958,38 @@ ${component_stack}
         if (calling_on_error) {
           svelte_boundary_reset_onerror();
         }
-        Batch.ensure();
-        __privateSet(this, _local_pending_count, 0);
         if (__privateGet(this, _failed_effect) !== null) {
           pause_effect(__privateGet(this, _failed_effect), () => {
             __privateSet(this, _failed_effect, null);
           });
         }
-        this.is_pending = this.has_pending_snippet();
-        __privateSet(this, _main_effect, __privateMethod(this, _Boundary_instances, run_fn).call(this, () => {
-          __privateSet(this, _is_creating_fallback, false);
-          return branch(() => __privateGet(this, _children).call(this, __privateGet(this, _anchor)));
-        }));
-        if (__privateGet(this, _pending_count) > 0) {
-          __privateMethod(this, _Boundary_instances, show_pending_snippet_fn).call(this);
-        } else {
-          this.is_pending = false;
-        }
+        __privateMethod(this, _Boundary_instances, run_fn).call(this, () => {
+          Batch.ensure();
+          __privateMethod(this, _Boundary_instances, render_fn).call(this);
+        });
       };
-      var previous_reaction = active_reaction;
-      try {
-        set_active_reaction(null);
-        calling_on_error = true;
-        onerror?.(error, reset2);
-        calling_on_error = false;
-      } catch (error2) {
-        invoke_error_boundary(error2, __privateGet(this, _effect) && __privateGet(this, _effect).parent);
-      } finally {
-        set_active_reaction(previous_reaction);
-      }
-      if (failed) {
-        queue_micro_task(() => {
+      const handle_error_result = (transformed_error) => {
+        try {
+          calling_on_error = true;
+          onerror?.(transformed_error, reset2);
+          calling_on_error = false;
+        } catch (error2) {
+          invoke_error_boundary(error2, __privateGet(this, _effect) && __privateGet(this, _effect).parent);
+        }
+        if (failed) {
           __privateSet(this, _failed_effect, __privateMethod(this, _Boundary_instances, run_fn).call(this, () => {
             Batch.ensure();
-            __privateSet(this, _is_creating_fallback, true);
             try {
               return branch(() => {
+                var effect2 = (
+                  /** @type {Effect} */
+                  active_effect
+                );
+                effect2.b = this;
+                effect2.f |= BOUNDARY_EFFECT;
                 failed(
                   __privateGet(this, _anchor),
-                  () => error,
+                  () => transformed_error,
                   () => reset2
                 );
               });
@@ -1941,12 +2000,29 @@ ${component_stack}
                 __privateGet(this, _effect).parent
               );
               return null;
-            } finally {
-              __privateSet(this, _is_creating_fallback, false);
             }
           }));
-        });
-      }
+        }
+      };
+      queue_micro_task(() => {
+        var result;
+        try {
+          result = this.transform_error(error);
+        } catch (e) {
+          invoke_error_boundary(e, __privateGet(this, _effect) && __privateGet(this, _effect).parent);
+          return;
+        }
+        if (result !== null && typeof result === "object" && typeof /** @type {any} */
+        result.then === "function") {
+          result.then(
+            handle_error_result,
+            /** @param {unknown} e */
+            (e) => invoke_error_boundary(e, __privateGet(this, _effect) && __privateGet(this, _effect).parent)
+          );
+        } else {
+          handle_error_result(result);
+        }
+      });
     }
   };
   _anchor = new WeakMap();
@@ -1958,11 +2034,9 @@ ${component_stack}
   _pending_effect = new WeakMap();
   _failed_effect = new WeakMap();
   _offscreen_fragment = new WeakMap();
-  _pending_anchor = new WeakMap();
   _local_pending_count = new WeakMap();
   _pending_count = new WeakMap();
   _pending_count_update_queued = new WeakMap();
-  _is_creating_fallback = new WeakMap();
   _dirty_effects2 = new WeakMap();
   _maybe_dirty_effects2 = new WeakMap();
   _effect_pending = new WeakMap();
@@ -1975,19 +2049,37 @@ ${component_stack}
       this.error(error);
     }
   };
+  /**
+   * @param {unknown} error The deserialized error from the server's hydration comment
+   */
+  hydrate_failed_content_fn = function(error) {
+    const failed = __privateGet(this, _props).failed;
+    if (!failed) return;
+    __privateSet(this, _failed_effect, branch(() => {
+      failed(
+        __privateGet(this, _anchor),
+        () => error,
+        () => () => {
+        }
+      );
+    }));
+  };
   hydrate_pending_content_fn = function() {
     const pending2 = __privateGet(this, _props).pending;
     if (!pending2) return;
+    this.is_pending = true;
     __privateSet(this, _pending_effect, branch(() => pending2(__privateGet(this, _anchor))));
     queue_micro_task(() => {
-      var anchor = __privateMethod(this, _Boundary_instances, get_anchor_fn).call(this);
+      var fragment = __privateSet(this, _offscreen_fragment, document.createDocumentFragment());
+      var anchor = create_text();
+      fragment.append(anchor);
       __privateSet(this, _main_effect, __privateMethod(this, _Boundary_instances, run_fn).call(this, () => {
         Batch.ensure();
         return branch(() => __privateGet(this, _children).call(this, anchor));
       }));
-      if (__privateGet(this, _pending_count) > 0) {
-        __privateMethod(this, _Boundary_instances, show_pending_snippet_fn).call(this);
-      } else {
+      if (__privateGet(this, _pending_count) === 0) {
+        __privateGet(this, _anchor).before(fragment);
+        __privateSet(this, _offscreen_fragment, null);
         pause_effect(
           /** @type {Effect} */
           __privateGet(this, _pending_effect),
@@ -1995,21 +2087,49 @@ ${component_stack}
             __privateSet(this, _pending_effect, null);
           }
         );
-        this.is_pending = false;
+        __privateMethod(this, _Boundary_instances, resolve_fn).call(this);
       }
     });
   };
-  get_anchor_fn = function() {
-    var anchor = __privateGet(this, _anchor);
-    if (this.is_pending) {
-      __privateSet(this, _pending_anchor, create_text());
-      __privateGet(this, _anchor).before(__privateGet(this, _pending_anchor));
-      anchor = __privateGet(this, _pending_anchor);
+  render_fn = function() {
+    try {
+      this.is_pending = this.has_pending_snippet();
+      __privateSet(this, _pending_count, 0);
+      __privateSet(this, _local_pending_count, 0);
+      __privateSet(this, _main_effect, branch(() => {
+        __privateGet(this, _children).call(this, __privateGet(this, _anchor));
+      }));
+      if (__privateGet(this, _pending_count) > 0) {
+        var fragment = __privateSet(this, _offscreen_fragment, document.createDocumentFragment());
+        move_effect(__privateGet(this, _main_effect), fragment);
+        const pending2 = (
+          /** @type {(anchor: Node) => void} */
+          __privateGet(this, _props).pending
+        );
+        __privateSet(this, _pending_effect, branch(() => pending2(__privateGet(this, _anchor))));
+      } else {
+        __privateMethod(this, _Boundary_instances, resolve_fn).call(this);
+      }
+    } catch (error) {
+      this.error(error);
     }
-    return anchor;
+  };
+  resolve_fn = function() {
+    this.is_pending = false;
+    for (const e of __privateGet(this, _dirty_effects2)) {
+      set_signal_status(e, DIRTY);
+      schedule_effect(e);
+    }
+    for (const e of __privateGet(this, _maybe_dirty_effects2)) {
+      set_signal_status(e, MAYBE_DIRTY);
+      schedule_effect(e);
+    }
+    __privateGet(this, _dirty_effects2).clear();
+    __privateGet(this, _maybe_dirty_effects2).clear();
   };
   /**
-   * @param {() => Effect | null} fn
+   * @template T
+   * @param {() => T} fn
    */
   run_fn = function(fn) {
     var previous_effect = active_effect;
@@ -2029,23 +2149,6 @@ ${component_stack}
       set_component_context(previous_ctx);
     }
   };
-  show_pending_snippet_fn = function() {
-    const pending2 = (
-      /** @type {(anchor: Node) => void} */
-      __privateGet(this, _props).pending
-    );
-    if (__privateGet(this, _main_effect) !== null) {
-      __privateSet(this, _offscreen_fragment, document.createDocumentFragment());
-      __privateGet(this, _offscreen_fragment).append(
-        /** @type {TemplateNode} */
-        __privateGet(this, _pending_anchor)
-      );
-      move_effect(__privateGet(this, _main_effect), __privateGet(this, _offscreen_fragment));
-    }
-    if (__privateGet(this, _pending_effect) === null) {
-      __privateSet(this, _pending_effect, branch(() => pending2(__privateGet(this, _anchor))));
-    }
-  };
   /**
    * Updates the pending count associated with the currently visible pending snippet,
    * if any, such that we can replace the snippet with content once work is done
@@ -2061,17 +2164,7 @@ ${component_stack}
     }
     __privateSet(this, _pending_count, __privateGet(this, _pending_count) + d);
     if (__privateGet(this, _pending_count) === 0) {
-      this.is_pending = false;
-      for (const e of __privateGet(this, _dirty_effects2)) {
-        set_signal_status(e, DIRTY);
-        schedule_effect(e);
-      }
-      for (const e of __privateGet(this, _maybe_dirty_effects2)) {
-        set_signal_status(e, MAYBE_DIRTY);
-        schedule_effect(e);
-      }
-      __privateGet(this, _dirty_effects2).clear();
-      __privateGet(this, _maybe_dirty_effects2).clear();
+      __privateMethod(this, _Boundary_instances, resolve_fn).call(this);
       if (__privateGet(this, _pending_effect)) {
         pause_effect(__privateGet(this, _pending_effect), () => {
           __privateSet(this, _pending_effect, null);
@@ -2108,7 +2201,6 @@ ${component_stack}
           invoke_error_boundary(error, parent);
         }
       }
-      batch?.deactivate();
       unset_context();
     }
     if (async2.length === 0) {
@@ -2144,14 +2236,33 @@ ${component_stack}
       }
     };
   }
-  function unset_context() {
+  function unset_context(deactivate_batch = true) {
     set_active_effect(null);
     set_active_reaction(null);
     set_component_context(null);
+    if (deactivate_batch) current_batch?.deactivate();
     if (dev_fallback_default) {
       set_from_async_derived(null);
       set_dev_stack(null);
     }
+  }
+  function increment_pending() {
+    var boundary2 = (
+      /** @type {Boundary} */
+      /** @type {Effect} */
+      active_effect.b
+    );
+    var batch = (
+      /** @type {Batch} */
+      current_batch
+    );
+    var blocking = boundary2.is_rendered();
+    boundary2.update_pending_count(1);
+    batch.increment(blocking);
+    return () => {
+      boundary2.update_pending_count(-1);
+      batch.decrement(blocking);
+    };
   }
 
   // node_modules/svelte/src/internal/client/reactivity/deriveds.js
@@ -2201,10 +2312,6 @@ ${component_stack}
     if (parent === null) {
       async_derived_orphan();
     }
-    var boundary2 = (
-      /** @type {Boundary} */
-      parent.b
-    );
     var promise = (
       /** @type {Promise<V>} */
       /** @type {unknown} */
@@ -2222,12 +2329,7 @@ ${component_stack}
       var d = deferred();
       promise = d.promise;
       try {
-        Promise.resolve(fn()).then(d.resolve, d.reject).then(() => {
-          if (batch === current_batch && batch.committed) {
-            batch.deactivate();
-          }
-          unset_context();
-        });
+        Promise.resolve(fn()).then(d.resolve, d.reject).finally(unset_context);
       } catch (error) {
         d.reject(error);
         unset_context();
@@ -2238,9 +2340,7 @@ ${component_stack}
         current_batch
       );
       if (should_suspend) {
-        var blocking = boundary2.is_rendered();
-        boundary2.update_pending_count(1);
-        batch.increment(blocking);
+        var decrement_pending = increment_pending();
         deferreds.get(batch)?.reject(STALE_REACTION);
         deferreds.delete(batch);
         deferreds.set(batch, d);
@@ -2277,9 +2377,8 @@ ${component_stack}
             });
           }
         }
-        if (should_suspend) {
-          boundary2.update_pending_count(-1);
-          batch.decrement(blocking);
+        if (decrement_pending) {
+          decrement_pending();
         }
       };
       d.promise.then(handler, (e) => handler(null, e || "unknown"));
@@ -2352,7 +2451,7 @@ ${component_stack}
       let prev_eager_effects = eager_effects;
       set_eager_effects(/* @__PURE__ */ new Set());
       try {
-        if (stack.includes(derived3)) {
+        if (includes.call(stack, derived3)) {
           derived_references_self();
         }
         stack.push(derived3);
@@ -2396,6 +2495,27 @@ ${component_stack}
       }
     } else {
       update_derived_status(derived3);
+    }
+  }
+  function freeze_derived_effects(derived3) {
+    if (derived3.effects === null) return;
+    for (const e of derived3.effects) {
+      if (e.teardown || e.ac) {
+        e.teardown?.();
+        e.ac?.abort(STALE_REACTION);
+        e.teardown = noop;
+        e.ac = null;
+        remove_reactions(e, 0);
+        destroy_effect_children(e);
+      }
+    }
+  }
+  function unfreeze_derived_effects(derived3) {
+    if (derived3.effects === null) return;
+    for (const e of derived3.effects) {
+      if (e.teardown) {
+        update_effect(e);
+      }
     }
   }
 
@@ -2448,7 +2568,7 @@ ${component_stack}
   function set(source2, value, should_proxy = false) {
     if (active_reaction !== null && // since we are untracking the function inside `$inspect.with` we need to add this check
     // to ensure we error if state is set inside an inspect effect
-    (!untracking || (active_reaction.f & EAGER_EFFECT) !== 0) && is_runes() && (active_reaction.f & (DERIVED | BLOCK_EFFECT | ASYNC | EAGER_EFFECT)) !== 0 && !current_sources?.includes(source2)) {
+    (!untracking || (active_reaction.f & EAGER_EFFECT) !== 0) && is_runes() && (active_reaction.f & (DERIVED | BLOCK_EFFECT | ASYNC | EAGER_EFFECT)) !== 0 && (current_sources === null || !includes.call(current_sources, source2))) {
       state_unsafe_mutation();
     }
     let new_value = should_proxy ? proxy(value) : value;
@@ -2644,7 +2764,7 @@ ${component_stack}
           }
           var s = sources.get(prop2);
           if (s === void 0) {
-            s = with_parent(() => {
+            with_parent(() => {
               var s2 = state(descriptor.value, stack2);
               sources.set(prop2, s2);
               if (dev_fallback_default && typeof prop2 === "string") {
@@ -2866,7 +2986,7 @@ ${component_stack}
     if (cleanup) {
       cleanup();
     }
-    const { indexOf, lastIndexOf, includes } = array_prototype2;
+    const { indexOf, lastIndexOf, includes: includes2 } = array_prototype2;
     array_prototype2.indexOf = function(item, from_index) {
       const index2 = indexOf.call(this, item, from_index);
       if (index2 === -1) {
@@ -2892,7 +3012,7 @@ ${component_stack}
       return index2;
     };
     array_prototype2.includes = function(item, from_index) {
-      const has = includes.call(this, item, from_index);
+      const has = includes2.call(this, item, from_index);
       if (!has) {
         for (let i = 0; i < this.length; i += 1) {
           if (get_proxied_value(this[i]) === item) {
@@ -2906,7 +3026,7 @@ ${component_stack}
     Array.__svelte_cleanup = () => {
       array_prototype2.indexOf = indexOf;
       array_prototype2.lastIndexOf = lastIndexOf;
-      array_prototype2.includes = includes;
+      array_prototype2.includes = includes2;
     };
   }
   function strict_equals(a, b, equal = true) {
@@ -2982,6 +3102,12 @@ ${component_stack}
       set_hydrate_node(text2);
       return text2;
     }
+    if (is_text) {
+      merge_text_nodes(
+        /** @type {Text} */
+        child2
+      );
+    }
     set_hydrate_node(child2);
     return child2;
   }
@@ -2991,11 +3117,17 @@ ${component_stack}
       if (first instanceof Comment && first.data === "") return /* @__PURE__ */ get_next_sibling(first);
       return first;
     }
-    if (is_text && hydrate_node?.nodeType !== TEXT_NODE) {
-      var text2 = create_text();
-      hydrate_node?.before(text2);
-      set_hydrate_node(text2);
-      return text2;
+    if (is_text) {
+      if (hydrate_node?.nodeType !== TEXT_NODE) {
+        var text2 = create_text();
+        hydrate_node?.before(text2);
+        set_hydrate_node(text2);
+        return text2;
+      }
+      merge_text_nodes(
+        /** @type {Text} */
+        hydrate_node
+      );
     }
     return hydrate_node;
   }
@@ -3010,15 +3142,21 @@ ${component_stack}
     if (!hydrating) {
       return next_sibling;
     }
-    if (is_text && next_sibling?.nodeType !== TEXT_NODE) {
-      var text2 = create_text();
-      if (next_sibling === null) {
-        last_sibling?.after(text2);
-      } else {
-        next_sibling.before(text2);
+    if (is_text) {
+      if (next_sibling?.nodeType !== TEXT_NODE) {
+        var text2 = create_text();
+        if (next_sibling === null) {
+          last_sibling?.after(text2);
+        } else {
+          next_sibling.before(text2);
+        }
+        set_hydrate_node(text2);
+        return text2;
       }
-      set_hydrate_node(text2);
-      return text2;
+      merge_text_nodes(
+        /** @type {Text} */
+        next_sibling
+      );
     }
     set_hydrate_node(next_sibling);
     return next_sibling;
@@ -3033,7 +3171,29 @@ ${component_stack}
       /** @type {Effect} */
       active_effect.f
     );
-    return (flags2 & EFFECT_RAN) !== 0;
+    return (flags2 & REACTION_RAN) !== 0;
+  }
+  function create_element(tag2, namespace, is2) {
+    let options = is2 ? { is: is2 } : void 0;
+    return (
+      /** @type {T extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[T] : Element} */
+      document.createElementNS(namespace ?? NAMESPACE_HTML, tag2, options)
+    );
+  }
+  function merge_text_nodes(text2) {
+    if (
+      /** @type {string} */
+      text2.nodeValue.length < 65536
+    ) {
+      return;
+    }
+    let next2 = text2.nextSibling;
+    while (next2 !== null && next2.nodeType === TEXT_NODE) {
+      next2.remove();
+      text2.nodeValue += /** @type {string} */
+      next2.nodeValue;
+      next2 = text2.nextSibling;
+    }
   }
 
   // node_modules/svelte/src/internal/client/dom/elements/misc.js
@@ -3116,7 +3276,7 @@ ${component_stack}
       parent_effect.last = effect2;
     }
   }
-  function create_effect(type2, fn, sync) {
+  function create_effect(type2, fn) {
     var parent = active_effect;
     if (dev_fallback_default) {
       while (parent !== null && (parent.f & EAGER_EFFECT) !== 0) {
@@ -3145,23 +3305,26 @@ ${component_stack}
     if (dev_fallback_default) {
       effect2.component_function = dev_current_component_function;
     }
-    if (sync) {
+    var e = effect2;
+    if ((type2 & EFFECT) !== 0) {
+      if (collected_effects !== null) {
+        collected_effects.push(effect2);
+      } else {
+        schedule_effect(effect2);
+      }
+    } else if (fn !== null) {
       try {
         update_effect(effect2);
-        effect2.f |= EFFECT_RAN;
       } catch (e2) {
         destroy_effect(effect2);
         throw e2;
       }
-    } else if (fn !== null) {
-      schedule_effect(effect2);
-    }
-    var e = effect2;
-    if (sync && e.deps === null && e.teardown === null && e.nodes === null && e.first === e.last && // either `null`, or a singular child
-    (e.f & EFFECT_PRESERVED) === 0) {
-      e = e.first;
-      if ((type2 & BLOCK_EFFECT) !== 0 && (type2 & EFFECT_TRANSPARENT) !== 0 && e !== null) {
-        e.f |= EFFECT_TRANSPARENT;
+      if (e.deps === null && e.teardown === null && e.nodes === null && e.first === e.last && // either `null`, or a singular child
+      (e.f & EFFECT_PRESERVED) === 0) {
+        e = e.first;
+        if ((type2 & BLOCK_EFFECT) !== 0 && (type2 & EFFECT_TRANSPARENT) !== 0 && e !== null) {
+          e.f |= EFFECT_TRANSPARENT;
+        }
       }
     }
     if (e !== null) {
@@ -3183,7 +3346,7 @@ ${component_stack}
     return active_reaction !== null && !untracking;
   }
   function teardown(fn) {
-    const effect2 = create_effect(RENDER_EFFECT, null, false);
+    const effect2 = create_effect(RENDER_EFFECT, null);
     set_signal_status(effect2, CLEAN);
     effect2.teardown = fn;
     return effect2;
@@ -3199,7 +3362,7 @@ ${component_stack}
       /** @type {Effect} */
       active_effect.f
     );
-    var defer = !active_reaction && (flags2 & BRANCH_EFFECT) !== 0 && (flags2 & EFFECT_RAN) === 0;
+    var defer = !active_reaction && (flags2 & BRANCH_EFFECT) !== 0 && (flags2 & REACTION_RAN) === 0;
     if (defer) {
       var context = (
         /** @type {ComponentContext} */
@@ -3211,7 +3374,7 @@ ${component_stack}
     }
   }
   function create_user_effect(fn) {
-    return create_effect(EFFECT | USER_EFFECT, fn, false);
+    return create_effect(EFFECT | USER_EFFECT, fn);
   }
   function user_pre_effect(fn) {
     validate_effect("$effect.pre");
@@ -3220,18 +3383,18 @@ ${component_stack}
         value: "$effect.pre"
       });
     }
-    return create_effect(RENDER_EFFECT | USER_EFFECT, fn, true);
+    return create_effect(RENDER_EFFECT | USER_EFFECT, fn);
   }
   function effect_root(fn) {
     Batch.ensure();
-    const effect2 = create_effect(ROOT_EFFECT | EFFECT_PRESERVED, fn, true);
+    const effect2 = create_effect(ROOT_EFFECT | EFFECT_PRESERVED, fn);
     return () => {
       destroy_effect(effect2);
     };
   }
   function component_root(fn) {
     Batch.ensure();
-    const effect2 = create_effect(ROOT_EFFECT | EFFECT_PRESERVED, fn, true);
+    const effect2 = create_effect(ROOT_EFFECT | EFFECT_PRESERVED, fn);
     return (options = {}) => {
       return new Promise((fulfil) => {
         if (options.outro) {
@@ -3247,7 +3410,7 @@ ${component_stack}
     };
   }
   function effect(fn) {
-    return create_effect(EFFECT, fn, false);
+    return create_effect(EFFECT, fn);
   }
   function legacy_pre_effect(deps, fn) {
     var context = (
@@ -3283,25 +3446,25 @@ ${component_stack}
     });
   }
   function async_effect(fn) {
-    return create_effect(ASYNC | EFFECT_PRESERVED, fn, true);
+    return create_effect(ASYNC | EFFECT_PRESERVED, fn);
   }
   function render_effect(fn, flags2 = 0) {
-    return create_effect(RENDER_EFFECT | flags2, fn, true);
+    return create_effect(RENDER_EFFECT | flags2, fn);
   }
   function template_effect(fn, sync = [], async2 = [], blockers = []) {
     flatten(blockers, sync, async2, (values) => {
-      create_effect(RENDER_EFFECT, () => fn(...values.map(get)), true);
+      create_effect(RENDER_EFFECT, () => fn(...values.map(get)));
     });
   }
   function block(fn, flags2 = 0) {
-    var effect2 = create_effect(BLOCK_EFFECT | flags2, fn, true);
+    var effect2 = create_effect(BLOCK_EFFECT | flags2, fn);
     if (dev_fallback_default) {
       effect2.dev_stack = dev_stack;
     }
     return effect2;
   }
   function branch(fn) {
-    return create_effect(BRANCH_EFFECT | EFFECT_PRESERVED, fn, true);
+    return create_effect(BRANCH_EFFECT | EFFECT_PRESERVED, fn);
   }
   function execute_effect_teardown(effect2) {
     var teardown2 = effect2.teardown;
@@ -3553,7 +3716,7 @@ ${component_stack}
   function schedule_possible_effect_self_invalidation(signal, effect2, root17 = true) {
     var reactions = signal.reactions;
     if (reactions === null) return;
-    if (!async_mode_flag && current_sources?.includes(signal)) {
+    if (!async_mode_flag && current_sources !== null && includes.call(current_sources, signal)) {
       return;
     }
     for (var i = 0; i < reactions.length; i++) {
@@ -3611,10 +3774,14 @@ ${component_stack}
         reaction.fn
       );
       var result = fn();
+      reaction.f |= REACTION_RAN;
       var deps = reaction.deps;
+      var is_fork = current_batch?.is_fork;
       if (new_deps !== null) {
         var i;
-        remove_reactions(reaction, skipped_deps);
+        if (!is_fork) {
+          remove_reactions(reaction, skipped_deps);
+        }
         if (deps !== null && skipped_deps > 0) {
           deps.length = skipped_deps + new_deps.length;
           for (i = 0; i < new_deps.length; i++) {
@@ -3628,7 +3795,7 @@ ${component_stack}
             ((_a2 = deps[i]).reactions ?? (_a2.reactions = [])).push(reaction);
           }
         }
-      } else if (deps !== null && skipped_deps < deps.length) {
+      } else if (!is_fork && deps !== null && skipped_deps < deps.length) {
         remove_reactions(reaction, skipped_deps);
         deps.length = skipped_deps;
       }
@@ -3698,7 +3865,7 @@ ${component_stack}
     if (reactions === null && (dependency.f & DERIVED) !== 0 && // Destroying a child effect while updating a parent effect can cause a dependency to appear
     // to be unused, when in fact it is used by the currently-updating parent. Checking `new_deps`
     // allows us to skip the expensive work of disconnecting and immediately reconnecting it
-    (new_deps === null || !new_deps.includes(dependency))) {
+    (new_deps === null || !includes.call(new_deps, dependency))) {
       var derived3 = (
         /** @type {Derived} */
         dependency
@@ -3708,7 +3875,7 @@ ${component_stack}
         derived3.f &= ~WAS_MARKED;
       }
       update_derived_status(derived3);
-      destroy_derived_effects(derived3);
+      freeze_derived_effects(derived3);
       remove_reactions(derived3, 0);
     }
   }
@@ -3781,7 +3948,7 @@ ${component_stack}
     captured_signals?.add(signal);
     if (active_reaction !== null && !untracking) {
       var destroyed = active_effect !== null && (active_effect.f & DESTROYED) !== 0;
-      if (!destroyed && !current_sources?.includes(signal)) {
+      if (!destroyed && (current_sources === null || !includes.call(current_sources, signal))) {
         var deps = active_reaction.deps;
         if ((active_reaction.f & REACTION_IS_UPDATING) !== 0) {
           if (signal.rv < read_version) {
@@ -3799,7 +3966,7 @@ ${component_stack}
           var reactions = signal.reactions;
           if (reactions === null) {
             signal.reactions = [active_reaction];
-          } else if (!reactions.includes(active_reaction)) {
+          } else if (!includes.call(reactions, active_reaction)) {
             reactions.push(active_reaction);
           }
         }
@@ -3843,7 +4010,7 @@ ${component_stack}
         return value;
       }
       var should_connect = (derived3.f & CONNECTED) === 0 && !untracking && active_reaction !== null && (is_updating_effect || (active_reaction.f & CONNECTED) !== 0);
-      var is_new = derived3.deps === null;
+      var is_new = (derived3.f & REACTION_RAN) === 0;
       if (is_dirty(derived3)) {
         if (should_connect) {
           derived3.f |= CONNECTED;
@@ -3851,6 +4018,7 @@ ${component_stack}
         update_derived(derived3);
       }
       if (should_connect && !is_new) {
+        unfreeze_derived_effects(derived3);
         reconnect(derived3);
       }
     }
@@ -3863,11 +4031,15 @@ ${component_stack}
     return signal.v;
   }
   function reconnect(derived3) {
-    if (derived3.deps === null) return;
     derived3.f |= CONNECTED;
+    if (derived3.deps === null) return;
     for (const dep of derived3.deps) {
       (dep.reactions ?? (dep.reactions = [])).push(derived3);
       if ((dep.f & DERIVED) !== 0 && (dep.f & CONNECTED) === 0) {
+        unfreeze_derived_effects(
+          /** @type {Derived} */
+          dep
+        );
         reconnect(
           /** @type {Derived} */
           dep
@@ -4069,6 +4241,7 @@ ${component_stack}
   }
 
   // node_modules/svelte/src/internal/client/dom/elements/events.js
+  var event_symbol = /* @__PURE__ */ Symbol("events");
   var all_registered_events = /* @__PURE__ */ new Set();
   var root_event_handles = /* @__PURE__ */ new Set();
   function create_event(event_name, dom, handler, options = {}) {
@@ -4103,6 +4276,9 @@ ${component_stack}
       });
     }
   }
+  function delegated(event_name, element2, handler) {
+    (element2[event_symbol] ?? (element2[event_symbol] = {}))[event_name] = handler;
+  }
   function delegate(events) {
     for (var i = 0; i < events.length; i++) {
       all_registered_events.add(events[i]);
@@ -4126,12 +4302,12 @@ ${component_stack}
     );
     last_propagated_event = event2;
     var path_idx = 0;
-    var handled_at = last_propagated_event === event2 && event2.__root;
+    var handled_at = last_propagated_event === event2 && event2[event_symbol];
     if (handled_at) {
       var at_idx = path.indexOf(handled_at);
       if (at_idx !== -1 && (handler_element === document || handler_element === /** @type {any} */
       window)) {
-        event2.__root = handler_element;
+        event2[event_symbol] = handler_element;
         return;
       }
       var handler_idx = path.indexOf(handler_element);
@@ -4162,12 +4338,12 @@ ${component_stack}
         var parent_element = current_target.assignedSlot || current_target.parentNode || /** @type {any} */
         current_target.host || null;
         try {
-          var delegated = current_target["__" + event_name];
-          if (delegated != null && (!/** @type {any} */
+          var delegated2 = current_target[event_symbol]?.[event_name];
+          if (delegated2 != null && (!/** @type {any} */
           current_target.disabled || // DOM could've been updated already by the time this is reached, so we check this as well
           // -> the target could not have been disabled because it emits the event in the first place
           event2.target === current_target)) {
-            delegated.call(current_target, event2);
+            delegated2.call(current_target, event2);
           }
         } catch (error) {
           if (throw_error) {
@@ -4190,7 +4366,7 @@ ${component_stack}
         throw throw_error;
       }
     } finally {
-      event2.__root = handler_element;
+      event2[event_symbol] = handler_element;
       delete event2.currentTarget;
       set_active_reaction(previous_reaction);
       set_active_effect(previous_effect);
@@ -4220,9 +4396,24 @@ ${component_stack}
   }
 
   // node_modules/svelte/src/internal/client/dom/reconciler.js
+  var policy = (
+    // We gotta write it like this because after downleveling the pure comment may end up in the wrong location
+    globalThis?.window?.trustedTypes && /* @__PURE__ */ globalThis.window.trustedTypes.createPolicy("svelte-trusted-html", {
+      /** @param {string} html */
+      createHTML: (html2) => {
+        return html2;
+      }
+    })
+  );
+  function create_trusted_html(html2) {
+    return (
+      /** @type {string} */
+      policy?.createHTML(html2) ?? html2
+    );
+  }
   function create_fragment_from_html(html2) {
-    var elem = document.createElement("template");
-    elem.innerHTML = html2.replaceAll("<!>", "<!---->");
+    var elem = create_element("template");
+    elem.innerHTML = create_trusted_html(html2.replaceAll("<!>", "<!---->"));
     return elem.content;
   }
 
@@ -4290,7 +4481,7 @@ ${component_stack}
         /** @type {Effect & { nodes: EffectNodes }} */
         active_effect
       );
-      if ((effect2.f & EFFECT_RAN) === 0 || effect2.nodes.end === null) {
+      if ((effect2.f & REACTION_RAN) === 0 || effect2.nodes.end === null) {
         effect2.nodes.end = hydrate_node;
       }
       hydrate_next();
@@ -4308,10 +4499,10 @@ ${component_stack}
   // node_modules/svelte/src/internal/client/render.js
   var should_intro = true;
   function set_text(text2, value) {
-    var str2 = value == null ? "" : typeof value === "object" ? value + "" : value;
+    var str2 = value == null ? "" : typeof value === "object" ? `${value}` : value;
     if (str2 !== (text2.__t ?? (text2.__t = text2.nodeValue))) {
       text2.__t = str2;
-      text2.nodeValue = str2 + "";
+      text2.nodeValue = `${str2}`;
     }
   }
   function mount(component2, options) {
@@ -4362,28 +4553,9 @@ ${component_stack}
       set_hydrate_node(previous_hydrate_node);
     }
   }
-  var document_listeners = /* @__PURE__ */ new Map();
-  function _mount(Component2, { target, anchor, props = {}, events, context, intro = true }) {
+  var listeners = /* @__PURE__ */ new Map();
+  function _mount(Component2, { target, anchor, props = {}, events, context, intro = true, transformError }) {
     init_operations();
-    var registered_events = /* @__PURE__ */ new Set();
-    var event_handle = (events2) => {
-      for (var i = 0; i < events2.length; i++) {
-        var event_name = events2[i];
-        if (registered_events.has(event_name)) continue;
-        registered_events.add(event_name);
-        var passive2 = is_passive_event(event_name);
-        target.addEventListener(event_name, handle_event_propagation, { passive: passive2 });
-        var n = document_listeners.get(event_name);
-        if (n === void 0) {
-          document.addEventListener(event_name, handle_event_propagation, { passive: passive2 });
-          document_listeners.set(event_name, 1);
-        } else {
-          document_listeners.set(event_name, n + 1);
-        }
-      }
-    };
-    event_handle(array_from(all_registered_events));
-    root_event_handles.add(event_handle);
     var component2 = void 0;
     var unmount2 = component_root(() => {
       var anchor_node = anchor ?? target.appendChild(create_text());
@@ -4395,14 +4567,12 @@ ${component_stack}
           }
         },
         (anchor_node2) => {
-          if (context) {
-            push({});
-            var ctx = (
-              /** @type {ComponentContext} */
-              component_context
-            );
-            ctx.c = context;
-          }
+          push({});
+          var ctx = (
+            /** @type {ComponentContext} */
+            component_context
+          );
+          if (context) ctx.c = context;
           if (events) {
             props.$$events = events;
           }
@@ -4424,23 +4594,55 @@ ${component_stack}
               throw HYDRATION_ERROR;
             }
           }
-          if (context) {
-            pop();
+          pop();
+        },
+        transformError
+      );
+      var registered_events = /* @__PURE__ */ new Set();
+      var event_handle = (events2) => {
+        for (var i = 0; i < events2.length; i++) {
+          var event_name = events2[i];
+          if (registered_events.has(event_name)) continue;
+          registered_events.add(event_name);
+          var passive2 = is_passive_event(event_name);
+          for (const node of [target, document]) {
+            var counts = listeners.get(node);
+            if (counts === void 0) {
+              counts = /* @__PURE__ */ new Map();
+              listeners.set(node, counts);
+            }
+            var count = counts.get(event_name);
+            if (count === void 0) {
+              node.addEventListener(event_name, handle_event_propagation, { passive: passive2 });
+              counts.set(event_name, 1);
+            } else {
+              counts.set(event_name, count + 1);
+            }
           }
         }
-      );
+      };
+      event_handle(array_from(all_registered_events));
+      root_event_handles.add(event_handle);
       return () => {
         for (var event_name of registered_events) {
-          target.removeEventListener(event_name, handle_event_propagation);
-          var n = (
-            /** @type {number} */
-            document_listeners.get(event_name)
-          );
-          if (--n === 0) {
-            document.removeEventListener(event_name, handle_event_propagation);
-            document_listeners.delete(event_name);
-          } else {
-            document_listeners.set(event_name, n);
+          for (const node of [target, document]) {
+            var counts = (
+              /** @type {Map<string, number>} */
+              listeners.get(node)
+            );
+            var count = (
+              /** @type {number} */
+              counts.get(event_name)
+            );
+            if (--count == 0) {
+              node.removeEventListener(event_name, handle_event_propagation);
+              counts.delete(event_name);
+              if (counts.size === 0) {
+                listeners.delete(node);
+              }
+            } else {
+              counts.set(event_name, count);
+            }
           }
         }
         root_event_handles.delete(event_handle);
@@ -4530,11 +4732,10 @@ ${component_stack}
        * This is necessary for `<svelte:element>`
        */
       __privateAdd(this, _transition, true);
-      __privateAdd(this, _commit, () => {
-        var batch = (
-          /** @type {Batch} */
-          current_batch
-        );
+      /**
+       * @param {Batch} batch
+       */
+      __privateAdd(this, _commit, (batch) => {
         if (!__privateGet(this, _batches).has(batch)) return;
         var key2 = (
           /** @type {Key} */
@@ -4635,16 +4836,16 @@ ${component_stack}
       if (defer) {
         for (const [k, effect2] of __privateGet(this, _onscreen)) {
           if (k === key2) {
-            batch.skipped_effects.delete(effect2);
+            batch.unskip_effect(effect2);
           } else {
-            batch.skipped_effects.add(effect2);
+            batch.skip_effect(effect2);
           }
         }
         for (const [k, branch2] of __privateGet(this, _offscreen)) {
           if (k === key2) {
-            batch.skipped_effects.delete(branch2.effect);
+            batch.unskip_effect(branch2.effect);
           } else {
-            batch.skipped_effects.add(branch2.effect);
+            batch.skip_effect(branch2.effect);
           }
         }
         batch.oncommit(__privateGet(this, _commit));
@@ -4653,7 +4854,7 @@ ${component_stack}
         if (hydrating) {
           this.anchor = hydrate_node;
         }
-        __privateGet(this, _commit).call(this);
+        __privateGet(this, _commit).call(this, batch);
       }
     }
   };
@@ -4667,31 +4868,44 @@ ${component_stack}
 
   // node_modules/svelte/src/internal/client/dom/blocks/if.js
   function if_block(node, fn, elseif = false) {
+    var marker;
     if (hydrating) {
+      marker = hydrate_node;
       hydrate_next();
     }
     var branches = new BranchManager(node);
     var flags2 = elseif ? EFFECT_TRANSPARENT : 0;
-    function update_branch(condition, fn2) {
+    function update_branch(key2, fn2) {
       if (hydrating) {
-        const is_else = read_hydration_instruction(node) === HYDRATION_START_ELSE;
-        if (condition === is_else) {
+        var data = read_hydration_instruction(
+          /** @type {TemplateNode} */
+          marker
+        );
+        var hydrated_key;
+        if (data === HYDRATION_START) {
+          hydrated_key = 0;
+        } else if (data === HYDRATION_START_ELSE) {
+          hydrated_key = false;
+        } else {
+          hydrated_key = parseInt(data.substring(1));
+        }
+        if (key2 !== hydrated_key) {
           var anchor = skip_nodes();
           set_hydrate_node(anchor);
           branches.anchor = anchor;
           set_hydrating(false);
-          branches.ensure(condition, fn2);
+          branches.ensure(key2, fn2);
           set_hydrating(true);
           return;
         }
       }
-      branches.ensure(condition, fn2);
+      branches.ensure(key2, fn2);
     }
     block(() => {
       var has_branch = false;
-      fn((fn2, flag = true) => {
+      fn((fn2, key2 = 0) => {
         has_branch = true;
-        update_branch(flag, fn2);
+        update_branch(key2, fn2);
       });
       if (!has_branch) {
         update_branch(false, null);
@@ -4764,7 +4978,7 @@ ${component_stack}
     }
   }
   var offscreen_anchor;
-  function each(node, flags2, get_collection, get_key, render_fn, fallback_fn = null) {
+  function each(node, flags2, get_collection, get_key, render_fn2, fallback_fn = null) {
     var anchor = node;
     var items = /* @__PURE__ */ new Map();
     var is_controlled = (flags2 & EACH_IS_CONTROLLED) !== 0;
@@ -4833,12 +5047,18 @@ ${component_stack}
         }
         var value = array[index2];
         var key2 = get_key(value, index2);
+        if (dev_fallback_default) {
+          var key_again = get_key(value, index2);
+          if (key2 !== key_again) {
+            each_key_volatile(String(index2), String(key2), String(key_again));
+          }
+        }
         var item = first_run ? null : items.get(key2);
         if (item) {
           if (item.v) internal_set(item.v, value);
           if (item.i) internal_set(item.i, index2);
           if (defer) {
-            batch.skipped_effects.delete(item.e);
+            batch.unskip_effect(item.e);
           }
         } else {
           item = create_item(
@@ -4847,7 +5067,7 @@ ${component_stack}
             value,
             key2,
             index2,
-            render_fn,
+            render_fn2,
             flags2,
             get_collection
           );
@@ -4866,6 +5086,13 @@ ${component_stack}
           fallback2.f |= EFFECT_OFFSCREEN;
         }
       }
+      if (length > keys.size) {
+        if (dev_fallback_default) {
+          validate_each_keys(array, get_key);
+        } else {
+          each_key_duplicate("", "", "");
+        }
+      }
       if (hydrating && length > 0) {
         set_hydrate_node(skip_nodes());
       }
@@ -4873,7 +5100,7 @@ ${component_stack}
         if (defer) {
           for (const [key3, item2] of items) {
             if (!keys.has(key3)) {
-              batch.skipped_effects.add(item2.e);
+              batch.skip_effect(item2.e);
             }
           }
           batch.oncommit(commit);
@@ -4894,11 +5121,17 @@ ${component_stack}
       anchor = hydrate_node;
     }
   }
+  function skip_to_branch(effect2) {
+    while (effect2 !== null && (effect2.f & BRANCH_EFFECT) === 0) {
+      effect2 = effect2.next;
+    }
+    return effect2;
+  }
   function reconcile(state2, array, anchor, flags2, get_key) {
     var is_animated = (flags2 & EACH_IS_ANIMATED) !== 0;
     var length = array.length;
     var items = state2.items;
-    var current = state2.effect.first;
+    var current = skip_to_branch(state2.effect.first);
     var seen;
     var prev = null;
     var to_animate;
@@ -4948,7 +5181,7 @@ ${component_stack}
           prev = effect2;
           matched = [];
           stashed = [];
-          current = prev.next;
+          current = skip_to_branch(prev.next);
           continue;
         }
       }
@@ -4996,7 +5229,7 @@ ${component_stack}
         while (current !== null && current !== effect2) {
           (seen ?? (seen = /* @__PURE__ */ new Set())).add(current);
           stashed.push(current);
-          current = current.next;
+          current = skip_to_branch(current.next);
         }
         if (current === null) {
           continue;
@@ -5006,7 +5239,7 @@ ${component_stack}
         matched.push(effect2);
       }
       prev = effect2;
-      current = effect2.next;
+      current = skip_to_branch(effect2.next);
     }
     if (state2.outrogroups !== null) {
       for (const group of state2.outrogroups) {
@@ -5032,7 +5265,7 @@ ${component_stack}
         if ((current.f & INERT) === 0 && current !== state2.fallback) {
           to_destroy.push(current);
         }
-        current = current.next;
+        current = skip_to_branch(current.next);
       }
       var destroy_length = to_destroy.length;
       if (destroy_length > 0) {
@@ -5057,7 +5290,7 @@ ${component_stack}
       });
     }
   }
-  function create_item(items, anchor, value, key2, index2, render_fn, flags2, get_collection) {
+  function create_item(items, anchor, value, key2, index2, render_fn2, flags2, get_collection) {
     var v = (flags2 & EACH_ITEM_REACTIVE) !== 0 ? (flags2 & EACH_ITEM_IMMUTABLE) === 0 ? mutable_source(value, false, false) : source(value) : null;
     var i = (flags2 & EACH_INDEX_REACTIVE) !== 0 ? source(index2) : null;
     if (dev_fallback_default && v) {
@@ -5069,7 +5302,7 @@ ${component_stack}
       v,
       i,
       e: branch(() => {
-        render_fn(anchor, v ?? value, i ?? index2, get_collection);
+        render_fn2(anchor, v ?? value, i ?? index2, get_collection);
         return () => {
           items.delete(key2);
         };
@@ -5106,6 +5339,21 @@ ${component_stack}
       state2.effect.last = prev;
     } else {
       next2.prev = prev;
+    }
+  }
+  function validate_each_keys(array, key_fn) {
+    const keys = /* @__PURE__ */ new Map();
+    const length = array.length;
+    for (let i = 0; i < length; i++) {
+      const key2 = key_fn(array[i], i);
+      if (keys.has(key2)) {
+        const a = String(keys.get(key2));
+        const b = String(i);
+        let k = String(key2);
+        if (k.startsWith("[object ")) k = null;
+        each_key_duplicate(a, b, k);
+      }
+      keys.set(key2, i);
     }
   }
 
@@ -5168,7 +5416,7 @@ ${component_stack}
       classname = classname ? classname + " " + hash2 : hash2;
     }
     if (directives) {
-      for (var key2 in directives) {
+      for (var key2 of Object.keys(directives)) {
         if (directives[key2]) {
           classname = classname ? classname + " " + key2 : key2;
         } else if (classname.length) {
@@ -5190,7 +5438,7 @@ ${component_stack}
   function append_styles(styles, important = false) {
     var separator = important ? " !important;" : ";";
     var css = "";
-    for (var key2 in styles) {
+    for (var key2 of Object.keys(styles)) {
       var value = styles[key2];
       if (value != null && value !== "") {
         css += " " + key2 + ": " + value + separator;
@@ -5346,6 +5594,7 @@ ${component_stack}
   // node_modules/svelte/src/internal/client/dom/elements/attributes.js
   var IS_CUSTOM_ELEMENT = /* @__PURE__ */ Symbol("is custom element");
   var IS_HTML = /* @__PURE__ */ Symbol("is html");
+  var LINK_TAG = IS_XHTML ? "link" : "LINK";
   function remove_input_defaults(input) {
     if (!hydrating) return;
     var already_removed = false;
@@ -5371,7 +5620,7 @@ ${component_stack}
     var attributes = get_attributes(element2);
     if (hydrating) {
       attributes[attribute] = element2.getAttribute(attribute);
-      if (attribute === "src" || attribute === "srcset" || attribute === "href" && element2.nodeName === "LINK") {
+      if (attribute === "src" || attribute === "srcset" || attribute === "href" && element2.nodeName === LINK_TAG) {
         if (!skip_warning) {
           check_src_in_dev_hydration(element2, attribute, value ?? "");
         }
@@ -5839,27 +6088,6 @@ ${component_stack}
     );
   }
 
-  // node_modules/svelte/src/internal/client/validate.js
-  function validate_each_keys(collection, key_fn) {
-    render_effect(() => {
-      const keys = /* @__PURE__ */ new Map();
-      const maybe_array = collection();
-      const array = is_array(maybe_array) ? maybe_array : maybe_array == null ? [] : Array.from(maybe_array);
-      const length = array.length;
-      for (let i = 0; i < length; i++) {
-        const key2 = key_fn(array[i], i);
-        if (keys.has(key2)) {
-          const a = String(keys.get(key2));
-          const b = String(i);
-          let k = String(key2);
-          if (k.startsWith("[object ")) k = null;
-          each_key_duplicate(a, b, k);
-        }
-        keys.set(key2, i);
-      }
-    });
-  }
-
   // node_modules/svelte/src/legacy/legacy-client.js
   function createClassComponent(options) {
     return new Svelte4Component(options);
@@ -5905,7 +6133,8 @@ ${component_stack}
         props,
         context: options.context,
         intro: options.intro ?? false,
-        recover: options.recover
+        recover: options.recover,
+        transformError: options.transformError
       }));
       if (!async_mode_flag && (!options?.props?.$$host || options.sync === false)) {
         flushSync();
@@ -5966,9 +6195,9 @@ ${component_stack}
       /**
        * @param {*} $$componentCtor
        * @param {*} $$slots
-       * @param {*} use_shadow_dom
+       * @param {ShadowRootInit | undefined} shadow_root_init
        */
-      constructor($$componentCtor, $$slots, use_shadow_dom) {
+      constructor($$componentCtor, $$slots, shadow_root_init) {
         super();
         /** The Svelte component constructor */
         __publicField(this, "$$ctor");
@@ -5990,10 +6219,12 @@ ${component_stack}
         __publicField(this, "$$l_u", /* @__PURE__ */ new Map());
         /** @type {any} The managed render effect for reflecting attributes */
         __publicField(this, "$$me");
+        /** @type {ShadowRoot | null} The ShadowRoot of the custom element */
+        __publicField(this, "$$shadowRoot", null);
         this.$$ctor = $$componentCtor;
         this.$$s = $$slots;
-        if (use_shadow_dom) {
-          this.attachShadow({ mode: "open" });
+        if (shadow_root_init) {
+          this.$$shadowRoot = this.attachShadow(shadow_root_init);
         }
       }
       /**
@@ -6030,7 +6261,7 @@ ${component_stack}
         if (!this.$$c) {
           let create_slot = function(name) {
             return (anchor) => {
-              const slot2 = document.createElement("slot");
+              const slot2 = create_element("slot");
               if (name !== "default") slot2.name = name;
               append(anchor, slot2);
             };
@@ -6065,7 +6296,7 @@ ${component_stack}
           }
           this.$$c = createClassComponent({
             component: this.$$ctor,
-            target: this.shadowRoot || this,
+            target: this.$$shadowRoot || this,
             props: {
               ...this.$$d,
               $$slots,
@@ -10628,10 +10859,14 @@ ${component_stack}
     impl: (state2, events) => {
       const retryEvent = findEvent(events, RetryApplicationEvent);
       if (!retryEvent) return [];
-      if (state2.context.applicationState !== "error_recovery" && state2.context.applicationState !== "activation_error")
-        return [];
+      const isErrorState = state2.context.applicationState === "error_recovery" || state2.context.applicationState === "activation_error";
+      const isActiveWithError = state2.context.applicationState === "active" && state2.context.lastError != null;
+      if (!isErrorState && !isActiveWithError) return [];
       state2.context.lastError = void 0;
-      state2.context.applicationState = "active";
+      state2.context.errorRecoveryAttempts++;
+      if (isErrorState) {
+        state2.context.applicationState = "active";
+      }
       return [];
     }
   });
@@ -10992,11 +11227,9 @@ ${component_stack}
     var $$exports = { ...legacy_api() };
     init();
     var div = root();
-    div.__keydown = handleKeydown;
     add_svelte_meta(
       () => each(div, 5, () => get(ordered), index, ($$anchor2, c, i) => {
         var button = root_1();
-        button.__click = () => select(get(c).id);
         var text2 = child(button, true);
         reset(button);
         action(button, ($$node, $$action_arg) => tabRef?.($$node, $$action_arg), () => i);
@@ -11011,6 +11244,9 @@ ${component_stack}
           );
           set_text(text2, (get(c), untrack(() => get(c).label || get(c).id)));
         });
+        delegated("click", button, function click() {
+          return select(get(c).id);
+        });
         append($$anchor2, button);
       }),
       "each",
@@ -11019,6 +11255,7 @@ ${component_stack}
       2
     );
     reset(div);
+    delegated("keydown", div, handleKeydown);
     append($$anchor, div);
     return pop($$exports);
   }
@@ -11081,8 +11318,6 @@ ${component_stack}
     var $$exports = { ...legacy_api() };
     var div = root2();
     var button = child(div);
-    button.__click = toggle;
-    button.__keydown = handleKeydown;
     var span = child(button);
     var text2 = child(span, true);
     reset(span);
@@ -11094,12 +11329,10 @@ ${component_stack}
     {
       var consequent = ($$anchor2) => {
         var div_1 = root_12();
-        validate_each_keys(() => $$props.options, (option) => option.value);
         add_svelte_meta(
           () => each(div_1, 21, () => $$props.options, (option) => option.value, ($$anchor3, option) => {
             var button_1 = root_2();
             let classes_1;
-            button_1.__click = () => select(get(option).value);
             var text_1 = child(button_1, true);
             reset(button_1);
             template_effect(() => {
@@ -11108,6 +11341,9 @@ ${component_stack}
               });
               set_attribute2(button_1, "aria-selected", strict_equals(get(option).value, $$props.value));
               set_text(text_1, get(option).label);
+            });
+            delegated("click", button_1, function click() {
+              return select(get(option).value);
             });
             append($$anchor3, button_1);
           }),
@@ -11137,6 +11373,8 @@ ${component_stack}
       set_text(text2, get(selectedOption).label);
       classes = set_class(span_1, 1, "dropdown-arrow svelte-y8wbtj", null, classes, { open: get(isOpen) });
     });
+    delegated("click", button, toggle);
+    delegated("keydown", button, handleKeydown);
     append($$anchor, div);
     return pop($$exports);
   }
@@ -11145,9 +11383,9 @@ ${component_stack}
   // src/webview/components/ErrorBanner.svelte
   ErrorBanner[FILENAME] = "src/webview/components/ErrorBanner.svelte";
   var root_22 = add_locations(from_html(`<span class="error-hint svelte-1ju6edo">Please update your credentials to continue.</span>`), ErrorBanner[FILENAME], [[56, 10]]);
-  var root_4 = add_locations(from_html(`<span class="error-hint svelte-1ju6edo">Check your internet connection and try again.</span>`), ErrorBanner[FILENAME], [[58, 10]]);
-  var root_5 = add_locations(from_html(`<button class="action-button primary svelte-1ju6edo"> </button>`), ErrorBanner[FILENAME], [[64, 8]]);
-  var root_6 = add_locations(from_html(`<button class="action-button secondary svelte-1ju6edo" title="Dismiss">\u2715</button>`), ErrorBanner[FILENAME], [[69, 8]]);
+  var root_3 = add_locations(from_html(`<span class="error-hint svelte-1ju6edo">Check your internet connection and try again.</span>`), ErrorBanner[FILENAME], [[58, 10]]);
+  var root_4 = add_locations(from_html(`<button class="action-button primary svelte-1ju6edo"> </button>`), ErrorBanner[FILENAME], [[64, 8]]);
+  var root_5 = add_locations(from_html(`<button class="action-button secondary svelte-1ju6edo" title="Dismiss">\u2715</button>`), ErrorBanner[FILENAME], [[69, 8]]);
   var root_13 = add_locations(from_html(`<div class="error-banner svelte-1ju6edo" role="alert"><div class="error-content svelte-1ju6edo"><span class="error-icon svelte-1ju6edo">\u26A0\uFE0F</span> <div class="error-message svelte-1ju6edo"><strong class="svelte-1ju6edo"> </strong> <!></div></div> <div class="error-actions svelte-1ju6edo"><!> <!></div></div>`), ErrorBanner[FILENAME], [[50, 2, [[51, 4, [[52, 6], [53, 6, [[54, 8]]]]], [62, 4]]]]);
   function ErrorBanner($$anchor, $$props) {
     check_target(new.target);
@@ -11185,34 +11423,14 @@ ${component_stack}
             var span = root_22();
             append($$anchor3, span);
           };
-          var alternate = ($$anchor3) => {
-            var fragment_1 = comment();
-            var node_2 = first_child(fragment_1);
-            {
-              var consequent_1 = ($$anchor4) => {
-                var span_1 = root_4();
-                append($$anchor4, span_1);
-              };
-              add_svelte_meta(
-                () => if_block(
-                  node_2,
-                  ($$render) => {
-                    if (strict_equals($$props.error.type, "network")) $$render(consequent_1);
-                  },
-                  true
-                ),
-                "if",
-                ErrorBanner,
-                57,
-                8
-              );
-            }
-            append($$anchor3, fragment_1);
+          var consequent_1 = ($$anchor3) => {
+            var span_1 = root_3();
+            append($$anchor3, span_1);
           };
           add_svelte_meta(
             () => if_block(node_1, ($$render) => {
               if (strict_equals($$props.error.type, "authentication")) $$render(consequent);
-              else $$render(alternate, false);
+              else if (strict_equals($$props.error.type, "network")) $$render(consequent_1, 1);
             }),
             "if",
             ErrorBanner,
@@ -11223,18 +11441,18 @@ ${component_stack}
         reset(div_2);
         reset(div_1);
         var div_3 = sibling(div_1, 2);
-        var node_3 = child(div_3);
+        var node_2 = child(div_3);
         {
           var consequent_2 = ($$anchor3) => {
-            var button = root_5();
-            button.__click = handleAction;
+            var button = root_4();
             var text_1 = child(button, true);
             reset(button);
             template_effect(($0) => set_text(text_1, $0), [getActionLabel]);
+            delegated("click", button, handleAction);
             append($$anchor3, button);
           };
           add_svelte_meta(
-            () => if_block(node_3, ($$render) => {
+            () => if_block(node_2, ($$render) => {
               if ($$props.error.recoverable) $$render(consequent_2);
             }),
             "if",
@@ -11243,17 +11461,17 @@ ${component_stack}
             6
           );
         }
-        var node_4 = sibling(node_3, 2);
+        var node_3 = sibling(node_2, 2);
         {
           var consequent_3 = ($$anchor3) => {
-            var button_1 = root_6();
-            button_1.__click = function(...$$args) {
+            var button_1 = root_5();
+            delegated("click", button_1, function(...$$args) {
               apply(() => $$props.onDismiss, this, $$args, ErrorBanner, [69, 57]);
-            };
+            });
             append($$anchor3, button_1);
           };
           add_svelte_meta(
-            () => if_block(node_4, ($$render) => {
+            () => if_block(node_3, ($$render) => {
               if ($$props.onDismiss) $$render(consequent_3);
             }),
             "if",
@@ -11286,7 +11504,7 @@ ${component_stack}
   EmptyState[FILENAME] = "src/webview/components/EmptyState.svelte";
   var root_23 = add_locations(from_html(`<button class="empty-state-action svelte-qlco7a"> </button>`), EmptyState[FILENAME], [[56, 8]]);
   var root_14 = add_locations(from_html(`<div class="empty-state-content error svelte-qlco7a"><div class="empty-state-icon svelte-qlco7a">\u26A0\uFE0F</div> <h3 class="empty-state-title svelte-qlco7a">Unable to load work items</h3> <p class="empty-state-message svelte-qlco7a"> </p> <!></div>`), EmptyState[FILENAME], [[51, 4, [[52, 6], [53, 6], [54, 6]]]]);
-  var root_3 = add_locations(from_html(`<div class="empty-state-content svelte-qlco7a"><div class="empty-state-icon svelte-qlco7a">\u{1F4CB}</div> <h3 class="empty-state-title svelte-qlco7a">No work items</h3> <p class="empty-state-message svelte-qlco7a">Select a query or connection to view work items.</p></div>`), EmptyState[FILENAME], [[62, 4, [[63, 6], [64, 6], [65, 6]]]]);
+  var root_32 = add_locations(from_html(`<div class="empty-state-content svelte-qlco7a"><div class="empty-state-icon svelte-qlco7a">\u{1F4CB}</div> <h3 class="empty-state-title svelte-qlco7a">No work items</h3> <p class="empty-state-message svelte-qlco7a">Select a query or connection to view work items.</p></div>`), EmptyState[FILENAME], [[62, 4, [[63, 6], [64, 6], [65, 6]]]]);
   var root3 = add_locations(from_html(`<div class="empty-state svelte-qlco7a"><!></div>`), EmptyState[FILENAME], [[49, 0]]);
   function EmptyState($$anchor, $$props) {
     check_target(new.target);
@@ -11320,10 +11538,10 @@ ${component_stack}
         {
           var consequent = ($$anchor3) => {
             var button = root_23();
-            button.__click = handleAction;
             var text_1 = child(button, true);
             reset(button);
             template_effect(($0) => set_text(text_1, $0), [getActionLabel]);
+            delegated("click", button, handleAction);
             append($$anchor3, button);
           };
           add_svelte_meta(
@@ -11341,7 +11559,7 @@ ${component_stack}
         append($$anchor2, div_1);
       };
       var alternate = ($$anchor2) => {
-        var div_2 = root_3();
+        var div_2 = root_32();
         append($$anchor2, div_2);
       };
       add_svelte_meta(
@@ -11364,13 +11582,13 @@ ${component_stack}
   // src/webview/components/WorkItemList.svelte
   WorkItemList[FILENAME] = "src/webview/components/WorkItemList.svelte";
   var root_15 = add_locations(from_html(`<div class="empty-state svelte-1uil3z2"><p class="svelte-1uil3z2">No active connection selected.</p> <p class="hint svelte-1uil3z2">Configure a connection in settings to get started.</p></div>`), WorkItemList[FILENAME], [[259, 4, [[260, 6], [261, 6]]]]);
-  var root_32 = add_locations(from_html(`<div class="query-selector-bar svelte-1uil3z2"><label for="query-select" class="query-label svelte-1uil3z2">Query:</label> <!></div>`), WorkItemList[FILENAME], [[266, 6, [[267, 8]]]]);
+  var root_33 = add_locations(from_html(`<div class="query-selector-bar svelte-1uil3z2"><label for="query-select" class="query-label svelte-1uil3z2">Query:</label> <!></div>`), WorkItemList[FILENAME], [[266, 6, [[267, 8]]]]);
   var root_52 = add_locations(from_html(`<div class="loading-indicator svelte-1uil3z2"><div class="loading-spinner svelte-1uil3z2"></div> <p class="svelte-1uil3z2">Loading work items...</p></div>`), WorkItemList[FILENAME], [[327, 8, [[328, 10], [329, 10]]]]);
-  var root_62 = add_locations(from_html(`<div class="loading-spinner-container svelte-1uil3z2"><div class="loading-spinner small svelte-1uil3z2"></div></div>`), WorkItemList[FILENAME], [[333, 8, [[334, 10]]]]);
-  var root_10 = add_locations(from_html(`<div class="empty-state svelte-1uil3z2"><p class="svelte-1uil3z2">No items match your filters.</p> <button class="svelte-1uil3z2">Clear Filters</button></div>`), WorkItemList[FILENAME], [[363, 6, [[364, 8], [365, 8]]]]);
-  var root_132 = add_locations(from_html(`<span class="meta-badge assignee svelte-1uil3z2"> </span>`), WorkItemList[FILENAME], [[403, 18]]);
-  var root_142 = add_locations(from_html(`<span class="meta-badge timer-badge svelte-1uil3z2" title="Timer Active" role="button" tabindex="0"><span class="codicon svelte-1uil3z2">\u23F1</span> </span>`), WorkItemList[FILENAME], [[409, 18, [[417, 20]]]]);
-  var root_122 = add_locations(from_html(`<div class="work-item-card svelte-1uil3z2"><div class="card-header svelte-1uil3z2"><span class="type-icon svelte-1uil3z2"> </span> <span class="item-id svelte-1uil3z2"> </span> <span> </span></div> <div class="card-body svelte-1uil3z2"><div class="item-title svelte-1uil3z2"> </div> <div class="item-meta svelte-1uil3z2"><span class="meta-badge type svelte-1uil3z2"> </span> <span> </span> <!> <!></div> <div class="item-actions svelte-1uil3z2"><button class="action-btn primary svelte-1uil3z2"><span class="codicon svelte-1uil3z2"> </span></button> <button class="action-btn svelte-1uil3z2" title="Edit Work Item" aria-label="Edit Work Item"><span class="codicon svelte-1uil3z2">\u270E</span></button> <button class="action-btn svelte-1uil3z2" title="Create Branch" aria-label="Create Branch"><span class="codicon svelte-1uil3z2">\u2387</span></button> <button class="action-btn svelte-1uil3z2" title="Open in Azure DevOps" aria-label="Open in Azure DevOps"><span class="codicon svelte-1uil3z2">\u{1F310}</span></button></div></div></div>`), WorkItemList[FILENAME], [
+  var root_6 = add_locations(from_html(`<div class="loading-spinner-container svelte-1uil3z2"><div class="loading-spinner small svelte-1uil3z2"></div></div>`), WorkItemList[FILENAME], [[333, 8, [[334, 10]]]]);
+  var root_9 = add_locations(from_html(`<div class="empty-state svelte-1uil3z2"><p class="svelte-1uil3z2">No items match your filters.</p> <button class="svelte-1uil3z2">Clear Filters</button></div>`), WorkItemList[FILENAME], [[363, 6, [[364, 8], [365, 8]]]]);
+  var root_122 = add_locations(from_html(`<span class="meta-badge assignee svelte-1uil3z2"> </span>`), WorkItemList[FILENAME], [[403, 18]]);
+  var root_132 = add_locations(from_html(`<span class="meta-badge timer-badge svelte-1uil3z2" title="Timer Active" role="button" tabindex="0"><span class="codicon svelte-1uil3z2">\u23F1</span> </span>`), WorkItemList[FILENAME], [[409, 18, [[417, 20]]]]);
+  var root_11 = add_locations(from_html(`<div class="work-item-card svelte-1uil3z2"><div class="card-header svelte-1uil3z2"><span class="type-icon svelte-1uil3z2"> </span> <span class="item-id svelte-1uil3z2"> </span> <span> </span></div> <div class="card-body svelte-1uil3z2"><div class="item-title svelte-1uil3z2"> </div> <div class="item-meta svelte-1uil3z2"><span class="meta-badge type svelte-1uil3z2"> </span> <span> </span> <!> <!></div> <div class="item-actions svelte-1uil3z2"><button class="action-btn primary svelte-1uil3z2"><span class="codicon svelte-1uil3z2"> </span></button> <button class="action-btn svelte-1uil3z2" title="Edit Work Item" aria-label="Edit Work Item"><span class="codicon svelte-1uil3z2">\u270E</span></button> <button class="action-btn svelte-1uil3z2" title="Create Branch" aria-label="Create Branch"><span class="codicon svelte-1uil3z2">\u2387</span></button> <button class="action-btn svelte-1uil3z2" title="Open in Azure DevOps" aria-label="Open in Azure DevOps"><span class="codicon svelte-1uil3z2">\u{1F310}</span></button></div></div></div>`), WorkItemList[FILENAME], [
     [
       376,
       10,
@@ -11397,7 +11615,7 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_11 = add_locations(from_html(`<div class="items-container svelte-1uil3z2"></div>`), WorkItemList[FILENAME], [[374, 6]]);
+  var root_10 = add_locations(from_html(`<div class="items-container svelte-1uil3z2"></div>`), WorkItemList[FILENAME], [[374, 6]]);
   var root_24 = add_locations(from_html(`<!> <div class="filters-bar svelte-1uil3z2"><input type="text" placeholder="Filter by title..." class="filter-input svelte-1uil3z2"/> <!> <!> <!></div> <!> <!> <!>`, 1), WorkItemList[FILENAME], [[283, 4, [[284, 6]]]]);
   var root4 = add_locations(from_html(`<div class="work-item-list svelte-1uil3z2" style="position: relative;"><!></div>`), WorkItemList[FILENAME], [[257, 0]]);
   function WorkItemList($$anchor, $$props) {
@@ -11584,12 +11802,12 @@ ${component_stack}
         var div_1 = root_15();
         append($$anchor2, div_1);
       };
-      var alternate_3 = ($$anchor2) => {
+      var alternate_2 = ($$anchor2) => {
         var fragment = root_24();
         var node_1 = first_child(fragment);
         {
           var consequent_1 = ($$anchor3) => {
-            var div_2 = root_32();
+            var div_2 = root_33();
             var node_2 = sibling(child(div_2), 2);
             {
               let $0 = user_derived(() => predefinedQueries.map((q) => ({ value: q, label: q })));
@@ -11715,7 +11933,7 @@ ${component_stack}
                 append($$anchor4, div_4);
               };
               var alternate = ($$anchor4) => {
-                var div_5 = root_62();
+                var div_5 = root_6();
                 append($$anchor4, div_5);
               };
               add_svelte_meta(
@@ -11804,157 +12022,144 @@ ${component_stack}
               );
             }
           };
-          var alternate_2 = ($$anchor3) => {
-            var fragment_4 = comment();
-            var node_10 = first_child(fragment_4);
-            {
-              var consequent_6 = ($$anchor4) => {
-                var div_6 = root_10();
-                var button = sibling(child(div_6), 2);
-                button.__click = () => {
-                  set(filterText, "");
-                  set(typeFilter, "");
-                  set(stateFilter, "all");
-                };
-                reset(div_6);
-                append($$anchor4, div_6);
-              };
-              var alternate_1 = ($$anchor4) => {
-                var div_7 = root_11();
-                validate_each_keys(() => get(filteredItems), (item) => item.id);
-                add_svelte_meta(
-                  () => each(div_7, 21, () => get(filteredItems), (item) => item.id, ($$anchor5, item) => {
-                    var div_8 = root_122();
-                    var div_9 = child(div_8);
-                    var span = child(div_9);
-                    var text2 = child(span, true);
-                    reset(span);
-                    var span_1 = sibling(span, 2);
-                    var text_1 = child(span_1);
-                    reset(span_1);
-                    var span_2 = sibling(span_1, 2);
-                    var text_2 = child(span_2);
-                    reset(span_2);
-                    reset(div_9);
-                    var div_10 = sibling(div_9, 2);
-                    var div_11 = child(div_10);
-                    var text_3 = child(div_11, true);
-                    reset(div_11);
-                    var div_12 = sibling(div_11, 2);
-                    var span_3 = child(div_12);
-                    var text_4 = child(span_3, true);
-                    reset(span_3);
-                    var span_4 = sibling(span_3, 2);
-                    var text_5 = child(span_4, true);
-                    reset(span_4);
-                    var node_11 = sibling(span_4, 2);
-                    {
-                      var consequent_7 = ($$anchor6) => {
-                        var span_5 = root_132();
-                        var text_6 = child(span_5, true);
-                        reset(span_5);
-                        template_effect(() => set_text(text_6, get(item).fields["System.AssignedTo"].displayName || get(item).fields["System.AssignedTo"]));
-                        append($$anchor6, span_5);
-                      };
-                      add_svelte_meta(
-                        () => if_block(node_11, ($$render) => {
-                          if (get(item).fields?.["System.AssignedTo"]) $$render(consequent_7);
-                        }),
-                        "if",
-                        WorkItemList,
-                        402,
-                        16
-                      );
-                    }
-                    var node_12 = sibling(node_11, 2);
-                    {
-                      var consequent_8 = ($$anchor6) => {
-                        var span_6 = root_142();
-                        var text_7 = sibling(child(span_6));
-                        reset(span_6);
-                        template_effect(($0) => set_text(text_7, ` ${$0 ?? ""}`), [() => formatElapsedTime(get(timerElapsedSeconds))]);
-                        event("mouseenter", span_6, handleTimerMouseEnter);
-                        event("mouseleave", span_6, handleTimerMouseLeave);
-                        append($$anchor6, span_6);
-                      };
-                      add_svelte_meta(
-                        () => if_block(node_12, ($$render) => {
-                          if (strict_equals(get(timerState)?.workItemId, get(item).id)) $$render(consequent_8);
-                        }),
-                        "if",
-                        WorkItemList,
-                        408,
-                        16
-                      );
-                    }
-                    reset(div_12);
-                    var div_13 = sibling(div_12, 2);
-                    var button_1 = child(div_13);
-                    button_1.__click = (e) => handleStartTimer(get(item), e);
-                    var span_7 = child(button_1);
-                    var text_8 = child(span_7, true);
-                    reset(span_7);
-                    reset(button_1);
-                    var button_2 = sibling(button_1, 2);
-                    button_2.__click = (e) => handleEditItem(get(item), e);
-                    var button_3 = sibling(button_2, 2);
-                    button_3.__click = (e) => handleCreateBranch(get(item), e);
-                    var button_4 = sibling(button_3, 2);
-                    button_4.__click = (e) => handleOpenInBrowser(get(item), e);
-                    reset(div_13);
-                    reset(div_10);
-                    reset(div_8);
-                    template_effect(
-                      ($0, $1, $2) => {
-                        set_text(text2, $0);
-                        set_text(text_1, `#${get(item).id ?? ""}`);
-                        set_class(span_2, 1, `priority ${$1 ?? ""}`, "svelte-1uil3z2");
-                        set_text(text_2, `P${(get(item).fields?.["Microsoft.VSTS.Common.Priority"] || "3") ?? ""}`);
-                        set_text(text_3, get(item).fields?.["System.Title"] || `Work Item #${get(item).id}`);
-                        set_text(text_4, get(item).fields?.["System.WorkItemType"] || "Task");
-                        set_class(span_4, 1, `meta-badge state state-${$2 ?? ""}`, "svelte-1uil3z2");
-                        set_text(text_5, get(item).fields?.["System.State"] || "New");
-                        set_attribute2(button_1, "title", strict_equals(get(timerState)?.workItemId, get(item).id) ? "Stop Timer" : "Start Timer");
-                        set_attribute2(button_1, "aria-label", strict_equals(get(timerState)?.workItemId, get(item).id) ? "Stop Timer" : "Start Timer");
-                        set_text(text_8, strict_equals(get(timerState)?.workItemId, get(item).id) ? "\u23F9" : "\u25B6");
-                      },
-                      [
-                        () => getWorkItemTypeIcon(get(item).fields?.["System.WorkItemType"]),
-                        () => getPriorityClass(get(item).fields?.["Microsoft.VSTS.Common.Priority"]),
-                        () => normalizeState(get(item).fields?.["System.State"])
-                      ]
-                    );
-                    append($$anchor5, div_8);
-                  }),
-                  "each",
-                  WorkItemList,
-                  375,
-                  8
-                );
-                reset(div_7);
-                append($$anchor4, div_7);
-              };
-              add_svelte_meta(
-                () => if_block(
-                  node_10,
-                  ($$render) => {
-                    if (strict_equals(get(filteredItems).length, 0) && get(workItems).length > 0) $$render(consequent_6);
-                    else $$render(alternate_1, false);
+          var consequent_6 = ($$anchor3) => {
+            var div_6 = root_9();
+            var button = sibling(child(div_6), 2);
+            reset(div_6);
+            delegated("click", button, function click() {
+              set(filterText, "");
+              set(typeFilter, "");
+              set(stateFilter, "all");
+            });
+            append($$anchor3, div_6);
+          };
+          var alternate_1 = ($$anchor3) => {
+            var div_7 = root_10();
+            add_svelte_meta(
+              () => each(div_7, 21, () => get(filteredItems), (item) => item.id, ($$anchor4, item) => {
+                var div_8 = root_11();
+                var div_9 = child(div_8);
+                var span = child(div_9);
+                var text2 = child(span, true);
+                reset(span);
+                var span_1 = sibling(span, 2);
+                var text_1 = child(span_1);
+                reset(span_1);
+                var span_2 = sibling(span_1, 2);
+                var text_2 = child(span_2);
+                reset(span_2);
+                reset(div_9);
+                var div_10 = sibling(div_9, 2);
+                var div_11 = child(div_10);
+                var text_3 = child(div_11, true);
+                reset(div_11);
+                var div_12 = sibling(div_11, 2);
+                var span_3 = child(div_12);
+                var text_4 = child(span_3, true);
+                reset(span_3);
+                var span_4 = sibling(span_3, 2);
+                var text_5 = child(span_4, true);
+                reset(span_4);
+                var node_10 = sibling(span_4, 2);
+                {
+                  var consequent_7 = ($$anchor5) => {
+                    var span_5 = root_122();
+                    var text_6 = child(span_5, true);
+                    reset(span_5);
+                    template_effect(() => set_text(text_6, get(item).fields["System.AssignedTo"].displayName || get(item).fields["System.AssignedTo"]));
+                    append($$anchor5, span_5);
+                  };
+                  add_svelte_meta(
+                    () => if_block(node_10, ($$render) => {
+                      if (get(item).fields?.["System.AssignedTo"]) $$render(consequent_7);
+                    }),
+                    "if",
+                    WorkItemList,
+                    402,
+                    16
+                  );
+                }
+                var node_11 = sibling(node_10, 2);
+                {
+                  var consequent_8 = ($$anchor5) => {
+                    var span_6 = root_132();
+                    var text_7 = sibling(child(span_6));
+                    reset(span_6);
+                    template_effect(($0) => set_text(text_7, ` ${$0 ?? ""}`), [() => formatElapsedTime(get(timerElapsedSeconds))]);
+                    event("mouseenter", span_6, handleTimerMouseEnter);
+                    event("mouseleave", span_6, handleTimerMouseLeave);
+                    append($$anchor5, span_6);
+                  };
+                  add_svelte_meta(
+                    () => if_block(node_11, ($$render) => {
+                      if (strict_equals(get(timerState)?.workItemId, get(item).id)) $$render(consequent_8);
+                    }),
+                    "if",
+                    WorkItemList,
+                    408,
+                    16
+                  );
+                }
+                reset(div_12);
+                var div_13 = sibling(div_12, 2);
+                var button_1 = child(div_13);
+                var span_7 = child(button_1);
+                var text_8 = child(span_7, true);
+                reset(span_7);
+                reset(button_1);
+                var button_2 = sibling(button_1, 2);
+                var button_3 = sibling(button_2, 2);
+                var button_4 = sibling(button_3, 2);
+                reset(div_13);
+                reset(div_10);
+                reset(div_8);
+                template_effect(
+                  ($0, $1, $2) => {
+                    set_text(text2, $0);
+                    set_text(text_1, `#${get(item).id ?? ""}`);
+                    set_class(span_2, 1, `priority ${$1 ?? ""}`, "svelte-1uil3z2");
+                    set_text(text_2, `P${(get(item).fields?.["Microsoft.VSTS.Common.Priority"] || "3") ?? ""}`);
+                    set_text(text_3, get(item).fields?.["System.Title"] || `Work Item #${get(item).id}`);
+                    set_text(text_4, get(item).fields?.["System.WorkItemType"] || "Task");
+                    set_class(span_4, 1, `meta-badge state state-${$2 ?? ""}`, "svelte-1uil3z2");
+                    set_text(text_5, get(item).fields?.["System.State"] || "New");
+                    set_attribute2(button_1, "title", strict_equals(get(timerState)?.workItemId, get(item).id) ? "Stop Timer" : "Start Timer");
+                    set_attribute2(button_1, "aria-label", strict_equals(get(timerState)?.workItemId, get(item).id) ? "Stop Timer" : "Start Timer");
+                    set_text(text_8, strict_equals(get(timerState)?.workItemId, get(item).id) ? "\u23F9" : "\u25B6");
                   },
-                  true
-                ),
-                "if",
-                WorkItemList,
-                362,
-                4
-              );
-            }
-            append($$anchor3, fragment_4);
+                  [
+                    () => getWorkItemTypeIcon(get(item).fields?.["System.WorkItemType"]),
+                    () => getPriorityClass(get(item).fields?.["Microsoft.VSTS.Common.Priority"]),
+                    () => normalizeState(get(item).fields?.["System.State"])
+                  ]
+                );
+                delegated("click", button_1, function click_1(e) {
+                  return handleStartTimer(get(item), e);
+                });
+                delegated("click", button_2, function click_2(e) {
+                  return handleEditItem(get(item), e);
+                });
+                delegated("click", button_3, function click_3(e) {
+                  return handleCreateBranch(get(item), e);
+                });
+                delegated("click", button_4, function click_4(e) {
+                  return handleOpenInBrowser(get(item), e);
+                });
+                append($$anchor4, div_8);
+              }),
+              "each",
+              WorkItemList,
+              375,
+              8
+            );
+            reset(div_7);
+            append($$anchor3, div_7);
           };
           add_svelte_meta(
             () => if_block(node_9, ($$render) => {
               if ((get(hasConnectionError) || get(showError)) && strict_equals(get(workItems).length, 0) && !get(showLoading)) $$render(consequent_5);
-              else $$render(alternate_2, false);
+              else if (strict_equals(get(filteredItems).length, 0) && get(workItems).length > 0) $$render(consequent_6, 1);
+              else $$render(alternate_1, false);
             }),
             "if",
             WorkItemList,
@@ -11976,7 +12181,7 @@ ${component_stack}
       add_svelte_meta(
         () => if_block(node, ($$render) => {
           if (!get(activeConnectionId)) $$render(consequent);
-          else $$render(alternate_3, false);
+          else $$render(alternate_2, false);
         }),
         "if",
         WorkItemList,
@@ -11993,7 +12198,7 @@ ${component_stack}
   // src/webview/components/KanbanBoard.svelte
   KanbanBoard[FILENAME] = "src/webview/components/KanbanBoard.svelte";
   var root_16 = add_locations(from_html(`<div class="empty svelte-j9p4i1">No columns available \u2013 load work items or switch view.</div>`), KanbanBoard[FILENAME], [[101, 4]]);
-  var root_63 = add_locations(from_html(`<span class="meta-badge assignee svelte-j9p4i1"> </span>`), KanbanBoard[FILENAME], [[140, 22]]);
+  var root_62 = add_locations(from_html(`<span class="meta-badge assignee svelte-j9p4i1"> </span>`), KanbanBoard[FILENAME], [[140, 22]]);
   var root_7 = add_locations(from_html(`<span class="meta-badge timer-badge svelte-j9p4i1" title="Timer Active">\u23F1</span>`), KanbanBoard[FILENAME], [[145, 22]]);
   var root_53 = add_locations(from_html(`<div role="button" tabindex="0"><div class="kanban-item-header svelte-j9p4i1"><span class="type-icon svelte-j9p4i1"> </span> <span class="item-id svelte-j9p4i1"> </span> <span> </span></div> <div class="kanban-item-title svelte-j9p4i1"> </div> <div class="kanban-item-meta svelte-j9p4i1"><span class="meta-badge type svelte-j9p4i1"> </span> <!> <!></div> <div class="kanban-item-actions svelte-j9p4i1"><button class="action-btn svelte-j9p4i1"><span class="codicon svelte-j9p4i1"> </span></button> <button class="action-btn svelte-j9p4i1" title="Open in Azure DevOps"><span class="codicon svelte-j9p4i1">\u{1F310}</span></button></div></div>`), KanbanBoard[FILENAME], [
     [
@@ -12008,7 +12213,7 @@ ${component_stack}
     ]
   ]);
   var root_8 = add_locations(from_html(`<div class="kanban-item kanban-item-placeholder svelte-j9p4i1"><span> </span></div>`), KanbanBoard[FILENAME], [[167, 16, [[168, 18]]]]);
-  var root_33 = add_locations(from_html(`<div class="column svelte-j9p4i1"><div class="column-header svelte-j9p4i1"><h3 class="svelte-j9p4i1"> </h3> <span class="count svelte-j9p4i1"> </span></div> <div class="items svelte-j9p4i1"></div></div>`), KanbanBoard[FILENAME], [[105, 8, [[106, 10, [[107, 12], [108, 12]]], [110, 10]]]]);
+  var root_34 = add_locations(from_html(`<div class="column svelte-j9p4i1"><div class="column-header svelte-j9p4i1"><h3 class="svelte-j9p4i1"> </h3> <span class="count svelte-j9p4i1"> </span></div> <div class="items svelte-j9p4i1"></div></div>`), KanbanBoard[FILENAME], [[105, 8, [[106, 10, [[107, 12], [108, 12]]], [110, 10]]]]);
   var root_25 = add_locations(from_html(`<div class="columns svelte-j9p4i1"></div>`), KanbanBoard[FILENAME], [[103, 4]]);
   var root5 = add_locations(from_html(`<div class="kanban-board svelte-j9p4i1"><!></div>`), KanbanBoard[FILENAME], [[99, 0]]);
   function KanbanBoard($$anchor, $$props) {
@@ -12087,10 +12292,9 @@ ${component_stack}
       };
       var alternate_1 = ($$anchor2) => {
         var div_2 = root_25();
-        validate_each_keys(() => get(columns), (col) => col.id);
         add_svelte_meta(
           () => each(div_2, 21, () => get(columns), (col) => col.id, ($$anchor3, col) => {
-            var div_3 = root_33();
+            var div_3 = root_34();
             var div_4 = child(div_3);
             var h3 = child(div_4);
             var text2 = child(h3, true);
@@ -12100,7 +12304,6 @@ ${component_stack}
             reset(span);
             reset(div_4);
             var div_5 = sibling(div_4, 2);
-            validate_each_keys(() => get(col).itemIds, (id) => id);
             add_svelte_meta(
               () => each(div_5, 20, () => get(col).itemIds, (id) => id, ($$anchor4, id) => {
                 const item = tag(user_derived(() => get(workItemsMap).get(String(id))), "item");
@@ -12111,13 +12314,6 @@ ${component_stack}
                   var consequent_3 = ($$anchor5) => {
                     var div_6 = root_53();
                     let classes;
-                    div_6.__click = (e) => handleItemClick(get(item), e);
-                    div_6.__keydown = (e) => {
-                      if (strict_equals(e.key, "Enter") || strict_equals(e.key, " ")) {
-                        e.preventDefault();
-                        handleItemClick(get(item), e);
-                      }
-                    };
                     var div_7 = child(div_6);
                     var span_1 = child(div_7);
                     var text_2 = child(span_1, true);
@@ -12139,7 +12335,7 @@ ${component_stack}
                     var node_2 = sibling(span_4, 2);
                     {
                       var consequent_1 = ($$anchor6) => {
-                        var span_5 = root_63();
+                        var span_5 = root_62();
                         var text_7 = child(span_5, true);
                         reset(span_5);
                         template_effect(() => set_text(text_7, get(item).fields["System.AssignedTo"].displayName || get(item).fields["System.AssignedTo"]));
@@ -12174,16 +12370,11 @@ ${component_stack}
                     reset(div_9);
                     var div_10 = sibling(div_9, 2);
                     var button = child(div_10);
-                    button.__click = (e) => handleStartTimer(get(item), e);
                     var span_7 = child(button);
                     var text_8 = child(span_7, true);
                     reset(span_7);
                     reset(button);
                     var button_1 = sibling(button, 2);
-                    button_1.__click = (e) => {
-                      e.stopPropagation();
-                      $$props.sendEvent({ type: "OPEN_IN_BROWSER", workItemId: get(item).id });
-                    };
                     reset(div_10);
                     reset(div_6);
                     template_effect(
@@ -12206,6 +12397,22 @@ ${component_stack}
                         () => getPriorityClass(get(item).fields?.["Microsoft.VSTS.Common.Priority"])
                       ]
                     );
+                    delegated("click", div_6, function click(e) {
+                      return handleItemClick(get(item), e);
+                    });
+                    delegated("keydown", div_6, function keydown(e) {
+                      if (strict_equals(e.key, "Enter") || strict_equals(e.key, " ")) {
+                        e.preventDefault();
+                        handleItemClick(get(item), e);
+                      }
+                    });
+                    delegated("click", button, function click_1(e) {
+                      return handleStartTimer(get(item), e);
+                    });
+                    delegated("click", button_1, function click_2(e) {
+                      e.stopPropagation();
+                      $$props.sendEvent({ type: "OPEN_IN_BROWSER", workItemId: get(item).id });
+                    });
                     append($$anchor5, div_6);
                   };
                   var alternate = ($$anchor5) => {
@@ -12388,7 +12595,7 @@ ${component_stack}
   // src/webview/components/StatusBar.svelte
   StatusBar[FILENAME] = "src/webview/components/StatusBar.svelte";
   var root_18 = add_locations(from_html(`<div class="status-section connection-info svelte-1764dnv"><span class="label svelte-1764dnv">Connection:</span> <span class="value svelte-1764dnv"> </span></div>`), StatusBar[FILENAME], [[79, 4, [[80, 6], [81, 6]]]]);
-  var root_34 = add_locations(from_html(`<div class="status-section timer-active svelte-1764dnv"><span class="label svelte-1764dnv">Timer:</span> <span class="value svelte-1764dnv"> </span></div>`), StatusBar[FILENAME], [[88, 4, [[89, 6], [90, 6]]]]);
+  var root_35 = add_locations(from_html(`<div class="status-section timer-active svelte-1764dnv"><span class="label svelte-1764dnv">Timer:</span> <span class="value svelte-1764dnv"> </span></div>`), StatusBar[FILENAME], [[88, 4, [[89, 6], [90, 6]]]]);
   var root7 = add_locations(from_html(`<div class="status-bar svelte-1764dnv"><!> <!> <!></div>`), StatusBar[FILENAME], [[77, 0]]);
   function StatusBar($$anchor, $$props) {
     check_target(new.target);
@@ -12463,7 +12670,7 @@ ${component_stack}
     var node_2 = sibling(node_1, 2);
     {
       var consequent_2 = ($$anchor2) => {
-        var div_2 = root_34();
+        var div_2 = root_35();
         var span_1 = sibling(child(div_2), 2);
         var text_1 = child(span_1, true);
         reset(span_1);
@@ -12651,7 +12858,6 @@ ${component_stack}
     );
     var $$exports = { ...legacy_api() };
     var div = root9();
-    validate_each_keys(() => $$props.connections, (connection) => connection.id);
     add_svelte_meta(
       () => each(div, 21, () => $$props.connections, (connection) => connection.id, ($$anchor2, connection) => {
         const isActive = tag(user_derived(() => strict_equals(get(connection).id, $$props.activeConnectionId)), "isActive");
@@ -12724,7 +12930,7 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_35 = add_locations(from_html(`<div class="auth-reminder-banner warning svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u{1F510}</span> <div class="auth-message-container svelte-cv3w9g"><span class="auth-message svelte-cv3w9g">Authentication Required: Enter code <strong class="svelte-cv3w9g"> </strong> </span></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g" title="Copy code" aria-label="Copy code"><span class="codicon svelte-cv3w9g">\u{1F4CB}</span> Copy code</button> <button class="auth-action svelte-cv3w9g" title="Copy code and open browser" aria-label="Copy code and open browser"><span class="codicon svelte-cv3w9g">\u{1F310}</span> Open browser</button> <button class="auth-action secondary svelte-cv3w9g" title="Cancel authentication" aria-label="Cancel authentication"><span class="codicon svelte-cv3w9g">\u2717</span> Cancel</button></div></div>`), AuthReminder[FILENAME], [
+  var root_27 = add_locations(from_html(`<div class="auth-reminder-banner warning svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u{1F510}</span> <div class="auth-message-container svelte-cv3w9g"><span class="auth-message svelte-cv3w9g">Authentication Required: Enter code <strong class="svelte-cv3w9g"> </strong> </span></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g" title="Copy code" aria-label="Copy code"><span class="codicon svelte-cv3w9g">\u{1F4CB}</span> Copy code</button> <button class="auth-action svelte-cv3w9g" title="Copy code and open browser" aria-label="Copy code and open browser"><span class="codicon svelte-cv3w9g">\u{1F310}</span> Open browser</button> <button class="auth-action secondary svelte-cv3w9g" title="Cancel authentication" aria-label="Cancel authentication"><span class="codicon svelte-cv3w9g">\u2717</span> Cancel</button></div></div>`), AuthReminder[FILENAME], [
     [
       236,
       2,
@@ -12743,8 +12949,8 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_64 = add_locations(from_html(`<span class="error-hint svelte-cv3w9g"> </span>`), AuthReminder[FILENAME], [[284, 8]]);
-  var root_54 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Failed</strong> <span class="error-detail svelte-cv3w9g"> </span> <!></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
+  var root_42 = add_locations(from_html(`<span class="error-hint svelte-cv3w9g"> </span>`), AuthReminder[FILENAME], [[284, 8]]);
+  var root_36 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Failed</strong> <span class="error-detail svelte-cv3w9g"> </span> <!></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
     [
       276,
       2,
@@ -12755,7 +12961,7 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_82 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Failed</strong> <span class="error-detail svelte-cv3w9g"> </span></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
+  var root_54 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Failed</strong> <span class="error-detail svelte-cv3w9g"> </span></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
     [
       299,
       2,
@@ -12766,16 +12972,16 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_102 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0</span> <span class="auth-message svelte-cv3w9g"> </span> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Retry</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
+  var root_63 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0</span> <span class="auth-message svelte-cv3w9g"> </span> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Retry</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
     [
       319,
       2,
       [[320, 4], [321, 4], [322, 4, [[323, 6], [324, 6], [325, 6]]]]
     ]
   ]);
-  var root_133 = add_locations(from_html(`<button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button>`, 1), AuthReminder[FILENAME], [[338, 8], [341, 8]]);
-  var root_143 = add_locations(from_html(`<button class="auth-action svelte-cv3w9g">Retry</button>`), AuthReminder[FILENAME], [[345, 8]]);
-  var root_123 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Required</strong> <span class="error-detail svelte-cv3w9g"> </span></div> <div class="auth-actions svelte-cv3w9g"><!> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
+  var root_82 = add_locations(from_html(`<button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button>`, 1), AuthReminder[FILENAME], [[338, 8], [341, 8]]);
+  var root_92 = add_locations(from_html(`<button class="auth-action svelte-cv3w9g">Retry</button>`), AuthReminder[FILENAME], [[345, 8]]);
+  var root_72 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Required</strong> <span class="error-detail svelte-cv3w9g"> </span></div> <div class="auth-actions svelte-cv3w9g"><!> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
     [
       330,
       2,
@@ -12902,263 +13108,163 @@ ${component_stack}
         reset(div_1);
         var div_2 = sibling(div_1, 2);
         var button = child(div_2);
-        button.__click = handleOpenAuthCodeFlowBrowser;
         var button_1 = sibling(button, 2);
-        button_1.__click = handleCancelAuthCodeFlow;
         reset(div_2);
         reset(div);
         template_effect(() => set_text(text2, `Authentication Required: Complete sign-in in your browser (${get(authCodeFlowExpiresInMinutes) ?? ""}m left)`));
+        delegated("click", button, handleOpenAuthCodeFlowBrowser);
+        delegated("click", button_1, handleCancelAuthCodeFlow);
         append($$anchor2, div);
       };
-      var alternate_5 = ($$anchor2) => {
-        var fragment_1 = comment();
-        var node_1 = first_child(fragment_1);
-        {
-          var consequent_1 = ($$anchor3) => {
-            var div_3 = root_35();
-            var div_4 = sibling(child(div_3), 2);
-            var span_1 = child(div_4);
-            var strong = sibling(child(span_1));
-            var text_1 = child(strong, true);
-            reset(strong);
-            var text_2 = sibling(strong);
-            reset(span_1);
-            reset(div_4);
-            var div_5 = sibling(div_4, 2);
-            var button_2 = child(div_5);
-            button_2.__click = copyDeviceCodeOnly;
-            var button_3 = sibling(button_2, 2);
-            button_3.__click = copyAndOpenDeviceCode;
-            var button_4 = sibling(button_3, 2);
-            button_4.__click = handleCancelDeviceCode;
-            reset(div_5);
-            reset(div_3);
-            template_effect(() => {
-              set_text(text_1, get(deviceCodeSession).userCode);
-              set_text(text_2, ` in your
+      var consequent_1 = ($$anchor2) => {
+        var div_3 = root_27();
+        var div_4 = sibling(child(div_3), 2);
+        var span_1 = child(div_4);
+        var strong = sibling(child(span_1));
+        var text_1 = child(strong, true);
+        reset(strong);
+        var text_2 = sibling(strong);
+        reset(span_1);
+        reset(div_4);
+        var div_5 = sibling(div_4, 2);
+        var button_2 = child(div_5);
+        var button_3 = sibling(button_2, 2);
+        var button_4 = sibling(button_3, 2);
+        reset(div_5);
+        reset(div_3);
+        template_effect(() => {
+          set_text(text_1, get(deviceCodeSession).userCode);
+          set_text(text_2, ` in your
         browser (${get(deviceCodeExpiresInMinutes) ?? ""}m left)`);
-            });
-            append($$anchor3, div_3);
-          };
-          var alternate_4 = ($$anchor3) => {
-            var fragment_2 = comment();
-            var node_2 = first_child(fragment_2);
-            {
-              var consequent_3 = ($$anchor4) => {
-                var div_6 = root_54();
-                var div_7 = sibling(child(div_6), 2);
-                var span_2 = sibling(child(div_7), 2);
-                var text_3 = child(span_2, true);
-                reset(span_2);
-                var node_3 = sibling(span_2, 2);
-                {
-                  var consequent_2 = ($$anchor5) => {
-                    var span_3 = root_64();
-                    var text_4 = child(span_3);
-                    reset(span_3);
-                    template_effect(() => set_text(text_4, `Suggested: ${get(connectionHealthError).suggestedAction ?? ""}`));
-                    append($$anchor5, span_3);
-                  };
-                  add_svelte_meta(
-                    () => if_block(node_3, ($$render) => {
-                      if (get(connectionHealthError)?.suggestedAction) $$render(consequent_2);
-                    }),
-                    "if",
-                    AuthReminder,
-                    283,
-                    6
-                  );
-                }
-                reset(div_7);
-                var div_8 = sibling(div_7, 2);
-                var button_5 = child(div_8);
-                button_5.__click = startDeviceCodeSignIn;
-                var button_6 = sibling(button_5, 2);
-                button_6.__click = handleStartFreshAuth;
-                var button_7 = sibling(button_6, 2);
-                button_7.__click = handleOpenSettings;
-                reset(div_8);
-                reset(div_6);
-                template_effect(() => set_text(text_3, get(connectionHealthError)?.message || "Entra ID authentication failed. Start a new sign-in to choose PAT or begin device code again."));
-                append($$anchor4, div_6);
-              };
-              var alternate_3 = ($$anchor4) => {
-                var fragment_3 = comment();
-                var node_4 = first_child(fragment_3);
-                {
-                  var consequent_4 = ($$anchor5) => {
-                    var div_9 = root_82();
-                    var div_10 = sibling(child(div_9), 2);
-                    var span_4 = sibling(child(div_10), 2);
-                    var text_5 = child(span_4, true);
-                    reset(span_4);
-                    reset(div_10);
-                    var div_11 = sibling(div_10, 2);
-                    var button_8 = child(div_11);
-                    button_8.__click = startDeviceCodeSignIn;
-                    var button_9 = sibling(button_8, 2);
-                    button_9.__click = handleStartFreshAuth;
-                    var button_10 = sibling(button_9, 2);
-                    button_10.__click = handleOpenSettings;
-                    reset(div_11);
-                    reset(div_9);
-                    template_effect(() => set_text(text_5, get(workItemsError) || "Authentication failed. Start a new sign-in to choose PAT or device code."));
-                    append($$anchor5, div_9);
-                  };
-                  var alternate_2 = ($$anchor5) => {
-                    var fragment_4 = comment();
-                    var node_5 = first_child(fragment_4);
-                    {
-                      var consequent_5 = ($$anchor6) => {
-                        var div_12 = root_102();
-                        var span_5 = sibling(child(div_12), 2);
-                        var text_6 = child(span_5, true);
-                        reset(span_5);
-                        var div_13 = sibling(span_5, 2);
-                        var button_11 = child(div_13);
-                        button_11.__click = handleRetry;
-                        var button_12 = sibling(button_11, 2);
-                        button_12.__click = handleStartFreshAuth;
-                        var button_13 = sibling(button_12, 2);
-                        button_13.__click = handleOpenSettings;
-                        reset(div_13);
-                        reset(div_12);
-                        template_effect(() => set_text(text_6, get(workItemsError)));
-                        append($$anchor6, div_12);
-                      };
-                      var alternate_1 = ($$anchor6) => {
-                        var fragment_5 = comment();
-                        var node_6 = first_child(fragment_5);
-                        {
-                          var consequent_7 = ($$anchor7) => {
-                            var div_14 = root_123();
-                            var div_15 = sibling(child(div_14), 2);
-                            var span_6 = sibling(child(div_15), 2);
-                            var text_7 = child(span_6, true);
-                            reset(span_6);
-                            reset(div_15);
-                            var div_16 = sibling(div_15, 2);
-                            var node_7 = child(div_16);
-                            {
-                              var consequent_6 = ($$anchor8) => {
-                                var fragment_6 = root_133();
-                                var button_14 = first_child(fragment_6);
-                                button_14.__click = startDeviceCodeSignIn;
-                                var button_15 = sibling(button_14, 2);
-                                button_15.__click = handleStartFreshAuth;
-                                append($$anchor8, fragment_6);
-                              };
-                              var alternate = ($$anchor8) => {
-                                var button_16 = root_143();
-                                button_16.__click = handleRetry;
-                                append($$anchor8, button_16);
-                              };
-                              add_svelte_meta(
-                                () => if_block(node_7, ($$render) => {
-                                  if (get(isEntraAuth)) $$render(consequent_6);
-                                  else $$render(alternate, false);
-                                }),
-                                "if",
-                                AuthReminder,
-                                337,
-                                6
-                              );
-                            }
-                            var button_17 = sibling(node_7, 2);
-                            button_17.__click = handleOpenSettings;
-                            reset(div_16);
-                            reset(div_14);
-                            template_effect(() => set_text(text_7, get(currentAuthReminder)?.reason || "Sign in to continue."));
-                            append($$anchor7, div_14);
-                          };
-                          add_svelte_meta(
-                            () => if_block(
-                              node_6,
-                              ($$render) => {
-                                if (get(showAuthReminder)) $$render(consequent_7);
-                              },
-                              true
-                            ),
-                            "if",
-                            AuthReminder,
-                            328,
-                            0
-                          );
-                        }
-                        append($$anchor6, fragment_5);
-                      };
-                      add_svelte_meta(
-                        () => if_block(
-                          node_5,
-                          ($$render) => {
-                            if (get(showPatError)) $$render(consequent_5);
-                            else $$render(alternate_1, false);
-                          },
-                          true
-                        ),
-                        "if",
-                        AuthReminder,
-                        317,
-                        0
-                      );
-                    }
-                    append($$anchor5, fragment_4);
-                  };
-                  add_svelte_meta(
-                    () => if_block(
-                      node_4,
-                      ($$render) => {
-                        if (get(showWorkItemsEntraAuthError)) $$render(consequent_4);
-                        else $$render(alternate_2, false);
-                      },
-                      true
-                    ),
-                    "if",
-                    AuthReminder,
-                    297,
-                    0
-                  );
-                }
-                append($$anchor4, fragment_3);
-              };
-              add_svelte_meta(
-                () => if_block(
-                  node_2,
-                  ($$render) => {
-                    if (get(showEntraAuthError)) $$render(consequent_3);
-                    else $$render(alternate_3, false);
-                  },
-                  true
-                ),
-                "if",
-                AuthReminder,
-                274,
-                0
-              );
-            }
-            append($$anchor3, fragment_2);
+        });
+        delegated("click", button_2, copyDeviceCodeOnly);
+        delegated("click", button_3, copyAndOpenDeviceCode);
+        delegated("click", button_4, handleCancelDeviceCode);
+        append($$anchor2, div_3);
+      };
+      var consequent_3 = ($$anchor2) => {
+        var div_6 = root_36();
+        var div_7 = sibling(child(div_6), 2);
+        var span_2 = sibling(child(div_7), 2);
+        var text_3 = child(span_2, true);
+        reset(span_2);
+        var node_1 = sibling(span_2, 2);
+        {
+          var consequent_2 = ($$anchor3) => {
+            var span_3 = root_42();
+            var text_4 = child(span_3);
+            reset(span_3);
+            template_effect(() => set_text(text_4, `Suggested: ${get(connectionHealthError).suggestedAction ?? ""}`));
+            append($$anchor3, span_3);
           };
           add_svelte_meta(
-            () => if_block(
-              node_1,
-              ($$render) => {
-                if (get(showDeviceCode)) $$render(consequent_1);
-                else $$render(alternate_4, false);
-              },
-              true
-            ),
+            () => if_block(node_1, ($$render) => {
+              if (get(connectionHealthError)?.suggestedAction) $$render(consequent_2);
+            }),
             "if",
             AuthReminder,
-            234,
-            0
+            283,
+            6
           );
         }
-        append($$anchor2, fragment_1);
+        reset(div_7);
+        var div_8 = sibling(div_7, 2);
+        var button_5 = child(div_8);
+        var button_6 = sibling(button_5, 2);
+        var button_7 = sibling(button_6, 2);
+        reset(div_8);
+        reset(div_6);
+        template_effect(() => set_text(text_3, get(connectionHealthError)?.message || "Entra ID authentication failed. Start a new sign-in to choose PAT or begin device code again."));
+        delegated("click", button_5, startDeviceCodeSignIn);
+        delegated("click", button_6, handleStartFreshAuth);
+        delegated("click", button_7, handleOpenSettings);
+        append($$anchor2, div_6);
+      };
+      var consequent_4 = ($$anchor2) => {
+        var div_9 = root_54();
+        var div_10 = sibling(child(div_9), 2);
+        var span_4 = sibling(child(div_10), 2);
+        var text_5 = child(span_4, true);
+        reset(span_4);
+        reset(div_10);
+        var div_11 = sibling(div_10, 2);
+        var button_8 = child(div_11);
+        var button_9 = sibling(button_8, 2);
+        var button_10 = sibling(button_9, 2);
+        reset(div_11);
+        reset(div_9);
+        template_effect(() => set_text(text_5, get(workItemsError) || "Authentication failed. Start a new sign-in to choose PAT or device code."));
+        delegated("click", button_8, startDeviceCodeSignIn);
+        delegated("click", button_9, handleStartFreshAuth);
+        delegated("click", button_10, handleOpenSettings);
+        append($$anchor2, div_9);
+      };
+      var consequent_5 = ($$anchor2) => {
+        var div_12 = root_63();
+        var span_5 = sibling(child(div_12), 2);
+        var text_6 = child(span_5, true);
+        reset(span_5);
+        var div_13 = sibling(span_5, 2);
+        var button_11 = child(div_13);
+        var button_12 = sibling(button_11, 2);
+        var button_13 = sibling(button_12, 2);
+        reset(div_13);
+        reset(div_12);
+        template_effect(() => set_text(text_6, get(workItemsError)));
+        delegated("click", button_11, handleRetry);
+        delegated("click", button_12, handleStartFreshAuth);
+        delegated("click", button_13, handleOpenSettings);
+        append($$anchor2, div_12);
+      };
+      var consequent_7 = ($$anchor2) => {
+        var div_14 = root_72();
+        var div_15 = sibling(child(div_14), 2);
+        var span_6 = sibling(child(div_15), 2);
+        var text_7 = child(span_6, true);
+        reset(span_6);
+        reset(div_15);
+        var div_16 = sibling(div_15, 2);
+        var node_2 = child(div_16);
+        {
+          var consequent_6 = ($$anchor3) => {
+            var fragment_1 = root_82();
+            var button_14 = first_child(fragment_1);
+            var button_15 = sibling(button_14, 2);
+            delegated("click", button_14, startDeviceCodeSignIn);
+            delegated("click", button_15, handleStartFreshAuth);
+            append($$anchor3, fragment_1);
+          };
+          var alternate = ($$anchor3) => {
+            var button_16 = root_92();
+            delegated("click", button_16, handleRetry);
+            append($$anchor3, button_16);
+          };
+          add_svelte_meta(
+            () => if_block(node_2, ($$render) => {
+              if (get(isEntraAuth)) $$render(consequent_6);
+              else $$render(alternate, false);
+            }),
+            "if",
+            AuthReminder,
+            337,
+            6
+          );
+        }
+        var button_17 = sibling(node_2, 2);
+        reset(div_16);
+        reset(div_14);
+        template_effect(() => set_text(text_7, get(currentAuthReminder)?.reason || "Sign in to continue."));
+        delegated("click", button_17, handleOpenSettings);
+        append($$anchor2, div_14);
       };
       add_svelte_meta(
         () => if_block(node, ($$render) => {
           if (get(showAuthCodeFlow)) $$render(consequent);
-          else $$render(alternate_5, false);
+          else if (get(showDeviceCode)) $$render(consequent_1, 1);
+          else if (get(showEntraAuthError)) $$render(consequent_3, 2);
+          else if (get(showWorkItemsEntraAuthError)) $$render(consequent_4, 3);
+          else if (get(showPatError)) $$render(consequent_5, 4);
+          else if (get(showAuthReminder)) $$render(consequent_7, 5);
         }),
         "if",
         AuthReminder,
@@ -13223,18 +13329,14 @@ ${component_stack}
     var header = root10();
     var div = child(header);
     var button = child(div);
-    button.__click = handleToggleKanban;
     var button_1 = sibling(button, 2);
-    button_1.__click = handleRefresh;
     var button_2 = sibling(button_1, 2);
-    button_2.__click = handleCreateWorkItem;
     var button_3 = sibling(button_2, 2);
-    button_3.__click = handleSetup;
     var node = sibling(button_3, 2);
     {
       var consequent = ($$anchor2) => {
         var button_4 = root_111();
-        button_4.__click = handleToggleDebug;
+        delegated("click", button_4, handleToggleDebug);
         append($$anchor2, button_4);
       };
       add_svelte_meta(
@@ -13250,6 +13352,10 @@ ${component_stack}
     reset(div);
     reset(header);
     template_effect(() => set_class(button_1, 1, `header-btn ${get(isRefreshing) ? "refreshing" : ""}`, "svelte-1bw0sfy"));
+    delegated("click", button, handleToggleKanban);
+    delegated("click", button_1, handleRefresh);
+    delegated("click", button_2, handleCreateWorkItem);
+    delegated("click", button_3, handleSetup);
     append($$anchor, header);
     return pop($$exports);
   }
@@ -13411,14 +13517,14 @@ ${component_stack}
     var $$exports = { ...legacy_api() };
     var div = root13();
     var button = child(div);
-    button.__click = handleUndo;
     var button_1 = sibling(button, 2);
-    button_1.__click = handleRedo;
     reset(div);
     template_effect(() => {
       button.disabled = !get(canUndo);
       button_1.disabled = !get(canRedo);
     });
+    delegated("click", button, handleUndo);
+    delegated("click", button_1, handleRedo);
     append($$anchor, div);
     return pop($$exports);
   }
@@ -13575,11 +13681,11 @@ ${component_stack}
 
   // src/webview/components/HistoryTimeline.svelte
   HistoryTimeline[FILENAME] = "src/webview/components/HistoryTimeline.svelte";
-  var root_27 = add_locations(from_html(`<div class="entry-label svelte-uzfmon"> </div>`), HistoryTimeline[FILENAME], [[108, 12]]);
-  var root_42 = add_locations(from_html(`<span class="event-tag svelte-uzfmon"> </span>`), HistoryTimeline[FILENAME], [[113, 16]]);
+  var root_28 = add_locations(from_html(`<div class="entry-label svelte-uzfmon"> </div>`), HistoryTimeline[FILENAME], [[108, 12]]);
+  var root_43 = add_locations(from_html(`<span class="event-tag svelte-uzfmon"> </span>`), HistoryTimeline[FILENAME], [[113, 16]]);
   var root_55 = add_locations(from_html(`<span class="event-more svelte-uzfmon"> </span>`), HistoryTimeline[FILENAME], [[116, 16]]);
-  var root_36 = add_locations(from_html(`<div class="entry-events svelte-uzfmon"><!> <!></div>`), HistoryTimeline[FILENAME], [[111, 12]]);
-  var root_65 = add_locations(from_html(`<button class="action-button svelte-uzfmon" title="Compare with previous">Diff</button>`), HistoryTimeline[FILENAME], [[124, 12]]);
+  var root_37 = add_locations(from_html(`<div class="entry-events svelte-uzfmon"><!> <!></div>`), HistoryTimeline[FILENAME], [[111, 12]]);
+  var root_64 = add_locations(from_html(`<button class="action-button svelte-uzfmon" title="Compare with previous">Diff</button>`), HistoryTimeline[FILENAME], [[124, 12]]);
   var root_112 = add_locations(from_html(`<div title="Click to jump to this snapshot"><div class="entry-index svelte-uzfmon"></div> <div class="entry-content svelte-uzfmon"><div class="entry-state svelte-uzfmon"> </div> <!> <!> <div class="entry-timestamp svelte-uzfmon"> </div></div> <div class="entry-actions svelte-uzfmon"><!></div></div>`), HistoryTimeline[FILENAME], [
     [
       97,
@@ -13587,7 +13693,7 @@ ${component_stack}
       [[104, 8], [105, 8, [[106, 10], [120, 10]]], [122, 8]]
     ]
   ]);
-  var root_72 = add_locations(from_html(`<div class="diff-panel svelte-uzfmon"><div class="diff-header svelte-uzfmon"><h4 class="svelte-uzfmon">State Diff</h4> <button class="close-button svelte-uzfmon">\xD7</button></div> <div class="diff-content svelte-uzfmon"><div class="diff-summary svelte-uzfmon"> </div> <pre class="diff-text svelte-uzfmon"> </pre></div></div>`), HistoryTimeline[FILENAME], [
+  var root_73 = add_locations(from_html(`<div class="diff-panel svelte-uzfmon"><div class="diff-header svelte-uzfmon"><h4 class="svelte-uzfmon">State Diff</h4> <button class="close-button svelte-uzfmon">\xD7</button></div> <div class="diff-content svelte-uzfmon"><div class="diff-summary svelte-uzfmon"> </div> <pre class="diff-text svelte-uzfmon"> </pre></div></div>`), HistoryTimeline[FILENAME], [
     [
       141,
       4,
@@ -13663,7 +13769,6 @@ ${component_stack}
     var div_1 = child(div);
     var div_2 = sibling(child(div_1), 2);
     var button = child(div_2);
-    button.__click = () => history.clearHistory();
     var span = sibling(button, 2);
     var text2 = child(span);
     reset(span);
@@ -13674,7 +13779,6 @@ ${component_stack}
       () => each(div_3, 21, () => get(historyEntries), index, ($$anchor2, entry, index2) => {
         var div_4 = root_112();
         let classes;
-        div_4.__click = () => goToSnapshot(index2);
         var div_5 = child(div_4);
         div_5.textContent = index2;
         var div_6 = sibling(div_5, 2);
@@ -13684,7 +13788,7 @@ ${component_stack}
         var node = sibling(div_7, 2);
         {
           var consequent = ($$anchor3) => {
-            var div_8 = root_27();
+            var div_8 = root_28();
             var text_2 = child(div_8, true);
             reset(div_8);
             template_effect(() => set_text(text_2, get(entry).label));
@@ -13703,11 +13807,11 @@ ${component_stack}
         var node_1 = sibling(node, 2);
         {
           var consequent_2 = ($$anchor3) => {
-            var div_9 = root_36();
+            var div_9 = root_37();
             var node_2 = child(div_9);
             add_svelte_meta(
               () => each(node_2, 17, () => get(entry).events.slice(0, 2), index, ($$anchor4, event2) => {
-                var span_1 = root_42();
+                var span_1 = root_43();
                 var text_3 = child(span_1, true);
                 reset(span_1);
                 template_effect(($0) => set_text(text_3, $0), [() => formatEventTag(get(event2).tag)]);
@@ -13758,11 +13862,11 @@ ${component_stack}
         var node_4 = child(div_11);
         {
           var consequent_3 = ($$anchor3) => {
-            var button_1 = root_65();
-            button_1.__click = (e) => {
+            var button_1 = root_64();
+            delegated("click", button_1, function click_2(e) {
               e.stopPropagation();
               showDiffBetween(index2 - 1, index2);
-            };
+            });
             append($$anchor3, button_1);
           };
           add_svelte_meta(
@@ -13788,6 +13892,9 @@ ${component_stack}
           },
           [() => formatTimestamp(get(entry).timestamp)]
         );
+        delegated("click", div_4, function click_1() {
+          return goToSnapshot(index2);
+        });
         append($$anchor2, div_4);
       }),
       "each",
@@ -13799,10 +13906,9 @@ ${component_stack}
     var node_5 = sibling(div_3, 2);
     {
       var consequent_4 = ($$anchor2) => {
-        var div_12 = root_72();
+        var div_12 = root_73();
         var div_13 = child(div_12);
         var button_2 = sibling(child(div_13), 2);
-        button_2.__click = () => set(showDiff, false);
         reset(div_13);
         var div_14 = sibling(div_13, 2);
         var div_15 = child(div_14);
@@ -13823,6 +13929,9 @@ ${component_stack}
             () => formatDiff(get(selectedDiff))
           ]
         );
+        delegated("click", button_2, function click_3() {
+          return set(showDiff, false);
+        });
         append($$anchor2, div_12);
       };
       add_svelte_meta(
@@ -13837,6 +13946,9 @@ ${component_stack}
     }
     reset(div);
     template_effect(() => set_text(text2, `${get(historyEntries).length ?? ""} snapshots`));
+    delegated("click", button, function click() {
+      return history.clearHistory();
+    });
     append($$anchor, div);
     return pop($$exports);
   }
@@ -13970,8 +14082,8 @@ ${component_stack}
 
   // src/webview/components/PerformanceDashboard.svelte
   PerformanceDashboard[FILENAME] = "src/webview/components/PerformanceDashboard.svelte";
-  var root_43 = add_locations(from_html(`<span class="transition-label svelte-1rs9uqy"> </span>`), PerformanceDashboard[FILENAME], [[110, 18]]);
-  var root_37 = add_locations(from_html(`<div class="transition-item slow svelte-1rs9uqy"><div class="transition-header svelte-1rs9uqy"><span class="transition-states svelte-1rs9uqy"> </span> <span class="transition-duration slow svelte-1rs9uqy"> </span></div> <div class="transition-details svelte-1rs9uqy"><span> </span> <span> </span> <!></div></div>`), PerformanceDashboard[FILENAME], [
+  var root_44 = add_locations(from_html(`<span class="transition-label svelte-1rs9uqy"> </span>`), PerformanceDashboard[FILENAME], [[110, 18]]);
+  var root_38 = add_locations(from_html(`<div class="transition-item slow svelte-1rs9uqy"><div class="transition-header svelte-1rs9uqy"><span class="transition-states svelte-1rs9uqy"> </span> <span class="transition-duration slow svelte-1rs9uqy"> </span></div> <div class="transition-details svelte-1rs9uqy"><span> </span> <span> </span> <!></div></div>`), PerformanceDashboard[FILENAME], [
     [
       97,
       12,
@@ -13981,8 +14093,8 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_28 = add_locations(from_html(`<div class="slow-transitions svelte-1rs9uqy"><h4 class="svelte-1rs9uqy"> </h4> <div class="transitions-list svelte-1rs9uqy"></div></div>`), PerformanceDashboard[FILENAME], [[93, 6, [[94, 8], [95, 8]]]]);
-  var root_66 = add_locations(from_html(`<span class="transition-label svelte-1rs9uqy"> </span>`), PerformanceDashboard[FILENAME], [[136, 16]]);
+  var root_29 = add_locations(from_html(`<div class="slow-transitions svelte-1rs9uqy"><h4 class="svelte-1rs9uqy"> </h4> <div class="transitions-list svelte-1rs9uqy"></div></div>`), PerformanceDashboard[FILENAME], [[93, 6, [[94, 8], [95, 8]]]]);
+  var root_65 = add_locations(from_html(`<span class="transition-label svelte-1rs9uqy"> </span>`), PerformanceDashboard[FILENAME], [[136, 16]]);
   var root_56 = add_locations(from_html(`<div><div class="transition-header svelte-1rs9uqy"><span class="transition-states svelte-1rs9uqy"> </span> <span> </span></div> <div class="transition-details svelte-1rs9uqy"><span> </span> <span> </span> <!></div></div>`), PerformanceDashboard[FILENAME], [
     [
       123,
@@ -14006,7 +14118,7 @@ ${component_stack}
     ],
     [119, 4, [[120, 6], [121, 6]]]
   ]);
-  var root_73 = add_locations(from_html(`<div class="no-data svelte-1rs9uqy"><p>No performance data available. Perform some actions to see metrics.</p></div>`), PerformanceDashboard[FILENAME], [[144, 4, [[145, 6]]]]);
+  var root_74 = add_locations(from_html(`<div class="no-data svelte-1rs9uqy"><p>No performance data available. Perform some actions to see metrics.</p></div>`), PerformanceDashboard[FILENAME], [[144, 4, [[145, 6]]]]);
   var root15 = add_locations(from_html(`<div class="performance-dashboard svelte-1rs9uqy"><div class="dashboard-header svelte-1rs9uqy"><h3 class="svelte-1rs9uqy">Performance Dashboard</h3> <div class="dashboard-controls svelte-1rs9uqy"><label><input type="checkbox"/> </label> <input type="range" min="0" max="1000" step="10" class="threshold-slider svelte-1rs9uqy"/> <span class="threshold-value svelte-1rs9uqy"> </span></div></div> <!></div>`), PerformanceDashboard[FILENAME], [
     [
       52,
@@ -14110,14 +14222,14 @@ ${component_stack}
         var node_1 = sibling(div_3, 2);
         {
           var consequent_1 = ($$anchor3) => {
-            var div_8 = root_28();
+            var div_8 = root_29();
             var h4 = child(div_8);
             var text_6 = child(h4);
             reset(h4);
             var div_9 = sibling(h4, 2);
             add_svelte_meta(
               () => each(div_9, 21, () => get(slowTransitions), index, ($$anchor4, transition2) => {
-                var div_10 = root_37();
+                var div_10 = root_38();
                 var div_11 = child(div_10);
                 var span_5 = child(div_11);
                 var text_7 = child(span_5);
@@ -14136,7 +14248,7 @@ ${component_stack}
                 var node_2 = sibling(span_8, 2);
                 {
                   var consequent = ($$anchor5) => {
-                    var span_9 = root_43();
+                    var span_9 = root_44();
                     var text_11 = child(span_9, true);
                     reset(span_9);
                     template_effect(() => set_text(text_11, get(transition2).label));
@@ -14213,7 +14325,7 @@ ${component_stack}
             var node_3 = sibling(span_13, 2);
             {
               var consequent_2 = ($$anchor4) => {
-                var span_14 = root_66();
+                var span_14 = root_65();
                 var text_16 = child(span_14, true);
                 reset(span_14);
                 template_effect(() => set_text(text_16, get(transition2).label));
@@ -14270,7 +14382,7 @@ ${component_stack}
         append($$anchor2, fragment);
       };
       var alternate = ($$anchor2) => {
-        var div_18 = root_73();
+        var div_18 = root_74();
         append($$anchor2, div_18);
       };
       add_svelte_meta(
@@ -14313,14 +14425,14 @@ ${component_stack}
 
   // src/webview/App.svelte
   App[FILENAME] = "src/webview/App.svelte";
-  var root_44 = add_locations(from_html(`<div class="single-connection-header svelte-db2r4i"><span class="single-connection-label svelte-db2r4i" title="Active Connection"> </span></div>`), App[FILENAME], [[168, 6, [[169, 8]]]]);
-  var root_57 = add_locations(from_html(`<div class="error-banner svelte-db2r4i"><span class="codicon codicon-error"></span> <span> </span> <button class="retry-btn svelte-db2r4i">Retry</button></div>`), App[FILENAME], [[177, 6, [[178, 8], [179, 8], [180, 8]]]]);
-  var root_67 = add_locations(from_html(`<div class="debug-panel svelte-db2r4i" role="region" aria-label="Debug View"><h3 class="svelte-db2r4i">Debug View</h3> <pre class="debug-json svelte-db2r4i"> </pre></div> <div class="history-timeline-panel svelte-db2r4i"><!></div> <div class="performance-dashboard-panel svelte-db2r4i"><!></div>`, 1), App[FILENAME], [[194, 6, [[195, 8], [196, 8]]], [208, 6], [213, 6]]);
+  var root_39 = add_locations(from_html(`<div class="single-connection-header svelte-db2r4i"><span class="single-connection-label svelte-db2r4i" title="Active Connection"> </span></div>`), App[FILENAME], [[168, 6, [[169, 8]]]]);
+  var root_45 = add_locations(from_html(`<div class="error-banner svelte-db2r4i"><span class="codicon codicon-error"></span> <span> </span> <button class="retry-btn svelte-db2r4i">Retry</button></div>`), App[FILENAME], [[177, 6, [[178, 8], [179, 8], [180, 8]]]]);
+  var root_57 = add_locations(from_html(`<div class="debug-panel svelte-db2r4i" role="region" aria-label="Debug View"><h3 class="svelte-db2r4i">Debug View</h3> <pre class="debug-json svelte-db2r4i"> </pre></div> <div class="history-timeline-panel svelte-db2r4i"><!></div> <div class="performance-dashboard-panel svelte-db2r4i"><!></div>`, 1), App[FILENAME], [[194, 6, [[195, 8], [196, 8]]], [208, 6], [213, 6]]);
   var root_114 = add_locations(from_html(`<!> <div class="history-controls-container svelte-db2r4i"><!></div> <!> <!> <!> <!> <!> <!> <!>`, 1), App[FILENAME], [[158, 4]]);
-  var root_103 = add_locations(from_html(`<div class="loading svelte-db2r4i"><p>Initializing Azure DevOps Integration...</p> <p class="sub-text">Waiting for connection data...</p> <p class="sub-text" style="font-size: 0.8em; margin-top: 10px;">If this persists, check the browser console (F12) for errors.</p></div>`), App[FILENAME], [[239, 6, [[240, 8], [241, 8], [242, 8]]]]);
-  var root_134 = add_locations(from_html(`<p style="font-size: 0.9em; margin-top: 10px;"> </p>`), App[FILENAME], [[251, 10]]);
-  var root_124 = add_locations(from_html(`<div class="error-container svelte-db2r4i"><h2>Connection Error</h2> <p> </p> <!> <button class="svelte-db2r4i">Retry</button></div>`), App[FILENAME], [[247, 6, [[248, 8], [249, 8], [255, 8]]]]);
-  var root_144 = add_locations(from_html(`<div class="empty-state"><p>No connections configured.</p> <button class="svelte-db2r4i">Configure Connections</button> <div style="margin-top: 20px; font-size: 0.8em; color: var(--vscode-descriptionForeground); text-align: left;"><details><summary>Debug Info (v2)</summary> <pre> </pre></details></div></div>`), App[FILENAME], [
+  var root_93 = add_locations(from_html(`<div class="loading svelte-db2r4i"><p>Initializing Azure DevOps Integration...</p> <p class="sub-text">Waiting for connection data...</p> <p class="sub-text" style="font-size: 0.8em; margin-top: 10px;">If this persists, check the browser console (F12) for errors.</p></div>`), App[FILENAME], [[239, 6, [[240, 8], [241, 8], [242, 8]]]]);
+  var root_115 = add_locations(from_html(`<p style="font-size: 0.9em; margin-top: 10px;"> </p>`), App[FILENAME], [[251, 10]]);
+  var root_102 = add_locations(from_html(`<div class="error-container svelte-db2r4i"><h2>Connection Error</h2> <p> </p> <!> <button class="svelte-db2r4i">Retry</button></div>`), App[FILENAME], [[247, 6, [[248, 8], [249, 8], [255, 8]]]]);
+  var root_123 = add_locations(from_html(`<div class="empty-state"><p>No connections configured.</p> <button class="svelte-db2r4i">Configure Connections</button> <div style="margin-top: 20px; font-size: 0.8em; color: var(--vscode-descriptionForeground); text-align: left;"><details><summary>Debug Info (v2)</summary> <pre> </pre></details></div></div>`), App[FILENAME], [
     [
       258,
       6,
@@ -14450,41 +14562,21 @@ ${component_stack}
               { componentTag: "ConnectionTabs" }
             );
           };
-          var alternate = ($$anchor3) => {
-            var fragment_2 = comment();
-            var node_4 = first_child(fragment_2);
-            {
-              var consequent_1 = ($$anchor4) => {
-                var div_1 = root_44();
-                var span = child(div_1);
-                var text2 = child(span, true);
-                reset(span);
-                reset(div_1);
-                template_effect(($0) => set_text(text2, $0), [
-                  () => get(connectionsArray).find((c) => strict_equals(c.id, get(activeId)))?.label || get(activeId)
-                ]);
-                append($$anchor4, div_1);
-              };
-              add_svelte_meta(
-                () => if_block(
-                  node_4,
-                  ($$render) => {
-                    if (get(activeId)) $$render(consequent_1);
-                  },
-                  true
-                ),
-                "if",
-                App,
-                167,
-                4
-              );
-            }
-            append($$anchor3, fragment_2);
+          var consequent_1 = ($$anchor3) => {
+            var div_1 = root_39();
+            var span = child(div_1);
+            var text2 = child(span, true);
+            reset(span);
+            reset(div_1);
+            template_effect(($0) => set_text(text2, $0), [
+              () => get(connectionsArray).find((c) => strict_equals(c.id, get(activeId)))?.label || get(activeId)
+            ]);
+            append($$anchor3, div_1);
           };
           add_svelte_meta(
             () => if_block(node_3, ($$render) => {
               if (get(connectionsArray).length > 1) $$render(consequent);
-              else $$render(alternate, false);
+              else if (get(activeId)) $$render(consequent_1, 1);
             }),
             "if",
             App,
@@ -14492,21 +14584,23 @@ ${component_stack}
             4
           );
         }
-        var node_5 = sibling(node_3, 2);
+        var node_4 = sibling(node_3, 2);
         {
           var consequent_2 = ($$anchor3) => {
-            var div_2 = root_57();
+            var div_2 = root_45();
             var span_1 = sibling(child(div_2), 2);
             var text_1 = child(span_1, true);
             reset(span_1);
             var button = sibling(span_1, 2);
-            button.__click = () => sendEvent({ type: "RETRY" });
             reset(div_2);
             template_effect(() => set_text(text_1, get(appContext)?.lastError?.message || "Connection Error"));
+            delegated("click", button, function click() {
+              return sendEvent({ type: "RETRY" });
+            });
             append($$anchor3, div_2);
           };
           add_svelte_meta(
-            () => if_block(node_5, ($$render) => {
+            () => if_block(node_4, ($$render) => {
               if (get(isActivationFailed)) $$render(consequent_2);
             }),
             "if",
@@ -14515,9 +14609,9 @@ ${component_stack}
             4
           );
         }
-        var node_6 = sibling(node_5, 2);
+        var node_5 = sibling(node_4, 2);
         add_svelte_meta(
-          () => ConnectionViews(node_6, {
+          () => ConnectionViews(node_5, {
             get connections() {
               return get(connectionsArray);
             },
@@ -14536,9 +14630,9 @@ ${component_stack}
           4,
           { componentTag: "ConnectionViews" }
         );
-        var node_7 = sibling(node_6, 2);
+        var node_6 = sibling(node_5, 2);
         add_svelte_meta(
-          () => AuthReminder(node_7, {
+          () => AuthReminder(node_6, {
             get context() {
               return get(appContext);
             },
@@ -14550,22 +14644,22 @@ ${component_stack}
           4,
           { componentTag: "AuthReminder" }
         );
-        var node_8 = sibling(node_7, 2);
+        var node_7 = sibling(node_6, 2);
         {
           var consequent_3 = ($$anchor3) => {
-            var fragment_3 = root_67();
-            var div_3 = first_child(fragment_3);
+            var fragment_2 = root_57();
+            var div_3 = first_child(fragment_2);
             var pre = sibling(child(div_3), 2);
             var text_2 = child(pre, true);
             reset(pre);
             reset(div_3);
             var div_4 = sibling(div_3, 2);
-            var node_9 = child(div_4);
-            add_svelte_meta(() => HistoryTimeline(node_9, {}), "component", App, 209, 8, { componentTag: "HistoryTimeline" });
+            var node_8 = child(div_4);
+            add_svelte_meta(() => HistoryTimeline(node_8, {}), "component", App, 209, 8, { componentTag: "HistoryTimeline" });
             reset(div_4);
             var div_5 = sibling(div_4, 2);
-            var node_10 = child(div_5);
-            add_svelte_meta(() => PerformanceDashboard(node_10, {}), "component", App, 214, 8, { componentTag: "PerformanceDashboard" });
+            var node_9 = child(div_5);
+            add_svelte_meta(() => PerformanceDashboard(node_9, {}), "component", App, 214, 8, { componentTag: "PerformanceDashboard" });
             reset(div_5);
             template_effect(($0) => set_text(text_2, $0), [
               () => JSON.stringify(
@@ -14578,10 +14672,10 @@ ${component_stack}
                 2
               )
             ]);
-            append($$anchor3, fragment_3);
+            append($$anchor3, fragment_2);
           };
           add_svelte_meta(
-            () => if_block(node_8, ($$render) => {
+            () => if_block(node_7, ($$render) => {
               if (get(appContext)?.debugLoggingEnabled && get(localDebugViewVisible)) $$render(consequent_3);
             }),
             "if",
@@ -14590,7 +14684,7 @@ ${component_stack}
             4
           );
         }
-        var node_11 = sibling(node_8, 2);
+        var node_10 = sibling(node_7, 2);
         {
           var consequent_4 = ($$anchor3) => {
             add_svelte_meta(
@@ -14611,7 +14705,7 @@ ${component_stack}
             );
           };
           add_svelte_meta(
-            () => if_block(node_11, ($$render) => {
+            () => if_block(node_10, ($$render) => {
               if (get(appContext)?.ui?.statusMessage) $$render(consequent_4);
             }),
             "if",
@@ -14620,7 +14714,7 @@ ${component_stack}
             4
           );
         }
-        var node_12 = sibling(node_11, 2);
+        var node_11 = sibling(node_10, 2);
         {
           var consequent_5 = ($$anchor3) => {
             add_svelte_meta(
@@ -14644,7 +14738,7 @@ ${component_stack}
             );
           };
           add_svelte_meta(
-            () => if_block(node_12, ($$render) => {
+            () => if_block(node_11, ($$render) => {
               if (strict_equals(get(appContext)?.ui?.modal?.type, "composeComment")) $$render(consequent_5);
             }),
             "if",
@@ -14655,100 +14749,84 @@ ${component_stack}
         }
         append($$anchor2, fragment);
       };
-      var alternate_3 = ($$anchor2) => {
-        var fragment_6 = comment();
-        var node_13 = first_child(fragment_6);
+      var alternate_1 = ($$anchor2) => {
+        var fragment_5 = comment();
+        var node_12 = first_child(fragment_5);
         {
           var consequent_7 = ($$anchor3) => {
-            var div_6 = root_103();
+            var div_6 = root_93();
             append($$anchor3, div_6);
           };
-          var alternate_2 = ($$anchor3) => {
-            var fragment_7 = comment();
-            var node_14 = first_child(fragment_7);
+          var consequent_9 = ($$anchor3) => {
+            var div_7 = root_102();
+            var p = sibling(child(div_7), 2);
+            var text_3 = child(p, true);
+            reset(p);
+            var node_13 = sibling(p, 2);
             {
-              var consequent_9 = ($$anchor4) => {
-                var div_7 = root_124();
-                var p = sibling(child(div_7), 2);
-                var text_3 = child(p, true);
-                reset(p);
-                var node_15 = sibling(p, 2);
-                {
-                  var consequent_8 = ($$anchor5) => {
-                    var p_1 = root_134();
-                    var text_4 = child(p_1);
-                    reset(p_1);
-                    template_effect(() => set_text(text_4, `Connection: ${get(appContext).activeConnectionId ?? ""}`));
-                    append($$anchor5, p_1);
-                  };
-                  add_svelte_meta(
-                    () => if_block(node_15, ($$render) => {
-                      if (get(appContext)?.activeConnectionId) $$render(consequent_8);
-                    }),
-                    "if",
-                    App,
-                    250,
-                    8
-                  );
-                }
-                var button_1 = sibling(node_15, 2);
-                button_1.__click = () => sendEvent({ type: "RETRY" });
-                reset(div_7);
-                template_effect(() => set_text(text_3, get(appContext)?.workItemsError || get(appContext)?.lastError?.message || "Unknown error"));
-                append($$anchor4, div_7);
-              };
-              var alternate_1 = ($$anchor4) => {
-                var div_8 = root_144();
-                var button_2 = sibling(child(div_8), 2);
-                button_2.__click = () => sendEvent({ type: "OPEN_SETTINGS" });
-                var div_9 = sibling(button_2, 2);
-                var details = child(div_9);
-                var pre_1 = sibling(child(details), 2);
-                var text_5 = child(pre_1, true);
-                reset(pre_1);
-                reset(details);
-                reset(div_9);
-                reset(div_8);
-                template_effect(($0) => set_text(text_5, $0), [
-                  () => JSON.stringify(
-                    {
-                      hasConnections: get(hasConnections),
-                      connectionsLength: get(appContext)?.connections?.length || 0,
-                      appState: get(appContext)?.applicationState || "unknown",
-                      activeConnectionId: get(appContext)?.activeConnectionId,
-                      contextKeys: get(appContext) ? Object.keys(get(appContext)) : [],
-                      rawConnections: get(appContext)?.connections || [],
-                      hasAppContext: !!get(appContext),
-                      storeValue: get(currentState)?.value,
-                      snapshotValue: get2(applicationSnapshot)?.value
-                    },
-                    null,
-                    2
-                  )
-                ]);
-                append($$anchor4, div_8);
+              var consequent_8 = ($$anchor4) => {
+                var p_1 = root_115();
+                var text_4 = child(p_1);
+                reset(p_1);
+                template_effect(() => set_text(text_4, `Connection: ${get(appContext).activeConnectionId ?? ""}`));
+                append($$anchor4, p_1);
               };
               add_svelte_meta(
-                () => if_block(
-                  node_14,
-                  ($$render) => {
-                    if (get(isActivationFailed)) $$render(consequent_9);
-                    else $$render(alternate_1, false);
-                  },
-                  true
-                ),
+                () => if_block(node_13, ($$render) => {
+                  if (get(appContext)?.activeConnectionId) $$render(consequent_8);
+                }),
                 "if",
                 App,
-                246,
-                4
+                250,
+                8
               );
             }
-            append($$anchor3, fragment_7);
+            var button_1 = sibling(node_13, 2);
+            reset(div_7);
+            template_effect(() => set_text(text_3, get(appContext)?.workItemsError || get(appContext)?.lastError?.message || "Unknown error"));
+            delegated("click", button_1, function click_1() {
+              return sendEvent({ type: "RETRY" });
+            });
+            append($$anchor3, div_7);
+          };
+          var alternate = ($$anchor3) => {
+            var div_8 = root_123();
+            var button_2 = sibling(child(div_8), 2);
+            var div_9 = sibling(button_2, 2);
+            var details = child(div_9);
+            var pre_1 = sibling(child(details), 2);
+            var text_5 = child(pre_1, true);
+            reset(pre_1);
+            reset(details);
+            reset(div_9);
+            reset(div_8);
+            template_effect(($0) => set_text(text_5, $0), [
+              () => JSON.stringify(
+                {
+                  hasConnections: get(hasConnections),
+                  connectionsLength: get(appContext)?.connections?.length || 0,
+                  appState: get(appContext)?.applicationState || "unknown",
+                  activeConnectionId: get(appContext)?.activeConnectionId,
+                  contextKeys: get(appContext) ? Object.keys(get(appContext)) : [],
+                  rawConnections: get(appContext)?.connections || [],
+                  hasAppContext: !!get(appContext),
+                  storeValue: get(currentState)?.value,
+                  snapshotValue: get2(applicationSnapshot)?.value
+                },
+                null,
+                2
+              )
+            ]);
+            delegated("click", button_2, function click_2() {
+              return sendEvent({ type: "OPEN_SETTINGS" });
+            });
+            append($$anchor3, div_8);
           };
           add_svelte_meta(
-            () => if_block(node_13, ($$render) => {
+            () => if_block(node_12, ($$render) => {
               if (get(isActivating) && (!get(appContext) || strict_equals(get(appContext).applicationState, "inactive"))) $$render(consequent_7);
-              else $$render(alternate_2, false);
+              else if (get(isActivationFailed)) $$render(consequent_9, 1);
+              else $$render(alternate, false);
             }),
             "if",
             App,
@@ -14756,12 +14834,12 @@ ${component_stack}
             4
           );
         }
-        append($$anchor2, fragment_6);
+        append($$anchor2, fragment_5);
       };
       add_svelte_meta(
         () => if_block(node, ($$render) => {
           if (get(hasConnections)) $$render(consequent_6);
-          else $$render(alternate_3, false);
+          else $$render(alternate_1, false);
         }),
         "if",
         App,
