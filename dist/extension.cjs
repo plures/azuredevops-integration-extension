@@ -43039,7 +43039,7 @@ var init_pkceUtils = __esm({
 });
 
 // src/services/auth/authorizationCodeProvider.ts
-var vscode7, componentLogger2, AZURE_DEVOPS_RESOURCE_ID, DEFAULT_SCOPES, AUTH_TIMEOUT_MS, AuthorizationCodeFlowProvider;
+var vscode7, componentLogger2, AZURE_DEVOPS_RESOURCE_ID, MINIMUM_SCOPES, DEFAULT_SCOPES, AUTH_TIMEOUT_MS, AuthorizationCodeFlowProvider;
 var init_authorizationCodeProvider = __esm({
   "src/services/auth/authorizationCodeProvider.ts"() {
     "use strict";
@@ -43049,7 +43049,13 @@ var init_authorizationCodeProvider = __esm({
     init_ComponentLogger();
     componentLogger2 = createComponentLogger("AUTH" /* AUTH */, "AuthorizationCodeFlowProvider");
     AZURE_DEVOPS_RESOURCE_ID = "499b84ac-1321-427f-aa17-267ca6975798";
-    DEFAULT_SCOPES = [`${AZURE_DEVOPS_RESOURCE_ID}/.default`, "offline_access"];
+    MINIMUM_SCOPES = [
+      `${AZURE_DEVOPS_RESOURCE_ID}/vso.work_write`,
+      `${AZURE_DEVOPS_RESOURCE_ID}/vso.code`,
+      `${AZURE_DEVOPS_RESOURCE_ID}/vso.build`,
+      "offline_access"
+    ];
+    DEFAULT_SCOPES = MINIMUM_SCOPES;
     AUTH_TIMEOUT_MS = 15 * 60 * 1e3;
     AuthorizationCodeFlowProvider = class {
       msalClient;
