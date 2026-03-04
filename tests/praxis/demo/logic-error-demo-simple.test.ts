@@ -1,4 +1,4 @@
-/* eslint-disable no-console, max-statements */
+/* eslint-disable no-console, max-lines, max-statements */
 /**
  * Demo: Finding and Fixing Logic Errors (Simplified)
  *
