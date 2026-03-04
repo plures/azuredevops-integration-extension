@@ -8,6 +8,7 @@ import { defineRule, findEvent } from '@plures/praxis';
 import type { ApplicationEngineContext } from '../engine.js';
 import { recordDecision } from '../../../decision-ledger/ledger.js';
 import { DecisionRecordedEvent } from '../../../decision-ledger/events.js';
+import { AUTH_INTENTS } from '../../../praxis-logic/intents.js';
 import {
   SignInEntraEvent,
   SignOutEntraEvent,
@@ -29,7 +30,7 @@ const recordSignInDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'auth',
-      operation: 'signInEntra',
+      operation: AUTH_INTENTS.SIGN_IN_ENTRA,
       outcome: 'allowed',
       rationale: 'User requested Entra sign-in',
       connectionId: ev.payload.connectionId,
@@ -48,7 +49,7 @@ const recordSignOutDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'auth',
-      operation: 'signOutEntra',
+      operation: AUTH_INTENTS.SIGN_OUT_ENTRA,
       outcome: 'allowed',
       rationale: 'User requested Entra sign-out',
       connectionId: ev.payload.connectionId,
@@ -66,7 +67,7 @@ const recordAuthSuccessDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'auth',
-      operation: 'authenticationSuccess',
+      operation: AUTH_INTENTS.SUCCESS,
       outcome: 'allowed',
       rationale: 'Authentication completed successfully',
       connectionId: ev.payload.connectionId,
@@ -84,7 +85,7 @@ const recordAuthFailedDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'auth',
-      operation: 'authenticationFailed',
+      operation: AUTH_INTENTS.FAILED,
       outcome: 'denied',
       rationale: ev.payload.error,
       connectionId: ev.payload.connectionId,
@@ -102,7 +103,7 @@ const recordDeviceCodeStartDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'auth',
-      operation: 'deviceCodeStart',
+      operation: AUTH_INTENTS.DEVICE_CODE_START,
       outcome: 'allowed',
       rationale: 'Device code flow initiated',
       connectionId: ev.payload.connectionId,
@@ -120,7 +121,7 @@ const recordDeviceCodeCompleteDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'auth',
-      operation: 'deviceCodeComplete',
+      operation: AUTH_INTENTS.DEVICE_CODE_COMPLETE,
       outcome: 'allowed',
       rationale: 'Device code flow completed',
       connectionId: ev.payload.connectionId,
@@ -138,7 +139,7 @@ const recordDeviceCodeCancelDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'auth',
-      operation: 'deviceCodeCancel',
+      operation: AUTH_INTENTS.DEVICE_CODE_CANCEL,
       outcome: 'deferred',
       rationale: 'Device code flow cancelled by user',
       connectionId: ev.payload.connectionId,
@@ -156,7 +157,7 @@ const recordAuthCodeFlowStartDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'auth',
-      operation: 'authCodeFlowStart',
+      operation: AUTH_INTENTS.AUTH_CODE_FLOW_START,
       outcome: 'allowed',
       rationale: 'Authorization code flow with PKCE initiated',
       connectionId: ev.payload.connectionId,
@@ -178,7 +179,7 @@ const recordAuthCodeFlowCompleteDecision = defineRule<ApplicationEngineContext>(
       : (ev.payload.error ?? 'Authorization code flow failed');
     const record = recordDecision(state.context, {
       category: 'auth',
-      operation: 'authCodeFlowComplete',
+      operation: AUTH_INTENTS.AUTH_CODE_FLOW_COMPLETE,
       outcome,
       rationale,
       connectionId: ev.payload.connectionId,

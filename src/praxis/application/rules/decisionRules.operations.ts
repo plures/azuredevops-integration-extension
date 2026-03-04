@@ -10,6 +10,13 @@ import type { ApplicationEngineContext } from '../engine.js';
 import { recordDecision } from '../../../decision-ledger/ledger.js';
 import { DecisionRecordedEvent } from '../../../decision-ledger/events.js';
 import {
+  WORK_ITEM_INTENTS,
+  BRANCH_INTENTS,
+  PULL_REQUEST_INTENTS,
+  CONNECTION_INTENTS,
+  LIFECYCLE_INTENTS,
+} from '../../../praxis-logic/intents.js';
+import {
   CreateWorkItemEvent,
   CreateBranchEvent,
   CreatePullRequestEvent,
@@ -34,7 +41,7 @@ const recordCreateWorkItemDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'work-item',
-      operation: 'createWorkItem',
+      operation: WORK_ITEM_INTENTS.CREATE,
       outcome: 'allowed',
       rationale: 'User requested work item creation',
       connectionId: ev.payload.connectionId,
@@ -52,7 +59,7 @@ const recordBulkAssignDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'work-item',
-      operation: 'bulkAssign',
+      operation: WORK_ITEM_INTENTS.BULK_ASSIGN,
       outcome: 'allowed',
       rationale: 'User requested bulk assignment of work items',
       connectionId: ev.payload.connectionId,
@@ -75,7 +82,7 @@ const recordCreateBranchDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'branch',
-      operation: 'createBranch',
+      operation: BRANCH_INTENTS.CREATE,
       outcome: 'allowed',
       rationale: 'User requested branch creation',
       connectionId: ev.payload.connectionId,
@@ -94,7 +101,7 @@ const recordCreatePullRequestDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'pull-request',
-      operation: 'createPullRequest',
+      operation: PULL_REQUEST_INTENTS.CREATE,
       outcome: 'allowed',
       rationale: 'User requested pull request creation',
       connectionId: ev.payload.connectionId,
@@ -117,7 +124,7 @@ const recordConnectionLoadDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'connection',
-      operation: 'connectionsLoaded',
+      operation: CONNECTION_INTENTS.LOAD,
       outcome: 'allowed',
       rationale: 'Connections loaded from configuration',
       payload: { count: ev.payload.connections.length },
@@ -136,7 +143,7 @@ const recordConnectionSelectDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'connection',
-      operation: 'selectConnection',
+      operation: CONNECTION_INTENTS.SELECT,
       outcome: 'allowed',
       rationale: 'User selected a connection',
       connectionId: ev.payload.connectionId,
@@ -158,7 +165,7 @@ const recordActivateDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'lifecycle',
-      operation: 'activate',
+      operation: LIFECYCLE_INTENTS.ACTIVATE,
       outcome: 'allowed',
       rationale: 'Application activation requested',
     });
@@ -175,7 +182,7 @@ const recordDeactivateDecision = defineRule<ApplicationEngineContext>({
     if (!ev) return [];
     const record = recordDecision(state.context, {
       category: 'lifecycle',
-      operation: 'deactivate',
+      operation: LIFECYCLE_INTENTS.DEACTIVATE,
       outcome: 'allowed',
       rationale: 'Application deactivation requested',
     });

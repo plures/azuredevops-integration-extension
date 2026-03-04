@@ -2,8 +2,8 @@
  * Praxis Logic – Workflow Intents
  *
  * Named constants that describe the major user-facing workflows.
- * Rules, adapters, and decision records reference these constants
- * so the vocabulary stays consistent across the codebase.
+ * Decision rules use these constants for their `operation` field so
+ * the vocabulary stays consistent across rules, adapters, and ledger entries.
  */
 
 // ============================================================================
