@@ -16,8 +16,12 @@
  * Provides a unified interface for managing authentication across PAT and Entra ID
  */
 
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { EntraAuthProvider } from './entraAuthProvider.js';
+import { createLogger } from '../logging/unifiedLogger.js';
+import { recordPatOptIn } from './authTelemetry.js';
+
+const serviceLogger = createLogger('authService');
 
 // Inline type definitions for removed auth components
 export type AuthMethod = 'pat' | 'entra';
@@ -88,6 +92,19 @@ class PatAuthProvider implements IAuthProvider {
   }
 }
 
+/**
+ * Returns true when the user has explicitly opted in to PAT authentication
+ * via `azureDevOpsIntegration.auth.allowPat`. Reads from VS Code workspace
+ * configuration. Defaults to false (opt-in required).
+ */
+export function isPatAllowed(): boolean {
+  return (
+    vscode.workspace
+      .getConfiguration('azureDevOpsIntegration.auth')
+      .get<boolean>('allowPat', false) === true
+  );
+}
+
 export interface AuthServiceOptions {
   authMethod: AuthMethod;
   secretStorage: vscode.SecretStorage;
@@ -116,6 +133,18 @@ export class AuthService {
       if (!options.patConfig) {
         throw new Error('PAT configuration is required for PAT authentication');
       }
+      if (!isPatAllowed()) {
+        serviceLogger.warn(
+          'PAT authentication used without explicit opt-in. ' +
+            'Set `azureDevOpsIntegration.auth.allowPat = true` to suppress this warning, ' +
+            'or switch the connection to `entra` for browser-based sign-in.',
+          { meta: { connectionId: options.connectionId } }
+        );
+      }
+      recordPatOptIn({
+        connectionId: options.connectionId,
+        settingEnabled: isPatAllowed(),
+      });
       this.provider = new PatAuthProvider(options.patConfig);
     } else if (options.authMethod === 'entra') {
       if (!options.entraConfig) {
