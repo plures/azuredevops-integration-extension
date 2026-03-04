@@ -98,6 +98,9 @@ describe('Work Item Lifecycle - History Testing Examples', () => {
       const workItems = context.connectionWorkItems?.get(testConnection.id) || [];
       const newWorkItem = workItems[workItems.length - 1];
 
+      // Guard: work item must be defined for the timer test to be meaningful
+      expect(newWorkItem).toBeDefined();
+
       if (newWorkItem) {
         dispatch([
           StartTimerEvent.create({
@@ -119,7 +122,9 @@ describe('Work Item Lifecycle - History Testing Examples', () => {
 
       // Verify final state
       const finalContext = getContext();
-      expect(finalContext.timerHistory.entries.some((e) => e.type === 'start')).toBe(true);
+      if (newWorkItem) {
+        expect(finalContext.timerHistory.entries.some((e) => e.type === 'start')).toBe(true);
+      }
       const finalWorkItems = finalContext.connectionWorkItems?.get(testConnection.id);
       expect(finalWorkItems?.length).toBeGreaterThan(0);
     });
