@@ -6,6 +6,53 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.14.0] - 2026-03-04
+
+### Added
+
+- Add comprehensive logic error detection using history testing infrastructure
+- integrate reactive praxis engine and bidirectional binding
+
+### Fixed
+
+- resolve 6 integration test CI failures in praxis demo/example tests (#152)
+- resolve integration-test CI failures from PR#139 (#151)
+- add id-token and packages write permissions to release workflow (#142)
+- relax eslint size guards for large modules (#133)
+- resolve TypeScript ESLint dependency conflict by removing typescript-eslint meta-package
+- webview sync and auth handling
+- configure esbuild to compile Svelte runes for Node.js extension host
+- remove Svelte runes from Node.js process to prevent runtime errors
+
+### Changed
+
+- remove all FSM references and complete migration to Praxis
+- convert context bridge to praxis-svelte and fix build issues
+
+### Documentation
+
+- add guides for Praxis Svelte integration and VS Code extension build recipe
+
+### Developer Experience
+
+- integrate praxis
+- add app state
+- update gitignore
+
+### Other
+
+- build(deps): bump underscore (#153)
+- build(deps): bump the npm_and_yarn group across 1 directory with 4 updates (#140)
+- build(deps): bump qs from 6.14.1 to 6.14.2 in the npm_and_yarn group across 1 directory (#135)
+- build(deps): bump time from 0.3.44 to 0.3.47 in /apps/app-desktop/src-tauri in the cargo group across 1 directory (#118)
+- build(deps): bump the npm_and_yarn group across 2 directories with 1 update (#134)
+- build(deps): bump the npm_and_yarn group across 1 directory with 3 updates (#115)
+- build(deps): bump bytes (#117)
+- build(deps): bump qs in the npm_and_yarn group across 1 directory (#114)
+- Optimize iOS and Android builds with multi-layer caching and timeout management (#113)
+- Update Entra ID app registration and client ID
+
+
 ## [2.12.5] - 2025-11-27
 
 ### Developer Experience
