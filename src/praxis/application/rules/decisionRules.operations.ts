@@ -8,6 +8,7 @@
 import { defineRule, findEvent } from '@plures/praxis';
 import type { ApplicationEngineContext } from '../engine.js';
 import { recordDecision } from '../../../decision-ledger/ledger.js';
+import { DecisionRecordedEvent } from '../../../decision-ledger/events.js';
 import {
   CreateWorkItemEvent,
   CreateBranchEvent,
@@ -31,14 +32,14 @@ const recordCreateWorkItemDecision = defineRule<ApplicationEngineContext>({
   impl: (state, events) => {
     const ev = findEvent(events, CreateWorkItemEvent);
     if (!ev) return [];
-    recordDecision(state.context, {
+    const record = recordDecision(state.context, {
       category: 'work-item',
       operation: 'createWorkItem',
       outcome: 'allowed',
       rationale: 'User requested work item creation',
       connectionId: ev.payload.connectionId,
     });
-    return [];
+    return [DecisionRecordedEvent.create(record)];
   },
 });
 
@@ -49,7 +50,7 @@ const recordBulkAssignDecision = defineRule<ApplicationEngineContext>({
   impl: (state, events) => {
     const ev = findEvent(events, BulkAssignEvent);
     if (!ev) return [];
-    recordDecision(state.context, {
+    const record = recordDecision(state.context, {
       category: 'work-item',
       operation: 'bulkAssign',
       outcome: 'allowed',
@@ -57,7 +58,7 @@ const recordBulkAssignDecision = defineRule<ApplicationEngineContext>({
       connectionId: ev.payload.connectionId,
       payload: { workItemIds: ev.payload.workItemIds },
     });
-    return [];
+    return [DecisionRecordedEvent.create(record)];
   },
 });
 
@@ -72,7 +73,7 @@ const recordCreateBranchDecision = defineRule<ApplicationEngineContext>({
   impl: (state, events) => {
     const ev = findEvent(events, CreateBranchEvent);
     if (!ev) return [];
-    recordDecision(state.context, {
+    const record = recordDecision(state.context, {
       category: 'branch',
       operation: 'createBranch',
       outcome: 'allowed',
@@ -80,7 +81,7 @@ const recordCreateBranchDecision = defineRule<ApplicationEngineContext>({
       connectionId: ev.payload.connectionId,
       payload: ev.payload.workItemId ? { workItemId: ev.payload.workItemId } : undefined,
     });
-    return [];
+    return [DecisionRecordedEvent.create(record)];
   },
 });
 
@@ -91,7 +92,7 @@ const recordCreatePullRequestDecision = defineRule<ApplicationEngineContext>({
   impl: (state, events) => {
     const ev = findEvent(events, CreatePullRequestEvent);
     if (!ev) return [];
-    recordDecision(state.context, {
+    const record = recordDecision(state.context, {
       category: 'pull-request',
       operation: 'createPullRequest',
       outcome: 'allowed',
@@ -99,7 +100,7 @@ const recordCreatePullRequestDecision = defineRule<ApplicationEngineContext>({
       connectionId: ev.payload.connectionId,
       payload: ev.payload.workItemId ? { workItemId: ev.payload.workItemId } : undefined,
     });
-    return [];
+    return [DecisionRecordedEvent.create(record)];
   },
 });
 
@@ -114,14 +115,14 @@ const recordConnectionLoadDecision = defineRule<ApplicationEngineContext>({
   impl: (state, events) => {
     const ev = findEvent(events, ConnectionsLoadedEvent);
     if (!ev) return [];
-    recordDecision(state.context, {
+    const record = recordDecision(state.context, {
       category: 'connection',
       operation: 'connectionsLoaded',
       outcome: 'allowed',
       rationale: 'Connections loaded from configuration',
       payload: { count: ev.payload.connections.length },
     });
-    return [];
+    return [DecisionRecordedEvent.create(record)];
   },
 });
 
@@ -133,14 +134,14 @@ const recordConnectionSelectDecision = defineRule<ApplicationEngineContext>({
     const ev =
       findEvent(events, ConnectionSelectedEvent) ?? findEvent(events, SelectConnectionEvent);
     if (!ev) return [];
-    recordDecision(state.context, {
+    const record = recordDecision(state.context, {
       category: 'connection',
       operation: 'selectConnection',
       outcome: 'allowed',
       rationale: 'User selected a connection',
       connectionId: ev.payload.connectionId,
     });
-    return [];
+    return [DecisionRecordedEvent.create(record)];
   },
 });
 
@@ -155,13 +156,13 @@ const recordActivateDecision = defineRule<ApplicationEngineContext>({
   impl: (state, events) => {
     const ev = findEvent(events, ActivateEvent);
     if (!ev) return [];
-    recordDecision(state.context, {
+    const record = recordDecision(state.context, {
       category: 'lifecycle',
       operation: 'activate',
       outcome: 'allowed',
       rationale: 'Application activation requested',
     });
-    return [];
+    return [DecisionRecordedEvent.create(record)];
   },
 });
 
@@ -172,13 +173,13 @@ const recordDeactivateDecision = defineRule<ApplicationEngineContext>({
   impl: (state, events) => {
     const ev = findEvent(events, DeactivateEvent);
     if (!ev) return [];
-    recordDecision(state.context, {
+    const record = recordDecision(state.context, {
       category: 'lifecycle',
       operation: 'deactivate',
       outcome: 'allowed',
       rationale: 'Application deactivation requested',
     });
-    return [];
+    return [DecisionRecordedEvent.create(record)];
   },
 });
 
