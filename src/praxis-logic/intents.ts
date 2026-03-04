@@ -53,8 +53,7 @@ export const PULL_REQUEST_INTENTS = {
   SHOW: 'pullRequest.show',
 } as const;
 
-export type PullRequestIntent =
-  (typeof PULL_REQUEST_INTENTS)[keyof typeof PULL_REQUEST_INTENTS];
+export type PullRequestIntent = (typeof PULL_REQUEST_INTENTS)[keyof typeof PULL_REQUEST_INTENTS];
 
 // ============================================================================
 // Connection / lifecycle intents

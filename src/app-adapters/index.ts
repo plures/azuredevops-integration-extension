@@ -12,9 +12,4 @@
  *  - decision-ledger/ → decision recording and replay
  */
 
-export type {
-  AuthAdapter,
-  WorkItemAdapter,
-  BranchPrAdapter,
-  ConnectionAdapter,
-} from './types.js';
+export type { AuthAdapter, WorkItemAdapter, BranchPrAdapter, ConnectionAdapter } from './types.js';

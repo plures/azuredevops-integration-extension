@@ -7,7 +7,12 @@
  * via the decision rules.
  */
 
-import type { DecisionCategory, DecisionLedgerState, DecisionRecord, DecisionOutcome } from './types.js';
+import type {
+  DecisionCategory,
+  DecisionLedgerState,
+  DecisionRecord,
+  DecisionOutcome,
+} from './types.js';
 
 function makeId(): string {
   return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'

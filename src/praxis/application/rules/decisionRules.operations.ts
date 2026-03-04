@@ -130,7 +130,8 @@ const recordConnectionSelectDecision = defineRule<ApplicationEngineContext>({
   description: 'Record decision when a connection is selected',
   meta: { triggers: ['CONNECTION_SELECTED', 'SELECT_CONNECTION'] },
   impl: (state, events) => {
-    const ev = findEvent(events, ConnectionSelectedEvent) ?? findEvent(events, SelectConnectionEvent);
+    const ev =
+      findEvent(events, ConnectionSelectedEvent) ?? findEvent(events, SelectConnectionEvent);
     if (!ev) return [];
     recordDecision(state.context, {
       category: 'connection',

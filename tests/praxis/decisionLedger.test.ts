@@ -84,9 +84,24 @@ describe('appendDecision', () => {
 describe('filterByCategory', () => {
   it('returns only records matching the given category', () => {
     let state = createDecisionLedgerState();
-    state = appendDecision(state, { category: 'auth', operation: 'signIn', outcome: 'allowed', rationale: '' }).state;
-    state = appendDecision(state, { category: 'branch', operation: 'createBranch', outcome: 'allowed', rationale: '' }).state;
-    state = appendDecision(state, { category: 'auth', operation: 'signOut', outcome: 'allowed', rationale: '' }).state;
+    state = appendDecision(state, {
+      category: 'auth',
+      operation: 'signIn',
+      outcome: 'allowed',
+      rationale: '',
+    }).state;
+    state = appendDecision(state, {
+      category: 'branch',
+      operation: 'createBranch',
+      outcome: 'allowed',
+      rationale: '',
+    }).state;
+    state = appendDecision(state, {
+      category: 'auth',
+      operation: 'signOut',
+      outcome: 'allowed',
+      rationale: '',
+    }).state;
 
     const authEntries = filterByCategory(state, 'auth');
     expect(authEntries).toHaveLength(2);
@@ -105,9 +120,24 @@ describe('filterByCategory', () => {
 describe('replayFrom', () => {
   it('returns entries with version >= fromVersion', () => {
     let state = createDecisionLedgerState();
-    state = appendDecision(state, { category: 'lifecycle', operation: 'activate', outcome: 'allowed', rationale: '' }).state;
-    state = appendDecision(state, { category: 'connection', operation: 'selectConnection', outcome: 'allowed', rationale: '' }).state;
-    state = appendDecision(state, { category: 'work-item', operation: 'createWorkItem', outcome: 'allowed', rationale: '' }).state;
+    state = appendDecision(state, {
+      category: 'lifecycle',
+      operation: 'activate',
+      outcome: 'allowed',
+      rationale: '',
+    }).state;
+    state = appendDecision(state, {
+      category: 'connection',
+      operation: 'selectConnection',
+      outcome: 'allowed',
+      rationale: '',
+    }).state;
+    state = appendDecision(state, {
+      category: 'work-item',
+      operation: 'createWorkItem',
+      outcome: 'allowed',
+      rationale: '',
+    }).state;
 
     const fromTwo = replayFrom(state, 2);
     expect(fromTwo).toHaveLength(2);
@@ -117,8 +147,18 @@ describe('replayFrom', () => {
 
   it('returns all entries when fromVersion is 0', () => {
     let state = createDecisionLedgerState();
-    state = appendDecision(state, { category: 'auth', operation: 'signIn', outcome: 'allowed', rationale: '' }).state;
-    state = appendDecision(state, { category: 'auth', operation: 'signOut', outcome: 'allowed', rationale: '' }).state;
+    state = appendDecision(state, {
+      category: 'auth',
+      operation: 'signIn',
+      outcome: 'allowed',
+      rationale: '',
+    }).state;
+    state = appendDecision(state, {
+      category: 'auth',
+      operation: 'signOut',
+      outcome: 'allowed',
+      rationale: '',
+    }).state;
 
     expect(replayFrom(state, 0)).toHaveLength(2);
   });
@@ -141,14 +181,24 @@ describe('DecisionLedger class', () => {
     expect(ledger.getEntries()).toHaveLength(1);
     expect(ledger.version).toBe(1);
 
-    ledger.record({ category: 'branch', operation: 'createBranch', outcome: 'allowed', rationale: 'Test' });
+    ledger.record({
+      category: 'branch',
+      operation: 'createBranch',
+      outcome: 'allowed',
+      rationale: 'Test',
+    });
     expect(ledger.getEntries()).toHaveLength(2);
     expect(ledger.version).toBe(2);
   });
 
   it('getByCategory filters correctly', () => {
     ledger.record({ category: 'auth', operation: 'signIn', outcome: 'allowed', rationale: '' });
-    ledger.record({ category: 'work-item', operation: 'createWorkItem', outcome: 'allowed', rationale: '' });
+    ledger.record({
+      category: 'work-item',
+      operation: 'createWorkItem',
+      outcome: 'allowed',
+      rationale: '',
+    });
     ledger.record({ category: 'auth', operation: 'signOut', outcome: 'allowed', rationale: '' });
 
     expect(ledger.getByCategory('auth')).toHaveLength(2);
@@ -157,8 +207,18 @@ describe('DecisionLedger class', () => {
   });
 
   it('replay returns decisions from a given version', () => {
-    ledger.record({ category: 'lifecycle', operation: 'activate', outcome: 'allowed', rationale: '' });
-    ledger.record({ category: 'connection', operation: 'select', outcome: 'allowed', rationale: '' });
+    ledger.record({
+      category: 'lifecycle',
+      operation: 'activate',
+      outcome: 'allowed',
+      rationale: '',
+    });
+    ledger.record({
+      category: 'connection',
+      operation: 'select',
+      outcome: 'allowed',
+      rationale: '',
+    });
     ledger.record({ category: 'auth', operation: 'signIn', outcome: 'allowed', rationale: '' });
 
     const fromV2 = ledger.replay(2);
@@ -182,7 +242,12 @@ describe('DecisionLedger class', () => {
 
   it('accepts initial state via constructor', () => {
     const initial = createDecisionLedgerState();
-    const r = appendDecision(initial, { category: 'auth', operation: 'a', outcome: 'allowed', rationale: '' });
+    const r = appendDecision(initial, {
+      category: 'auth',
+      operation: 'a',
+      outcome: 'allowed',
+      rationale: '',
+    });
     const fromExisting = new DecisionLedger(r.state);
     expect(fromExisting.version).toBe(1);
     expect(fromExisting.getEntries()).toHaveLength(1);

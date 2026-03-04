@@ -22,7 +22,10 @@ import type { PraxisConnectionSnapshot } from '../connection/types.js';
 import { applicationRules } from './rules/index.js';
 import type { TimerEntry } from './features/timer.js';
 import { TraceRecorder, wrapRuleWithTracing } from './tracing.js';
-import { createDecisionLedgerState, type DecisionLedgerState } from '../../decision-ledger/index.js';
+import {
+  createDecisionLedgerState,
+  type DecisionLedgerState,
+} from '../../decision-ledger/index.js';
 
 // Simple clock helper to allow tests to stub time if needed
 const defaultClock = { now: () => Date.now() };
