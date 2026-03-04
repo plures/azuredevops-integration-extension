@@ -1,3 +1,4 @@
+/* eslint-disable no-console, max-lines, max-statements */
 /**
  * Demo: Finding and Fixing Logic Errors (Simplified)
  *
@@ -20,7 +21,7 @@ import {
 } from '../../../src/praxis/application/facts.js';
 import type { ProjectConnection } from '../../../src/praxis/connection/types.js';
 import { frontendEngine } from '../../../src/webview/praxis/frontendEngine.js';
-import { history } from '../../../src/webview/praxis/store.js';
+import { history, historyEngine } from '../../../src/webview/praxis/store.js';
 
 describe('Demo: Finding and Fixing Logic Errors', () => {
   describe('Scenario 1: Timer Logic Error Detection', () => {
@@ -171,7 +172,7 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
 
       // Assertions
       expect(validationResult.valid).toBe(true);
-      expect(afterTimerAttempt.timerState).toBeNull();
+      expect(afterTimerAttempt.timerHistory.entries.some((e) => e.type === 'start')).toBe(false);
       expect(profile.summary.totalTransitions).toBeGreaterThan(0);
     });
   });
@@ -184,10 +185,10 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
       const initialState = frontendEngine.getContext();
 
       // Perform transitions
-      frontendEngine.step([ActivateEvent.create({})]);
+      historyEngine.dispatch([ActivateEvent.create({})]);
       const afterActivate = frontendEngine.getContext();
 
-      frontendEngine.step([ActivationCompleteEvent.create({})]);
+      historyEngine.dispatch([ActivationCompleteEvent.create({})]);
       const afterComplete = frontendEngine.getContext();
 
       console.log('\n📊 State Transitions:');
@@ -203,13 +204,19 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
       const hasInactiveToActivating = historyEntries.some((entry, index) => {
         if (index === 0) return false;
         const prev = historyEntries[index - 1];
-        return prev.state.state === 'inactive' && entry.state.state === 'activating';
+        return (
+          prev.state.context.applicationState === 'inactive' &&
+          entry.state.context.applicationState === 'activating'
+        );
       });
 
       const hasActivatingToActive = historyEntries.some((entry, index) => {
         if (index === 0) return false;
         const prev = historyEntries[index - 1];
-        return prev.state.state === 'activating' && entry.state.state === 'active';
+        return (
+          prev.state.context.applicationState === 'activating' &&
+          entry.state.context.applicationState === 'active'
+        );
       });
 
       console.log(`  ✓ inactive → activating: ${hasInactiveToActivating ? '✅' : '❌'}`);

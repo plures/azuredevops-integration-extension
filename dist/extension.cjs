@@ -2688,7 +2688,7 @@ var init_chunk_VOMLVI6V = __esm({
 });
 
 // node_modules/svelte/src/constants.js
-var EACH_INDEX_REACTIVE, EACH_IS_CONTROLLED, EACH_IS_ANIMATED, EACH_ITEM_IMMUTABLE, PROPS_IS_RUNES, PROPS_IS_UPDATED, PROPS_IS_BINDABLE, PROPS_IS_LAZY_INITIAL, TRANSITION_OUT, TRANSITION_GLOBAL, TEMPLATE_USE_IMPORT_NODE, TEMPLATE_USE_SVG, TEMPLATE_USE_MATHML, HYDRATION_START, HYDRATION_START_ELSE, HYDRATION_END, HYDRATION_ERROR, ELEMENT_PRESERVE_ATTRIBUTE_CASE, ELEMENT_IS_INPUT, UNINITIALIZED, FILENAME;
+var EACH_INDEX_REACTIVE, EACH_IS_CONTROLLED, EACH_IS_ANIMATED, EACH_ITEM_IMMUTABLE, PROPS_IS_RUNES, PROPS_IS_UPDATED, PROPS_IS_BINDABLE, PROPS_IS_LAZY_INITIAL, TRANSITION_OUT, TRANSITION_GLOBAL, TEMPLATE_USE_IMPORT_NODE, TEMPLATE_USE_SVG, TEMPLATE_USE_MATHML, HYDRATION_START, HYDRATION_START_ELSE, HYDRATION_START_FAILED, HYDRATION_END, HYDRATION_ERROR, ELEMENT_PRESERVE_ATTRIBUTE_CASE, ELEMENT_IS_INPUT, UNINITIALIZED, FILENAME, NAMESPACE_HTML;
 var init_constants = __esm({
   "node_modules/svelte/src/constants.js"() {
     EACH_INDEX_REACTIVE = 1 << 1;
@@ -2706,12 +2706,14 @@ var init_constants = __esm({
     TEMPLATE_USE_MATHML = 1 << 3;
     HYDRATION_START = "[";
     HYDRATION_START_ELSE = "[!";
+    HYDRATION_START_FAILED = "[?";
     HYDRATION_END = "]";
     HYDRATION_ERROR = {};
     ELEMENT_PRESERVE_ATTRIBUTE_CASE = 1 << 1;
     ELEMENT_IS_INPUT = 1 << 2;
     UNINITIALIZED = /* @__PURE__ */ Symbol();
     FILENAME = /* @__PURE__ */ Symbol("filename");
+    NAMESPACE_HTML = "http://www.w3.org/1999/xhtml";
   }
 });
 
@@ -2760,11 +2762,12 @@ function deferred() {
   });
   return { promise, resolve, reject };
 }
-var is_array, index_of, array_from, object_keys, define_property, get_descriptor, object_prototype, array_prototype, get_prototype_of, is_extensible, noop;
+var is_array, index_of, includes, array_from, object_keys, define_property, get_descriptor, object_prototype, array_prototype, get_prototype_of, is_extensible, noop;
 var init_utils = __esm({
   "node_modules/svelte/src/internal/shared/utils.js"() {
     is_array = Array.isArray;
     index_of = Array.prototype.indexOf;
+    includes = Array.prototype.includes;
     array_from = Array.from;
     object_keys = Object.keys;
     define_property = Object.defineProperty;
@@ -2779,7 +2782,7 @@ var init_utils = __esm({
 });
 
 // node_modules/svelte/src/internal/client/constants.js
-var DERIVED, EFFECT, RENDER_EFFECT, MANAGED_EFFECT, BLOCK_EFFECT, BRANCH_EFFECT, ROOT_EFFECT, BOUNDARY_EFFECT, CONNECTED, CLEAN, DIRTY, MAYBE_DIRTY, INERT, DESTROYED, EFFECT_RAN, EFFECT_TRANSPARENT, EAGER_EFFECT, HEAD_EFFECT, EFFECT_PRESERVED, USER_EFFECT, EFFECT_OFFSCREEN, WAS_MARKED, REACTION_IS_UPDATING, ASYNC, ERROR_VALUE, STATE_SYMBOL, LEGACY_PROPS, PROXY_PATH_SYMBOL, STALE_REACTION, COMMENT_NODE;
+var DERIVED, EFFECT, RENDER_EFFECT, MANAGED_EFFECT, BLOCK_EFFECT, BRANCH_EFFECT, ROOT_EFFECT, BOUNDARY_EFFECT, CONNECTED, CLEAN, DIRTY, MAYBE_DIRTY, INERT, DESTROYED, REACTION_RAN, EFFECT_TRANSPARENT, EAGER_EFFECT, HEAD_EFFECT, EFFECT_PRESERVED, USER_EFFECT, EFFECT_OFFSCREEN, WAS_MARKED, REACTION_IS_UPDATING, ASYNC, ERROR_VALUE, STATE_SYMBOL, LEGACY_PROPS, PROXY_PATH_SYMBOL, STALE_REACTION, IS_XHTML, COMMENT_NODE;
 var init_constants2 = __esm({
   "node_modules/svelte/src/internal/client/constants.js"() {
     DERIVED = 1 << 1;
@@ -2796,14 +2799,14 @@ var init_constants2 = __esm({
     MAYBE_DIRTY = 1 << 12;
     INERT = 1 << 13;
     DESTROYED = 1 << 14;
-    EFFECT_RAN = 1 << 15;
+    REACTION_RAN = 1 << 15;
     EFFECT_TRANSPARENT = 1 << 16;
     EAGER_EFFECT = 1 << 17;
     HEAD_EFFECT = 1 << 18;
     EFFECT_PRESERVED = 1 << 19;
     USER_EFFECT = 1 << 20;
     EFFECT_OFFSCREEN = 1 << 25;
-    WAS_MARKED = 1 << 15;
+    WAS_MARKED = 1 << 16;
     REACTION_IS_UPDATING = 1 << 21;
     ASYNC = 1 << 22;
     ERROR_VALUE = 1 << 23;
@@ -2814,6 +2817,8 @@ var init_constants2 = __esm({
       name = "StaleReactionError";
       message = "The reaction that called `getAbortSignal()` was re-run or destroyed";
     }();
+    IS_XHTML = // We gotta write it like this because after downleveling the pure comment may end up in the wrong location
+    !!globalThis.document?.contentType && /* @__PURE__ */ globalThis.document.contentType.includes("xml");
     COMMENT_NODE = 8;
   }
 });
@@ -3017,7 +3022,8 @@ function skip_nodes(remove = true) {
       if (data === HYDRATION_END) {
         if (depth === 0) return node;
         depth -= 1;
-      } else if (data === HYDRATION_START || data === HYDRATION_START_ELSE) {
+      } else if (data === HYDRATION_START || data === HYDRATION_START_ELSE || // "[1", "[2", etc. for if blocks
+      data[0] === "[" && !isNaN(Number(data.slice(1)))) {
         depth += 1;
       }
     }
@@ -3258,21 +3264,20 @@ function handle_error(error) {
   if (dev_fallback_default && error instanceof Error && !adjustments.has(error)) {
     adjustments.set(error, get_adjustments(error, effect2));
   }
-  if ((effect2.f & EFFECT_RAN) === 0) {
-    if ((effect2.f & BOUNDARY_EFFECT) === 0) {
-      if (dev_fallback_default && !effect2.parent && error instanceof Error) {
-        apply_adjustments(error);
-      }
-      throw error;
+  if ((effect2.f & REACTION_RAN) === 0 && (effect2.f & EFFECT) === 0) {
+    if (dev_fallback_default && !effect2.parent && error instanceof Error) {
+      apply_adjustments(error);
     }
-    effect2.b.error(error);
-  } else {
-    invoke_error_boundary(error, effect2);
+    throw error;
   }
+  invoke_error_boundary(error, effect2);
 }
 function invoke_error_boundary(error, effect2) {
   while (effect2 !== null) {
     if ((effect2.f & BOUNDARY_EFFECT) !== 0) {
+      if ((effect2.f & REACTION_RAN) === 0) {
+        throw error;
+      }
       try {
         effect2.b.error(error);
         return;
@@ -3410,7 +3415,6 @@ function flushSync(fn) {
   }
 }
 function flush_effects() {
-  is_flushing = true;
   var source_stacks = dev_fallback_default ? /* @__PURE__ */ new Set() : null;
   try {
     var flush_count = 0;
@@ -3446,8 +3450,9 @@ function flush_effects() {
       }
     }
   } finally {
-    is_flushing = false;
+    queued_root_effects = [];
     last_scheduled_effect = null;
+    collected_effects = null;
     if (dev_fallback_default) {
       for (
         const source2 of
@@ -3478,12 +3483,8 @@ function flush_queued_effects(effects) {
     if ((effect2.f & (DESTROYED | INERT)) === 0 && is_dirty(effect2)) {
       eager_block_effects = /* @__PURE__ */ new Set();
       update_effect(effect2);
-      if (effect2.deps === null && effect2.first === null && effect2.nodes === null) {
-        if (effect2.teardown === null && effect2.ac === null) {
-          unlink_effect(effect2);
-        } else {
-          effect2.fn = null;
-        }
+      if (effect2.deps === null && effect2.first === null && effect2.nodes === null && effect2.teardown === null && effect2.ac === null) {
+        unlink_effect(effect2);
       }
       if (eager_block_effects?.size > 0) {
         old_values.clear();
@@ -3539,7 +3540,7 @@ function depends_on(reaction, sources, checked) {
   if (depends !== void 0) return depends;
   if (reaction.deps !== null) {
     for (const dep of reaction.deps) {
-      if (sources.includes(dep)) {
+      if (includes.call(sources, dep)) {
         return true;
       }
       if ((dep.f & DERIVED) !== 0 && depends_on(
@@ -3562,20 +3563,45 @@ function depends_on(reaction, sources, checked) {
 }
 function schedule_effect(signal) {
   var effect2 = last_scheduled_effect = signal;
+  var boundary2 = effect2.b;
+  if (boundary2?.is_pending && (signal.f & (EFFECT | RENDER_EFFECT | MANAGED_EFFECT)) !== 0 && (signal.f & REACTION_RAN) === 0) {
+    boundary2.defer_effect(signal);
+    return;
+  }
   while (effect2.parent !== null) {
     effect2 = effect2.parent;
     var flags2 = effect2.f;
-    if (is_flushing && effect2 === active_effect && (flags2 & BLOCK_EFFECT) !== 0 && (flags2 & HEAD_EFFECT) === 0) {
-      return;
+    if (collected_effects !== null && effect2 === active_effect) {
+      if (async_mode_flag || (signal.f & RENDER_EFFECT) === 0) {
+        return;
+      }
     }
     if ((flags2 & (ROOT_EFFECT | BRANCH_EFFECT)) !== 0) {
-      if ((flags2 & CLEAN) === 0) return;
+      if ((flags2 & CLEAN) === 0) {
+        return;
+      }
       effect2.f ^= CLEAN;
     }
   }
   queued_root_effects.push(effect2);
 }
-var batches, current_batch, previous_batch, batch_values, queued_root_effects, last_scheduled_effect, is_flushing, is_flushing_sync, Batch, eager_block_effects;
+function reset_branch(effect2, tracked) {
+  if ((effect2.f & BRANCH_EFFECT) !== 0 && (effect2.f & CLEAN) !== 0) {
+    return;
+  }
+  if ((effect2.f & DIRTY) !== 0) {
+    tracked.d.push(effect2);
+  } else if ((effect2.f & MAYBE_DIRTY) !== 0) {
+    tracked.m.push(effect2);
+  }
+  set_signal_status(effect2, CLEAN);
+  var e = effect2.first;
+  while (e !== null) {
+    reset_branch(e, tracked);
+    e = e.next;
+  }
+}
+var batches, current_batch, previous_batch, batch_values, queued_root_effects, last_scheduled_effect, is_flushing_sync, collected_effects, Batch, eager_block_effects;
 var init_batch = __esm({
   "node_modules/svelte/src/internal/client/reactivity/batch.js"() {
     init_constants2();
@@ -3597,10 +3623,9 @@ var init_batch = __esm({
     batch_values = null;
     queued_root_effects = [];
     last_scheduled_effect = null;
-    is_flushing = false;
     is_flushing_sync = false;
+    collected_effects = null;
     Batch = class _Batch {
-      committed = false;
       /**
        * The current values of any sources that are updated in this batch
        * They keys of this map are identical to `this.#previous`
@@ -3616,7 +3641,7 @@ var init_batch = __esm({
       /**
        * When the batch is committed (and the DOM is updated), we need to remove old branches
        * and append new ones by calling the functions added inside (if/each/key/etc) blocks
-       * @type {Set<() => void>}
+       * @type {Set<(batch: Batch) => void>}
        */
       #commit_callbacks = /* @__PURE__ */ new Set();
       /**
@@ -3649,15 +3674,45 @@ var init_batch = __esm({
        */
       #maybe_dirty_effects = /* @__PURE__ */ new Set();
       /**
-       * A set of branches that still exist, but will be destroyed when this batch
-       * is committed — we skip over these during `process`
-       * @type {Set<Effect>}
+       * A map of branches that still exist, but will be destroyed when this batch
+       * is committed — we skip over these during `process`.
+       * The value contains child effects that were dirty/maybe_dirty before being reset,
+       * so they can be rescheduled if the branch survives.
+       * @type {Map<Effect, { d: Effect[], m: Effect[] }>}
        */
-      skipped_effects = /* @__PURE__ */ new Set();
+      #skipped_branches = /* @__PURE__ */ new Map();
       is_fork = false;
       #decrement_queued = false;
-      is_deferred() {
+      #is_deferred() {
         return this.is_fork || this.#blocking_pending > 0;
+      }
+      /**
+       * Add an effect to the #skipped_branches map and reset its children
+       * @param {Effect} effect
+       */
+      skip_effect(effect2) {
+        if (!this.#skipped_branches.has(effect2)) {
+          this.#skipped_branches.set(effect2, { d: [], m: [] });
+        }
+      }
+      /**
+       * Remove an effect from the #skipped_branches map and reschedule
+       * any tracked dirty/maybe_dirty child effects
+       * @param {Effect} effect
+       */
+      unskip_effect(effect2) {
+        var tracked = this.#skipped_branches.get(effect2);
+        if (tracked) {
+          this.#skipped_branches.delete(effect2);
+          for (var e of tracked.d) {
+            set_signal_status(e, DIRTY);
+            schedule_effect(e);
+          }
+          for (e of tracked.m) {
+            set_signal_status(e, MAYBE_DIRTY);
+            schedule_effect(e);
+          }
+        }
       }
       /**
        *
@@ -3666,24 +3721,30 @@ var init_batch = __esm({
       process(root_effects) {
         queued_root_effects = [];
         this.apply();
-        var effects = [];
+        var effects = collected_effects = [];
         var render_effects = [];
         for (const root of root_effects) {
           this.#traverse_effect_tree(root, effects, render_effects);
         }
-        if (this.is_deferred()) {
+        collected_effects = null;
+        if (this.#is_deferred()) {
           this.#defer_effects(render_effects);
           this.#defer_effects(effects);
+          for (const [e, t] of this.#skipped_branches) {
+            reset_branch(e, t);
+          }
         } else {
-          for (const fn of this.#commit_callbacks) fn();
+          previous_batch = this;
+          current_batch = null;
+          for (const fn of this.#commit_callbacks) fn(this);
           this.#commit_callbacks.clear();
           if (this.#pending === 0) {
             this.#commit();
           }
-          previous_batch = this;
-          current_batch = null;
           flush_queued_effects(render_effects);
           flush_queued_effects(effects);
+          this.#dirty_effects.clear();
+          this.#maybe_dirty_effects.clear();
           previous_batch = null;
           this.#deferred?.resolve();
         }
@@ -3699,26 +3760,20 @@ var init_batch = __esm({
       #traverse_effect_tree(root, effects, render_effects) {
         root.f ^= CLEAN;
         var effect2 = root.first;
-        var pending_boundary = null;
         while (effect2 !== null) {
           var flags2 = effect2.f;
           var is_branch = (flags2 & (BRANCH_EFFECT | ROOT_EFFECT)) !== 0;
           var is_skippable_branch = is_branch && (flags2 & CLEAN) !== 0;
-          var skip = is_skippable_branch || (flags2 & INERT) !== 0 || this.skipped_effects.has(effect2);
-          if (async_mode_flag && pending_boundary === null && (flags2 & BOUNDARY_EFFECT) !== 0 && effect2.b?.is_pending) {
-            pending_boundary = effect2;
-          }
+          var skip = is_skippable_branch || (flags2 & INERT) !== 0 || this.#skipped_branches.has(effect2);
           if (!skip && effect2.fn !== null) {
             if (is_branch) {
               effect2.f ^= CLEAN;
-            } else if (pending_boundary !== null && (flags2 & (EFFECT | RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
-              pending_boundary.b.defer_effect(effect2);
             } else if ((flags2 & EFFECT) !== 0) {
               effects.push(effect2);
             } else if (async_mode_flag && (flags2 & (RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
               render_effects.push(effect2);
             } else if (is_dirty(effect2)) {
-              if ((flags2 & BLOCK_EFFECT) !== 0) this.#dirty_effects.add(effect2);
+              if ((flags2 & BLOCK_EFFECT) !== 0) this.#maybe_dirty_effects.add(effect2);
               update_effect(effect2);
             }
             var child2 = effect2.first;
@@ -3727,14 +3782,13 @@ var init_batch = __esm({
               continue;
             }
           }
-          var parent = effect2.parent;
-          effect2 = effect2.next;
-          while (effect2 === null && parent !== null) {
-            if (parent === pending_boundary) {
-              pending_boundary = null;
+          while (effect2 !== null) {
+            var next2 = effect2.next;
+            if (next2 !== null) {
+              effect2 = next2;
+              break;
             }
-            effect2 = parent.next;
-            parent = parent.parent;
+            effect2 = effect2.parent;
           }
         }
       }
@@ -3771,14 +3825,14 @@ var init_batch = __esm({
         batch_values = null;
       }
       flush() {
-        this.activate();
         if (queued_root_effects.length > 0) {
+          current_batch = this;
           flush_effects();
-          if (current_batch !== null && current_batch !== this) {
-            return;
-          }
-        } else if (this.#pending === 0) {
-          this.process([]);
+        } else if (this.#pending === 0 && !this.is_fork) {
+          for (const fn of this.#commit_callbacks) fn(this);
+          this.#commit_callbacks.clear();
+          this.#commit();
+          this.#deferred?.resolve();
         }
         this.deactivate();
       }
@@ -3789,6 +3843,7 @@ var init_batch = __esm({
       #commit() {
         if (batches.size > 1) {
           this.previous.clear();
+          var previous_batch2 = current_batch;
           var previous_batch_values = batch_values;
           var is_earlier = true;
           for (const batch of batches) {
@@ -3830,10 +3885,10 @@ var init_batch = __esm({
               queued_root_effects = prev_queued_root_effects;
             }
           }
-          current_batch = null;
+          current_batch = previous_batch2;
           batch_values = previous_batch_values;
         }
-        this.committed = true;
+        this.#skipped_branches.clear();
         batches.delete(this);
       }
       /**
@@ -3855,7 +3910,7 @@ var init_batch = __esm({
         this.#decrement_queued = true;
         queue_micro_task(() => {
           this.#decrement_queued = false;
-          if (!this.is_deferred()) {
+          if (!this.#is_deferred()) {
             this.revive();
           } else if (queued_root_effects.length > 0) {
             this.flush();
@@ -3874,7 +3929,7 @@ var init_batch = __esm({
         }
         this.flush();
       }
-      /** @param {() => void} fn */
+      /** @param {(batch: Batch) => void} fn */
       oncommit(fn) {
         this.#commit_callbacks.add(fn);
       }
@@ -3959,8 +4014,8 @@ var init_create_subscriber = __esm({
 });
 
 // node_modules/svelte/src/internal/client/dom/blocks/boundary.js
-function boundary(node, props, children) {
-  new Boundary(node, props, children);
+function boundary(node, props, children, transform_error) {
+  new Boundary(node, props, children, transform_error);
 }
 var flags, Boundary;
 var init_boundary = __esm({
@@ -3983,11 +4038,17 @@ var init_boundary = __esm({
     init_operations();
     init_utils2();
     init_status();
-    flags = EFFECT_TRANSPARENT | EFFECT_PRESERVED | BOUNDARY_EFFECT;
+    flags = EFFECT_TRANSPARENT | EFFECT_PRESERVED;
     Boundary = class {
       /** @type {Boundary | null} */
       parent;
       is_pending = false;
+      /**
+       * API-level transformError transform function. Transforms errors before they reach the `failed` snippet.
+       * Inherited from parent boundary, or defaults to identity.
+       * @type {(error: unknown) => unknown}
+       */
+      transform_error;
       /** @type {TemplateNode} */
       #anchor;
       /** @type {TemplateNode | null} */
@@ -4006,12 +4067,9 @@ var init_boundary = __esm({
       #failed_effect = null;
       /** @type {DocumentFragment | null} */
       #offscreen_fragment = null;
-      /** @type {TemplateNode | null} */
-      #pending_anchor = null;
       #local_pending_count = 0;
       #pending_count = 0;
       #pending_count_update_queued = false;
-      #is_creating_fallback = false;
       /** @type {Set<Effect>} */
       #dirty_effects = /* @__PURE__ */ new Set();
       /** @type {Set<Effect>} */
@@ -4037,48 +4095,43 @@ var init_boundary = __esm({
        * @param {TemplateNode} node
        * @param {BoundaryProps} props
        * @param {((anchor: Node) => void)} children
+       * @param {((error: unknown) => unknown) | undefined} [transform_error]
        */
-      constructor(node, props, children) {
+      constructor(node, props, children, transform_error) {
         this.#anchor = node;
         this.#props = props;
-        this.#children = children;
+        this.#children = (anchor) => {
+          var effect2 = (
+            /** @type {Effect} */
+            active_effect
+          );
+          effect2.b = this;
+          effect2.f |= BOUNDARY_EFFECT;
+          children(anchor);
+        };
         this.parent = /** @type {Effect} */
         active_effect.b;
-        this.is_pending = !!this.#props.pending;
+        this.transform_error = transform_error ?? this.parent?.transform_error ?? ((e) => e);
         this.#effect = block(() => {
-          active_effect.b = this;
           if (hydrating) {
-            const comment2 = this.#hydrate_open;
-            hydrate_next();
-            const server_rendered_pending = (
+            const comment2 = (
               /** @type {Comment} */
-              comment2.nodeType === COMMENT_NODE && /** @type {Comment} */
-              comment2.data === HYDRATION_START_ELSE
+              this.#hydrate_open
             );
-            if (server_rendered_pending) {
+            hydrate_next();
+            const server_rendered_pending = comment2.data === HYDRATION_START_ELSE;
+            const server_rendered_failed = comment2.data.startsWith(HYDRATION_START_FAILED);
+            if (server_rendered_failed) {
+              const serialized_error = JSON.parse(comment2.data.slice(HYDRATION_START_FAILED.length));
+              this.#hydrate_failed_content(serialized_error);
+            } else if (server_rendered_pending) {
               this.#hydrate_pending_content();
             } else {
               this.#hydrate_resolved_content();
-              if (this.#pending_count === 0) {
-                this.is_pending = false;
-              }
             }
           } else {
-            var anchor = this.#get_anchor();
-            try {
-              this.#main_effect = branch(() => children(anchor));
-            } catch (error) {
-              this.error(error);
-            }
-            if (this.#pending_count > 0) {
-              this.#show_pending_snippet();
-            } else {
-              this.is_pending = false;
-            }
+            this.#render();
           }
-          return () => {
-            this.#pending_anchor?.remove();
-          };
         }, flags);
         if (hydrating) {
           this.#anchor = hydrate_node;
@@ -4091,19 +4144,37 @@ var init_boundary = __esm({
           this.error(error);
         }
       }
+      /**
+       * @param {unknown} error The deserialized error from the server's hydration comment
+       */
+      #hydrate_failed_content(error) {
+        const failed = this.#props.failed;
+        if (!failed) return;
+        this.#failed_effect = branch(() => {
+          failed(
+            this.#anchor,
+            () => error,
+            () => () => {
+            }
+          );
+        });
+      }
       #hydrate_pending_content() {
         const pending2 = this.#props.pending;
         if (!pending2) return;
+        this.is_pending = true;
         this.#pending_effect = branch(() => pending2(this.#anchor));
         queue_micro_task(() => {
-          var anchor = this.#get_anchor();
+          var fragment = this.#offscreen_fragment = document.createDocumentFragment();
+          var anchor = create_text();
+          fragment.append(anchor);
           this.#main_effect = this.#run(() => {
             Batch.ensure();
             return branch(() => this.#children(anchor));
           });
-          if (this.#pending_count > 0) {
-            this.#show_pending_snippet();
-          } else {
+          if (this.#pending_count === 0) {
+            this.#anchor.before(fragment);
+            this.#offscreen_fragment = null;
             pause_effect(
               /** @type {Effect} */
               this.#pending_effect,
@@ -4111,18 +4182,45 @@ var init_boundary = __esm({
                 this.#pending_effect = null;
               }
             );
-            this.is_pending = false;
+            this.#resolve();
           }
         });
       }
-      #get_anchor() {
-        var anchor = this.#anchor;
-        if (this.is_pending) {
-          this.#pending_anchor = create_text();
-          this.#anchor.before(this.#pending_anchor);
-          anchor = this.#pending_anchor;
+      #render() {
+        try {
+          this.is_pending = this.has_pending_snippet();
+          this.#pending_count = 0;
+          this.#local_pending_count = 0;
+          this.#main_effect = branch(() => {
+            this.#children(this.#anchor);
+          });
+          if (this.#pending_count > 0) {
+            var fragment = this.#offscreen_fragment = document.createDocumentFragment();
+            move_effect(this.#main_effect, fragment);
+            const pending2 = (
+              /** @type {(anchor: Node) => void} */
+              this.#props.pending
+            );
+            this.#pending_effect = branch(() => pending2(this.#anchor));
+          } else {
+            this.#resolve();
+          }
+        } catch (error) {
+          this.error(error);
         }
-        return anchor;
+      }
+      #resolve() {
+        this.is_pending = false;
+        for (const e of this.#dirty_effects) {
+          set_signal_status(e, DIRTY);
+          schedule_effect(e);
+        }
+        for (const e of this.#maybe_dirty_effects) {
+          set_signal_status(e, MAYBE_DIRTY);
+          schedule_effect(e);
+        }
+        this.#dirty_effects.clear();
+        this.#maybe_dirty_effects.clear();
       }
       /**
        * Defer an effect inside a pending boundary until the boundary resolves
@@ -4142,7 +4240,8 @@ var init_boundary = __esm({
         return !!this.#props.pending;
       }
       /**
-       * @param {() => Effect | null} fn
+       * @template T
+       * @param {() => T} fn
        */
       #run(fn) {
         var previous_effect = active_effect;
@@ -4162,23 +4261,6 @@ var init_boundary = __esm({
           set_component_context(previous_ctx);
         }
       }
-      #show_pending_snippet() {
-        const pending2 = (
-          /** @type {(anchor: Node) => void} */
-          this.#props.pending
-        );
-        if (this.#main_effect !== null) {
-          this.#offscreen_fragment = document.createDocumentFragment();
-          this.#offscreen_fragment.append(
-            /** @type {TemplateNode} */
-            this.#pending_anchor
-          );
-          move_effect(this.#main_effect, this.#offscreen_fragment);
-        }
-        if (this.#pending_effect === null) {
-          this.#pending_effect = branch(() => pending2(this.#anchor));
-        }
-      }
       /**
        * Updates the pending count associated with the currently visible pending snippet,
        * if any, such that we can replace the snippet with content once work is done
@@ -4193,17 +4275,7 @@ var init_boundary = __esm({
         }
         this.#pending_count += d;
         if (this.#pending_count === 0) {
-          this.is_pending = false;
-          for (const e of this.#dirty_effects) {
-            set_signal_status(e, DIRTY);
-            schedule_effect(e);
-          }
-          for (const e of this.#maybe_dirty_effects) {
-            set_signal_status(e, MAYBE_DIRTY);
-            schedule_effect(e);
-          }
-          this.#dirty_effects.clear();
-          this.#maybe_dirty_effects.clear();
+          this.#resolve();
           if (this.#pending_effect) {
             pause_effect(this.#pending_effect, () => {
               this.#pending_effect = null;
@@ -4244,7 +4316,7 @@ var init_boundary = __esm({
       error(error) {
         var onerror = this.#props.onerror;
         let failed = this.#props.failed;
-        if (this.#is_creating_fallback || !onerror && !failed) {
+        if (!onerror && !failed) {
           throw error;
         }
         if (this.#main_effect) {
@@ -4278,45 +4350,38 @@ var init_boundary = __esm({
           if (calling_on_error) {
             svelte_boundary_reset_onerror();
           }
-          Batch.ensure();
-          this.#local_pending_count = 0;
           if (this.#failed_effect !== null) {
             pause_effect(this.#failed_effect, () => {
               this.#failed_effect = null;
             });
           }
-          this.is_pending = this.has_pending_snippet();
-          this.#main_effect = this.#run(() => {
-            this.#is_creating_fallback = false;
-            return branch(() => this.#children(this.#anchor));
+          this.#run(() => {
+            Batch.ensure();
+            this.#render();
           });
-          if (this.#pending_count > 0) {
-            this.#show_pending_snippet();
-          } else {
-            this.is_pending = false;
-          }
         };
-        var previous_reaction = active_reaction;
-        try {
-          set_active_reaction(null);
-          calling_on_error = true;
-          onerror?.(error, reset2);
-          calling_on_error = false;
-        } catch (error2) {
-          invoke_error_boundary(error2, this.#effect && this.#effect.parent);
-        } finally {
-          set_active_reaction(previous_reaction);
-        }
-        if (failed) {
-          queue_micro_task(() => {
+        const handle_error_result = (transformed_error) => {
+          try {
+            calling_on_error = true;
+            onerror?.(transformed_error, reset2);
+            calling_on_error = false;
+          } catch (error2) {
+            invoke_error_boundary(error2, this.#effect && this.#effect.parent);
+          }
+          if (failed) {
             this.#failed_effect = this.#run(() => {
               Batch.ensure();
-              this.#is_creating_fallback = true;
               try {
                 return branch(() => {
+                  var effect2 = (
+                    /** @type {Effect} */
+                    active_effect
+                  );
+                  effect2.b = this;
+                  effect2.f |= BOUNDARY_EFFECT;
                   failed(
                     this.#anchor,
-                    () => error,
+                    () => transformed_error,
                     () => reset2
                   );
                 });
@@ -4327,12 +4392,29 @@ var init_boundary = __esm({
                   this.#effect.parent
                 );
                 return null;
-              } finally {
-                this.#is_creating_fallback = false;
               }
             });
-          });
-        }
+          }
+        };
+        queue_micro_task(() => {
+          var result;
+          try {
+            result = this.transform_error(error);
+          } catch (e) {
+            invoke_error_boundary(e, this.#effect && this.#effect.parent);
+            return;
+          }
+          if (result !== null && typeof result === "object" && typeof /** @type {any} */
+          result.then === "function") {
+            result.then(
+              handle_error_result,
+              /** @param {unknown} e */
+              (e) => invoke_error_boundary(e, this.#effect && this.#effect.parent)
+            );
+          } else {
+            handle_error_result(result);
+          }
+        });
       }
     };
   }
@@ -4387,7 +4469,7 @@ function execute_derived(derived3) {
     let prev_eager_effects = eager_effects;
     set_eager_effects(/* @__PURE__ */ new Set());
     try {
-      if (stack.includes(derived3)) {
+      if (includes.call(stack, derived3)) {
         derived_references_self();
       }
       stack.push(derived3);
@@ -4431,6 +4513,27 @@ function update_derived(derived3) {
     }
   } else {
     update_derived_status(derived3);
+  }
+}
+function freeze_derived_effects(derived3) {
+  if (derived3.effects === null) return;
+  for (const e of derived3.effects) {
+    if (e.teardown || e.ac) {
+      e.teardown?.();
+      e.ac?.abort(STALE_REACTION);
+      e.teardown = noop;
+      e.ac = null;
+      remove_reactions(e, 0);
+      destroy_effect_children(e);
+    }
+  }
+}
+function unfreeze_derived_effects(derived3) {
+  if (derived3.effects === null) return;
+  for (const e of derived3.effects) {
+    if (e.teardown) {
+      update_effect(e);
+    }
   }
 }
 var recent_async_deriveds, stack;
@@ -4503,7 +4606,7 @@ function mutable_source(initial_value, immutable = false, trackable = true) {
 function set(source2, value, should_proxy = false) {
   if (active_reaction !== null && // since we are untracking the function inside `$inspect.with` we need to add this check
   // to ensure we error if state is set inside an inspect effect
-  (!untracking || (active_reaction.f & EAGER_EFFECT) !== 0) && is_runes() && (active_reaction.f & (DERIVED | BLOCK_EFFECT | ASYNC | EAGER_EFFECT)) !== 0 && !current_sources?.includes(source2)) {
+  (!untracking || (active_reaction.f & EAGER_EFFECT) !== 0) && is_runes() && (active_reaction.f & (DERIVED | BLOCK_EFFECT | ASYNC | EAGER_EFFECT)) !== 0 && (current_sources === null || !includes.call(current_sources, source2))) {
     state_unsafe_mutation();
   }
   let new_value = should_proxy ? proxy(value) : value;
@@ -4643,6 +4746,7 @@ var init_sources = __esm({
     init_constants2();
     init_errors2();
     init_flags();
+    init_utils();
     init_tracing();
     init_dev();
     init_context();
@@ -4719,7 +4823,7 @@ function proxy(value) {
         }
         var s = sources.get(prop2);
         if (s === void 0) {
-          s = with_parent(() => {
+          with_parent(() => {
             var s2 = state(descriptor.value, stack2);
             sources.set(prop2, s2);
             if (dev_fallback_default && typeof prop2 === "string") {
@@ -4957,7 +5061,7 @@ function init_array_prototype_warnings() {
   if (cleanup) {
     cleanup();
   }
-  const { indexOf, lastIndexOf, includes } = array_prototype2;
+  const { indexOf, lastIndexOf, includes: includes2 } = array_prototype2;
   array_prototype2.indexOf = function(item, from_index) {
     const index2 = indexOf.call(this, item, from_index);
     if (index2 === -1) {
@@ -4983,7 +5087,7 @@ function init_array_prototype_warnings() {
     return index2;
   };
   array_prototype2.includes = function(item, from_index) {
-    const has = includes.call(this, item, from_index);
+    const has = includes2.call(this, item, from_index);
     if (!has) {
       for (let i = 0; i < this.length; i += 1) {
         if (get_proxied_value(this[i]) === item) {
@@ -4997,7 +5101,7 @@ function init_array_prototype_warnings() {
   Array.__svelte_cleanup = () => {
     array_prototype2.indexOf = indexOf;
     array_prototype2.lastIndexOf = lastIndexOf;
-    array_prototype2.includes = includes;
+    array_prototype2.includes = includes2;
   };
 }
 var init_equality2 = __esm({
@@ -5055,6 +5159,13 @@ function get_next_sibling(node) {
 function clear_text_content(node) {
   node.textContent = "";
 }
+function create_element(tag2, namespace, is2) {
+  let options = is2 ? { is: is2 } : void 0;
+  return (
+    /** @type {T extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[T] : Element} */
+    document.createElementNS(namespace ?? NAMESPACE_HTML, tag2, options)
+  );
+}
 var $window, $document, is_firefox, first_child_getter, next_sibling_getter;
 var init_operations = __esm({
   "node_modules/svelte/src/internal/client/dom/operations.js"() {
@@ -5066,6 +5177,7 @@ var init_operations = __esm({
     init_flags();
     init_constants2();
     init_batch();
+    init_constants();
   }
 });
 
@@ -5110,7 +5222,7 @@ function push_effect(effect2, parent_effect) {
     parent_effect.last = effect2;
   }
 }
-function create_effect(type2, fn, sync) {
+function create_effect(type2, fn) {
   var parent = active_effect;
   if (dev_fallback_default) {
     while (parent !== null && (parent.f & EAGER_EFFECT) !== 0) {
@@ -5139,23 +5251,26 @@ function create_effect(type2, fn, sync) {
   if (dev_fallback_default) {
     effect2.component_function = dev_current_component_function;
   }
-  if (sync) {
+  var e = effect2;
+  if ((type2 & EFFECT) !== 0) {
+    if (collected_effects !== null) {
+      collected_effects.push(effect2);
+    } else {
+      schedule_effect(effect2);
+    }
+  } else if (fn !== null) {
     try {
       update_effect(effect2);
-      effect2.f |= EFFECT_RAN;
     } catch (e2) {
       destroy_effect(effect2);
       throw e2;
     }
-  } else if (fn !== null) {
-    schedule_effect(effect2);
-  }
-  var e = effect2;
-  if (sync && e.deps === null && e.teardown === null && e.nodes === null && e.first === e.last && // either `null`, or a singular child
-  (e.f & EFFECT_PRESERVED) === 0) {
-    e = e.first;
-    if ((type2 & BLOCK_EFFECT) !== 0 && (type2 & EFFECT_TRANSPARENT) !== 0 && e !== null) {
-      e.f |= EFFECT_TRANSPARENT;
+    if (e.deps === null && e.teardown === null && e.nodes === null && e.first === e.last && // either `null`, or a singular child
+    (e.f & EFFECT_PRESERVED) === 0) {
+      e = e.first;
+      if ((type2 & BLOCK_EFFECT) !== 0 && (type2 & EFFECT_TRANSPARENT) !== 0 && e !== null) {
+        e.f |= EFFECT_TRANSPARENT;
+      }
     }
   }
   if (e !== null) {
@@ -5177,18 +5292,18 @@ function effect_tracking() {
   return active_reaction !== null && !untracking;
 }
 function create_user_effect(fn) {
-  return create_effect(EFFECT | USER_EFFECT, fn, false);
+  return create_effect(EFFECT | USER_EFFECT, fn);
 }
 function effect_root(fn) {
   Batch.ensure();
-  const effect2 = create_effect(ROOT_EFFECT | EFFECT_PRESERVED, fn, true);
+  const effect2 = create_effect(ROOT_EFFECT | EFFECT_PRESERVED, fn);
   return () => {
     destroy_effect(effect2);
   };
 }
 function component_root(fn) {
   Batch.ensure();
-  const effect2 = create_effect(ROOT_EFFECT | EFFECT_PRESERVED, fn, true);
+  const effect2 = create_effect(ROOT_EFFECT | EFFECT_PRESERVED, fn);
   return (options = {}) => {
     return new Promise((fulfil) => {
       if (options.outro) {
@@ -5204,17 +5319,17 @@ function component_root(fn) {
   };
 }
 function render_effect(fn, flags2 = 0) {
-  return create_effect(RENDER_EFFECT | flags2, fn, true);
+  return create_effect(RENDER_EFFECT | flags2, fn);
 }
 function block(fn, flags2 = 0) {
-  var effect2 = create_effect(BLOCK_EFFECT | flags2, fn, true);
+  var effect2 = create_effect(BLOCK_EFFECT | flags2, fn);
   if (dev_fallback_default) {
     effect2.dev_stack = dev_stack;
   }
   return effect2;
 }
 function branch(fn) {
-  return create_effect(BRANCH_EFFECT | EFFECT_PRESERVED, fn, true);
+  return create_effect(BRANCH_EFFECT | EFFECT_PRESERVED, fn);
 }
 function execute_effect_teardown(effect2) {
   var teardown2 = effect2.teardown;
@@ -5450,7 +5565,7 @@ function is_dirty(reaction) {
 function schedule_possible_effect_self_invalidation(signal, effect2, root = true) {
   var reactions = signal.reactions;
   if (reactions === null) return;
-  if (!async_mode_flag && current_sources?.includes(signal)) {
+  if (!async_mode_flag && current_sources !== null && includes.call(current_sources, signal)) {
     return;
   }
   for (var i = 0; i < reactions.length; i++) {
@@ -5507,10 +5622,14 @@ function update_reaction(reaction) {
       reaction.fn
     );
     var result = fn();
+    reaction.f |= REACTION_RAN;
     var deps = reaction.deps;
+    var is_fork = current_batch?.is_fork;
     if (new_deps !== null) {
       var i;
-      remove_reactions(reaction, skipped_deps);
+      if (!is_fork) {
+        remove_reactions(reaction, skipped_deps);
+      }
       if (deps !== null && skipped_deps > 0) {
         deps.length = skipped_deps + new_deps.length;
         for (i = 0; i < new_deps.length; i++) {
@@ -5524,7 +5643,7 @@ function update_reaction(reaction) {
           (deps[i].reactions ??= []).push(reaction);
         }
       }
-    } else if (deps !== null && skipped_deps < deps.length) {
+    } else if (!is_fork && deps !== null && skipped_deps < deps.length) {
       remove_reactions(reaction, skipped_deps);
       deps.length = skipped_deps;
     }
@@ -5594,7 +5713,7 @@ function remove_reaction(signal, dependency) {
   if (reactions === null && (dependency.f & DERIVED) !== 0 && // Destroying a child effect while updating a parent effect can cause a dependency to appear
   // to be unused, when in fact it is used by the currently-updating parent. Checking `new_deps`
   // allows us to skip the expensive work of disconnecting and immediately reconnecting it
-  (new_deps === null || !new_deps.includes(dependency))) {
+  (new_deps === null || !includes.call(new_deps, dependency))) {
     var derived3 = (
       /** @type {Derived} */
       dependency
@@ -5604,7 +5723,7 @@ function remove_reaction(signal, dependency) {
       derived3.f &= ~WAS_MARKED;
     }
     update_derived_status(derived3);
-    destroy_derived_effects(derived3);
+    freeze_derived_effects(derived3);
     remove_reactions(derived3, 0);
   }
 }
@@ -5667,7 +5786,7 @@ function get(signal) {
   captured_signals?.add(signal);
   if (active_reaction !== null && !untracking) {
     var destroyed = active_effect !== null && (active_effect.f & DESTROYED) !== 0;
-    if (!destroyed && !current_sources?.includes(signal)) {
+    if (!destroyed && (current_sources === null || !includes.call(current_sources, signal))) {
       var deps = active_reaction.deps;
       if ((active_reaction.f & REACTION_IS_UPDATING) !== 0) {
         if (signal.rv < read_version) {
@@ -5685,7 +5804,7 @@ function get(signal) {
         var reactions = signal.reactions;
         if (reactions === null) {
           signal.reactions = [active_reaction];
-        } else if (!reactions.includes(active_reaction)) {
+        } else if (!includes.call(reactions, active_reaction)) {
           reactions.push(active_reaction);
         }
       }
@@ -5729,7 +5848,7 @@ function get(signal) {
       return value;
     }
     var should_connect = (derived3.f & CONNECTED) === 0 && !untracking && active_reaction !== null && (is_updating_effect || (active_reaction.f & CONNECTED) !== 0);
-    var is_new = derived3.deps === null;
+    var is_new = (derived3.f & REACTION_RAN) === 0;
     if (is_dirty(derived3)) {
       if (should_connect) {
         derived3.f |= CONNECTED;
@@ -5737,6 +5856,7 @@ function get(signal) {
       update_derived(derived3);
     }
     if (should_connect && !is_new) {
+      unfreeze_derived_effects(derived3);
       reconnect(derived3);
     }
   }
@@ -5749,11 +5869,15 @@ function get(signal) {
   return signal.v;
 }
 function reconnect(derived3) {
-  if (derived3.deps === null) return;
   derived3.f |= CONNECTED;
+  if (derived3.deps === null) return;
   for (const dep of derived3.deps) {
     (dep.reactions ??= []).push(derived3);
     if ((dep.f & DERIVED) !== 0 && (dep.f & CONNECTED) === 0) {
+      unfreeze_derived_effects(
+        /** @type {Derived} */
+        dep
+      );
       reconnect(
         /** @type {Derived} */
         dep
@@ -5846,12 +5970,12 @@ function handle_event_propagation(event2) {
   );
   last_propagated_event = event2;
   var path_idx = 0;
-  var handled_at = last_propagated_event === event2 && event2.__root;
+  var handled_at = last_propagated_event === event2 && event2[event_symbol];
   if (handled_at) {
     var at_idx = path3.indexOf(handled_at);
     if (at_idx !== -1 && (handler_element === document || handler_element === /** @type {any} */
     window)) {
-      event2.__root = handler_element;
+      event2[event_symbol] = handler_element;
       return;
     }
     var handler_idx = path3.indexOf(handler_element);
@@ -5882,12 +6006,12 @@ function handle_event_propagation(event2) {
       var parent_element = current_target.assignedSlot || current_target.parentNode || /** @type {any} */
       current_target.host || null;
       try {
-        var delegated = current_target["__" + event_name];
-        if (delegated != null && (!/** @type {any} */
+        var delegated2 = current_target[event_symbol]?.[event_name];
+        if (delegated2 != null && (!/** @type {any} */
         current_target.disabled || // DOM could've been updated already by the time this is reached, so we check this as well
         // -> the target could not have been disabled because it emits the event in the first place
         event2.target === current_target)) {
-          delegated.call(current_target, event2);
+          delegated2.call(current_target, event2);
         }
       } catch (error) {
         if (throw_error) {
@@ -5910,13 +6034,13 @@ function handle_event_propagation(event2) {
       throw throw_error;
     }
   } finally {
-    event2.__root = handler_element;
+    event2[event_symbol] = handler_element;
     delete event2.currentTarget;
     set_active_reaction(previous_reaction);
     set_active_effect(previous_effect);
   }
 }
-var all_registered_events, root_event_handles, last_propagated_event;
+var event_symbol, all_registered_events, root_event_handles, last_propagated_event;
 var init_events = __esm({
   "node_modules/svelte/src/internal/client/dom/elements/events.js"() {
     init_effects();
@@ -5927,6 +6051,7 @@ var init_events = __esm({
     init_warnings();
     init_runtime();
     init_shared();
+    event_symbol = /* @__PURE__ */ Symbol("events");
     all_registered_events = /* @__PURE__ */ new Set();
     root_event_handles = /* @__PURE__ */ new Set();
     last_propagated_event = null;
@@ -5934,8 +6059,17 @@ var init_events = __esm({
 });
 
 // node_modules/svelte/src/internal/client/dom/reconciler.js
+var policy;
 var init_reconciler = __esm({
   "node_modules/svelte/src/internal/client/dom/reconciler.js"() {
+    init_operations();
+    policy = // We gotta write it like this because after downleveling the pure comment may end up in the wrong location
+    globalThis?.window?.trustedTypes && /* @__PURE__ */ globalThis.window.trustedTypes.createPolicy("svelte-trusted-html", {
+      /** @param {string} html */
+      createHTML: (html2) => {
+        return html2;
+      }
+    });
   }
 });
 
@@ -5955,7 +6089,7 @@ function append(anchor, dom) {
       /** @type {Effect & { nodes: EffectNodes }} */
       active_effect
     );
-    if ((effect2.f & EFFECT_RAN) === 0 || effect2.nodes.end === null) {
+    if ((effect2.f & REACTION_RAN) === 0 || effect2.nodes.end === null) {
       effect2.nodes.end = hydrate_node;
     }
     hydrate_next();
@@ -6112,27 +6246,8 @@ function hydrate(component2, options) {
     set_hydrate_node(previous_hydrate_node);
   }
 }
-function _mount(Component2, { target, anchor, props = {}, events, context, intro = true }) {
+function _mount(Component2, { target, anchor, props = {}, events, context, intro = true, transformError }) {
   init_operations2();
-  var registered_events = /* @__PURE__ */ new Set();
-  var event_handle = (events2) => {
-    for (var i = 0; i < events2.length; i++) {
-      var event_name = events2[i];
-      if (registered_events.has(event_name)) continue;
-      registered_events.add(event_name);
-      var passive2 = is_passive_event(event_name);
-      target.addEventListener(event_name, handle_event_propagation, { passive: passive2 });
-      var n = document_listeners.get(event_name);
-      if (n === void 0) {
-        document.addEventListener(event_name, handle_event_propagation, { passive: passive2 });
-        document_listeners.set(event_name, 1);
-      } else {
-        document_listeners.set(event_name, n + 1);
-      }
-    }
-  };
-  event_handle(array_from(all_registered_events));
-  root_event_handles.add(event_handle);
   var component2 = void 0;
   var unmount2 = component_root(() => {
     var anchor_node = anchor ?? target.appendChild(create_text());
@@ -6144,14 +6259,12 @@ function _mount(Component2, { target, anchor, props = {}, events, context, intro
         }
       },
       (anchor_node2) => {
-        if (context) {
-          push({});
-          var ctx = (
-            /** @type {ComponentContext} */
-            component_context
-          );
-          ctx.c = context;
-        }
+        push({});
+        var ctx = (
+          /** @type {ComponentContext} */
+          component_context
+        );
+        if (context) ctx.c = context;
         if (events) {
           props.$$events = events;
         }
@@ -6173,23 +6286,55 @@ function _mount(Component2, { target, anchor, props = {}, events, context, intro
             throw HYDRATION_ERROR;
           }
         }
-        if (context) {
-          pop();
+        pop();
+      },
+      transformError
+    );
+    var registered_events = /* @__PURE__ */ new Set();
+    var event_handle = (events2) => {
+      for (var i = 0; i < events2.length; i++) {
+        var event_name = events2[i];
+        if (registered_events.has(event_name)) continue;
+        registered_events.add(event_name);
+        var passive2 = is_passive_event(event_name);
+        for (const node of [target, document]) {
+          var counts = listeners.get(node);
+          if (counts === void 0) {
+            counts = /* @__PURE__ */ new Map();
+            listeners.set(node, counts);
+          }
+          var count = counts.get(event_name);
+          if (count === void 0) {
+            node.addEventListener(event_name, handle_event_propagation, { passive: passive2 });
+            counts.set(event_name, 1);
+          } else {
+            counts.set(event_name, count + 1);
+          }
         }
       }
-    );
+    };
+    event_handle(array_from(all_registered_events));
+    root_event_handles.add(event_handle);
     return () => {
       for (var event_name of registered_events) {
-        target.removeEventListener(event_name, handle_event_propagation);
-        var n = (
-          /** @type {number} */
-          document_listeners.get(event_name)
-        );
-        if (--n === 0) {
-          document.removeEventListener(event_name, handle_event_propagation);
-          document_listeners.delete(event_name);
-        } else {
-          document_listeners.set(event_name, n);
+        for (const node of [target, document]) {
+          var counts = (
+            /** @type {Map<string, number>} */
+            listeners.get(node)
+          );
+          var count = (
+            /** @type {number} */
+            counts.get(event_name)
+          );
+          if (--count == 0) {
+            node.removeEventListener(event_name, handle_event_propagation);
+            counts.delete(event_name);
+            if (counts.size === 0) {
+              listeners.delete(node);
+            }
+          } else {
+            counts.set(event_name, count);
+          }
         }
       }
       root_event_handles.delete(event_handle);
@@ -6216,7 +6361,7 @@ function unmount(component2, options) {
   }
   return Promise.resolve();
 }
-var should_intro, document_listeners, mounted_components;
+var should_intro, listeners, mounted_components;
 var init_render = __esm({
   "node_modules/svelte/src/internal/client/render.js"() {
     init_esm_env();
@@ -6235,7 +6380,7 @@ var init_render = __esm({
     init_constants2();
     init_boundary();
     should_intro = true;
-    document_listeners = /* @__PURE__ */ new Map();
+    listeners = /* @__PURE__ */ new Map();
     mounted_components = /* @__PURE__ */ new WeakMap();
   }
 });
@@ -6336,6 +6481,7 @@ var init_attachments = __esm({
 // node_modules/svelte/src/internal/client/dev/assign.js
 var init_assign = __esm({
   "node_modules/svelte/src/internal/client/dev/assign.js"() {
+    init_constants2();
     init_utils3();
     init_runtime();
     init_warnings();
@@ -6407,10 +6553,8 @@ var init_inspect = __esm({
 var init_async2 = __esm({
   "node_modules/svelte/src/internal/client/dom/blocks/async.js"() {
     init_async();
-    init_batch();
     init_runtime();
     init_hydration();
-    init_boundary();
   }
 });
 
@@ -6443,8 +6587,8 @@ var init_if = __esm({
     init_constants2();
     init_hydration();
     init_effects();
-    init_constants();
     init_branches();
+    init_constants();
   }
 });
 
@@ -6482,6 +6626,7 @@ var init_each = __esm({
     init_esm_env();
     init_deriveds();
     init_batch();
+    init_errors2();
   }
 });
 
@@ -6491,7 +6636,6 @@ var init_html = __esm({
     init_constants();
     init_effects();
     init_hydration();
-    init_reconciler();
     init_template();
     init_warnings();
     init_utils3();
@@ -6517,6 +6661,7 @@ var init_svelte_component = __esm({
     init_effects();
     init_hydration();
     init_branches();
+    init_constants();
   }
 });
 
@@ -6585,6 +6730,7 @@ var init_css2 = __esm({
     init_esm_env();
     init_css();
     init_effects();
+    init_operations();
   }
 });
 
@@ -6622,6 +6768,7 @@ var init_attributes = __esm({
   "node_modules/svelte/src/internal/shared/attributes.js"() {
     init_escaping();
     init_clsx();
+    init_utils();
     whitespace = [..." 	\n\r\f\xA0\v\uFEFF"];
   }
 });
@@ -6683,6 +6830,7 @@ var init_customizable_select = __esm({
   "node_modules/svelte/src/internal/client/dom/elements/customizable-select.js"() {
     init_hydration();
     init_operations();
+    init_reconciler();
     init_attachments2();
   }
 });
@@ -6964,8 +7112,6 @@ var init_props2 = __esm({
 var init_validate2 = __esm({
   "node_modules/svelte/src/internal/client/validate.js"() {
     init_context();
-    init_utils();
-    init_errors2();
     init_constants();
     init_effects();
     init_warnings();
@@ -7036,7 +7182,8 @@ var init_legacy_client = __esm({
           props,
           context: options.context,
           intro: options.intro ?? false,
-          recover: options.recover
+          recover: options.recover,
+          transformError: options.transformError
         });
         if (!async_mode_flag && (!options?.props?.$$host || options.sync === false)) {
           flushSync();
@@ -7140,6 +7287,7 @@ var init_custom_element = __esm({
     init_effects();
     init_template();
     init_utils();
+    init_operations();
     if (typeof HTMLElement === "function") {
       SvelteElement = class extends HTMLElement {
         /** The Svelte component constructor */
@@ -7162,17 +7310,19 @@ var init_custom_element = __esm({
         $$l_u = /* @__PURE__ */ new Map();
         /** @type {any} The managed render effect for reflecting attributes */
         $$me;
+        /** @type {ShadowRoot | null} The ShadowRoot of the custom element */
+        $$shadowRoot = null;
         /**
          * @param {*} $$componentCtor
          * @param {*} $$slots
-         * @param {*} use_shadow_dom
+         * @param {ShadowRootInit | undefined} shadow_root_init
          */
-        constructor($$componentCtor, $$slots, use_shadow_dom) {
+        constructor($$componentCtor, $$slots, shadow_root_init) {
           super();
           this.$$ctor = $$componentCtor;
           this.$$s = $$slots;
-          if (use_shadow_dom) {
-            this.attachShadow({ mode: "open" });
+          if (shadow_root_init) {
+            this.$$shadowRoot = this.attachShadow(shadow_root_init);
           }
         }
         /**
@@ -7209,7 +7359,7 @@ var init_custom_element = __esm({
           if (!this.$$c) {
             let create_slot = function(name3) {
               return (anchor) => {
-                const slot2 = document.createElement("slot");
+                const slot2 = create_element("slot");
                 if (name3 !== "default") slot2.name = name3;
                 append(anchor, slot2);
               };
@@ -7244,7 +7394,7 @@ var init_custom_element = __esm({
             }
             this.$$c = createClassComponent({
               component: this.$$ctor,
-              target: this.shadowRoot || this,
+              target: this.$$shadowRoot || this,
               props: {
                 ...this.$$d,
                 $$slots,
@@ -40579,7 +40729,7 @@ var require_lodash = __commonJS({
       var Ctor = value && value.constructor, proto = typeof Ctor == "function" && Ctor.prototype || objectProto;
       return value === proto;
     }
-    function includes(collection, value, fromIndex, guard) {
+    function includes2(collection, value, fromIndex, guard) {
       collection = isArrayLike(collection) ? collection : values(collection);
       fromIndex = fromIndex && !guard ? toInteger(fromIndex) : 0;
       var length = collection.length;
@@ -40657,7 +40807,7 @@ var require_lodash = __commonJS({
     function values(object) {
       return object ? baseValues(object, keys(object)) : [];
     }
-    module2.exports = includes;
+    module2.exports = includes2;
   }
 });
 
@@ -40906,7 +41056,7 @@ var require_sign2 = __commonJS({
     var PS_SUPPORTED = require_psSupported();
     var validateAsymmetricKey = require_validateAsymmetricKey();
     var jws = require_jws();
-    var includes = require_lodash();
+    var includes2 = require_lodash();
     var isBoolean3 = require_lodash2();
     var isInteger2 = require_lodash3();
     var isNumber2 = require_lodash4();
@@ -40928,7 +41078,7 @@ var require_sign2 = __commonJS({
       audience: { isValid: function(value) {
         return isString2(value) || Array.isArray(value);
       }, message: '"audience" must be a string or array' },
-      algorithm: { isValid: includes.bind(null, SUPPORTED_ALGS), message: '"algorithm" must be a valid string enum value' },
+      algorithm: { isValid: includes2.bind(null, SUPPORTED_ALGS), message: '"algorithm" must be a valid string enum value' },
       header: { isValid: isPlainObject2, message: '"header" must be an object' },
       encoding: { isValid: isString2, message: '"encoding" must be a string' },
       issuer: { isValid: isString2, message: '"issuer" must be a string' },
@@ -47197,10 +47347,14 @@ var init_miscRules = __esm({
       impl: (state2, events) => {
         const retryEvent = findEvent(events, RetryApplicationEvent);
         if (!retryEvent) return [];
-        if (state2.context.applicationState !== "error_recovery" && state2.context.applicationState !== "activation_error")
-          return [];
+        const isErrorState = state2.context.applicationState === "error_recovery" || state2.context.applicationState === "activation_error";
+        const isActiveWithError = state2.context.applicationState === "active" && state2.context.lastError != null;
+        if (!isErrorState && !isActiveWithError) return [];
         state2.context.lastError = void 0;
-        state2.context.applicationState = "active";
+        state2.context.errorRecoveryAttempts++;
+        if (isErrorState) {
+          state2.context.applicationState = "active";
+        }
         return [];
       }
     });
@@ -47621,6 +47775,7 @@ var init_historyTestRecorder = __esm({
       startTime = 0;
       options;
       eventLabels = /* @__PURE__ */ new Map();
+      autoStopTimer = null;
       constructor(options = {}) {
         this.options = {
           autoLabel: true,
@@ -47648,6 +47803,13 @@ var init_historyTestRecorder = __esm({
           finalContext: initialContext2,
           metadata: metadata || {}
         };
+        if (this.options.maxDuration) {
+          this.autoStopTimer = setTimeout(() => {
+            if (this.scenario) {
+              this.stopRecording();
+            }
+          }, this.options.maxDuration);
+        }
       }
       /**
        * Stop recording and return the test scenario
@@ -47659,6 +47821,10 @@ var init_historyTestRecorder = __esm({
         this.scenario.finalContext = this.deepClone(frontendEngine.getContext());
         const scenario = this.scenario;
         this.scenario = null;
+        if (this.autoStopTimer !== null) {
+          clearTimeout(this.autoStopTimer);
+          this.autoStopTimer = null;
+        }
         return scenario;
       }
       /**

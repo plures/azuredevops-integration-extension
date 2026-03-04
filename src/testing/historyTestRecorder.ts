@@ -53,6 +53,7 @@ export class HistoryTestRecorder {
   private startTime: number = 0;
   private options: RecordingOptions;
   private eventLabels: Map<string, string> = new Map();
+  private autoStopTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: RecordingOptions = {}) {
     this.options = {
@@ -93,6 +94,15 @@ export class HistoryTestRecorder {
       metadata: metadata || {},
     };
 
+    // Set up auto-stop timer if maxDuration is specified
+    if (this.options.maxDuration) {
+      this.autoStopTimer = setTimeout(() => {
+        if (this.scenario) {
+          this.stopRecording();
+        }
+      }, this.options.maxDuration);
+    }
+
     // Recording started (logging disabled to satisfy ESLint)
   }
 
@@ -109,6 +119,12 @@ export class HistoryTestRecorder {
 
     const scenario = this.scenario;
     this.scenario = null;
+
+    // Clear auto-stop timer if it's still pending
+    if (this.autoStopTimer !== null) {
+      clearTimeout(this.autoStopTimer);
+      this.autoStopTimer = null;
+    }
 
     // Recording stopped (logging disabled to satisfy ESLint)
 

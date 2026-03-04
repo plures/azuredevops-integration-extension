@@ -1,3 +1,4 @@
+/* eslint-disable no-console, max-lines, max-statements */
 /**
  * Demo: Finding and Fixing Logic Errors with History Testing
  *
@@ -164,13 +165,13 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
       dispatch([
         StartTimerEvent.create({
           workItemId: 1002, // Work item IS selected
-          connectionId: testConnection.id,
+          timestamp: 1000000, // Fixed timestamp for deterministic tests
         }),
       ]);
 
       // Verify timer started correctly
       const context = getContext();
-      expect(context.timerState).toBe('running');
+      expect(context.timerHistory.entries.some((e) => e.type === 'start')).toBe(true);
 
       console.log('\n✅ Correct Behavior:');
       console.log('  - Work item selected before starting timer');
@@ -193,13 +194,13 @@ describe('Demo: Finding and Fixing Logic Errors', () => {
         ],
         expectedSnapshots: [
           {
-            index: 1,
+            index: 0,
             state: 'activating',
             contextChecks: (ctx) => ctx.applicationState === 'activating',
             description: 'Should be activating after ActivateEvent',
           },
           {
-            index: 2,
+            index: 1,
             state: 'active',
             contextChecks: (ctx) => ctx.applicationState === 'active',
             description: 'Should be active after ActivationCompleteEvent',
