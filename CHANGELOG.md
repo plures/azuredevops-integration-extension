@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.16.0] - 2026-03-04
+
+### Added
+
+- Entra OAuth Auth Code + PKCE primary flow, scope minimization, PAT gating, and telemetry (#154)
+
+
 ## [2.14.0] - 2026-03-04
 
 ### Added
