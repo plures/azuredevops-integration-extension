@@ -81,8 +81,8 @@ export function filterByCategory(
 
 /**
  * Helper for Praxis rule implementations.
- * Appends a decision to `context.decisionLedger` in place and returns the
- * created record. Follows the same immutable-update pattern as other rules.
+ * Mutates `context.decisionLedger` in place (following the Praxis rule
+ * mutation pattern) and returns the created record.
  */
 export function recordDecision(
   context: { decisionLedger: DecisionLedgerState },
