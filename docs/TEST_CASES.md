@@ -30,7 +30,7 @@ The table below cross-references each case to its test file and `it()` descripti
 | TC-002  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-002: authentication failure emits AuthenticationFailedEvent with error message`  |
 | TC-003  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-003: tenant mismatch results in authentication failure with descriptive error`   |
 | TC-004  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-004: work items are loaded for the active connection`                            |
-| TC-005  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-005: UpdateWorkItemEvent transitions work item to new state`                     |
+| TC-005  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-005: updated work item state is reflected via WorkItemsLoadedEvent`              |
 | TC-006  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-006: CreatePullRequestEvent is dispatched with correct connection and work item` |
 | TC-007  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-007: permission-denied error is surfaced as ApplicationErrorEvent`               |
 | TC-008  | P1       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-008: PAT-based connection loads work items successfully`                         |
