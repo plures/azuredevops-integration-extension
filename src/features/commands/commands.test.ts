@@ -43,7 +43,7 @@ vi.mock('vscode', () => ({
 
 // Mock FSMSetupService
 const mockStartSetup = vi.fn().mockResolvedValue(undefined);
-vi.mock('../../fsm/services/fsmSetupService.js', () => ({
+vi.mock('../../services/setupService.js', () => ({
   FSMSetupService: class {
     startSetup = mockStartSetup;
   },

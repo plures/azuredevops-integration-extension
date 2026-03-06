@@ -89,7 +89,7 @@ describe('Create Work Item Command', () => {
       };
 
       // Mock the extension host bridge to capture the event
-      const bridge = await import('../../src/fsm/services/extensionHostBridge.js');
+      const bridge = await import('../../src/services/extensionHostBridge.js');
       vi.spyOn(bridge, 'sendApplicationStoreEvent').mockImplementation((event) => {
         mockSend(event);
         return true;

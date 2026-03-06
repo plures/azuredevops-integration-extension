@@ -85,7 +85,7 @@ const FAILURE_PATTERNS: ReadonlyArray<{ tokens: string[]; reason: AuthFailureRea
     reason: 'user_cancelled',
   },
   { tokens: ['AADSTS65001', 'CONSENT_REQUIRED'], reason: 'consent_required' },
-  { tokens: ['AADSTS50076', 'MFA', 'MULTI_FACTOR'], reason: 'mfa_required' },
+  { tokens: ['AADSTS50076', 'MFA', 'MULTI_FACTOR', 'MULTI-FACTOR'], reason: 'mfa_required' },
   { tokens: ['AADSTS50058', 'TENANT_NOT_FOUND'], reason: 'tenant_not_found' },
   { tokens: ['AADSTS700016', 'APPLICATION_NOT_FOUND'], reason: 'app_not_registered' },
   { tokens: ['TIMEOUT', 'EXPIRED'], reason: 'timeout' },

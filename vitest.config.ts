@@ -1,8 +1,19 @@
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 export default defineConfig({
   plugins: [svelte()],
+  resolve: {
+    alias: {
+      // Provide a lightweight vscode stub so unit tests that import modules
+      // depending on the vscode API can run outside of the VS Code host.
+      vscode: path.resolve(__dirname, 'vscode-stub/index.js'),
+    },
+  },
   test: {
     globals: true,
     environment: 'node',
@@ -29,6 +40,17 @@ export default defineConfig({
       // Exclude integration tests that require VS Code runtime
       'tests/integration-tests/**/*.test.ts',
       'tests/integration/**/*.test.ts',
+      // Exclude tests for FSM modules that have been removed during migration to Praxis
+      'tests/fsm/authFunctions.test.ts',
+      'tests/fsm/authReminderActions.test.ts',
+      'tests/fsm/buildAuthReminder.test.ts',
+      'tests/fsm/kanbanColumns.test.ts',
+      'tests/fsm/router.stamp.test.ts',
+      'tests/fsm/functions/setup/auth-methods.test.ts',
+      'tests/fsm/functions/setup/connection-defaults.test.ts',
+      'tests/fsm/functions/setup/environment-detection.test.ts',
+      'tests/fsm/functions/setup/user-detection.test.ts',
+      'tests/fsm/functions/ui/error-handling.test.ts',
     ],
     coverage: {
       provider: 'v8',
