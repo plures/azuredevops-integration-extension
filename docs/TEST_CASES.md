@@ -170,7 +170,7 @@ The table below cross-references each case to its test file and `it()` descripti
 - `connectionWorkItems` reflects the updated state for item #3001
 - No error is recorded in the engine context
 
-**Automated test**: `TC-005: UpdateWorkItemEvent transitions work item to new state`
+**Automated test**: `TC-005: updated work item state is reflected via WorkItemsLoadedEvent`
 
 ---
 
