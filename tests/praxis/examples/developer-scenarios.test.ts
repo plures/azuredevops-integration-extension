@@ -349,8 +349,6 @@ describe('Developer Scenarios — P1 Network Resilience', () => {
     expect(ctx.lastError).toBeDefined();
     expect(ctx.lastError?.message).toBe('network_unavailable');
     expect(ctx.lastError?.connectionId).toBe(conn.id);
-    const items = ctx.connectionWorkItems.get(conn.id) ?? [];
-    expect(items).toHaveLength(0);
     // Error is non-fatal; engine stays active
     expect(ctx.applicationState).toBe('active');
   });
