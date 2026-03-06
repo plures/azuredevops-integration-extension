@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.18.0] - 2026-03-06
+
+### Added
+
+- Refactor core app logic onto Praxis Logic + Decision Ledger modules (#155)
+
+
 ## [2.16.0] - 2026-03-04
 
 ### Added
