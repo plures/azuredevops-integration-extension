@@ -144,10 +144,10 @@ The table below cross-references each case to its test file and `it()` descripti
 
 **Given**  
 - Work items are loaded for the active connection  
-- Work item #3001 is in state `Active`  
+- Work item #3001 is in state `Active` (field `System.State = "Active"`)  
 
 **When**  
-- `WorkItemsLoadedEvent` is dispatched with the work item now having state `Resolved`  
+- `WorkItemsLoadedEvent` is dispatched with the same work item now having `System.State = "Resolved"`  
 
 **Then**  
 - `connectionWorkItems` reflects the updated state for item #3001  

@@ -62,12 +62,14 @@ function makeConnection(
 function makeWorkItem(id: number, state = 'Active', type = 'Task'): WorkItem {
   return {
     id,
-    title: `Work Item ${id}`,
-    workItemType: type,
-    state,
-    assignedTo: null,
+    fields: {
+      'System.Title': `Work Item ${id}`,
+      'System.WorkItemType': type,
+      'System.State': state,
+      'System.AssignedTo': null,
+    },
     url: `https://dev.azure.com/test-org/test-project/_workitems/edit/${id}`,
-  } as unknown as WorkItem;
+  };
 }
 
 async function bootWithConnection(conn: ProjectConnection): Promise<void> {
@@ -76,7 +78,7 @@ async function bootWithConnection(conn: ProjectConnection): Promise<void> {
   dispatch([
     ConnectionsLoadedEvent.create({
       connections: [conn],
-    } as any),
+    }),
   ]);
   await waitForState((ctx) => ctx.applicationState === 'active');
 }
@@ -197,16 +199,16 @@ describe('Developer Scenarios — P0 Work Items', () => {
     dispatch([WorkItemsLoadedEvent.create({ connectionId: conn.id, workItems: [initialItem] })]);
 
     const ctxBefore = getContext();
-    const itemBefore = ctxBefore.connectionWorkItems.get(conn.id)?.[0] as any;
-    expect(itemBefore?.state).toBe('Active');
+    const itemBefore = ctxBefore.connectionWorkItems.get(conn.id)?.[0];
+    expect(itemBefore?.fields['System.State']).toBe('Active');
 
     const updatedItem = makeWorkItem(3001, 'Resolved');
     dispatch([WorkItemsLoadedEvent.create({ connectionId: conn.id, workItems: [updatedItem] })]);
 
     const ctx = getContext();
-    const item = ctx.connectionWorkItems.get(conn.id)?.[0] as any;
+    const item = ctx.connectionWorkItems.get(conn.id)?.[0];
     expect(item?.id).toBe(3001);
-    expect(item?.state).toBe('Resolved');
+    expect(item?.fields['System.State']).toBe('Resolved');
     expect(ctx.lastError).toBeUndefined();
   });
 });
@@ -303,7 +305,7 @@ describe('Developer Scenarios — P1 Connections & Auth', () => {
     dispatch([
       ConnectionsLoadedEvent.create({
         connections: [connA, connB],
-      } as any),
+      }),
     ]);
     await waitForState((ctx) => ctx.applicationState === 'active');
 
@@ -503,7 +505,7 @@ describe('Developer Scenarios — P2 Timer & Multi-project', () => {
     dispatch([
       ConnectionsLoadedEvent.create({
         connections: [alpha, beta],
-      } as any),
+      }),
     ]);
     await waitForState((ctx) => ctx.applicationState === 'active');
 
