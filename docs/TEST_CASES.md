@@ -42,7 +42,7 @@ The table below cross-references each case to its test file and `it()` descripti
 | TC-014  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-014: timer start → pause → stop records full timer history`                      |
 | TC-015  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-015: cross-project work item list contains items from both connections`          |
 | TC-016  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-016: device code sign-in session is recorded and cleared on completion`          |
-| TC-017  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-017: auth code flow browser-opened event is recorded in session state`           |
+| TC-017  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-017: auth code flow browser-opened event does not change application state`      |
 | TC-018  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-018: on-premises connection uses custom baseUrl and loads work items`            |
 
 ---
@@ -327,7 +327,8 @@ The table below cross-references each case to its test file and `it()` descripti
 
 **Given**
 
-- The engine is in `error` state after a `WorkItemsErrorEvent`
+- A `WorkItemsErrorEvent` has been dispatched, setting `lastError` on the context
+- The engine remains in `active` state (work-item errors are non-fatal)
 
 **When**
 
@@ -336,9 +337,9 @@ The table below cross-references each case to its test file and `it()` descripti
 
 **Then**
 
-- Engine state transitions back to `active`
-- `lastError` is cleared
+- `lastError` is cleared by `RetryApplicationEvent`
 - Work items list is populated
+- `applicationState` remains `active` throughout
 
 **Automated test**: `TC-012: retry after network error reloads work items`
 
@@ -441,10 +442,10 @@ The table below cross-references each case to its test file and `it()` descripti
 
 ---
 
-### TC-017 · Auth code flow browser-opened event recorded in session
+### TC-017 · Auth code flow browser-opened event does not change application state
 
 **Priority**: P2  
-**Scenario**: Auth code flow captures a session when the browser is opened for sign-in.
+**Scenario**: Auth code flow fires a browser-opened notification after the session is already established.
 
 **Given**
 
@@ -452,15 +453,16 @@ The table below cross-references each case to its test file and `it()` descripti
 
 **When**
 
-- `AuthCodeFlowStartedAppEvent` is dispatched
+- `AuthCodeFlowStartedAppEvent` is dispatched (sets `authCodeFlowSession` on context)
 - `AuthCodeFlowBrowserOpenedEvent` is dispatched
 
 **Then**
 
-- `authCodeFlowSession` is set on context
-- No error is raised
+- `authCodeFlowSession` is set on context (set by the STARTED event, not BROWSER_OPENED)
+- `AuthCodeFlowBrowserOpenedEvent` does not modify `authCodeFlowSession` — it is a notification-only event
+- No error is raised and `applicationState` remains `active`
 
-**Automated test**: `TC-017: auth code flow browser-opened event is recorded in session state`
+**Automated test**: `TC-017: auth code flow browser-opened event does not change application state`
 
 ---
 

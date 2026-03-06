@@ -191,7 +191,7 @@ describe('Developer Scenarios — P0 Work Items', () => {
     expect(ctx.activeConnectionId).toBe(conn.id);
   });
 
-  it('TC-005: UpdateWorkItemEvent transitions work item to new state', async () => {
+  it('TC-005: updated work item state is reflected via WorkItemsLoadedEvent', async () => {
     const conn = makeConnection('tc-005-conn');
     const initialItem = makeWorkItem(3001, 'Active');
 
@@ -433,12 +433,13 @@ describe('Developer Scenarios — P2 Auth Flows', () => {
     expect(getContext().deviceCodeSession).toBeUndefined();
   });
 
-  it('TC-017: auth code flow browser-opened event is recorded in session state', async () => {
+  it('TC-017: auth code flow browser-opened event does not change application state', async () => {
     const conn = makeConnection('tc-017-conn', 'entra');
     const authUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=x';
 
     await bootWithConnection(conn);
 
+    // AUTH_CODE_FLOW_STARTED sets authCodeFlowSession on context
     dispatch([
       AuthCodeFlowStartedAppEvent.create({
         connectionId: conn.id,
@@ -447,11 +448,13 @@ describe('Developer Scenarios — P2 Auth Flows', () => {
       }),
     ]);
 
-    // Auth code flow session is managed internally; verify no side effects
     const ctxAfterStart = getContext();
     expect(ctxAfterStart.applicationState).toBe('active');
-    expect(ctxAfterStart.deviceCodeSession).toBeUndefined();
+    expect(ctxAfterStart.authCodeFlowSession).toBeDefined();
+    expect(ctxAfterStart.authCodeFlowSession?.connectionId).toBe(conn.id);
 
+    // AUTH_CODE_FLOW_BROWSER_OPENED does not update authCodeFlowSession — it
+    // is a notification event only; the session was already set by STARTED.
     dispatch([
       AuthCodeFlowBrowserOpenedEvent.create({
         connectionId: conn.id,
@@ -462,6 +465,8 @@ describe('Developer Scenarios — P2 Auth Flows', () => {
     const ctx = getContext();
     expect(ctx.lastError).toBeUndefined();
     expect(ctx.applicationState).toBe('active');
+    // Session remains set (not cleared by browser-opened)
+    expect(ctx.authCodeFlowSession?.connectionId).toBe(conn.id);
   });
 });
 
