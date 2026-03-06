@@ -94,7 +94,7 @@ The table below cross-references each case to its test file and `it()` descripti
 
 **Then**
 
-- The connection auth state transitions to `unauthenticated`
+- The connection snapshot state (`PraxisConnectionState`) becomes `auth_failed`
 - `lastError` on the context captures the expiry reason
 - A re-authentication prompt (auth reminder) is raised
 
