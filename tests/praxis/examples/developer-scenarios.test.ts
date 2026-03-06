@@ -96,7 +96,7 @@ describe('Developer Scenarios — P0 Authentication', () => {
     await resetEngine();
   });
 
-  it('TC-001: successful Entra ID Device Code sign-in sets auth state to authenticated', async () => {
+  it('TC-001: successful Entra ID Device Code sign-in clears device code session and allows work item load', async () => {
     const conn = makeConnection('tc-001-conn', 'entra');
 
     await bootWithConnection(conn);

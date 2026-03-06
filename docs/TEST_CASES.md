@@ -24,26 +24,26 @@ All test cases use **Given / When / Then** format and are categorised by priorit
 Every P0 case **must** have a corresponding automated test.  
 The table below cross-references each case to its test file and `it()` description.
 
-| Case ID | Priority | Automated test file                                 | Test description                                                                     |
-| ------- | -------- | --------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| TC-001  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-001: successful Entra ID Device Code sign-in sets auth state to authenticated`   |
-| TC-002  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-002: authentication failure emits AuthenticationFailedEvent with error message`  |
-| TC-003  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-003: tenant mismatch results in authentication failure with descriptive error`   |
-| TC-004  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-004: work items are loaded for the active connection`                            |
-| TC-005  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-005: updated work item state is reflected via WorkItemsLoadedEvent`              |
-| TC-006  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-006: CreatePullRequestEvent is dispatched with correct connection and work item` |
-| TC-007  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-007: permission-denied error is surfaced as ApplicationErrorEvent`               |
-| TC-008  | P1       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-008: PAT-based connection loads work items successfully`                         |
-| TC-009  | P1       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-009: CreateBranchEvent is dispatched with work item context`                     |
-| TC-010  | P1       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-010: switching active connection isolates work item lists per connection`        |
-| TC-011  | P1       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-011: WorkItemsErrorEvent is raised when network is unavailable`                  |
-| TC-012  | P1       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-012: retry after network error reloads work items`                               |
-| TC-013  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-013: sign-out clears authentication state for the connection`                    |
-| TC-014  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-014: timer start → pause → stop records full timer history`                      |
-| TC-015  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-015: cross-project work item list contains items from both connections`          |
-| TC-016  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-016: device code sign-in session is recorded and cleared on completion`          |
-| TC-017  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-017: auth code flow browser-opened event does not change application state`      |
-| TC-018  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-018: on-premises connection uses custom baseUrl and loads work items`            |
+| Case ID | Priority | Automated test file                                 | Test description                                                                                       |
+| ------- | -------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| TC-001  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-001: successful Entra ID Device Code sign-in clears device code session and allows work item load` |
+| TC-002  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-002: authentication failure emits AuthenticationFailedEvent with error message`                    |
+| TC-003  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-003: tenant mismatch results in authentication failure with descriptive error`                     |
+| TC-004  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-004: work items are loaded for the active connection`                                              |
+| TC-005  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-005: updated work item state is reflected via WorkItemsLoadedEvent`                                |
+| TC-006  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-006: CreatePullRequestEvent is dispatched with correct connection and work item`                   |
+| TC-007  | P0       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-007: permission-denied error is surfaced as ApplicationErrorEvent`                                 |
+| TC-008  | P1       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-008: PAT-based connection loads work items successfully`                                           |
+| TC-009  | P1       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-009: CreateBranchEvent is dispatched with work item context`                                       |
+| TC-010  | P1       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-010: switching active connection isolates work item lists per connection`                          |
+| TC-011  | P1       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-011: WorkItemsErrorEvent is raised when network is unavailable`                                    |
+| TC-012  | P1       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-012: retry after network error reloads work items`                                                 |
+| TC-013  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-013: sign-out clears authentication state for the connection`                                      |
+| TC-014  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-014: timer start → pause → stop records full timer history`                                        |
+| TC-015  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-015: cross-project work item list contains items from both connections`                            |
+| TC-016  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-016: device code sign-in session is recorded and cleared on completion`                            |
+| TC-017  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-017: auth code flow browser-opened event does not change application state`                        |
+| TC-018  | P2       | `tests/praxis/examples/developer-scenarios.test.ts` | `TC-018: on-premises connection uses custom baseUrl and loads work items`                              |
 
 ---
 
