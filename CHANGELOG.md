@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.18.1] - 2026-03-06
+
+### Fixed
+
+- stabilize test suite CI green baseline (#156)
+
+
 ## [2.18.0] - 2026-03-06
 
 ### Added
