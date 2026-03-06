@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "facts:14,events:55,rules:46",
+  "artifacts": {
+    "generated/contracts/ui-state-contracts.ts": "2fbf29b0914b59709829ffc14fbee476819c4e1823edcc2c6e05d0a05b490f23",
+    "generated/contracts/api-behavior-contracts.ts": "ed10ab0a85d364d7c7216a41becfee38eeddd5d311a71e5034ae8a4d4458b4f3",
+    "generated/docs/runbook.md": "6c792a2ad2b1d5fb75fa65695eb345f88a72f19d7bc528050353689e3db34542",
+    "generated/tests/scaffold.test.ts": "0e9838622e1cc99953eb745a8edd041ec196317483357b1fb7d1be51458e7daf"
+  }
+}
