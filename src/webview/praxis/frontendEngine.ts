@@ -9,6 +9,7 @@ import { createPraxisEngine, PraxisRegistry } from '@plures/praxis';
 import { applicationRules } from '../../praxis/application/rules/index.js';
 import type { ApplicationEngineContext } from '../../praxis/application/engine.js';
 import { DEFAULT_APPLICATION_CONFIG } from '../../praxis/application/types.js';
+import { createDecisionLedgerState } from '../../decision-ledger/index.js';
 
 // Initial empty context - will be hydrated by SyncStateEvent
 const initialContext: ApplicationEngineContext = {
@@ -25,6 +26,7 @@ const initialContext: ApplicationEngineContext = {
   debugViewVisible: false,
   connectionStates: new Map(),
   connectionWorkItems: new Map(),
+  decisionLedger: createDecisionLedgerState(),
 };
 
 const registry = new PraxisRegistry<ApplicationEngineContext>();

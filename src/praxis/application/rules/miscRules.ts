@@ -5,6 +5,7 @@
  */
 
 import { defineRule, findEvent } from '@plures/praxis';
+import { createDecisionLedgerState } from '../../../decision-ledger/index.js';
 import { getClock, type ApplicationEngineContext } from '../engine.js';
 import {
   DeviceCodeStartedAppEvent,
@@ -236,6 +237,7 @@ const resetRule = defineRule<ApplicationEngineContext>({
     state.context.deviceCodeSession = undefined;
     state.context.authCodeFlowSession = undefined;
     state.context.pendingWorkItems = undefined;
+    state.context.decisionLedger = createDecisionLedgerState();
 
     return [];
   },

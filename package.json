@@ -977,7 +977,8 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.16",
+    "@rollup/rollup-linux-x64-gnu": "^4.59.0"
   },
   "dependencies": {
     "@azure/msal-node": "^3.8.4",
