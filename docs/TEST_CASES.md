@@ -311,7 +311,8 @@ The table below cross-references each case to its test file and `it()` descripti
 **Then**
 
 - `lastError` is set with the network-unavailable reason
-- No stale work items are shown for the connection (empty list)
+- The last-known work items remain visible for the connection (items list is unchanged)
+- The error is surfaced alongside the existing items (for example, as a banner or status indicator)
 - Engine remains in `active` state (error is non-fatal; recovery is via retry)
 
 **Automated test**: `TC-011: WorkItemsErrorEvent is raised when network is unavailable`
