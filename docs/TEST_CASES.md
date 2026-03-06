@@ -64,16 +64,17 @@ The table below cross-references each case to its test file and `it()` descripti
 - `SignInEntraEvent` is dispatched for the active connection with `forceInteractive: false`
 - A device code session is started (`DeviceCodeStartedAppEvent`)
 - The user completes the browser sign-in
-- `DeviceCodeCompletedAppEvent` is dispatched with a valid token
+- `DeviceCodeCompletedAppEvent` is dispatched for the connection
 - `AuthenticationSuccessEvent` is dispatched for the connection
 
 **Then**
 
-- The connection auth state is `authenticated`
-- No `lastError` is set on the engine context
+- Any `pendingAuthReminders` for the connection are cleared
+- The `deviceCodeSession` for the connection is cleared
 - Work items can be loaded without an auth error
+- (If a `ConnectionStateUpdatedEvent` is emitted) `connectionStates.get(connectionId)?.state === 'connected'`
 
-**Automated test**: `TC-001: successful Entra ID Device Code sign-in sets auth state to authenticated`
+**Automated test**: `TC-001: successful Entra ID Device Code sign-in clears device code session and allows work item load`
 
 ---
 
