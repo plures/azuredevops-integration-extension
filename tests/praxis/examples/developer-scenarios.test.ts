@@ -80,7 +80,11 @@ async function bootWithConnection(conn: ProjectConnection): Promise<void> {
       connections: [conn],
     }),
   ]);
-  await waitForState((ctx) => ctx.applicationState === 'active');
+  // Explicitly select the connection so activeConnectionId is always set
+  // to this connection regardless of any previously-active connection that
+  // survived resetEngine() (resetRule does not clear activeConnectionId).
+  dispatch([ConnectionSelectedEvent.create({ connectionId: conn.id })]);
+  await waitForState((ctx) => ctx.activeConnectionId === conn.id && ctx.applicationState === 'active');
 }
 
 // ---------------------------------------------------------------------------
