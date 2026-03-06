@@ -187,12 +187,11 @@ The table below cross-references each case to its test file and `it()` descripti
 - The extension is active and authenticated  
 
 **When**  
-- `ApplicationErrorEvent` is dispatched with `{ error: "permission_denied", code: 403 }`  
+- `ApplicationErrorEvent` is dispatched with `{ error: "permission_denied" }`  
 
 **Then**  
-- The engine state transitions to `error`  
 - `lastError.message` contains `"permission_denied"`  
-- A retry action is available (engine does not crash)  
+- A retry action is available (engine does not crash and remains in `active` state)  
 
 **Automated test**: `TC-007: permission-denied error is surfaced as ApplicationErrorEvent`
 
@@ -277,9 +276,9 @@ The table below cross-references each case to its test file and `it()` descripti
 - `WorkItemsErrorEvent` is dispatched with `{ connectionId, error: "network_unavailable" }`  
 
 **Then**  
-- The engine transitions to `error` state  
 - `lastError` is set with the network-unavailable reason  
-- No stale work items are shown (empty list)  
+- No stale work items are shown for the connection (empty list)  
+- Engine remains in `active` state (error is non-fatal; recovery is via retry)  
 
 **Automated test**: `TC-011: WorkItemsErrorEvent is raised when network is unavailable`
 
