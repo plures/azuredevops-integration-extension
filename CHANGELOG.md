@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.20.0] - 2026-03-06
+
+### Added
+
+- real-world developer test cases — TEST_CASES.md + automated suite (#157)
+
+
 ## [2.18.1] - 2026-03-06
 
 ### Fixed
