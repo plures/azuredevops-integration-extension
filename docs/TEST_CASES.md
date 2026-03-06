@@ -118,7 +118,8 @@ The table below cross-references each case to its test file and `it()` descripti
 
 **Then**
 
-- The connection auth state is `unauthenticated`
+- `connectionStates[*].state` for this connection is `auth_failed`
+- A `pendingAuthReminders` entry is created for this connection
 - `lastError.message` includes tenant context information
 - The UI shows a re-authentication prompt with a descriptive message
 
