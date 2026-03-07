@@ -16,6 +16,10 @@ on:
   # immediately for all open PRs targeting main.
   pull_request_target:
     branches: [main]
+  # workflow_dispatch allows a maintainer to manually trigger CI from the
+  # Actions UI on any branch (Actions → CI → Run workflow → select branch).
+  # This bypasses the action_required org-policy gate entirely.
+  workflow_dispatch:
 
 jobs:
   build-and-test:
