@@ -6,6 +6,13 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.20.1] - 2026-03-07
+
+### Other
+
+- ci: add PR lane event relay to centralized merge FSM
+
+
 ## [2.20.0] - 2026-03-06
 
 ### Added
