@@ -1,0 +1,85 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    - cron: "0 4 * * 1"
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+          - language: actions
+            build-mode: none
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  analyze-rust:
+    name: Analyze (rust)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: rust
+          build-mode: autobuild
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:rust"
+
+  # This job is required by the branch protection rule.
+  # It runs after all language analyses succeed, eliminating the race condition
+  # where the native CodeQL gate check fires before analyses complete.
+  CodeQL:
+    name: CodeQL
+    needs: [analyze, analyze-rust]
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() }}
+    steps:
+      - name: Check analysis results
+        run: |
+          analyze_result="${{ needs.analyze.result }}"
+          rust_result="${{ needs.analyze-rust.result }}"
+          if [[ "$analyze_result" != "success" || "$rust_result" != "success" ]]; then
+            echo "One or more CodeQL analyses failed, were cancelled, or were skipped."
+            echo "analyze: $analyze_result"
+            echo "analyze-rust: $rust_result"
+            exit 1
+          fi
+          echo "All CodeQL analyses passed."
