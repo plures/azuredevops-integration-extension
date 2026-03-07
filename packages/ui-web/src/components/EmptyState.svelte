@@ -23,7 +23,7 @@
     <p class="dojo-empty-state__description">{description}</p>
   {/if}
   {#if actionLabel && onaction}
-    <button class="dojo-empty-state__btn" onclick={onaction}>
+    <button type="button" class="dojo-empty-state__btn" onclick={onaction}>
       {actionLabel}
     </button>
   {/if}

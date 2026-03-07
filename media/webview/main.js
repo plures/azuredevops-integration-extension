@@ -11528,8 +11528,8 @@ ${component_stack}
 
   // packages/ui-web/src/components/TabBar.svelte
   TabBar[FILENAME] = "packages/ui-web/src/components/TabBar.svelte";
-  var root_1 = add_locations(from_html(`<button role="tab"> </button>`), TabBar[FILENAME], [[82, 4]]);
-  var root = add_locations(from_html(`<div class="dojo-tab-bar svelte-7bvgl0" role="tablist" aria-orientation="horizontal" tabindex="-1"></div>`), TabBar[FILENAME], [[72, 0]]);
+  var root_1 = add_locations(from_html(`<button role="tab"> </button>`), TabBar[FILENAME], [[85, 4]]);
+  var root = add_locations(from_html(`<div class="dojo-tab-bar svelte-7bvgl0" role="tablist" aria-orientation="horizontal" tabindex="-1"></div>`), TabBar[FILENAME], [[75, 0]]);
   function TabBar($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, TabBar);
@@ -11552,7 +11552,7 @@ ${component_stack}
           break;
         case "ArrowLeft":
         case "ArrowUp":
-          next2 = (get(selectedIndex) - 1 + get(sortedTabs).length) % get(sortedTabs).length;
+          next2 = get(selectedIndex) < 0 ? last : (get(selectedIndex) - 1 + get(sortedTabs).length) % get(sortedTabs).length;
           break;
         case "Home":
           next2 = 0;
@@ -11580,7 +11580,7 @@ ${component_stack}
         let classes;
         var text2 = child(button, true);
         reset(button);
-        validate_binding("bind:this={tabRefs[i]}", [], () => tabRefs, () => i, 89, 6);
+        validate_binding("bind:this={tabRefs[i]}", [], () => tabRefs, () => i, 92, 6);
         bind_this(button, ($$value, i2) => tabRefs[i2] = $$value, (i2) => tabRefs?.[i2], () => [i]);
         template_effect(() => {
           set_attribute2(button, "aria-selected", get(isActive));
@@ -11595,7 +11595,7 @@ ${component_stack}
       }),
       "each",
       TabBar,
-      80,
+      83,
       2
     );
     reset(div);
@@ -11781,8 +11781,8 @@ ${component_stack}
   // packages/ui-web/src/components/Alert.svelte
   Alert[FILENAME] = "packages/ui-web/src/components/Alert.svelte";
   var root_13 = add_locations(from_html(`<span class="dojo-alert__hint svelte-dhhn2a"> </span>`), Alert[FILENAME], [[45, 8]]);
-  var root_22 = add_locations(from_html(`<button class="dojo-alert__btn dojo-alert__btn--action svelte-dhhn2a"> </button>`), Alert[FILENAME], [[51, 6]]);
-  var root_3 = add_locations(from_html(`<button class="dojo-alert__btn dojo-alert__btn--dismiss svelte-dhhn2a" aria-label="Dismiss" title="Dismiss">\u2715</button>`), Alert[FILENAME], [[56, 6]]);
+  var root_22 = add_locations(from_html(`<button type="button" class="dojo-alert__btn dojo-alert__btn--action svelte-dhhn2a"> </button>`), Alert[FILENAME], [[51, 6]]);
+  var root_3 = add_locations(from_html(`<button type="button" class="dojo-alert__btn dojo-alert__btn--dismiss svelte-dhhn2a" aria-label="Dismiss" title="Dismiss">\u2715</button>`), Alert[FILENAME], [[56, 6]]);
   var root3 = add_locations(from_html(`<div role="alert"><div class="dojo-alert__body svelte-dhhn2a"><span class="dojo-alert__icon svelte-dhhn2a" aria-hidden="true"> </span> <div class="dojo-alert__text svelte-dhhn2a"><span class="dojo-alert__message svelte-dhhn2a"> </span> <!></div></div> <div class="dojo-alert__actions svelte-dhhn2a"><!> <!></div></div>`), Alert[FILENAME], [[39, 0, [[40, 2, [[41, 4], [42, 4, [[43, 6]]]]], [49, 2]]]]);
   function Alert($$anchor, $$props) {
     check_target(new.target);
@@ -11830,7 +11830,7 @@ ${component_stack}
         reset(button);
         template_effect(() => set_text(text_3, $$props.actionLabel));
         delegated("click", button, function(...$$args) {
-          apply(() => $$props.onaction, this, $$args, Alert, [51, 71]);
+          apply(() => $$props.onaction, this, $$args, Alert, [51, 85]);
         });
         append($$anchor2, button);
       };
@@ -11849,7 +11849,7 @@ ${component_stack}
       var consequent_2 = ($$anchor2) => {
         var button_1 = root_3();
         delegated("click", button_1, function(...$$args) {
-          apply(() => $$props.ondismiss, this, $$args, Alert, [58, 17]);
+          apply(() => $$props.ondismiss, this, $$args, Alert, [59, 17]);
         });
         append($$anchor2, button_1);
       };
@@ -11967,7 +11967,7 @@ ${component_stack}
   EmptyState[FILENAME] = "packages/ui-web/src/components/EmptyState.svelte";
   var root_14 = add_locations(from_html(`<span class="dojo-empty-state__icon svelte-8jlr7m" aria-hidden="true"> </span>`), EmptyState[FILENAME], [[19, 4]]);
   var root_23 = add_locations(from_html(`<p class="dojo-empty-state__description svelte-8jlr7m"> </p>`), EmptyState[FILENAME], [[23, 4]]);
-  var root_32 = add_locations(from_html(`<button class="dojo-empty-state__btn svelte-8jlr7m"> </button>`), EmptyState[FILENAME], [[26, 4]]);
+  var root_32 = add_locations(from_html(`<button type="button" class="dojo-empty-state__btn svelte-8jlr7m"> </button>`), EmptyState[FILENAME], [[26, 4]]);
   var root4 = add_locations(from_html(`<div class="dojo-empty-state svelte-8jlr7m" role="status"><!> <p class="dojo-empty-state__heading svelte-8jlr7m"> </p> <!> <!></div>`), EmptyState[FILENAME], [[17, 0, [[21, 2]]]]);
   function EmptyState($$anchor, $$props) {
     check_target(new.target);
@@ -12024,7 +12024,7 @@ ${component_stack}
         reset(button);
         template_effect(() => set_text(text_3, $$props.actionLabel));
         delegated("click", button, function(...$$args) {
-          apply(() => $$props.onaction, this, $$args, EmptyState, [26, 51]);
+          apply(() => $$props.onaction, this, $$args, EmptyState, [26, 65]);
         });
         append($$anchor2, button);
       };
@@ -13995,7 +13995,7 @@ ${component_stack}
 
   // packages/ui-web/src/components/Toast.svelte
   Toast[FILENAME] = "packages/ui-web/src/components/Toast.svelte";
-  var root13 = add_locations(from_html(`<div role="alert" aria-live="polite"><span class="dojo-toast__message svelte-1sc699v"> </span> <button class="dojo-toast__close svelte-1sc699v" aria-label="Dismiss notification" title="Dismiss">\xD7</button></div>`), Toast[FILENAME], [[45, 0, [[51, 2], [52, 2]]]]);
+  var root13 = add_locations(from_html(`<div role="alert" aria-live="polite"><span class="dojo-toast__message svelte-1sc699v"> </span> <button type="button" class="dojo-toast__close svelte-1sc699v" aria-label="Dismiss notification" title="Dismiss">\xD7</button></div>`), Toast[FILENAME], [[45, 0, [[51, 2], [52, 2]]]]);
   function Toast($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, Toast);

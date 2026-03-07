@@ -50,6 +50,7 @@
 >
   <span class="dojo-toast__message">{message}</span>
   <button
+    type="button"
     class="dojo-toast__close"
     onclick={dismiss}
     aria-label="Dismiss notification"

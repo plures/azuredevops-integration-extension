@@ -48,7 +48,10 @@
         break;
       case 'ArrowLeft':
       case 'ArrowUp':
-        next = (selectedIndex - 1 + sortedTabs.length) % sortedTabs.length;
+        next =
+          selectedIndex < 0
+            ? last
+            : (selectedIndex - 1 + sortedTabs.length) % sortedTabs.length;
         break;
       case 'Home':
         next = 0;

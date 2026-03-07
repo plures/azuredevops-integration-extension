@@ -48,12 +48,13 @@
   </div>
   <div class="dojo-alert__actions">
     {#if actionLabel && onaction}
-      <button class="dojo-alert__btn dojo-alert__btn--action" onclick={onaction}>
+      <button type="button" class="dojo-alert__btn dojo-alert__btn--action" onclick={onaction}>
         {actionLabel}
       </button>
     {/if}
     {#if dismissible && ondismiss}
       <button
+        type="button"
         class="dojo-alert__btn dojo-alert__btn--dismiss"
         onclick={ondismiss}
         aria-label="Dismiss"
