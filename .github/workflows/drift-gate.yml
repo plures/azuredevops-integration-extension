@@ -21,6 +21,21 @@ on:
       - 'scripts/derive.ts'
       - 'src/praxis/application/schema/descriptor.ts'
       - 'generated/**'
+  # pull_request_target runs in the base-branch context and is NOT subject to
+  # the action_required approval gate for bot-authored PRs (e.g. Copilot). The
+  # checkout step below explicitly checks out the PR head SHA so the PR's own
+  # code is tested. This file already exists on main, so this trigger is active
+  # immediately for all open PRs targeting main.
+  pull_request_target:
+    branches: [main]
+    paths:
+      - 'src/praxis/**'
+      - 'scripts/derive.ts'
+      - 'src/praxis/application/schema/descriptor.ts'
+      - 'generated/**'
+  # workflow_dispatch allows a maintainer to manually trigger this check from the
+  # Actions UI on any branch, bypassing the action_required org-policy gate.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -30,9 +45,24 @@ jobs:
     name: Derive & drift check
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Minimal read-only permissions so PR code running under pull_request_target
+    # cannot use write-scoped tokens.
+    permissions:
+      contents: read
+    # For pull_request_target: only run for trusted bot actors (e.g. the Copilot
+    # bot) to prevent cache-poisoning from untrusted code running in the
+    # base-branch context. Regular contributors use the pull_request trigger.
+    if: >-
+      github.event_name != 'pull_request_target' ||
+      github.event.pull_request.user.login == 'github-copilot[bot]' ||
+      github.event.pull_request.user.login == 'dependabot[bot]'
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # On pull_request_target, github.sha is the base-branch HEAD, not the
+          # PR head. Explicitly checkout the PR head SHA so the PR's code is tested.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Use Node.js 24
         uses: actions/setup-node@v4
@@ -65,9 +95,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: drift-gate
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Use Node.js 24
         uses: actions/setup-node@v4
