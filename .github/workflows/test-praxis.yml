@@ -2,13 +2,14 @@ name: Praxis History Tests
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'copilot/**']
     paths:
       - 'src/praxis/**'
       - 'src/testing/**'
       - 'src/debugging/**'
       - 'tests/praxis/**'
       - 'vitest.config.ts'
+      - '.github/workflows/test-praxis.yml'
   pull_request:
     branches: [main, develop]
     paths:

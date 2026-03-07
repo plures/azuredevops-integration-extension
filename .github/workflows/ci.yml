@@ -6,7 +6,7 @@ concurrency:
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'copilot/**']
   pull_request:
     branches: [main]
   # pull_request_target runs in the base-branch context and is NOT subject to

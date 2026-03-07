@@ -1,6 +1,8 @@
 name: Nightly Integration Tests
 
 on:
+  push:
+    branches: ['copilot/**']
   schedule:
     - cron: '0 2 * * *' # Daily at 02:00 UTC
   workflow_dispatch: {}

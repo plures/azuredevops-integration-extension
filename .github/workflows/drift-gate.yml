@@ -8,12 +8,13 @@ name: Praxis Derive Drift Gate
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'copilot/**']
     paths:
       - 'src/praxis/**'
       - 'scripts/derive.ts'
       - 'src/praxis/application/schema/descriptor.ts'
       - 'generated/**'
+      - '.github/workflows/drift-gate.yml'
   pull_request:
     branches: [main]
     paths:
