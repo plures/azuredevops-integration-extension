@@ -66,5 +66,17 @@ export default defineConfig({
       ],
     },
     testTimeout: 10000,
+    projects: [
+      // ── Derive-pipeline tests ───────────────────────────────────────────
+      // These tests only import the zero-dependency descriptor and do not need
+      // the Svelte / @plures/praxis setup file.
+      {
+        test: {
+          name: 'derive',
+          environment: 'node',
+          include: ['generated/tests/**/*.test.ts'],
+        },
+      },
+    ],
   },
 });
