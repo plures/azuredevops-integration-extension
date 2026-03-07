@@ -88,6 +88,7 @@
   {#each sortedTabs as tab, i}
     {@const isActive = tab.id === activeId}
     <button
+      type="button"
       role="tab"
       aria-selected={isActive}
       tabindex={isActive ? 0 : -1}
