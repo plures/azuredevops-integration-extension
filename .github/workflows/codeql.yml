@@ -71,6 +71,7 @@ jobs:
     needs: [analyze, analyze-rust]
     runs-on: ubuntu-latest
     if: ${{ !cancelled() }}
+    permissions: {}
     steps:
       - name: Check analysis results
         run: |
