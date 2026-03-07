@@ -328,11 +328,12 @@ setTimeout(() => {
   if (mountFailed) return; // preserve failure details
   const target = rootRef || findExistingMount();
   if (!target) return;
-  if (mountAttempted) {
-    target.innerHTML = `<div style="padding:12px;color:var(--vscode-descriptionForeground);">Webview did not finish mounting. Check logs.</div>`;
-  } else {
-    target.innerHTML = `<div style="padding:12px;color:var(--vscode-descriptionForeground);">Webview bootstrap not attempted.</div>`;
-  }
+  const hint = document.createElement('div');
+  hint.style.cssText = 'padding:12px;color:var(--vscode-descriptionForeground)';
+  hint.textContent = mountAttempted
+    ? 'Webview did not finish mounting. Check logs.'
+    : 'Webview bootstrap not attempted.';
+  target.replaceChildren(hint);
 }, 300);
 
 // Make sure acquireVsCodeApi is declared if it's used.
