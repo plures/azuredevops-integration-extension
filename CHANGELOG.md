@@ -12,13 +12,11 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - ci: add PR lane event relay to centralized merge FSM
 
-
 ## [2.20.0] - 2026-03-06
 
 ### Added
 
 - real-world developer test cases — TEST_CASES.md + automated suite (#157)
-
 
 ## [2.18.1] - 2026-03-06
 
@@ -26,20 +24,17 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - stabilize test suite CI green baseline (#156)
 
-
 ## [2.18.0] - 2026-03-06
 
 ### Added
 
 - Refactor core app logic onto Praxis Logic + Decision Ledger modules (#155)
 
-
 ## [2.16.0] - 2026-03-04
 
 ### Added
 
 - Entra OAuth Auth Code + PKCE primary flow, scope minimization, PAT gating, and telemetry (#154)
-
 
 ## [2.14.0] - 2026-03-04
 
@@ -86,7 +81,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - build(deps): bump qs in the npm_and_yarn group across 1 directory (#114)
 - Optimize iOS and Android builds with multi-layer caching and timeout management (#113)
 - Update Entra ID app registration and client ID
-
 
 ## [2.12.5] - 2025-11-27
 

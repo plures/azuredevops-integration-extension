@@ -40,22 +40,22 @@ Follow this pipeline:
    ```
 3. **Review the diff** — inspect what changed in `generated/` and confirm it
    matches your intent.
-4. **Commit everything together** — the schema change *and* the regenerated
+4. **Commit everything together** — the schema change _and_ the regenerated
    artifacts must land in the same commit.
 
 ### Drift gate
 
 The CI workflow `.github/workflows/drift-gate.yml` runs `npm run derive:check`
-on every PR.  It exits with a non-zero code if any derived artifact is stale.
+on every PR. It exits with a non-zero code if any derived artifact is stale.
 The job also runs `npm run test:derive` to validate schema completeness.
 
 ### Derive commands
 
-| Command | Description |
-|---------|-------------|
-| `npm run derive` | Regenerate all derived artifacts |
-| `npm run derive:check` | Regenerate and fail if any file changed |
-| `npm run test:derive` | Run schema completeness tests |
+| Command                 | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `npm run derive`        | Regenerate all derived artifacts           |
+| `npm run derive:check`  | Regenerate and fail if any file changed    |
+| `npm run test:derive`   | Run schema completeness tests              |
 | `npm run praxis:schema` | Print schema as a table (uses live engine) |
 
 ## Git Worktrees
