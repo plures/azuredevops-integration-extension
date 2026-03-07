@@ -283,9 +283,16 @@ function tryBootstrap(reason: string) {
     const detail = describeError(e);
     mountFailed = true;
     try {
-      const escaped = (detail.message || String(e)).replace(/</g, '&lt;');
-      const stack = detail.stack ? `<pre style="white-space:pre-wrap">${detail.stack}</pre>` : '';
-      root.innerHTML = `<div style="padding:12px;color:var(--vscode-errorForeground,red);">Webview mount failed: ${escaped}${stack}</div>`;
+      const errorDiv = document.createElement('div');
+      errorDiv.style.cssText = 'padding:12px;color:var(--vscode-errorForeground,red);';
+      errorDiv.textContent = `Webview mount failed: ${detail.message || String(e)}`;
+      if (detail.stack) {
+        const pre = document.createElement('pre');
+        pre.style.whiteSpace = 'pre-wrap';
+        pre.textContent = detail.stack;
+        errorDiv.appendChild(pre);
+      }
+      root.replaceChildren(errorDiv);
     } catch {
       void 0;
     }
@@ -318,11 +325,12 @@ setTimeout(() => {
   if (mountFailed) return; // preserve failure details
   const target = rootRef || findExistingMount();
   if (!target) return;
-  if (mountAttempted) {
-    target.innerHTML = `<div style="padding:12px;color:var(--vscode-descriptionForeground);">Webview did not finish mounting. Check logs.</div>`;
-  } else {
-    target.innerHTML = `<div style="padding:12px;color:var(--vscode-descriptionForeground);">Webview bootstrap not attempted.</div>`;
-  }
+  const hint = document.createElement('div');
+  hint.style.cssText = 'padding:12px;color:var(--vscode-descriptionForeground)';
+  hint.textContent = mountAttempted
+    ? 'Webview did not finish mounting. Check logs.'
+    : 'Webview bootstrap not attempted.';
+  target.replaceChildren(hint);
 }, 300);
 
 // Make sure acquireVsCodeApi is declared if it's used.

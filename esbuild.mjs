@@ -68,6 +68,7 @@ async function buildWebview() {
       alias: {
         'node:fs/promises': path.join(__dirname, 'src', 'webview', 'empty-stub.js'),
         'node:url': path.join(__dirname, 'src', 'webview', 'empty-stub.js'),
+        '@ado-ext/ui-web': path.join(__dirname, 'packages', 'ui-web', 'src'),
       },
       plugins: [
         sveltePlugin({

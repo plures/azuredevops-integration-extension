@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * Praxis Application Schema Descriptor
  *
@@ -48,13 +49,7 @@ export interface EventDescriptor {
   description?: string;
 }
 
-export type EventGroup =
-  | 'lifecycle'
-  | 'connection'
-  | 'auth'
-  | 'workItem'
-  | 'timer'
-  | 'ui';
+export type EventGroup = 'lifecycle' | 'connection' | 'auth' | 'workItem' | 'timer' | 'ui';
 
 export const EVENT_DESCRIPTORS: readonly EventDescriptor[] = [
   // Lifecycle
@@ -112,7 +107,11 @@ export const EVENT_DESCRIPTORS: readonly EventDescriptor[] = [
     group: 'auth',
     description: 'Device-code session missing',
   },
-  { tag: 'DEVICE_CODE_BROWSER_OPENED', group: 'auth', description: 'Browser opened for device code' },
+  {
+    tag: 'DEVICE_CODE_BROWSER_OPENED',
+    group: 'auth',
+    description: 'Browser opened for device code',
+  },
   {
     tag: 'AUTH_CODE_FLOW_STARTED',
     group: 'auth',

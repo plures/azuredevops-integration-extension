@@ -81,7 +81,14 @@ function findEventGroup(tag: string): string {
  * `FactChangeEvent`, and `UiStateContract` type definitions.
  */
 function generateUiStateContracts(): string {
-  const states = ['inactive', 'activating', 'active', 'activation_error', 'deactivating', 'error_recovery'];
+  const states = [
+    'inactive',
+    'activating',
+    'active',
+    'activation_error',
+    'deactivating',
+    'error_recovery',
+  ];
   const factEntries = schemaDescriptor.facts.map((f) => `  | { fact: '${f.tag}' }`).join('\n');
 
   return [
@@ -175,7 +182,6 @@ function generateApiBehaviorContracts(): string {
  * `generated/docs/runbook.md` and serves as living documentation.
  */
 function generateRunbook(): string {
-
   const eventRows = schemaDescriptor.events
     .map((e) => {
       const group = findEventGroup(e.tag);
@@ -187,8 +193,7 @@ function generateRunbook(): string {
 
   const ruleRows = schemaDescriptor.rules
     .map((r) => {
-      const triggers =
-        r.triggers.length > 0 ? r.triggers.map((t) => `\`${t}\``).join(', ') : '—';
+      const triggers = r.triggers.length > 0 ? r.triggers.map((t) => `\`${t}\``).join(', ') : '—';
       return `| \`${r.id}\` | ${r.description} | ${triggers} |`;
     })
     .join('\n');
@@ -324,11 +329,11 @@ function main(): void {
   const results: WriteResult[] = [
     writeIfChanged(
       path.join(GENERATED, 'contracts', 'ui-state-contracts.ts'),
-      generateUiStateContracts(),
+      generateUiStateContracts()
     ),
     writeIfChanged(
       path.join(GENERATED, 'contracts', 'api-behavior-contracts.ts'),
-      generateApiBehaviorContracts(),
+      generateApiBehaviorContracts()
     ),
     writeIfChanged(path.join(GENERATED, 'docs', 'runbook.md'), generateRunbook()),
     writeIfChanged(path.join(GENERATED, 'tests', 'scaffold.test.ts'), generateTestScaffold()),
@@ -359,7 +364,7 @@ function main(): void {
       '\n❌ Drift detected: derived artifacts are stale.\n' +
         '   Run `npm run derive` locally and commit the updated files.\n' +
         '   Changed files:\n' +
-        changed.map((r) => `     - ${path.relative(ROOT, r.path).replace(/\\/g, '/')}`).join('\n'),
+        changed.map((r) => `     - ${path.relative(ROOT, r.path).replace(/\\/g, '/')}`).join('\n')
     );
     process.exit(1);
   }

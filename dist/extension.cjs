@@ -3601,7 +3601,7 @@ function reset_branch(effect2, tracked) {
     e = e.next;
   }
 }
-var batches, current_batch, previous_batch, batch_values, queued_root_effects, last_scheduled_effect, is_flushing_sync, collected_effects, Batch, eager_block_effects;
+var batches, current_batch, previous_batch, batch_values, queued_root_effects, last_scheduled_effect, is_flushing_sync, collected_effects, uid, Batch, eager_block_effects;
 var init_batch = __esm({
   "node_modules/svelte/src/internal/client/reactivity/batch.js"() {
     init_constants2();
@@ -3625,7 +3625,10 @@ var init_batch = __esm({
     last_scheduled_effect = null;
     is_flushing_sync = false;
     collected_effects = null;
+    uid = 1;
     Batch = class _Batch {
+      // for debugging. TODO remove once async is stable
+      id = uid++;
       /**
        * The current values of any sources that are updated in this batch
        * They keys of this map are identical to `this.#previous`
@@ -3764,17 +3767,21 @@ var init_batch = __esm({
           var flags2 = effect2.f;
           var is_branch = (flags2 & (BRANCH_EFFECT | ROOT_EFFECT)) !== 0;
           var is_skippable_branch = is_branch && (flags2 & CLEAN) !== 0;
-          var skip = is_skippable_branch || (flags2 & INERT) !== 0 || this.#skipped_branches.has(effect2);
+          var inert = (flags2 & INERT) !== 0;
+          var skip = is_skippable_branch || this.#skipped_branches.has(effect2);
           if (!skip && effect2.fn !== null) {
             if (is_branch) {
-              effect2.f ^= CLEAN;
+              if (!inert) effect2.f ^= CLEAN;
             } else if ((flags2 & EFFECT) !== 0) {
               effects.push(effect2);
-            } else if (async_mode_flag && (flags2 & (RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
+            } else if ((flags2 & (RENDER_EFFECT | MANAGED_EFFECT)) !== 0 && (async_mode_flag || inert)) {
               render_effects.push(effect2);
             } else if (is_dirty(effect2)) {
-              if ((flags2 & BLOCK_EFFECT) !== 0) this.#maybe_dirty_effects.add(effect2);
               update_effect(effect2);
+              if ((flags2 & BLOCK_EFFECT) !== 0) {
+                this.#maybe_dirty_effects.add(effect2);
+                if (inert) set_signal_status(effect2, DIRTY);
+              }
             }
             var child2 = effect2.first;
             if (child2 !== null) {
@@ -5484,6 +5491,7 @@ var init_effects = __esm({
     init_async();
     init_shared();
     init_status();
+    init_flags();
   }
 });
 
@@ -6398,6 +6406,7 @@ var init_validate = __esm({
 // node_modules/svelte/src/internal/client/dom/blocks/branches.js
 var init_branches = __esm({
   "node_modules/svelte/src/internal/client/dom/blocks/branches.js"() {
+    init_constants2();
     init_batch();
     init_effects();
     init_hydration();
@@ -6588,7 +6597,6 @@ var init_if = __esm({
     init_hydration();
     init_effects();
     init_branches();
-    init_constants();
   }
 });
 
@@ -21830,7 +21838,7 @@ var require_form_data = __commonJS({
     var parseUrl = require("url").parse;
     var fs3 = require("fs");
     var Stream = require("stream").Stream;
-    var crypto6 = require("crypto");
+    var crypto7 = require("crypto");
     var mime = require_mime_types();
     var asynckit = require_asynckit();
     var setToStringTag = require_es_set_tostringtag();
@@ -22036,7 +22044,7 @@ var require_form_data = __commonJS({
       return Buffer.concat([dataBuffer, Buffer.from(this._lastBoundary())]);
     };
     FormData3.prototype._generateBoundary = function() {
-      this._boundary = "--------------------------" + crypto6.randomBytes(12).toString("hex");
+      this._boundary = "--------------------------" + crypto7.randomBytes(12).toString("hex");
     };
     FormData3.prototype.getLengthSync = function() {
       var knownLength = this._overheadLength + this._valueLength;
@@ -34661,7 +34669,7 @@ ${serverError}`);
         if (cacheRecord.appMetadata) {
           familyId = cacheRecord.appMetadata.familyId === THE_FAMILY_ID ? THE_FAMILY_ID : "";
         }
-        const uid = idTokenClaims?.oid || idTokenClaims?.sub || "";
+        const uid2 = idTokenClaims?.oid || idTokenClaims?.sub || "";
         const tid = idTokenClaims?.tid || "";
         if (serverTokenResponse?.spa_accountid && !!cacheRecord.account) {
           cacheRecord.account.nativeAccountId = serverTokenResponse?.spa_accountid;
@@ -34675,7 +34683,7 @@ ${serverError}`);
         ) : null;
         return {
           authority: authority.canonicalAuthority,
-          uniqueId: uid,
+          uniqueId: uid2,
           tenantId: tid,
           scopes: responseScopes,
           account: accountInfo,
@@ -37847,14 +37855,14 @@ var require_buffer_equal_constant_time = __commonJS({
 var require_jwa = __commonJS({
   "node_modules/jwa/index.js"(exports2, module2) {
     var Buffer2 = require_safe_buffer().Buffer;
-    var crypto6 = require("crypto");
+    var crypto7 = require("crypto");
     var formatEcdsa = require_ecdsa_sig_formatter();
     var util3 = require("util");
     var MSG_INVALID_ALGORITHM = '"%s" is not a valid algorithm.\n  Supported algorithms are:\n  "HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512" and "none".';
     var MSG_INVALID_SECRET = "secret must be a string or buffer";
     var MSG_INVALID_VERIFIER_KEY = "key must be a string or a buffer";
     var MSG_INVALID_SIGNER_KEY = "key must be a string, a buffer or an object";
-    var supportsKeyObjects = typeof crypto6.createPublicKey === "function";
+    var supportsKeyObjects = typeof crypto7.createPublicKey === "function";
     if (supportsKeyObjects) {
       MSG_INVALID_VERIFIER_KEY += " or a KeyObject";
       MSG_INVALID_SECRET += "or a KeyObject";
@@ -37944,17 +37952,17 @@ var require_jwa = __commonJS({
       return function sign(thing, secret) {
         checkIsSecretKey(secret);
         thing = normalizeInput(thing);
-        var hmac = crypto6.createHmac("sha" + bits, secret);
+        var hmac = crypto7.createHmac("sha" + bits, secret);
         var sig = (hmac.update(thing), hmac.digest("base64"));
         return fromBase64(sig);
       };
     }
     var bufferEqual;
-    var timingSafeEqual = "timingSafeEqual" in crypto6 ? function timingSafeEqual2(a, b) {
+    var timingSafeEqual = "timingSafeEqual" in crypto7 ? function timingSafeEqual2(a, b) {
       if (a.byteLength !== b.byteLength) {
         return false;
       }
-      return crypto6.timingSafeEqual(a, b);
+      return crypto7.timingSafeEqual(a, b);
     } : function timingSafeEqual2(a, b) {
       if (!bufferEqual) {
         bufferEqual = require_buffer_equal_constant_time();
@@ -37971,7 +37979,7 @@ var require_jwa = __commonJS({
       return function sign(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto6.createSign("RSA-SHA" + bits);
+        var signer = crypto7.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign(privateKey, "base64"));
         return fromBase64(sig);
       };
@@ -37981,7 +37989,7 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto6.createVerify("RSA-SHA" + bits);
+        var verifier = crypto7.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify(publicKey, signature, "base64");
       };
@@ -37990,11 +37998,11 @@ var require_jwa = __commonJS({
       return function sign(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto6.createSign("RSA-SHA" + bits);
+        var signer = crypto7.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign({
           key: privateKey,
-          padding: crypto6.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto6.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto7.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto7.constants.RSA_PSS_SALTLEN_DIGEST
         }, "base64"));
         return fromBase64(sig);
       };
@@ -38004,12 +38012,12 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto6.createVerify("RSA-SHA" + bits);
+        var verifier = crypto7.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify({
           key: publicKey,
-          padding: crypto6.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto6.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto7.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto7.constants.RSA_PSS_SALTLEN_DIGEST
         }, signature, "base64");
       };
     }
@@ -43011,18 +43019,18 @@ function generatePKCEParams() {
   };
 }
 function generateCodeVerifier() {
-  const randomBytes2 = crypto5.randomBytes(32);
+  const randomBytes2 = crypto6.randomBytes(32);
   return base64URLEncode(randomBytes2);
 }
 function generateCodeChallenge(verifier) {
-  const hash2 = crypto5.createHash("sha256").update(verifier).digest();
+  const hash2 = crypto6.createHash("sha256").update(verifier).digest();
   return base64URLEncode(hash2);
 }
 function base64URLEncode(buffer) {
   return buffer.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 function generateState() {
-  return base64URLEncode(crypto5.randomBytes(32));
+  return base64URLEncode(crypto6.randomBytes(32));
 }
 function isValidCodeVerifier(verifier) {
   if (verifier.length < 43 || verifier.length > 128) {
@@ -43030,11 +43038,11 @@ function isValidCodeVerifier(verifier) {
   }
   return /^[A-Za-z0-9\-_.~]+$/.test(verifier);
 }
-var crypto5;
+var crypto6;
 var init_pkceUtils = __esm({
   "src/services/auth/pkceUtils.ts"() {
     "use strict";
-    crypto5 = __toESM(require("crypto"), 1);
+    crypto6 = __toESM(require("crypto"), 1);
   }
 });
 
@@ -47107,6 +47115,66 @@ var init_tracing2 = __esm({
   }
 });
 
+// src/decision-ledger/events.ts
+var DecisionRecordedEvent;
+var init_events2 = __esm({
+  "src/decision-ledger/events.ts"() {
+    "use strict";
+    init_node();
+    DecisionRecordedEvent = defineEvent(
+      "DECISION_RECORDED"
+    );
+  }
+});
+
+// src/decision-ledger/ledger.ts
+function makeId() {
+  return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `dl_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+function createDecisionLedgerState() {
+  return { entries: [], version: 0 };
+}
+function appendDecision(state2, input) {
+  const nextVersion = state2.version + 1;
+  const record = {
+    id: makeId(),
+    timestamp: Date.now(),
+    version: nextVersion,
+    category: input.category,
+    operation: input.operation,
+    outcome: input.outcome,
+    rationale: input.rationale,
+    connectionId: input.connectionId,
+    payload: input.payload
+  };
+  return {
+    state: {
+      entries: [...state2.entries, record],
+      version: nextVersion
+    },
+    record
+  };
+}
+function recordDecision(context, input) {
+  const result = appendDecision(context.decisionLedger, input);
+  context.decisionLedger = result.state;
+  return result.record;
+}
+var init_ledger = __esm({
+  "src/decision-ledger/ledger.ts"() {
+    "use strict";
+  }
+});
+
+// src/decision-ledger/index.ts
+var init_decision_ledger = __esm({
+  "src/decision-ledger/index.ts"() {
+    "use strict";
+    init_events2();
+    init_ledger();
+  }
+});
+
 // src/praxis/application/engine.ts
 function getClock(_state) {
   return defaultClock;
@@ -47139,7 +47207,9 @@ function createInitialContext(config) {
     // Timer snapshot
     timerSnapshot: void 0,
     // Kanban columns
-    kanbanColumns: merged.kanbanColumns ?? []
+    kanbanColumns: merged.kanbanColumns ?? [],
+    // Decision ledger – starts empty on each fresh engine
+    decisionLedger: createDecisionLedgerState()
   };
 }
 function _createConnectionMaps(merged) {
@@ -47171,6 +47241,7 @@ var init_engine2 = __esm({
     init_types3();
     init_rules2();
     init_tracing2();
+    init_decision_ledger();
     defaultClock = { now: () => Date.now() };
   }
 });
@@ -47237,6 +47308,7 @@ var init_miscRules = __esm({
   "src/praxis/application/rules/miscRules.ts"() {
     "use strict";
     init_node();
+    init_decision_ledger();
     init_engine2();
     init_facts2();
     deviceCodeStartedRule = defineRule({
@@ -47382,6 +47454,7 @@ var init_miscRules = __esm({
         state2.context.deviceCodeSession = void 0;
         state2.context.authCodeFlowSession = void 0;
         state2.context.pendingWorkItems = void 0;
+        state2.context.decisionLedger = createDecisionLedgerState();
         return [];
       }
     });
@@ -47489,6 +47562,406 @@ var init_miscRules = __esm({
   }
 });
 
+// src/praxis-logic/intents.ts
+var AUTH_INTENTS, WORK_ITEM_INTENTS, BRANCH_INTENTS, PULL_REQUEST_INTENTS, CONNECTION_INTENTS, LIFECYCLE_INTENTS;
+var init_intents = __esm({
+  "src/praxis-logic/intents.ts"() {
+    "use strict";
+    AUTH_INTENTS = {
+      SIGN_IN_ENTRA: "auth.signInEntra",
+      SIGN_OUT_ENTRA: "auth.signOutEntra",
+      DEVICE_CODE_START: "auth.deviceCodeStart",
+      DEVICE_CODE_COMPLETE: "auth.deviceCodeComplete",
+      DEVICE_CODE_CANCEL: "auth.deviceCodeCancel",
+      AUTH_CODE_FLOW_START: "auth.authCodeFlowStart",
+      AUTH_CODE_FLOW_COMPLETE: "auth.authCodeFlowComplete",
+      SUCCESS: "auth.success",
+      FAILED: "auth.failed"
+    };
+    WORK_ITEM_INTENTS = {
+      CREATE: "workItem.create",
+      LOAD: "workItem.load",
+      ERROR: "workItem.error",
+      BULK_ASSIGN: "workItem.bulkAssign",
+      GENERATE_COPILOT_PROMPT: "workItem.generateCopilotPrompt"
+    };
+    BRANCH_INTENTS = {
+      CREATE: "branch.create"
+    };
+    PULL_REQUEST_INTENTS = {
+      CREATE: "pullRequest.create",
+      SHOW: "pullRequest.show"
+    };
+    CONNECTION_INTENTS = {
+      SELECT: "connection.select",
+      LOAD: "connection.load",
+      STATE_UPDATED: "connection.stateUpdated"
+    };
+    LIFECYCLE_INTENTS = {
+      ACTIVATE: "lifecycle.activate",
+      ACTIVATION_COMPLETE: "lifecycle.activationComplete",
+      ACTIVATION_FAILED: "lifecycle.activationFailed",
+      DEACTIVATE: "lifecycle.deactivate",
+      DEACTIVATION_COMPLETE: "lifecycle.deactivationComplete",
+      RESET: "lifecycle.reset",
+      RETRY: "lifecycle.retry"
+    };
+  }
+});
+
+// src/praxis/application/rules/decisionRules.auth.ts
+var recordSignInDecision, recordSignOutDecision, recordAuthSuccessDecision, recordAuthFailedDecision, recordDeviceCodeStartDecision, recordDeviceCodeCompleteDecision, recordDeviceCodeCancelDecision, recordAuthCodeFlowStartDecision, recordAuthCodeFlowCompleteDecision, authDecisionRules;
+var init_decisionRules_auth = __esm({
+  "src/praxis/application/rules/decisionRules.auth.ts"() {
+    "use strict";
+    init_node();
+    init_ledger();
+    init_events2();
+    init_intents();
+    init_facts2();
+    recordSignInDecision = defineRule({
+      id: "decision.auth.signIn",
+      description: "Record decision when Entra sign-in is requested",
+      meta: { triggers: ["SIGN_IN_ENTRA"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, SignInEntraEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "auth",
+          operation: AUTH_INTENTS.SIGN_IN_ENTRA,
+          outcome: "allowed",
+          rationale: "User requested Entra sign-in",
+          connectionId: ev.payload.connectionId,
+          payload: { forceInteractive: ev.payload.forceInteractive ?? false }
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordSignOutDecision = defineRule({
+      id: "decision.auth.signOut",
+      description: "Record decision when Entra sign-out is requested",
+      meta: { triggers: ["SIGN_OUT_ENTRA"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, SignOutEntraEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "auth",
+          operation: AUTH_INTENTS.SIGN_OUT_ENTRA,
+          outcome: "allowed",
+          rationale: "User requested Entra sign-out",
+          connectionId: ev.payload.connectionId
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordAuthSuccessDecision = defineRule({
+      id: "decision.auth.success",
+      description: "Record decision on authentication success",
+      meta: { triggers: ["AUTHENTICATION_SUCCESS"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, AuthenticationSuccessEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "auth",
+          operation: AUTH_INTENTS.SUCCESS,
+          outcome: "allowed",
+          rationale: "Authentication completed successfully",
+          connectionId: ev.payload.connectionId
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordAuthFailedDecision = defineRule({
+      id: "decision.auth.failed",
+      description: "Record decision on authentication failure",
+      meta: { triggers: ["AUTHENTICATION_FAILED"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, AuthenticationFailedEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "auth",
+          operation: AUTH_INTENTS.FAILED,
+          outcome: "denied",
+          rationale: ev.payload.error,
+          connectionId: ev.payload.connectionId
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordDeviceCodeStartDecision = defineRule({
+      id: "decision.auth.deviceCodeStart",
+      description: "Record decision when device code flow starts",
+      meta: { triggers: ["DEVICE_CODE_STARTED"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, DeviceCodeStartedAppEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "auth",
+          operation: AUTH_INTENTS.DEVICE_CODE_START,
+          outcome: "allowed",
+          rationale: "Device code flow initiated",
+          connectionId: ev.payload.connectionId
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordDeviceCodeCompleteDecision = defineRule({
+      id: "decision.auth.deviceCodeComplete",
+      description: "Record decision when device code flow completes",
+      meta: { triggers: ["DEVICE_CODE_COMPLETED"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, DeviceCodeCompletedAppEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "auth",
+          operation: AUTH_INTENTS.DEVICE_CODE_COMPLETE,
+          outcome: "allowed",
+          rationale: "Device code flow completed",
+          connectionId: ev.payload.connectionId
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordDeviceCodeCancelDecision = defineRule({
+      id: "decision.auth.deviceCodeCancel",
+      description: "Record decision when device code flow is cancelled",
+      meta: { triggers: ["DEVICE_CODE_CANCELLED"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, DeviceCodeCancelledEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "auth",
+          operation: AUTH_INTENTS.DEVICE_CODE_CANCEL,
+          outcome: "deferred",
+          rationale: "Device code flow cancelled by user",
+          connectionId: ev.payload.connectionId
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordAuthCodeFlowStartDecision = defineRule({
+      id: "decision.auth.authCodeFlowStart",
+      description: "Record decision when auth code flow starts",
+      meta: { triggers: ["AUTH_CODE_FLOW_STARTED"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, AuthCodeFlowStartedAppEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "auth",
+          operation: AUTH_INTENTS.AUTH_CODE_FLOW_START,
+          outcome: "allowed",
+          rationale: "Authorization code flow with PKCE initiated",
+          connectionId: ev.payload.connectionId
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordAuthCodeFlowCompleteDecision = defineRule({
+      id: "decision.auth.authCodeFlowComplete",
+      description: "Record decision when auth code flow completes",
+      meta: { triggers: ["AUTH_CODE_FLOW_COMPLETED"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, AuthCodeFlowCompletedAppEvent);
+        if (!ev) return [];
+        const outcome = ev.payload.success ? "allowed" : "denied";
+        const rationale = ev.payload.success ? "Authorization code flow completed successfully" : ev.payload.error ?? "Authorization code flow failed";
+        const record = recordDecision(state2.context, {
+          category: "auth",
+          operation: AUTH_INTENTS.AUTH_CODE_FLOW_COMPLETE,
+          outcome,
+          rationale,
+          connectionId: ev.payload.connectionId
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    authDecisionRules = [
+      recordSignInDecision,
+      recordSignOutDecision,
+      recordAuthSuccessDecision,
+      recordAuthFailedDecision,
+      recordDeviceCodeStartDecision,
+      recordDeviceCodeCompleteDecision,
+      recordDeviceCodeCancelDecision,
+      recordAuthCodeFlowStartDecision,
+      recordAuthCodeFlowCompleteDecision
+    ];
+  }
+});
+
+// src/praxis/application/rules/decisionRules.operations.ts
+var recordCreateWorkItemDecision, recordBulkAssignDecision, recordCreateBranchDecision, recordCreatePullRequestDecision, recordConnectionLoadDecision, recordConnectionSelectDecision, recordActivateDecision, recordDeactivateDecision, operationsDecisionRules;
+var init_decisionRules_operations = __esm({
+  "src/praxis/application/rules/decisionRules.operations.ts"() {
+    "use strict";
+    init_node();
+    init_ledger();
+    init_events2();
+    init_intents();
+    init_facts2();
+    recordCreateWorkItemDecision = defineRule({
+      id: "decision.workItem.create",
+      description: "Record decision when a work item creation is requested",
+      meta: { triggers: ["CREATE_WORK_ITEM"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, CreateWorkItemEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "work-item",
+          operation: WORK_ITEM_INTENTS.CREATE,
+          outcome: "allowed",
+          rationale: "User requested work item creation",
+          connectionId: ev.payload.connectionId
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordBulkAssignDecision = defineRule({
+      id: "decision.workItem.bulkAssign",
+      description: "Record decision when bulk-assign is requested",
+      meta: { triggers: ["BULK_ASSIGN"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, BulkAssignEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "work-item",
+          operation: WORK_ITEM_INTENTS.BULK_ASSIGN,
+          outcome: "allowed",
+          rationale: "User requested bulk assignment of work items",
+          connectionId: ev.payload.connectionId,
+          payload: { workItemIds: ev.payload.workItemIds }
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordCreateBranchDecision = defineRule({
+      id: "decision.branch.create",
+      description: "Record decision when a branch creation is requested",
+      meta: { triggers: ["CREATE_BRANCH"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, CreateBranchEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "branch",
+          operation: BRANCH_INTENTS.CREATE,
+          outcome: "allowed",
+          rationale: "User requested branch creation",
+          connectionId: ev.payload.connectionId,
+          payload: ev.payload.workItemId ? { workItemId: ev.payload.workItemId } : void 0
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordCreatePullRequestDecision = defineRule({
+      id: "decision.pullRequest.create",
+      description: "Record decision when a pull request creation is requested",
+      meta: { triggers: ["CREATE_PULL_REQUEST"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, CreatePullRequestEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "pull-request",
+          operation: PULL_REQUEST_INTENTS.CREATE,
+          outcome: "allowed",
+          rationale: "User requested pull request creation",
+          connectionId: ev.payload.connectionId,
+          payload: ev.payload.workItemId ? { workItemId: ev.payload.workItemId } : void 0
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordConnectionLoadDecision = defineRule({
+      id: "decision.connection.load",
+      description: "Record decision when connections are loaded",
+      meta: { triggers: ["CONNECTIONS_LOADED"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, ConnectionsLoadedEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "connection",
+          operation: CONNECTION_INTENTS.LOAD,
+          outcome: "allowed",
+          rationale: "Connections loaded from configuration",
+          payload: { count: ev.payload.connections.length }
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordConnectionSelectDecision = defineRule({
+      id: "decision.connection.select",
+      description: "Record decision when a connection is selected",
+      meta: { triggers: ["CONNECTION_SELECTED", "SELECT_CONNECTION"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, ConnectionSelectedEvent) ?? findEvent(events, SelectConnectionEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "connection",
+          operation: CONNECTION_INTENTS.SELECT,
+          outcome: "allowed",
+          rationale: "User selected a connection",
+          connectionId: ev.payload.connectionId
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordActivateDecision = defineRule({
+      id: "decision.lifecycle.activate",
+      description: "Record decision when application activates",
+      meta: { triggers: ["ACTIVATE"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, ActivateEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "lifecycle",
+          operation: LIFECYCLE_INTENTS.ACTIVATE,
+          outcome: "allowed",
+          rationale: "Application activation requested"
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    recordDeactivateDecision = defineRule({
+      id: "decision.lifecycle.deactivate",
+      description: "Record decision when application deactivates",
+      meta: { triggers: ["DEACTIVATE"] },
+      impl: (state2, events) => {
+        const ev = findEvent(events, DeactivateEvent);
+        if (!ev) return [];
+        const record = recordDecision(state2.context, {
+          category: "lifecycle",
+          operation: LIFECYCLE_INTENTS.DEACTIVATE,
+          outcome: "allowed",
+          rationale: "Application deactivation requested"
+        });
+        return [DecisionRecordedEvent.create(record)];
+      }
+    });
+    operationsDecisionRules = [
+      recordCreateWorkItemDecision,
+      recordBulkAssignDecision,
+      recordCreateBranchDecision,
+      recordCreatePullRequestDecision,
+      recordConnectionLoadDecision,
+      recordConnectionSelectDecision,
+      recordActivateDecision,
+      recordDeactivateDecision
+    ];
+  }
+});
+
+// src/praxis/application/rules/decisionRules.ts
+var decisionRules;
+var init_decisionRules = __esm({
+  "src/praxis/application/rules/decisionRules.ts"() {
+    "use strict";
+    init_decisionRules_auth();
+    init_decisionRules_operations();
+    init_decisionRules_auth();
+    init_decisionRules_operations();
+    decisionRules = [...authDecisionRules, ...operationsDecisionRules];
+  }
+});
+
 // src/praxis/application/rules/index.ts
 var applicationRules;
 var init_rules2 = __esm({
@@ -47498,21 +47971,25 @@ var init_rules2 = __esm({
     init_connectionRules();
     init_workItemRules();
     init_miscRules();
+    init_decisionRules();
     init_lifecycleRules();
     init_connectionRules();
     init_workItemRules();
     init_miscRules();
+    init_decisionRules();
     init_lifecycleRules();
     init_connectionRules();
     init_workItemRules();
     init_miscRules();
     init_timer();
+    init_decisionRules();
     applicationRules = [
       ...lifecycleRules,
       ...connectionRules,
       ...workItemRules,
       ...miscRules,
-      ...timerRules
+      ...timerRules,
+      ...decisionRules
     ];
   }
 });
@@ -47525,6 +48002,7 @@ var init_frontendEngine = __esm({
     init_node();
     init_rules2();
     init_types3();
+    init_decision_ledger();
     initialContext = {
       ...DEFAULT_APPLICATION_CONFIG,
       applicationState: "inactive",
@@ -47538,7 +48016,8 @@ var init_frontendEngine = __esm({
       debugLoggingEnabled: false,
       debugViewVisible: false,
       connectionStates: /* @__PURE__ */ new Map(),
-      connectionWorkItems: /* @__PURE__ */ new Map()
+      connectionWorkItems: /* @__PURE__ */ new Map(),
+      decisionLedger: createDecisionLedgerState()
     };
     registry = new PraxisRegistry();
     for (const rule of applicationRules) {

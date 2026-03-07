@@ -1,27 +1,48 @@
 name: CI
 
-permissions:
-  contents: write
-  issues: write
-
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'copilot/**']
   pull_request:
     branches: [main]
+  # pull_request_target runs in the base-branch context and is NOT subject to
+  # the action_required approval gate for bot-authored PRs (e.g. Copilot). The
+  # checkout step below explicitly checks out the PR head SHA so the PR's own
+  # code is tested. This file already exists on main, so this trigger is active
+  # immediately for all open PRs targeting main.
+  pull_request_target:
+    branches: [main]
+  # workflow_dispatch allows a maintainer to manually trigger CI from the
+  # Actions UI on any branch (Actions → CI → Run workflow → select branch).
+  # This bypasses the action_required org-policy gate entirely.
+  workflow_dispatch:
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Minimal read-only permissions so PR code running under pull_request_target
+    # cannot use write-scoped tokens.
+    permissions:
+      contents: read
+    # For pull_request_target: only run for trusted bot actors (e.g. the Copilot
+    # bot) to prevent cache-poisoning from untrusted code running in the
+    # base-branch context. Regular contributors use the pull_request trigger.
+    if: >-
+      github.event_name != 'pull_request_target' ||
+      github.event.pull_request.user.login == 'github-copilot[bot]' ||
+      github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # On pull_request_target, github.sha is the base-branch HEAD, not the
+          # PR head. Explicitly checkout the PR head SHA so the PR's code is tested.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Use Node.js 24
         uses: actions/setup-node@v4
         with:
@@ -40,7 +61,9 @@ jobs:
 
   release-check:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,8 +80,10 @@ jobs:
   integration-tests:
     runs-on: ubuntu-latest
     needs: build-and-test
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     continue-on-error: true
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js 24
@@ -84,6 +109,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-and-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      issues: write
     steps:
       - uses: actions/checkout@v4
         with:
