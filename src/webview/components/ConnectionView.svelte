@@ -70,15 +70,15 @@ LLM-GUARD:
   .connection-view {
     display: none; /* Hidden by default */
   }
-  
+
   .connection-view.active {
     display: block; /* Visible when active */
   }
-  
+
   .connection-content {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: var(--space-3);
   }
 </style>
 

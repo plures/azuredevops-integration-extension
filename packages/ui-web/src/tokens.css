@@ -1,0 +1,192 @@
+/**
+ * design-dojo Design Tokens
+ *
+ * Semantic CSS custom properties for the Azure DevOps Integration UI.
+ * Bridges VS Code theme variables to design-dojo design system tokens.
+ *
+ * Naming convention:
+ *   --color-*   — colour tokens (background, foreground, border, etc.)
+ *   --space-*   — spacing / padding tokens
+ *   --radius-*  — border-radius tokens
+ *   --text-*    — typography tokens
+ *   --shadow-*  — shadow tokens
+ *   --motion-*  — animation / transition tokens
+ *   --ado-*     — Azure DevOps semantic tokens (work-item states, PR status, etc.)
+ */
+
+:root {
+  /* ─────────────────────────────────────────────
+     Colour – Surface
+  ──────────────────────────────────────────── */
+  --color-surface-default: var(--vscode-editor-background);
+  --color-surface-raised: var(--vscode-editorWidget-background);
+  --color-surface-sunken: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  --color-surface-overlay: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+
+  /* ─────────────────────────────────────────────
+     Colour – Foreground / Text
+  ──────────────────────────────────────────── */
+  --color-text-default: var(--vscode-foreground);
+  --color-text-subtle: var(--vscode-descriptionForeground);
+  --color-text-link: var(--vscode-textLink-foreground);
+  --color-text-disabled: var(--vscode-disabledForeground, var(--vscode-descriptionForeground));
+
+  /* ─────────────────────────────────────────────
+     Colour – Border
+  ──────────────────────────────────────────── */
+  --color-border-default: var(--vscode-widget-border, var(--vscode-input-border));
+  --color-border-focus: var(--vscode-focusBorder);
+  --color-border-strong: var(--vscode-panel-border);
+
+  /* ─────────────────────────────────────────────
+     Colour – Interactive (buttons, links)
+  ──────────────────────────────────────────── */
+  --color-action-primary-bg: var(--vscode-button-background, #0078d4);
+  --color-action-primary-fg: var(--vscode-button-foreground, #ffffff);
+  --color-action-primary-hover-bg: var(--vscode-button-hoverBackground, #106ebe);
+  --color-action-secondary-bg: var(--vscode-button-secondaryBackground);
+  --color-action-secondary-fg: var(--vscode-button-secondaryForeground);
+  --color-action-secondary-hover-bg: var(--vscode-button-secondaryHoverBackground);
+  --color-action-ghost-hover-bg: var(--vscode-toolbar-hoverBackground);
+  --color-action-ghost-active-bg: var(--vscode-toolbar-activeBackground);
+  --color-action-border: var(--vscode-button-border, transparent);
+
+  /* ─────────────────────────────────────────────
+     Colour – Semantic (status)
+  ──────────────────────────────────────────── */
+  --color-success-bg: rgba(16, 124, 16, 0.1);
+  --color-success-fg: #107c10;
+  --color-success-border: rgba(16, 124, 16, 0.25);
+
+  --color-warning-bg: rgba(248, 150, 30, 0.1);
+  --color-warning-fg: #f8961e;
+  --color-warning-border: rgba(248, 150, 30, 0.25);
+
+  --color-danger-bg: var(--vscode-inputValidation-errorBackground, rgba(209, 52, 56, 0.1));
+  --color-danger-fg: var(--vscode-errorForeground, #d13438);
+  --color-danger-border: var(--vscode-inputValidation-errorBorder, rgba(209, 52, 56, 0.25));
+
+  --color-info-bg: rgba(0, 120, 212, 0.1);
+  --color-info-fg: #0078d4;
+  --color-info-border: rgba(0, 120, 212, 0.25);
+
+  /* ─────────────────────────────────────────────
+     Colour – Input
+  ──────────────────────────────────────────── */
+  --color-input-bg: var(--vscode-input-background);
+  --color-input-fg: var(--vscode-input-foreground);
+  --color-input-border: var(--vscode-input-border);
+  --color-input-placeholder: var(--vscode-input-placeholderForeground);
+
+  /* ─────────────────────────────────────────────
+     Colour – Tab
+  ──────────────────────────────────────────── */
+  --color-tab-inactive-fg: var(--vscode-tab-inactiveForeground, var(--vscode-foreground));
+  --color-tab-active-bg: var(--vscode-tab-activeBackground, var(--vscode-editor-background));
+  --color-tab-active-fg: var(--vscode-tab-activeForeground, var(--vscode-foreground));
+  --color-tab-active-border: var(--vscode-focusBorder);
+  --color-tab-hover-fg: var(--vscode-tab-hoverForeground, var(--vscode-foreground));
+  --color-tab-hover-bg: var(--vscode-tab-hoverBackground, rgba(255, 255, 255, 0.05));
+  --color-tab-bar-bg: var(--vscode-editorWidget-background);
+  --color-tab-bar-border: var(--vscode-editorWidget-border, var(--vscode-input-border));
+
+  /* ─────────────────────────────────────────────
+     Colour – Status bar
+  ──────────────────────────────────────────── */
+  --color-statusbar-bg: var(--vscode-statusBar-background);
+  --color-statusbar-fg: var(--vscode-statusBar-foreground);
+  --color-statusbar-prominent-bg: var(--vscode-statusBarItem-prominentBackground);
+  --color-statusbar-prominent-fg: var(--vscode-statusBarItem-prominentForeground);
+
+  /* ─────────────────────────────────────────────
+     Colour – Badge / pill
+  ──────────────────────────────────────────── */
+  --color-badge-bg: var(--vscode-badge-background);
+  --color-badge-fg: var(--vscode-badge-foreground);
+
+  /* ─────────────────────────────────────────────
+     ADO – Work item state colours
+  ──────────────────────────────────────────── */
+  --ado-state-new-bg: rgba(0, 120, 212, 0.1);
+  --ado-state-new-fg: #0078d4;
+  --ado-state-active-bg: rgba(248, 150, 30, 0.1);
+  --ado-state-active-fg: #f8961e;
+  --ado-state-resolved-bg: rgba(16, 124, 16, 0.1);
+  --ado-state-resolved-fg: #107c10;
+  --ado-state-closed-bg: var(--vscode-textBlockQuote-background, rgba(255, 255, 255, 0.05));
+  --ado-state-closed-fg: var(--vscode-descriptionForeground);
+  --ado-state-removed-bg: rgba(209, 52, 56, 0.08);
+  --ado-state-removed-fg: #d13438;
+
+  /* ADO – Work item type colours */
+  --ado-type-task-bg: rgba(0, 120, 212, 0.1);
+  --ado-type-task-fg: #0078d4;
+  --ado-type-task-border: rgba(0, 120, 212, 0.2);
+  --ado-type-bug-bg: rgba(209, 52, 56, 0.1);
+  --ado-type-bug-fg: #d13438;
+  --ado-type-bug-border: rgba(209, 52, 56, 0.2);
+  --ado-type-story-bg: rgba(16, 124, 16, 0.1);
+  --ado-type-story-fg: #107c10;
+  --ado-type-story-border: rgba(16, 124, 16, 0.2);
+  --ado-type-feature-bg: rgba(92, 45, 145, 0.1);
+  --ado-type-feature-fg: #5c2d91;
+  --ado-type-feature-border: rgba(92, 45, 145, 0.2);
+  --ado-type-epic-bg: rgba(92, 45, 145, 0.15);
+  --ado-type-epic-fg: #5c2d91;
+  --ado-type-epic-border: rgba(92, 45, 145, 0.3);
+
+  /* ADO – Priority colours */
+  --ado-priority-1-bg: rgba(209, 36, 36, 0.08);
+  --ado-priority-1-fg: #d12424;
+  --ado-priority-2-bg: rgba(248, 150, 30, 0.06);
+  --ado-priority-2-fg: #f8961e;
+  --ado-priority-3-bg: rgba(16, 124, 16, 0.05);
+  --ado-priority-3-fg: #107c10;
+  --ado-priority-4-bg: rgba(0, 122, 204, 0.04);
+  --ado-priority-4-fg: #007acc;
+
+  /* ─────────────────────────────────────────────
+     Spacing
+  ──────────────────────────────────────────── */
+  --space-1: 0.25rem; /*  4px */
+  --space-2: 0.5rem; /*  8px */
+  --space-3: 0.75rem; /* 12px */
+  --space-4: 1rem; /* 16px */
+  --space-5: 1.25rem; /* 20px */
+  --space-6: 1.5rem; /* 24px */
+  --space-8: 2rem; /* 32px */
+
+  /* ─────────────────────────────────────────────
+     Border Radius
+  ──────────────────────────────────────────── */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-pill: 9999px;
+
+  /* ─────────────────────────────────────────────
+     Typography
+  ──────────────────────────────────────────── */
+  --text-font-family: var(--vscode-font-family, sans-serif);
+  --text-font-mono: var(--vscode-editor-font-family, monospace);
+  --text-size-xs: 0.65rem; /* ~10px */
+  --text-size-sm: 0.75rem; /* ~11px */
+  --text-size-md: 0.85rem; /* ~13px */
+  --text-size-base: 1rem; /* 15-16px */
+
+  /* ─────────────────────────────────────────────
+     Shadow
+  ──────────────────────────────────────────── */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-focus: 0 0 0 2px var(--color-border-focus);
+
+  /* ─────────────────────────────────────────────
+     Motion / Animation
+  ──────────────────────────────────────────── */
+  --motion-speed-fast: 0.1s;
+  --motion-speed-normal: 0.15s;
+  --motion-speed-slow: 0.3s;
+  --motion-easing: ease;
+}

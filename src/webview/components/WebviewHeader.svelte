@@ -1,101 +1,90 @@
 <!--
-Module: src/webview/components/WebviewHeader.svelte
-Owner: webview
-Purpose: Custom header with action buttons matching VS Code header functionality
+  Module: src/webview/components/WebviewHeader.svelte
+  Owner: webview
+  Purpose: Custom header with action buttons using design-dojo IconButton components.
 -->
 <script lang="ts">
+  import IconButton from '@ado-ext/ui-web/components/IconButton.svelte';
+
   interface Props {
     context?: any;
     sendEvent?: (event: any) => void;
   }
-  
+
   const { context, sendEvent }: Props = $props();
-  
+
   // Refresh button state for animation
   let isRefreshing = $state(false);
-  
+
   function handleRefresh() {
     isRefreshing = true;
-    // Send REFRESH_DATA message to extension
     sendEvent?.({ type: 'REFRESH_DATA' });
-    // Reset animation state after 500ms
     setTimeout(() => {
       isRefreshing = false;
     }, 500);
   }
-  
+
   function handleToggleKanban() {
     sendEvent?.({ type: 'TOGGLE_VIEW' });
   }
-  
+
   function handleCreateWorkItem() {
     sendEvent?.({ type: 'CREATE_WORK_ITEM' });
   }
-  
+
   function handleSetup() {
     sendEvent?.({ type: 'MANAGE_CONNECTIONS' });
   }
-  
+
   function handleToggleDebug() {
     sendEvent?.({ type: 'TOGGLE_DEBUG_VIEW' });
   }
-  
+
   // Show debug button only if debug logging is enabled
   const showDebugButton = $derived(context?.debugLoggingEnabled === true);
+  const isKanban = $derived(context?.viewMode === 'kanban');
 </script>
 
 <header class="webview-header">
   <div class="header-actions">
-    <!-- Toggle Kanban View -->
-    <button
-      class="header-btn"
-      onclick={handleToggleKanban}
-      title="Toggle Kanban View"
+    <IconButton
+      icon="⚏"
       aria-label="Toggle Kanban View"
-    >
-      <span class="codicon">⚏</span>
-    </button>
-    
-    <!-- Refresh Work Items -->
-    <button
-      class="header-btn {isRefreshing ? 'refreshing' : ''}"
-      onclick={handleRefresh}
-      title="Refresh Work Items (R)"
-      aria-label="Refresh Work Items"
-    >
-      <span class="codicon">↻</span>
-    </button>
-    
-    <!-- Create Work Item -->
-    <button
-      class="header-btn"
-      onclick={handleCreateWorkItem}
-      title="Create Work Item"
+      title="Toggle Kanban View"
+      active={isKanban}
+      onclick={handleToggleKanban}
+    />
+
+    <span class:refreshing={isRefreshing} class="refresh-wrapper">
+      <IconButton
+        icon="↻"
+        aria-label="Refresh Work Items"
+        title="Refresh Work Items (R)"
+        onclick={handleRefresh}
+      />
+    </span>
+
+    <IconButton
+      icon="＋"
       aria-label="Create Work Item"
-    >
-      <span class="codicon">＋</span>
-    </button>
-    
-    <!-- Setup/Manage Connections -->
-    <button
-      class="header-btn"
-      onclick={handleSetup}
-      title="Setup or Manage Connections"
+      title="Create Work Item"
+      onclick={handleCreateWorkItem}
+    />
+
+    <IconButton
+      icon="⚙"
       aria-label="Setup or Manage Connections"
-    >
-      <span class="codicon">⚙</span>
-    </button>
-    
-    <!-- Toggle Debug View (conditional) -->
+      title="Setup or Manage Connections"
+      onclick={handleSetup}
+    />
+
     {#if showDebugButton}
-      <button
-        class="header-btn"
-        onclick={handleToggleDebug}
-        title="Toggle Debug View"
+      <IconButton
+        icon="🐛"
         aria-label="Toggle Debug View"
-      >
-        <span class="codicon">🐛</span>
-      </button>
+        title="Toggle Debug View"
+        onclick={handleToggleDebug}
+      />
     {/if}
   </div>
 </header>
@@ -106,61 +95,22 @@ Purpose: Custom header with action buttons matching VS Code header functionality
     align-items: center;
     justify-content: center;
     padding: 0;
-    border-bottom: 1px solid var(--vscode-panel-border);
+    border-bottom: 1px solid var(--color-border-strong);
     background: transparent;
   }
-  
+
   .header-actions {
     display: flex;
-    gap: 0.25rem;
+    gap: var(--space-1);
     align-items: center;
   }
-  
-  .header-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    padding: 0;
-    margin: 0;
-    background: transparent;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    color: var(--vscode-icon-foreground);
-    transition: background-color 0.2s ease;
+
+  /* Refresh animation wrapper */
+  .refresh-wrapper.refreshing :global(.dojo-icon-btn__icon) {
+    animation: dojo-header-spin 0.5s ease-in-out;
   }
-  
-  .header-btn:hover {
-    background: var(--vscode-toolbar-hoverBackground);
-  }
-  
-  .header-btn:active {
-    background: var(--vscode-toolbar-activeBackground);
-  }
-  
-  .header-btn .codicon {
-    font-family: 'codicon';
-    font-size: 16px;
-    font-weight: normal;
-    font-style: normal;
-    line-height: 1;
-    display: inline-block;
-    text-decoration: none;
-    text-rendering: auto;
-    text-align: center;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    user-select: none;
-  }
-  
-  /* Refresh animation */
-  .header-btn.refreshing .codicon {
-    animation: spin 500ms ease-in-out;
-  }
-  
-  @keyframes spin {
+
+  @keyframes dojo-header-spin {
     from {
       transform: rotate(0deg);
     }
@@ -169,4 +119,3 @@ Purpose: Custom header with action buttons matching VS Code header functionality
     }
   }
 </style>
-
