@@ -13,6 +13,8 @@
     tabs: TabItem[];
     activeId: string;
     'aria-label'?: string;
+    /** When true (default), tabs are sorted alphabetically by label. Pass false to preserve insertion order. */
+    sort?: boolean;
     onselect: (id: string) => void;
   }
 
@@ -20,11 +22,14 @@
     tabs,
     activeId,
     'aria-label': ariaLabel = 'Tabs',
+    sort = true,
     onselect,
   }: Props = $props();
 
   const sortedTabs = $derived(
-    (tabs || []).slice().sort((a, b) => a.label.localeCompare(b.label))
+    sort
+      ? (tabs || []).slice().sort((a, b) => a.label.localeCompare(b.label))
+      : (tabs || []).slice()
   );
 
   const selectedIndex = $derived(sortedTabs.findIndex((t) => t.id === activeId));
