@@ -64,16 +64,6 @@ function describeError(err: unknown) {
   };
 }
 
-/** Escape HTML special characters to prevent XSS when inserting into innerHTML. */
-function escHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 // -------------------------------------------------------------
 // Minimal Node `process` shim for browser (VS Code webview) context.
 // Bundled dependencies reference process.env / arch / platform.
@@ -293,9 +283,16 @@ function tryBootstrap(reason: string) {
     const detail = describeError(e);
     mountFailed = true;
     try {
-      const escaped = escHtml(detail.message || String(e));
-      const stack = detail.stack ? `<pre style="white-space:pre-wrap">${escHtml(detail.stack)}</pre>` : '';
-      root.innerHTML = `<div style="padding:12px;color:var(--vscode-errorForeground,red);">Webview mount failed: ${escaped}${stack}</div>`;
+      const errorDiv = document.createElement('div');
+      errorDiv.style.cssText = 'padding:12px;color:var(--vscode-errorForeground,red);';
+      errorDiv.textContent = `Webview mount failed: ${detail.message || String(e)}`;
+      if (detail.stack) {
+        const pre = document.createElement('pre');
+        pre.style.whiteSpace = 'pre-wrap';
+        pre.textContent = detail.stack;
+        errorDiv.appendChild(pre);
+      }
+      root.replaceChildren(errorDiv);
     } catch {
       void 0;
     }
