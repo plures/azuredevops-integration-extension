@@ -283,8 +283,10 @@ function tryBootstrap(reason: string) {
     const detail = describeError(e);
     mountFailed = true;
     try {
-      const escaped = (detail.message || String(e)).replace(/</g, '&lt;');
-      const stack = detail.stack ? `<pre style="white-space:pre-wrap">${detail.stack}</pre>` : '';
+      const escHtml = (s: string) =>
+        s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const escaped = escHtml(detail.message || String(e));
+      const stack = detail.stack ? `<pre style="white-space:pre-wrap">${escHtml(detail.stack)}</pre>` : '';
       root.innerHTML = `<div style="padding:12px;color:var(--vscode-errorForeground,red);">Webview mount failed: ${escaped}${stack}</div>`;
     } catch {
       void 0;
