@@ -11528,7 +11528,7 @@ ${component_stack}
 
   // packages/ui-web/src/components/TabBar.svelte
   TabBar[FILENAME] = "packages/ui-web/src/components/TabBar.svelte";
-  var root_1 = add_locations(from_html(`<button role="tab"> </button>`), TabBar[FILENAME], [[90, 4]]);
+  var root_1 = add_locations(from_html(`<button type="button" role="tab"> </button>`), TabBar[FILENAME], [[90, 4]]);
   var root = add_locations(from_html(`<div class="dojo-tab-bar svelte-7bvgl0" role="tablist" aria-orientation="horizontal" tabindex="-1"></div>`), TabBar[FILENAME], [[80, 0]]);
   function TabBar($$anchor, $$props) {
     check_target(new.target);
@@ -11583,7 +11583,7 @@ ${component_stack}
         let classes;
         var text2 = child(button, true);
         reset(button);
-        validate_binding("bind:this={tabRefs[i]}", [], () => tabRefs, () => i, 97, 6);
+        validate_binding("bind:this={tabRefs[i]}", [], () => tabRefs, () => i, 98, 6);
         bind_this(button, ($$value, i2) => tabRefs[i2] = $$value, (i2) => tabRefs?.[i2], () => [i]);
         template_effect(() => {
           set_attribute2(button, "aria-selected", get(isActive));
