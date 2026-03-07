@@ -605,6 +605,19 @@ https://svelte.dev/e/await_waterfall`, bold, normal);
       console.warn(`https://svelte.dev/e/await_waterfall`);
     }
   }
+  function binding_property_non_reactive(binding, location) {
+    if (dev_fallback_default) {
+      console.warn(
+        `%c[svelte] binding_property_non_reactive
+%c${location ? `\`${binding}\` (${location}) is binding to a non-reactive property` : `\`${binding}\` is binding to a non-reactive property`}
+https://svelte.dev/e/binding_property_non_reactive`,
+        bold,
+        normal
+      );
+    } else {
+      console.warn(`https://svelte.dev/e/binding_property_non_reactive`);
+    }
+  }
   function console_log_state(method) {
     if (dev_fallback_default) {
       console.warn(`%c[svelte] console_log_state
@@ -1165,10 +1178,13 @@ ${component_stack}
   var last_scheduled_effect = null;
   var is_flushing_sync = false;
   var collected_effects = null;
+  var uid = 1;
   var _commit_callbacks, _discard_callbacks, _pending, _blocking_pending, _deferred, _dirty_effects, _maybe_dirty_effects, _skipped_branches, _decrement_queued, _Batch_instances, is_deferred_fn, traverse_effect_tree_fn, defer_effects_fn, commit_fn;
   var _Batch = class _Batch {
     constructor() {
       __privateAdd(this, _Batch_instances);
+      // for debugging. TODO remove once async is stable
+      __publicField(this, "id", uid++);
       /**
        * The current values of any sources that are updated in this batch
        * They keys of this map are identical to `this.#previous`
@@ -1264,8 +1280,8 @@ ${component_stack}
       this.apply();
       var effects = collected_effects = [];
       var render_effects = [];
-      for (const root17 of root_effects) {
-        __privateMethod(this, _Batch_instances, traverse_effect_tree_fn).call(this, root17, effects, render_effects);
+      for (const root19 of root_effects) {
+        __privateMethod(this, _Batch_instances, traverse_effect_tree_fn).call(this, root19, effects, render_effects);
       }
       collected_effects = null;
       if (__privateMethod(this, _Batch_instances, is_deferred_fn).call(this)) {
@@ -1428,24 +1444,28 @@ ${component_stack}
    * @param {Effect[]} effects
    * @param {Effect[]} render_effects
    */
-  traverse_effect_tree_fn = function(root17, effects, render_effects) {
-    root17.f ^= CLEAN;
-    var effect2 = root17.first;
+  traverse_effect_tree_fn = function(root19, effects, render_effects) {
+    root19.f ^= CLEAN;
+    var effect2 = root19.first;
     while (effect2 !== null) {
       var flags2 = effect2.f;
       var is_branch = (flags2 & (BRANCH_EFFECT | ROOT_EFFECT)) !== 0;
       var is_skippable_branch = is_branch && (flags2 & CLEAN) !== 0;
-      var skip = is_skippable_branch || (flags2 & INERT) !== 0 || __privateGet(this, _skipped_branches).has(effect2);
+      var inert = (flags2 & INERT) !== 0;
+      var skip = is_skippable_branch || __privateGet(this, _skipped_branches).has(effect2);
       if (!skip && effect2.fn !== null) {
         if (is_branch) {
-          effect2.f ^= CLEAN;
+          if (!inert) effect2.f ^= CLEAN;
         } else if ((flags2 & EFFECT) !== 0) {
           effects.push(effect2);
-        } else if (async_mode_flag && (flags2 & (RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
+        } else if ((flags2 & (RENDER_EFFECT | MANAGED_EFFECT)) !== 0 && (async_mode_flag || inert)) {
           render_effects.push(effect2);
         } else if (is_dirty(effect2)) {
-          if ((flags2 & BLOCK_EFFECT) !== 0) __privateGet(this, _maybe_dirty_effects).add(effect2);
           update_effect(effect2);
+          if ((flags2 & BLOCK_EFFECT) !== 0) {
+            __privateGet(this, _maybe_dirty_effects).add(effect2);
+            if (inert) set_signal_status(effect2, DIRTY);
+          }
         }
         var child2 = effect2.first;
         if (child2 !== null) {
@@ -1509,8 +1529,8 @@ ${component_stack}
           if (queued_root_effects.length > 0) {
             current_batch = batch;
             batch.apply();
-            for (const root17 of queued_root_effects) {
-              __privateMethod(_a2 = batch, _Batch_instances, traverse_effect_tree_fn).call(_a2, root17, [], []);
+            for (const root19 of queued_root_effects) {
+              __privateMethod(_a2 = batch, _Batch_instances, traverse_effect_tree_fn).call(_a2, root19, [], []);
             }
             batch.deactivate();
           }
@@ -2216,6 +2236,9 @@ ${component_stack}
     } else {
       run3();
     }
+  }
+  function run_after_blockers(blockers, fn) {
+    flatten(blockers, [], [], fn);
   }
   function capture() {
     var previous_effect = active_effect;
@@ -3412,39 +3435,6 @@ ${component_stack}
   function effect(fn) {
     return create_effect(EFFECT, fn);
   }
-  function legacy_pre_effect(deps, fn) {
-    var context = (
-      /** @type {ComponentContextLegacy} */
-      component_context
-    );
-    var token = { effect: null, ran: false, deps };
-    context.l.$.push(token);
-    token.effect = render_effect(() => {
-      deps();
-      if (token.ran) return;
-      token.ran = true;
-      untrack(fn);
-    });
-  }
-  function legacy_pre_effect_reset() {
-    var context = (
-      /** @type {ComponentContextLegacy} */
-      component_context
-    );
-    render_effect(() => {
-      for (var token of context.l.$) {
-        token.deps();
-        var effect2 = token.effect;
-        if ((effect2.f & CLEAN) !== 0 && effect2.deps !== null) {
-          set_signal_status(effect2, MAYBE_DIRTY);
-        }
-        if (is_dirty(effect2)) {
-          update_effect(effect2);
-        }
-        token.ran = false;
-      }
-    });
-  }
   function async_effect(fn) {
     return create_effect(ASYNC | EFFECT_PRESERVED, fn);
   }
@@ -3602,9 +3592,8 @@ ${component_stack}
   function resume_children(effect2, local) {
     if ((effect2.f & INERT) === 0) return;
     effect2.f ^= INERT;
-    if ((effect2.f & CLEAN) === 0) {
-      set_signal_status(effect2, DIRTY);
-      schedule_effect(effect2);
+    if (async_mode_flag && (effect2.f & BRANCH_EFFECT) !== 0 && (effect2.f & CLEAN) === 0) {
+      effect2.f ^= CLEAN;
     }
     var child2 = effect2.first;
     while (child2 !== null) {
@@ -3713,7 +3702,7 @@ ${component_stack}
     }
     return false;
   }
-  function schedule_possible_effect_self_invalidation(signal, effect2, root17 = true) {
+  function schedule_possible_effect_self_invalidation(signal, effect2, root19 = true) {
     var reactions = signal.reactions;
     if (reactions === null) return;
     if (!async_mode_flag && current_sources !== null && includes.call(current_sources, signal)) {
@@ -3729,7 +3718,7 @@ ${component_stack}
           false
         );
       } else if (effect2 === reaction) {
-        if (root17) {
+        if (root19) {
           set_signal_status(reaction, DIRTY);
         } else if ((reaction.f & CLEAN) !== 0) {
           set_signal_status(reaction, MAYBE_DIRTY);
@@ -4225,7 +4214,7 @@ ${component_stack}
           /** @type {Comment} */
           node
         );
-        if (comment2.data === HYDRATION_START || comment2.data === HYDRATION_START_ELSE) depth += 1;
+        if (comment2.data[0] === HYDRATION_START) depth += 1;
         else if (comment2.data[0] === HYDRATION_END) depth -= 1;
       }
       if (depth === 0 && node.nodeType === ELEMENT_NODE) {
@@ -4747,7 +4736,7 @@ ${component_stack}
           __privateGet(this, _outroing).delete(key2);
         } else {
           var offscreen = __privateGet(this, _offscreen).get(key2);
-          if (offscreen) {
+          if (offscreen && (offscreen.effect.f & INERT) === 0) {
             __privateGet(this, _onscreen).set(key2, offscreen.effect);
             __privateGet(this, _offscreen).delete(key2);
             offscreen.fragment.lastChild.remove();
@@ -4768,6 +4757,7 @@ ${component_stack}
         }
         for (const [k, effect2] of __privateGet(this, _onscreen)) {
           if (k === key2 || __privateGet(this, _outroing).has(k)) continue;
+          if ((effect2.f & INERT) !== 0) continue;
           const on_destroy = () => {
             const keys = Array.from(__privateGet(this, _batches).values());
             if (keys.includes(k)) {
@@ -4881,15 +4871,7 @@ ${component_stack}
           /** @type {TemplateNode} */
           marker
         );
-        var hydrated_key;
-        if (data === HYDRATION_START) {
-          hydrated_key = 0;
-        } else if (data === HYDRATION_START_ELSE) {
-          hydrated_key = false;
-        } else {
-          hydrated_key = parseInt(data.substring(1));
-        }
-        if (key2 !== hydrated_key) {
+        if (key2 !== parseInt(data.substring(1))) {
           var anchor = skip_nodes();
           set_hydrate_node(anchor);
           branches.anchor = anchor;
@@ -4908,7 +4890,7 @@ ${component_stack}
         update_branch(key2, fn2);
       });
       if (!has_branch) {
-        update_branch(false, null);
+        update_branch(-1, null);
       }
     }, flags2);
   }
@@ -4935,7 +4917,7 @@ ${component_stack}
                 /** @type {Set<EachOutroGroup>} */
                 state2.outrogroups
               );
-              destroy_effects(array_from(group.done));
+              destroy_effects(state2, array_from(group.done));
               groups.delete(group);
               if (groups.size === 0) {
                 state2.outrogroups = null;
@@ -4963,7 +4945,7 @@ ${component_stack}
         parent_node.append(anchor);
         state2.items.clear();
       }
-      destroy_effects(to_destroy, !fast_path);
+      destroy_effects(state2, to_destroy, !fast_path);
     } else {
       group = {
         pending: new Set(to_destroy),
@@ -4972,9 +4954,28 @@ ${component_stack}
       (state2.outrogroups ?? (state2.outrogroups = /* @__PURE__ */ new Set())).add(group);
     }
   }
-  function destroy_effects(to_destroy, remove_dom = true) {
+  function destroy_effects(state2, to_destroy, remove_dom = true) {
+    var preserved_effects;
+    if (state2.pending.size > 0) {
+      preserved_effects = /* @__PURE__ */ new Set();
+      for (const keys of state2.pending.values()) {
+        for (const key2 of keys) {
+          preserved_effects.add(
+            /** @type {EachItem} */
+            state2.items.get(key2).e
+          );
+        }
+      }
+    }
     for (var i = 0; i < to_destroy.length; i++) {
-      destroy_effect(to_destroy[i], remove_dom);
+      var e = to_destroy[i];
+      if (preserved_effects?.has(e)) {
+        e.f |= EFFECT_OFFSCREEN;
+        const fragment = document.createDocumentFragment();
+        move_effect(e, fragment);
+      } else {
+        destroy_effect(to_destroy[i], remove_dom);
+      }
     }
   }
   var offscreen_anchor;
@@ -4998,8 +4999,13 @@ ${component_stack}
       return is_array(collection) ? collection : collection == null ? [] : array_from(collection);
     });
     var array;
+    var pending2 = /* @__PURE__ */ new Map();
     var first_run = true;
-    function commit() {
+    function commit(batch) {
+      if ((state2.effect.f & DESTROYED) !== 0) {
+        return;
+      }
+      state2.pending.delete(batch);
       state2.fallback = fallback2;
       reconcile(state2, array, anchor, flags2, get_key);
       if (fallback2 !== null) {
@@ -5016,6 +5022,9 @@ ${component_stack}
           });
         }
       }
+    }
+    function discard(batch) {
+      state2.pending.delete(batch);
     }
     var effect2 = block(() => {
       array = /** @type {V[]} */
@@ -5097,6 +5106,7 @@ ${component_stack}
         set_hydrate_node(skip_nodes());
       }
       if (!first_run) {
+        pending2.set(batch, keys);
         if (defer) {
           for (const [key3, item2] of items) {
             if (!keys.has(key3)) {
@@ -5104,10 +5114,9 @@ ${component_stack}
             }
           }
           batch.oncommit(commit);
-          batch.ondiscard(() => {
-          });
+          batch.ondiscard(discard);
         } else {
-          commit();
+          commit(batch);
         }
       }
       if (mismatch) {
@@ -5115,7 +5124,7 @@ ${component_stack}
       }
       get(each_array);
     });
-    var state2 = { effect: effect2, flags: flags2, items, outrogroups: null, fallback: fallback2 };
+    var state2 = { effect: effect2, flags: flags2, items, pending: pending2, outrogroups: null, fallback: fallback2 };
     first_run = false;
     if (hydrating) {
       anchor = hydrate_node;
@@ -5244,7 +5253,7 @@ ${component_stack}
     if (state2.outrogroups !== null) {
       for (const group of state2.outrogroups) {
         if (group.pending.size === 0) {
-          destroy_effects(array_from(group.done));
+          destroy_effects(state2, array_from(group.done));
           state2.outrogroups?.delete(group);
         }
       }
@@ -5357,58 +5366,7 @@ ${component_stack}
     }
   }
 
-  // node_modules/svelte/src/internal/client/dom/elements/actions.js
-  function action(dom, action2, get_value) {
-    effect(() => {
-      var payload = untrack(() => action2(dom, get_value?.()) || {});
-      if (get_value && payload?.update) {
-        var inited = false;
-        var prev = (
-          /** @type {any} */
-          {}
-        );
-        render_effect(() => {
-          var value = get_value();
-          deep_read_state(value);
-          if (inited && safe_not_equal(prev, value)) {
-            prev = value;
-            payload.update(value);
-          }
-        });
-        inited = true;
-      }
-      if (payload?.destroy) {
-        return () => (
-          /** @type {Function} */
-          payload.destroy()
-        );
-      }
-    });
-  }
-
-  // node_modules/clsx/dist/clsx.mjs
-  function r(e) {
-    var t, f, n = "";
-    if ("string" == typeof e || "number" == typeof e) n += e;
-    else if ("object" == typeof e) if (Array.isArray(e)) {
-      var o = e.length;
-      for (t = 0; t < o; t++) e[t] && (f = r(e[t])) && (n && (n += " "), n += f);
-    } else for (f in e) e[f] && (n && (n += " "), n += f);
-    return n;
-  }
-  function clsx() {
-    for (var e, t, f = 0, n = "", o = arguments.length; f < o; f++) (e = arguments[f]) && (t = r(e)) && (n && (n += " "), n += t);
-    return n;
-  }
-
   // node_modules/svelte/src/internal/shared/attributes.js
-  function clsx2(value) {
-    if (typeof value === "object") {
-      return clsx(value);
-    } else {
-      return value ?? "";
-    }
-  }
   var whitespace = [..." 	\n\r\f\xA0\v\uFEFF"];
   function to_class(value, hash2, directives) {
     var classname = value == null ? "" : "" + value;
@@ -6086,6 +6044,31 @@ ${component_stack}
         return get(d);
       })
     );
+  }
+
+  // node_modules/svelte/src/internal/client/validate.js
+  function validate_binding(binding, blockers, get_object, get_property, line, column) {
+    run_after_blockers(blockers, () => {
+      var warned = false;
+      var filename = dev_current_component_function?.[FILENAME];
+      render_effect(() => {
+        if (warned) return;
+        var [object, is_store_sub] = capture_store_binding(get_object);
+        if (is_store_sub) return;
+        var property = get_property();
+        var ran = false;
+        var effect2 = render_effect(() => {
+          if (ran) return;
+          object[property];
+        });
+        ran = true;
+        if (effect2.deps === null) {
+          var location = `${filename}:${line}:${column}`;
+          binding_property_non_reactive(binding, location);
+          warned = true;
+        }
+      });
+    });
   }
 
   // node_modules/svelte/src/legacy/legacy-client.js
@@ -10691,6 +10674,45 @@ ${component_stack}
   var TraceLogger = _TraceLogger;
   var _traceLogger = TraceLogger.getInstance();
 
+  // src/decision-ledger/events.ts
+  var DecisionRecordedEvent = defineEvent(
+    "DECISION_RECORDED"
+  );
+
+  // src/decision-ledger/ledger.ts
+  function makeId() {
+    return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `dl_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  }
+  function createDecisionLedgerState() {
+    return { entries: [], version: 0 };
+  }
+  function appendDecision(state2, input) {
+    const nextVersion = state2.version + 1;
+    const record = {
+      id: makeId(),
+      timestamp: Date.now(),
+      version: nextVersion,
+      category: input.category,
+      operation: input.operation,
+      outcome: input.outcome,
+      rationale: input.rationale,
+      connectionId: input.connectionId,
+      payload: input.payload
+    };
+    return {
+      state: {
+        entries: [...state2.entries, record],
+        version: nextVersion
+      },
+      record
+    };
+  }
+  function recordDecision(context, input) {
+    const result = appendDecision(context.decisionLedger, input);
+    context.decisionLedger = result.state;
+    return result.record;
+  }
+
   // src/praxis/application/engine.ts
   var defaultClock = { now: () => Date.now() };
   function getClock(_state) {
@@ -10888,6 +10910,7 @@ ${component_stack}
       state2.context.deviceCodeSession = void 0;
       state2.context.authCodeFlowSession = void 0;
       state2.context.pendingWorkItems = void 0;
+      state2.context.decisionLedger = createDecisionLedgerState();
       return [];
     }
   });
@@ -10993,13 +11016,376 @@ ${component_stack}
     authenticationSuccessRule
   ];
 
+  // src/praxis-logic/intents.ts
+  var AUTH_INTENTS = {
+    SIGN_IN_ENTRA: "auth.signInEntra",
+    SIGN_OUT_ENTRA: "auth.signOutEntra",
+    DEVICE_CODE_START: "auth.deviceCodeStart",
+    DEVICE_CODE_COMPLETE: "auth.deviceCodeComplete",
+    DEVICE_CODE_CANCEL: "auth.deviceCodeCancel",
+    AUTH_CODE_FLOW_START: "auth.authCodeFlowStart",
+    AUTH_CODE_FLOW_COMPLETE: "auth.authCodeFlowComplete",
+    SUCCESS: "auth.success",
+    FAILED: "auth.failed"
+  };
+  var WORK_ITEM_INTENTS = {
+    CREATE: "workItem.create",
+    LOAD: "workItem.load",
+    ERROR: "workItem.error",
+    BULK_ASSIGN: "workItem.bulkAssign",
+    GENERATE_COPILOT_PROMPT: "workItem.generateCopilotPrompt"
+  };
+  var BRANCH_INTENTS = {
+    CREATE: "branch.create"
+  };
+  var PULL_REQUEST_INTENTS = {
+    CREATE: "pullRequest.create",
+    SHOW: "pullRequest.show"
+  };
+  var CONNECTION_INTENTS = {
+    SELECT: "connection.select",
+    LOAD: "connection.load",
+    STATE_UPDATED: "connection.stateUpdated"
+  };
+  var LIFECYCLE_INTENTS = {
+    ACTIVATE: "lifecycle.activate",
+    ACTIVATION_COMPLETE: "lifecycle.activationComplete",
+    ACTIVATION_FAILED: "lifecycle.activationFailed",
+    DEACTIVATE: "lifecycle.deactivate",
+    DEACTIVATION_COMPLETE: "lifecycle.deactivationComplete",
+    RESET: "lifecycle.reset",
+    RETRY: "lifecycle.retry"
+  };
+
+  // src/praxis/application/rules/decisionRules.auth.ts
+  var recordSignInDecision = defineRule({
+    id: "decision.auth.signIn",
+    description: "Record decision when Entra sign-in is requested",
+    meta: { triggers: ["SIGN_IN_ENTRA"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, SignInEntraEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "auth",
+        operation: AUTH_INTENTS.SIGN_IN_ENTRA,
+        outcome: "allowed",
+        rationale: "User requested Entra sign-in",
+        connectionId: ev.payload.connectionId,
+        payload: { forceInteractive: ev.payload.forceInteractive ?? false }
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordSignOutDecision = defineRule({
+    id: "decision.auth.signOut",
+    description: "Record decision when Entra sign-out is requested",
+    meta: { triggers: ["SIGN_OUT_ENTRA"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, SignOutEntraEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "auth",
+        operation: AUTH_INTENTS.SIGN_OUT_ENTRA,
+        outcome: "allowed",
+        rationale: "User requested Entra sign-out",
+        connectionId: ev.payload.connectionId
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordAuthSuccessDecision = defineRule({
+    id: "decision.auth.success",
+    description: "Record decision on authentication success",
+    meta: { triggers: ["AUTHENTICATION_SUCCESS"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, AuthenticationSuccessEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "auth",
+        operation: AUTH_INTENTS.SUCCESS,
+        outcome: "allowed",
+        rationale: "Authentication completed successfully",
+        connectionId: ev.payload.connectionId
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordAuthFailedDecision = defineRule({
+    id: "decision.auth.failed",
+    description: "Record decision on authentication failure",
+    meta: { triggers: ["AUTHENTICATION_FAILED"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, AuthenticationFailedEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "auth",
+        operation: AUTH_INTENTS.FAILED,
+        outcome: "denied",
+        rationale: ev.payload.error,
+        connectionId: ev.payload.connectionId
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordDeviceCodeStartDecision = defineRule({
+    id: "decision.auth.deviceCodeStart",
+    description: "Record decision when device code flow starts",
+    meta: { triggers: ["DEVICE_CODE_STARTED"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, DeviceCodeStartedAppEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "auth",
+        operation: AUTH_INTENTS.DEVICE_CODE_START,
+        outcome: "allowed",
+        rationale: "Device code flow initiated",
+        connectionId: ev.payload.connectionId
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordDeviceCodeCompleteDecision = defineRule({
+    id: "decision.auth.deviceCodeComplete",
+    description: "Record decision when device code flow completes",
+    meta: { triggers: ["DEVICE_CODE_COMPLETED"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, DeviceCodeCompletedAppEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "auth",
+        operation: AUTH_INTENTS.DEVICE_CODE_COMPLETE,
+        outcome: "allowed",
+        rationale: "Device code flow completed",
+        connectionId: ev.payload.connectionId
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordDeviceCodeCancelDecision = defineRule({
+    id: "decision.auth.deviceCodeCancel",
+    description: "Record decision when device code flow is cancelled",
+    meta: { triggers: ["DEVICE_CODE_CANCELLED"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, DeviceCodeCancelledEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "auth",
+        operation: AUTH_INTENTS.DEVICE_CODE_CANCEL,
+        outcome: "deferred",
+        rationale: "Device code flow cancelled by user",
+        connectionId: ev.payload.connectionId
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordAuthCodeFlowStartDecision = defineRule({
+    id: "decision.auth.authCodeFlowStart",
+    description: "Record decision when auth code flow starts",
+    meta: { triggers: ["AUTH_CODE_FLOW_STARTED"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, AuthCodeFlowStartedAppEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "auth",
+        operation: AUTH_INTENTS.AUTH_CODE_FLOW_START,
+        outcome: "allowed",
+        rationale: "Authorization code flow with PKCE initiated",
+        connectionId: ev.payload.connectionId
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordAuthCodeFlowCompleteDecision = defineRule({
+    id: "decision.auth.authCodeFlowComplete",
+    description: "Record decision when auth code flow completes",
+    meta: { triggers: ["AUTH_CODE_FLOW_COMPLETED"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, AuthCodeFlowCompletedAppEvent);
+      if (!ev) return [];
+      const outcome = ev.payload.success ? "allowed" : "denied";
+      const rationale = ev.payload.success ? "Authorization code flow completed successfully" : ev.payload.error ?? "Authorization code flow failed";
+      const record = recordDecision(state2.context, {
+        category: "auth",
+        operation: AUTH_INTENTS.AUTH_CODE_FLOW_COMPLETE,
+        outcome,
+        rationale,
+        connectionId: ev.payload.connectionId
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var authDecisionRules = [
+    recordSignInDecision,
+    recordSignOutDecision,
+    recordAuthSuccessDecision,
+    recordAuthFailedDecision,
+    recordDeviceCodeStartDecision,
+    recordDeviceCodeCompleteDecision,
+    recordDeviceCodeCancelDecision,
+    recordAuthCodeFlowStartDecision,
+    recordAuthCodeFlowCompleteDecision
+  ];
+
+  // src/praxis/application/rules/decisionRules.operations.ts
+  var recordCreateWorkItemDecision = defineRule({
+    id: "decision.workItem.create",
+    description: "Record decision when a work item creation is requested",
+    meta: { triggers: ["CREATE_WORK_ITEM"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, CreateWorkItemEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "work-item",
+        operation: WORK_ITEM_INTENTS.CREATE,
+        outcome: "allowed",
+        rationale: "User requested work item creation",
+        connectionId: ev.payload.connectionId
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordBulkAssignDecision = defineRule({
+    id: "decision.workItem.bulkAssign",
+    description: "Record decision when bulk-assign is requested",
+    meta: { triggers: ["BULK_ASSIGN"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, BulkAssignEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "work-item",
+        operation: WORK_ITEM_INTENTS.BULK_ASSIGN,
+        outcome: "allowed",
+        rationale: "User requested bulk assignment of work items",
+        connectionId: ev.payload.connectionId,
+        payload: { workItemIds: ev.payload.workItemIds }
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordCreateBranchDecision = defineRule({
+    id: "decision.branch.create",
+    description: "Record decision when a branch creation is requested",
+    meta: { triggers: ["CREATE_BRANCH"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, CreateBranchEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "branch",
+        operation: BRANCH_INTENTS.CREATE,
+        outcome: "allowed",
+        rationale: "User requested branch creation",
+        connectionId: ev.payload.connectionId,
+        payload: ev.payload.workItemId ? { workItemId: ev.payload.workItemId } : void 0
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordCreatePullRequestDecision = defineRule({
+    id: "decision.pullRequest.create",
+    description: "Record decision when a pull request creation is requested",
+    meta: { triggers: ["CREATE_PULL_REQUEST"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, CreatePullRequestEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "pull-request",
+        operation: PULL_REQUEST_INTENTS.CREATE,
+        outcome: "allowed",
+        rationale: "User requested pull request creation",
+        connectionId: ev.payload.connectionId,
+        payload: ev.payload.workItemId ? { workItemId: ev.payload.workItemId } : void 0
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordConnectionLoadDecision = defineRule({
+    id: "decision.connection.load",
+    description: "Record decision when connections are loaded",
+    meta: { triggers: ["CONNECTIONS_LOADED"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, ConnectionsLoadedEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "connection",
+        operation: CONNECTION_INTENTS.LOAD,
+        outcome: "allowed",
+        rationale: "Connections loaded from configuration",
+        payload: { count: ev.payload.connections.length }
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordConnectionSelectDecision = defineRule({
+    id: "decision.connection.select",
+    description: "Record decision when a connection is selected",
+    meta: { triggers: ["CONNECTION_SELECTED", "SELECT_CONNECTION"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, ConnectionSelectedEvent) ?? findEvent(events, SelectConnectionEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "connection",
+        operation: CONNECTION_INTENTS.SELECT,
+        outcome: "allowed",
+        rationale: "User selected a connection",
+        connectionId: ev.payload.connectionId
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordActivateDecision = defineRule({
+    id: "decision.lifecycle.activate",
+    description: "Record decision when application activates",
+    meta: { triggers: ["ACTIVATE"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, ActivateEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "lifecycle",
+        operation: LIFECYCLE_INTENTS.ACTIVATE,
+        outcome: "allowed",
+        rationale: "Application activation requested"
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var recordDeactivateDecision = defineRule({
+    id: "decision.lifecycle.deactivate",
+    description: "Record decision when application deactivates",
+    meta: { triggers: ["DEACTIVATE"] },
+    impl: (state2, events) => {
+      const ev = findEvent(events, DeactivateEvent);
+      if (!ev) return [];
+      const record = recordDecision(state2.context, {
+        category: "lifecycle",
+        operation: LIFECYCLE_INTENTS.DEACTIVATE,
+        outcome: "allowed",
+        rationale: "Application deactivation requested"
+      });
+      return [DecisionRecordedEvent.create(record)];
+    }
+  });
+  var operationsDecisionRules = [
+    recordCreateWorkItemDecision,
+    recordBulkAssignDecision,
+    recordCreateBranchDecision,
+    recordCreatePullRequestDecision,
+    recordConnectionLoadDecision,
+    recordConnectionSelectDecision,
+    recordActivateDecision,
+    recordDeactivateDecision
+  ];
+
+  // src/praxis/application/rules/decisionRules.ts
+  var decisionRules = [...authDecisionRules, ...operationsDecisionRules];
+
   // src/praxis/application/rules/index.ts
   var applicationRules = [
     ...lifecycleRules,
     ...connectionRules,
     ...workItemRules,
     ...miscRules,
-    ...timerRules
+    ...timerRules,
+    ...decisionRules
   ];
 
   // src/webview/praxis/frontendEngine.ts
@@ -11016,7 +11402,8 @@ ${component_stack}
     debugLoggingEnabled: false,
     debugViewVisible: false,
     connectionStates: /* @__PURE__ */ new Map(),
-    connectionWorkItems: /* @__PURE__ */ new Map()
+    connectionWorkItems: /* @__PURE__ */ new Map(),
+    decisionLedger: createDecisionLedgerState()
   };
   var registry = new PraxisRegistry();
   for (const rule of applicationRules) {
@@ -11139,8 +11526,85 @@ ${component_stack}
     matches: { initializing: true }
   });
 
-  // node_modules/svelte/src/internal/flags/legacy.js
-  enable_legacy_mode_flag();
+  // packages/ui-web/src/components/TabBar.svelte
+  TabBar[FILENAME] = "packages/ui-web/src/components/TabBar.svelte";
+  var root_1 = add_locations(from_html(`<button role="tab"> </button>`), TabBar[FILENAME], [[82, 4]]);
+  var root = add_locations(from_html(`<div class="dojo-tab-bar svelte-7bvgl0" role="tablist" aria-orientation="horizontal" tabindex="-1"></div>`), TabBar[FILENAME], [[72, 0]]);
+  function TabBar($$anchor, $$props) {
+    check_target(new.target);
+    push($$props, true, TabBar);
+    const ariaLabel = prop($$props, "aria-label", 3, "Tabs");
+    const sortedTabs = tag(user_derived(() => ($$props.tabs || []).slice().sort((a, b) => a.label.localeCompare(b.label))), "sortedTabs");
+    const selectedIndex = tag(user_derived(() => get(sortedTabs).findIndex((t) => strict_equals(t.id, $$props.activeId))), "selectedIndex");
+    let tabRefs = tag_proxy(proxy([]), "tabRefs");
+    function focusAt(index2) {
+      const el = tabRefs[index2];
+      if (el) setTimeout(() => el.focus(), 0);
+    }
+    function handleKeydown(e) {
+      if (!get(sortedTabs).length) return;
+      const last = get(sortedTabs).length - 1;
+      let next2 = get(selectedIndex) < 0 ? 0 : get(selectedIndex);
+      switch (e.key) {
+        case "ArrowRight":
+        case "ArrowDown":
+          next2 = (get(selectedIndex) + 1) % get(sortedTabs).length;
+          break;
+        case "ArrowLeft":
+        case "ArrowUp":
+          next2 = (get(selectedIndex) - 1 + get(sortedTabs).length) % get(sortedTabs).length;
+          break;
+        case "Home":
+          next2 = 0;
+          break;
+        case "End":
+          next2 = last;
+          break;
+        default:
+          return;
+      }
+      e.preventDefault();
+      const target = get(sortedTabs)[next2];
+      if (target) {
+        $$props.onselect(target.id);
+        focusAt(next2);
+      }
+    }
+    var $$exports = { ...legacy_api() };
+    var div = root();
+    add_svelte_meta(
+      () => each(div, 21, () => get(sortedTabs), index, ($$anchor2, tab, i) => {
+        const isActive = tag(user_derived(() => strict_equals(get(tab).id, $$props.activeId)), "isActive");
+        get(isActive);
+        var button = root_1();
+        let classes;
+        var text2 = child(button, true);
+        reset(button);
+        validate_binding("bind:this={tabRefs[i]}", [], () => tabRefs, () => i, 89, 6);
+        bind_this(button, ($$value, i2) => tabRefs[i2] = $$value, (i2) => tabRefs?.[i2], () => [i]);
+        template_effect(() => {
+          set_attribute2(button, "aria-selected", get(isActive));
+          set_attribute2(button, "tabindex", get(isActive) ? 0 : -1);
+          classes = set_class(button, 1, "dojo-tab svelte-7bvgl0", null, classes, { "dojo-tab--active": get(isActive) });
+          set_text(text2, get(tab).label);
+        });
+        delegated("click", button, function click() {
+          return $$props.onselect(get(tab).id);
+        });
+        append($$anchor2, button);
+      }),
+      "each",
+      TabBar,
+      80,
+      2
+    );
+    reset(div);
+    template_effect(() => set_attribute2(div, "aria-label", ariaLabel()));
+    delegated("keydown", div, handleKeydown);
+    append($$anchor, div);
+    return pop($$exports);
+  }
+  delegate(["keydown", "click"]);
 
   // src/webview/selection.writer.internal.ts
   var webviewOwner = {};
@@ -11161,105 +11625,39 @@ ${component_stack}
 
   // src/webview/components/ConnectionTabs.svelte
   ConnectionTabs[FILENAME] = "src/webview/components/ConnectionTabs.svelte";
-  var root_1 = add_locations(from_html(`<button role="tab"> </button>`), ConnectionTabs[FILENAME], [[102, 4]]);
-  var root = add_locations(from_html(`<div class="connection-tabs tab-bar svelte-2w6d2o" role="tablist" aria-label="Project Connections" aria-orientation="horizontal" tabindex="0"></div>`), ConnectionTabs[FILENAME], [[93, 0]]);
   function ConnectionTabs($$anchor, $$props) {
     check_target(new.target);
-    push($$props, false, ConnectionTabs);
-    const selectedIndex = mutable_source();
-    let connections = prop($$props, "connections", 24, () => []);
-    let activeConnectionId = prop($$props, "activeConnectionId", 8);
+    push($$props, true, ConnectionTabs);
     const vscode2 = window.__vscodeApi;
-    let ordered = mutable_source([]);
-    let tabRefs = [];
-    function tabRef(node, i) {
-      tabRefs[i] = node;
-      return {
-        update(newIndex) {
-          tabRefs[newIndex] = node;
-        },
-        destroy() {
-          tabRefs[i] = void 0;
-        }
-      };
-    }
-    function select(id) {
+    const tabs = tag(user_derived(() => ($$props.connections || []).map((c) => ({ id: c.id, label: c.label || c.id }))), "tabs");
+    function handleSelect(id) {
       if (!vscode2) return;
       const evt = createSelectConnection(webviewOwner, id);
       vscode2.postMessage({ type: "fsmEvent", event: evt });
     }
-    function focusIndex(i) {
-      const target = tabRefs[i];
-      if (target) {
-        setTimeout(() => target.focus(), 0);
-      }
-    }
-    function handleKeydown(e) {
-      if (!get(ordered).length) return;
-      const key2 = e.key;
-      let nextIndex = get(selectedIndex) < 0 ? 0 : get(selectedIndex);
-      const last = get(ordered).length - 1;
-      if (strict_equals(key2, "ArrowRight") || strict_equals(key2, "ArrowDown")) {
-        nextIndex = (get(selectedIndex) + 1) % get(ordered).length;
-      } else if (strict_equals(key2, "ArrowLeft") || strict_equals(key2, "ArrowUp")) {
-        nextIndex = (get(selectedIndex) - 1 + get(ordered).length) % get(ordered).length;
-      } else if (strict_equals(key2, "Home")) {
-        nextIndex = 0;
-      } else if (strict_equals(key2, "End")) {
-        nextIndex = last;
-      } else {
-        return;
-      }
-      e.preventDefault();
-      const target = get(ordered)[nextIndex];
-      if (target) {
-        select(target.id);
-        focusIndex(nextIndex);
-      }
-    }
-    legacy_pre_effect(() => deep_read_state(connections()), () => {
-      set(ordered, (connections() || []).slice().sort((a, b) => (a.label || a.id).localeCompare(b.label || b.id)));
-    });
-    legacy_pre_effect(() => (get(ordered), deep_read_state(activeConnectionId())), () => {
-      set(selectedIndex, get(ordered).findIndex((c) => strict_equals(c.id, activeConnectionId())));
-    });
-    legacy_pre_effect_reset();
     var $$exports = { ...legacy_api() };
-    init();
-    var div = root();
-    add_svelte_meta(
-      () => each(div, 5, () => get(ordered), index, ($$anchor2, c, i) => {
-        var button = root_1();
-        var text2 = child(button, true);
-        reset(button);
-        action(button, ($$node, $$action_arg) => tabRef?.($$node, $$action_arg), () => i);
-        template_effect(() => {
-          set_attribute2(button, "aria-selected", (get(c), deep_read_state(activeConnectionId()), untrack(() => strict_equals(get(c).id, activeConnectionId()))));
-          set_attribute2(button, "tabindex", (get(c), deep_read_state(activeConnectionId()), untrack(() => strict_equals(get(c).id, activeConnectionId()) ? 0 : -1)));
-          set_class(
-            button,
-            1,
-            clsx2((get(c), deep_read_state(activeConnectionId()), untrack(() => strict_equals(get(c).id, activeConnectionId()) ? "connection-tab tab active" : "connection-tab tab"))),
-            "svelte-2w6d2o"
-          );
-          set_text(text2, (get(c), untrack(() => get(c).label || get(c).id)));
-        });
-        delegated("click", button, function click() {
-          return select(get(c).id);
-        });
-        append($$anchor2, button);
-      }),
-      "each",
-      ConnectionTabs,
-      101,
-      2
-    );
-    reset(div);
-    delegated("keydown", div, handleKeydown);
-    append($$anchor, div);
+    {
+      let $0 = user_derived(() => $$props.activeConnectionId ?? "");
+      add_svelte_meta(
+        () => TabBar($$anchor, {
+          get tabs() {
+            return get(tabs);
+          },
+          get activeId() {
+            return get($0);
+          },
+          "aria-label": "Project Connections",
+          onselect: handleSelect
+        }),
+        "component",
+        ConnectionTabs,
+        40,
+        0,
+        { componentTag: "TabBar" }
+      );
+    }
     return pop($$exports);
   }
-  delegate(["keydown", "click"]);
 
   // src/webview/components/Dropdown.svelte
   Dropdown[FILENAME] = "src/webview/components/Dropdown.svelte";
@@ -11380,210 +11778,364 @@ ${component_stack}
   }
   delegate(["click", "keydown"]);
 
+  // packages/ui-web/src/components/Alert.svelte
+  Alert[FILENAME] = "packages/ui-web/src/components/Alert.svelte";
+  var root_13 = add_locations(from_html(`<span class="dojo-alert__hint svelte-dhhn2a"> </span>`), Alert[FILENAME], [[45, 8]]);
+  var root_22 = add_locations(from_html(`<button class="dojo-alert__btn dojo-alert__btn--action svelte-dhhn2a"> </button>`), Alert[FILENAME], [[51, 6]]);
+  var root_3 = add_locations(from_html(`<button class="dojo-alert__btn dojo-alert__btn--dismiss svelte-dhhn2a" aria-label="Dismiss" title="Dismiss">\u2715</button>`), Alert[FILENAME], [[56, 6]]);
+  var root3 = add_locations(from_html(`<div role="alert"><div class="dojo-alert__body svelte-dhhn2a"><span class="dojo-alert__icon svelte-dhhn2a" aria-hidden="true"> </span> <div class="dojo-alert__text svelte-dhhn2a"><span class="dojo-alert__message svelte-dhhn2a"> </span> <!></div></div> <div class="dojo-alert__actions svelte-dhhn2a"><!> <!></div></div>`), Alert[FILENAME], [[39, 0, [[40, 2, [[41, 4], [42, 4, [[43, 6]]]]], [49, 2]]]]);
+  function Alert($$anchor, $$props) {
+    check_target(new.target);
+    push($$props, true, Alert);
+    const dismissible = prop($$props, "dismissible", 3, false);
+    const iconMap = { error: "\u26A0", warning: "\u26A0", info: "\u2139", success: "\u2713" };
+    const icon = tag(user_derived(() => iconMap[$$props.type] ?? "\u2139"), "icon");
+    var $$exports = { ...legacy_api() };
+    var div = root3();
+    var div_1 = child(div);
+    var span = child(div_1);
+    var text2 = child(span, true);
+    reset(span);
+    var div_2 = sibling(span, 2);
+    var span_1 = child(div_2);
+    var text_1 = child(span_1, true);
+    reset(span_1);
+    var node = sibling(span_1, 2);
+    {
+      var consequent = ($$anchor2) => {
+        var span_2 = root_13();
+        var text_2 = child(span_2, true);
+        reset(span_2);
+        template_effect(() => set_text(text_2, $$props.hint));
+        append($$anchor2, span_2);
+      };
+      add_svelte_meta(
+        () => if_block(node, ($$render) => {
+          if ($$props.hint) $$render(consequent);
+        }),
+        "if",
+        Alert,
+        44,
+        6
+      );
+    }
+    reset(div_2);
+    reset(div_1);
+    var div_3 = sibling(div_1, 2);
+    var node_1 = child(div_3);
+    {
+      var consequent_1 = ($$anchor2) => {
+        var button = root_22();
+        var text_3 = child(button, true);
+        reset(button);
+        template_effect(() => set_text(text_3, $$props.actionLabel));
+        delegated("click", button, function(...$$args) {
+          apply(() => $$props.onaction, this, $$args, Alert, [51, 71]);
+        });
+        append($$anchor2, button);
+      };
+      add_svelte_meta(
+        () => if_block(node_1, ($$render) => {
+          if ($$props.actionLabel && $$props.onaction) $$render(consequent_1);
+        }),
+        "if",
+        Alert,
+        50,
+        4
+      );
+    }
+    var node_2 = sibling(node_1, 2);
+    {
+      var consequent_2 = ($$anchor2) => {
+        var button_1 = root_3();
+        delegated("click", button_1, function(...$$args) {
+          apply(() => $$props.ondismiss, this, $$args, Alert, [58, 17]);
+        });
+        append($$anchor2, button_1);
+      };
+      add_svelte_meta(
+        () => if_block(node_2, ($$render) => {
+          if (dismissible() && $$props.ondismiss) $$render(consequent_2);
+        }),
+        "if",
+        Alert,
+        55,
+        4
+      );
+    }
+    reset(div_3);
+    reset(div);
+    template_effect(() => {
+      set_class(div, 1, `dojo-alert dojo-alert--${$$props.type ?? ""}`, "svelte-dhhn2a");
+      set_text(text2, get(icon));
+      set_text(text_1, $$props.message);
+    });
+    append($$anchor, div);
+    return pop($$exports);
+  }
+  delegate(["click"]);
+
   // src/webview/components/ErrorBanner.svelte
   ErrorBanner[FILENAME] = "src/webview/components/ErrorBanner.svelte";
-  var root_22 = add_locations(from_html(`<span class="error-hint svelte-1ju6edo">Please update your credentials to continue.</span>`), ErrorBanner[FILENAME], [[56, 10]]);
-  var root_3 = add_locations(from_html(`<span class="error-hint svelte-1ju6edo">Check your internet connection and try again.</span>`), ErrorBanner[FILENAME], [[58, 10]]);
-  var root_4 = add_locations(from_html(`<button class="action-button primary svelte-1ju6edo"> </button>`), ErrorBanner[FILENAME], [[64, 8]]);
-  var root_5 = add_locations(from_html(`<button class="action-button secondary svelte-1ju6edo" title="Dismiss">\u2715</button>`), ErrorBanner[FILENAME], [[69, 8]]);
-  var root_13 = add_locations(from_html(`<div class="error-banner svelte-1ju6edo" role="alert"><div class="error-content svelte-1ju6edo"><span class="error-icon svelte-1ju6edo">\u26A0\uFE0F</span> <div class="error-message svelte-1ju6edo"><strong class="svelte-1ju6edo"> </strong> <!></div></div> <div class="error-actions svelte-1ju6edo"><!> <!></div></div>`), ErrorBanner[FILENAME], [[50, 2, [[51, 4, [[52, 6], [53, 6, [[54, 8]]]]], [62, 4]]]]);
   function ErrorBanner($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, ErrorBanner);
+    const alertType = tag(
+      user_derived(() => {
+        if (strict_equals($$props.error.type, "authentication") || strict_equals($$props.error.type, "authorization")) return "warning";
+        if (strict_equals($$props.error.type, "network")) return "info";
+        return "error";
+      }),
+      "alertType"
+    );
+    const hint = tag(
+      user_derived(() => {
+        if (strict_equals($$props.error.type, "authentication")) return "Please update your credentials to continue.";
+        if (strict_equals($$props.error.type, "network")) return "Check your internet connection and try again.";
+        return void 0;
+      }),
+      "hint"
+    );
+    const actionLabel = tag(
+      user_derived(() => {
+        if (!$$props.error.recoverable) return void 0;
+        if ($$props.error.suggestedAction) return $$props.error.suggestedAction;
+        return strict_equals($$props.error.type, "authentication") ? "Fix Authentication" : "Retry";
+      }),
+      "actionLabel"
+    );
     function handleAction() {
       if (strict_equals($$props.error.type, "authentication") && $$props.onFixAuth) {
         $$props.onFixAuth();
-      } else if ($$props.onRetry) {
-        $$props.onRetry();
+      } else {
+        $$props.onRetry?.();
       }
-    }
-    function getActionLabel() {
-      if ($$props.error.suggestedAction) {
-        return $$props.error.suggestedAction;
-      }
-      if (strict_equals($$props.error.type, "authentication")) {
-        return "Fix Authentication";
-      }
-      return "Retry";
     }
     var $$exports = { ...legacy_api() };
     var fragment = comment();
     var node = first_child(fragment);
     {
-      var consequent_4 = ($$anchor2) => {
-        var div = root_13();
-        var div_1 = child(div);
-        var div_2 = sibling(child(div_1), 2);
-        var strong = child(div_2);
-        var text2 = child(strong, true);
-        reset(strong);
-        var node_1 = sibling(strong, 2);
+      var consequent = ($$anchor2) => {
         {
-          var consequent = ($$anchor3) => {
-            var span = root_22();
-            append($$anchor3, span);
-          };
-          var consequent_1 = ($$anchor3) => {
-            var span_1 = root_3();
-            append($$anchor3, span_1);
-          };
+          let $0 = user_derived(() => $$props.error.recoverable ? get(actionLabel) : void 0);
+          let $1 = user_derived(() => !!$$props.onDismiss);
           add_svelte_meta(
-            () => if_block(node_1, ($$render) => {
-              if (strict_equals($$props.error.type, "authentication")) $$render(consequent);
-              else if (strict_equals($$props.error.type, "network")) $$render(consequent_1, 1);
+            () => Alert($$anchor2, {
+              get type() {
+                return get(alertType);
+              },
+              get message() {
+                return $$props.error.message;
+              },
+              get hint() {
+                return get(hint);
+              },
+              get actionLabel() {
+                return get($0);
+              },
+              get dismissible() {
+                return get($1);
+              },
+              onaction: handleAction,
+              get ondismiss() {
+                return $$props.onDismiss;
+              }
             }),
-            "if",
+            "component",
             ErrorBanner,
-            55,
-            8
+            60,
+            2,
+            { componentTag: "Alert" }
           );
         }
-        reset(div_2);
-        reset(div_1);
-        var div_3 = sibling(div_1, 2);
-        var node_2 = child(div_3);
-        {
-          var consequent_2 = ($$anchor3) => {
-            var button = root_4();
-            var text_1 = child(button, true);
-            reset(button);
-            template_effect(($0) => set_text(text_1, $0), [getActionLabel]);
-            delegated("click", button, handleAction);
-            append($$anchor3, button);
-          };
-          add_svelte_meta(
-            () => if_block(node_2, ($$render) => {
-              if ($$props.error.recoverable) $$render(consequent_2);
-            }),
-            "if",
-            ErrorBanner,
-            63,
-            6
-          );
-        }
-        var node_3 = sibling(node_2, 2);
-        {
-          var consequent_3 = ($$anchor3) => {
-            var button_1 = root_5();
-            delegated("click", button_1, function(...$$args) {
-              apply(() => $$props.onDismiss, this, $$args, ErrorBanner, [69, 57]);
-            });
-            append($$anchor3, button_1);
-          };
-          add_svelte_meta(
-            () => if_block(node_3, ($$render) => {
-              if ($$props.onDismiss) $$render(consequent_3);
-            }),
-            "if",
-            ErrorBanner,
-            68,
-            6
-          );
-        }
-        reset(div_3);
-        reset(div);
-        template_effect(() => set_text(text2, $$props.error.message));
-        append($$anchor2, div);
       };
       add_svelte_meta(
         () => if_block(node, ($$render) => {
-          if ($$props.error) $$render(consequent_4);
+          if ($$props.error) $$render(consequent);
         }),
         "if",
         ErrorBanner,
-        49,
+        59,
         0
       );
     }
     append($$anchor, fragment);
     return pop($$exports);
   }
-  delegate(["click"]);
 
-  // src/webview/components/EmptyState.svelte
-  EmptyState[FILENAME] = "src/webview/components/EmptyState.svelte";
-  var root_23 = add_locations(from_html(`<button class="empty-state-action svelte-qlco7a"> </button>`), EmptyState[FILENAME], [[56, 8]]);
-  var root_14 = add_locations(from_html(`<div class="empty-state-content error svelte-qlco7a"><div class="empty-state-icon svelte-qlco7a">\u26A0\uFE0F</div> <h3 class="empty-state-title svelte-qlco7a">Unable to load work items</h3> <p class="empty-state-message svelte-qlco7a"> </p> <!></div>`), EmptyState[FILENAME], [[51, 4, [[52, 6], [53, 6], [54, 6]]]]);
-  var root_32 = add_locations(from_html(`<div class="empty-state-content svelte-qlco7a"><div class="empty-state-icon svelte-qlco7a">\u{1F4CB}</div> <h3 class="empty-state-title svelte-qlco7a">No work items</h3> <p class="empty-state-message svelte-qlco7a">Select a query or connection to view work items.</p></div>`), EmptyState[FILENAME], [[62, 4, [[63, 6], [64, 6], [65, 6]]]]);
-  var root3 = add_locations(from_html(`<div class="empty-state svelte-qlco7a"><!></div>`), EmptyState[FILENAME], [[49, 0]]);
+  // packages/ui-web/src/components/EmptyState.svelte
+  EmptyState[FILENAME] = "packages/ui-web/src/components/EmptyState.svelte";
+  var root_14 = add_locations(from_html(`<span class="dojo-empty-state__icon svelte-8jlr7m" aria-hidden="true"> </span>`), EmptyState[FILENAME], [[19, 4]]);
+  var root_23 = add_locations(from_html(`<p class="dojo-empty-state__description svelte-8jlr7m"> </p>`), EmptyState[FILENAME], [[23, 4]]);
+  var root_32 = add_locations(from_html(`<button class="dojo-empty-state__btn svelte-8jlr7m"> </button>`), EmptyState[FILENAME], [[26, 4]]);
+  var root4 = add_locations(from_html(`<div class="dojo-empty-state svelte-8jlr7m" role="status"><!> <p class="dojo-empty-state__heading svelte-8jlr7m"> </p> <!> <!></div>`), EmptyState[FILENAME], [[17, 0, [[21, 2]]]]);
   function EmptyState($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, EmptyState);
-    function handleAction() {
-      if (strict_equals($$props.error?.type, "authentication") && $$props.onFixAuth) {
-        $$props.onFixAuth();
-      } else if ($$props.onRetry) {
-        $$props.onRetry();
-      }
-    }
-    function getActionLabel() {
-      if ($$props.error?.suggestedAction) {
-        return $$props.error.suggestedAction;
-      }
-      if (strict_equals($$props.error?.type, "authentication")) {
-        return "Re-authenticate";
-      }
-      return "Retry";
-    }
+    const icon = prop($$props, "icon", 3, "\u25CB");
     var $$exports = { ...legacy_api() };
-    var div = root3();
+    var div = root4();
     var node = child(div);
     {
-      var consequent_1 = ($$anchor2) => {
-        var div_1 = root_14();
-        var p = sibling(child(div_1), 4);
-        var text2 = child(p, true);
-        reset(p);
-        var node_1 = sibling(p, 2);
-        {
-          var consequent = ($$anchor3) => {
-            var button = root_23();
-            var text_1 = child(button, true);
-            reset(button);
-            template_effect(($0) => set_text(text_1, $0), [getActionLabel]);
-            delegated("click", button, handleAction);
-            append($$anchor3, button);
-          };
-          add_svelte_meta(
-            () => if_block(node_1, ($$render) => {
-              if ($$props.error.recoverable) $$render(consequent);
-            }),
-            "if",
-            EmptyState,
-            55,
-            6
-          );
-        }
-        reset(div_1);
-        template_effect(() => set_text(text2, $$props.error.message));
-        append($$anchor2, div_1);
-      };
-      var alternate = ($$anchor2) => {
-        var div_2 = root_32();
-        append($$anchor2, div_2);
+      var consequent = ($$anchor2) => {
+        var span = root_14();
+        var text2 = child(span, true);
+        reset(span);
+        template_effect(() => set_text(text2, icon()));
+        append($$anchor2, span);
       };
       add_svelte_meta(
         () => if_block(node, ($$render) => {
-          if ($$props.hasError && $$props.error) $$render(consequent_1);
-          else $$render(alternate, false);
+          if (icon()) $$render(consequent);
         }),
         "if",
         EmptyState,
-        50,
+        18,
+        2
+      );
+    }
+    var p = sibling(node, 2);
+    var text_1 = child(p, true);
+    reset(p);
+    var node_1 = sibling(p, 2);
+    {
+      var consequent_1 = ($$anchor2) => {
+        var p_1 = root_23();
+        var text_2 = child(p_1, true);
+        reset(p_1);
+        template_effect(() => set_text(text_2, $$props.description));
+        append($$anchor2, p_1);
+      };
+      add_svelte_meta(
+        () => if_block(node_1, ($$render) => {
+          if ($$props.description) $$render(consequent_1);
+        }),
+        "if",
+        EmptyState,
+        22,
+        2
+      );
+    }
+    var node_2 = sibling(node_1, 2);
+    {
+      var consequent_2 = ($$anchor2) => {
+        var button = root_32();
+        var text_3 = child(button, true);
+        reset(button);
+        template_effect(() => set_text(text_3, $$props.actionLabel));
+        delegated("click", button, function(...$$args) {
+          apply(() => $$props.onaction, this, $$args, EmptyState, [26, 51]);
+        });
+        append($$anchor2, button);
+      };
+      add_svelte_meta(
+        () => if_block(node_2, ($$render) => {
+          if ($$props.actionLabel && $$props.onaction) $$render(consequent_2);
+        }),
+        "if",
+        EmptyState,
+        25,
         2
       );
     }
     reset(div);
+    template_effect(() => set_text(text_1, $$props.heading));
     append($$anchor, div);
     return pop($$exports);
   }
   delegate(["click"]);
 
+  // src/webview/components/EmptyState.svelte
+  EmptyState2[FILENAME] = "src/webview/components/EmptyState.svelte";
+  function EmptyState2($$anchor, $$props) {
+    check_target(new.target);
+    push($$props, true, EmptyState2);
+    const alertType = tag(
+      user_derived(() => {
+        if (!$$props.error) return "error";
+        if (strict_equals($$props.error.type, "authentication") || strict_equals($$props.error.type, "authorization")) return "warning";
+        if (strict_equals($$props.error.type, "network")) return "info";
+        return "error";
+      }),
+      "alertType"
+    );
+    const actionLabel = tag(
+      user_derived(() => {
+        if (!$$props.error?.recoverable) return void 0;
+        if ($$props.error.suggestedAction) return $$props.error.suggestedAction;
+        return strict_equals($$props.error.type, "authentication") ? "Re-authenticate" : "Retry";
+      }),
+      "actionLabel"
+    );
+    function handleAction() {
+      if (strict_equals($$props.error?.type, "authentication") && $$props.onFixAuth) {
+        $$props.onFixAuth();
+      } else {
+        $$props.onRetry?.();
+      }
+    }
+    var $$exports = { ...legacy_api() };
+    var fragment = comment();
+    var node = first_child(fragment);
+    {
+      var consequent = ($$anchor2) => {
+        {
+          let $0 = user_derived(() => $$props.error.recoverable ? get(actionLabel) : void 0);
+          add_svelte_meta(
+            () => Alert($$anchor2, {
+              get type() {
+                return get(alertType);
+              },
+              get message() {
+                return $$props.error.message;
+              },
+              get actionLabel() {
+                return get($0);
+              },
+              onaction: handleAction
+            }),
+            "component",
+            EmptyState2,
+            56,
+            2,
+            { componentTag: "Alert" }
+          );
+        }
+      };
+      var alternate = ($$anchor2) => {
+        add_svelte_meta(
+          () => EmptyState($$anchor2, {
+            icon: "\u{1F4CB}",
+            heading: "No work items found",
+            description: "Select a query or refresh to view work items."
+          }),
+          "component",
+          EmptyState2,
+          63,
+          2,
+          { componentTag: "DojoEmptyState" }
+        );
+      };
+      add_svelte_meta(
+        () => if_block(node, ($$render) => {
+          if ($$props.hasError && $$props.error) $$render(consequent);
+          else $$render(alternate, -1);
+        }),
+        "if",
+        EmptyState2,
+        55,
+        0
+      );
+    }
+    append($$anchor, fragment);
+    return pop($$exports);
+  }
+
   // src/webview/components/WorkItemList.svelte
   WorkItemList[FILENAME] = "src/webview/components/WorkItemList.svelte";
   var root_15 = add_locations(from_html(`<div class="empty-state svelte-1uil3z2"><p class="svelte-1uil3z2">No active connection selected.</p> <p class="hint svelte-1uil3z2">Configure a connection in settings to get started.</p></div>`), WorkItemList[FILENAME], [[259, 4, [[260, 6], [261, 6]]]]);
   var root_33 = add_locations(from_html(`<div class="query-selector-bar svelte-1uil3z2"><label for="query-select" class="query-label svelte-1uil3z2">Query:</label> <!></div>`), WorkItemList[FILENAME], [[266, 6, [[267, 8]]]]);
-  var root_52 = add_locations(from_html(`<div class="loading-indicator svelte-1uil3z2"><div class="loading-spinner svelte-1uil3z2"></div> <p class="svelte-1uil3z2">Loading work items...</p></div>`), WorkItemList[FILENAME], [[327, 8, [[328, 10], [329, 10]]]]);
+  var root_5 = add_locations(from_html(`<div class="loading-indicator svelte-1uil3z2"><div class="loading-spinner svelte-1uil3z2"></div> <p class="svelte-1uil3z2">Loading work items...</p></div>`), WorkItemList[FILENAME], [[327, 8, [[328, 10], [329, 10]]]]);
   var root_6 = add_locations(from_html(`<div class="loading-spinner-container svelte-1uil3z2"><div class="loading-spinner small svelte-1uil3z2"></div></div>`), WorkItemList[FILENAME], [[333, 8, [[334, 10]]]]);
   var root_9 = add_locations(from_html(`<div class="empty-state svelte-1uil3z2"><p class="svelte-1uil3z2">No items match your filters.</p> <button class="svelte-1uil3z2">Clear Filters</button></div>`), WorkItemList[FILENAME], [[363, 6, [[364, 8], [365, 8]]]]);
   var root_122 = add_locations(from_html(`<span class="meta-badge assignee svelte-1uil3z2"> </span>`), WorkItemList[FILENAME], [[403, 18]]);
@@ -11617,7 +12169,7 @@ ${component_stack}
   ]);
   var root_10 = add_locations(from_html(`<div class="items-container svelte-1uil3z2"></div>`), WorkItemList[FILENAME], [[374, 6]]);
   var root_24 = add_locations(from_html(`<!> <div class="filters-bar svelte-1uil3z2"><input type="text" placeholder="Filter by title..." class="filter-input svelte-1uil3z2"/> <!> <!> <!></div> <!> <!> <!>`, 1), WorkItemList[FILENAME], [[283, 4, [[284, 6]]]]);
-  var root4 = add_locations(from_html(`<div class="work-item-list svelte-1uil3z2" style="position: relative;"><!></div>`), WorkItemList[FILENAME], [[257, 0]]);
+  var root5 = add_locations(from_html(`<div class="work-item-list svelte-1uil3z2" style="position: relative;"><!></div>`), WorkItemList[FILENAME], [[257, 0]]);
   function WorkItemList($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, WorkItemList);
@@ -11795,7 +12347,7 @@ ${component_stack}
       );
     }
     var $$exports = { ...legacy_api() };
-    var div = root4();
+    var div = root5();
     var node = child(div);
     {
       var consequent = ($$anchor2) => {
@@ -11929,7 +12481,7 @@ ${component_stack}
             var node_7 = first_child(fragment_1);
             {
               var consequent_2 = ($$anchor4) => {
-                var div_4 = root_52();
+                var div_4 = root_5();
                 append($$anchor4, div_4);
               };
               var alternate = ($$anchor4) => {
@@ -11939,7 +12491,7 @@ ${component_stack}
               add_svelte_meta(
                 () => if_block(node_7, ($$render) => {
                   if (strict_equals(get(workItems).length, 0)) $$render(consequent_2);
-                  else $$render(alternate, false);
+                  else $$render(alternate, -1);
                 }),
                 "if",
                 WorkItemList,
@@ -12006,7 +12558,7 @@ ${component_stack}
                 suggestedAction: "Change auth / start new sign-in"
               } : void 0));
               add_svelte_meta(
-                () => EmptyState($$anchor3, {
+                () => EmptyState2($$anchor3, {
                   hasError: true,
                   get error() {
                     return get($0);
@@ -12159,7 +12711,7 @@ ${component_stack}
             () => if_block(node_9, ($$render) => {
               if ((get(hasConnectionError) || get(showError)) && strict_equals(get(workItems).length, 0) && !get(showLoading)) $$render(consequent_5);
               else if (strict_equals(get(filteredItems).length, 0) && get(workItems).length > 0) $$render(consequent_6, 1);
-              else $$render(alternate_1, false);
+              else $$render(alternate_1, -1);
             }),
             "if",
             WorkItemList,
@@ -12181,7 +12733,7 @@ ${component_stack}
       add_svelte_meta(
         () => if_block(node, ($$render) => {
           if (!get(activeConnectionId)) $$render(consequent);
-          else $$render(alternate_2, false);
+          else $$render(alternate_2, -1);
         }),
         "if",
         WorkItemList,
@@ -12200,7 +12752,7 @@ ${component_stack}
   var root_16 = add_locations(from_html(`<div class="empty svelte-j9p4i1">No columns available \u2013 load work items or switch view.</div>`), KanbanBoard[FILENAME], [[101, 4]]);
   var root_62 = add_locations(from_html(`<span class="meta-badge assignee svelte-j9p4i1"> </span>`), KanbanBoard[FILENAME], [[140, 22]]);
   var root_7 = add_locations(from_html(`<span class="meta-badge timer-badge svelte-j9p4i1" title="Timer Active">\u23F1</span>`), KanbanBoard[FILENAME], [[145, 22]]);
-  var root_53 = add_locations(from_html(`<div role="button" tabindex="0"><div class="kanban-item-header svelte-j9p4i1"><span class="type-icon svelte-j9p4i1"> </span> <span class="item-id svelte-j9p4i1"> </span> <span> </span></div> <div class="kanban-item-title svelte-j9p4i1"> </div> <div class="kanban-item-meta svelte-j9p4i1"><span class="meta-badge type svelte-j9p4i1"> </span> <!> <!></div> <div class="kanban-item-actions svelte-j9p4i1"><button class="action-btn svelte-j9p4i1"><span class="codicon svelte-j9p4i1"> </span></button> <button class="action-btn svelte-j9p4i1" title="Open in Azure DevOps"><span class="codicon svelte-j9p4i1">\u{1F310}</span></button></div></div>`), KanbanBoard[FILENAME], [
+  var root_52 = add_locations(from_html(`<div role="button" tabindex="0"><div class="kanban-item-header svelte-j9p4i1"><span class="type-icon svelte-j9p4i1"> </span> <span class="item-id svelte-j9p4i1"> </span> <span> </span></div> <div class="kanban-item-title svelte-j9p4i1"> </div> <div class="kanban-item-meta svelte-j9p4i1"><span class="meta-badge type svelte-j9p4i1"> </span> <!> <!></div> <div class="kanban-item-actions svelte-j9p4i1"><button class="action-btn svelte-j9p4i1"><span class="codicon svelte-j9p4i1"> </span></button> <button class="action-btn svelte-j9p4i1" title="Open in Azure DevOps"><span class="codicon svelte-j9p4i1">\u{1F310}</span></button></div></div>`), KanbanBoard[FILENAME], [
     [
       114,
       16,
@@ -12215,7 +12767,7 @@ ${component_stack}
   var root_8 = add_locations(from_html(`<div class="kanban-item kanban-item-placeholder svelte-j9p4i1"><span> </span></div>`), KanbanBoard[FILENAME], [[167, 16, [[168, 18]]]]);
   var root_34 = add_locations(from_html(`<div class="column svelte-j9p4i1"><div class="column-header svelte-j9p4i1"><h3 class="svelte-j9p4i1"> </h3> <span class="count svelte-j9p4i1"> </span></div> <div class="items svelte-j9p4i1"></div></div>`), KanbanBoard[FILENAME], [[105, 8, [[106, 10, [[107, 12], [108, 12]]], [110, 10]]]]);
   var root_25 = add_locations(from_html(`<div class="columns svelte-j9p4i1"></div>`), KanbanBoard[FILENAME], [[103, 4]]);
-  var root5 = add_locations(from_html(`<div class="kanban-board svelte-j9p4i1"><!></div>`), KanbanBoard[FILENAME], [[99, 0]]);
+  var root6 = add_locations(from_html(`<div class="kanban-board svelte-j9p4i1"><!></div>`), KanbanBoard[FILENAME], [[99, 0]]);
   function KanbanBoard($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, KanbanBoard);
@@ -12283,7 +12835,7 @@ ${component_stack}
       }
     }
     var $$exports = { ...legacy_api() };
-    var div = root5();
+    var div = root6();
     var node = child(div);
     {
       var consequent = ($$anchor2) => {
@@ -12312,7 +12864,7 @@ ${component_stack}
                 var node_1 = first_child(fragment);
                 {
                   var consequent_3 = ($$anchor5) => {
-                    var div_6 = root_53();
+                    var div_6 = root_52();
                     let classes;
                     var div_7 = child(div_6);
                     var span_1 = child(div_7);
@@ -12427,7 +12979,7 @@ ${component_stack}
                   add_svelte_meta(
                     () => if_block(node_1, ($$render) => {
                       if (get(item)) $$render(consequent_3);
-                      else $$render(alternate, false);
+                      else $$render(alternate, -1);
                     }),
                     "if",
                     KanbanBoard,
@@ -12461,7 +13013,7 @@ ${component_stack}
       add_svelte_meta(
         () => if_block(node, ($$render) => {
           if (strict_equals(get(columns).length, 0)) $$render(consequent);
-          else $$render(alternate_1, false);
+          else $$render(alternate_1, -1);
         }),
         "if",
         KanbanBoard,
@@ -12479,7 +13031,7 @@ ${component_stack}
   ConnectionStatus[FILENAME] = "src/webview/components/ConnectionStatus.svelte";
   var root_17 = add_locations(from_html(`<div class="status-indicator svelte-ky1zja"><span class="status-dot svelte-ky1zja"></span> <span class="status-text svelte-ky1zja"> </span></div>`), ConnectionStatus[FILENAME], [[84, 4, [[85, 6], [86, 6]]]]);
   var root_26 = add_locations(from_html(`<div class="refresh-status svelte-ky1zja"><span class="refresh-icon svelte-ky1zja"> </span> <span class="refresh-text svelte-ky1zja"> </span></div>`), ConnectionStatus[FILENAME], [[90, 4, [[91, 6], [92, 6]]]]);
-  var root6 = add_locations(from_html(`<div class="connection-status svelte-ky1zja"><!> <!></div>`), ConnectionStatus[FILENAME], [[82, 0]]);
+  var root7 = add_locations(from_html(`<div class="connection-status svelte-ky1zja"><!> <!></div>`), ConnectionStatus[FILENAME], [[82, 0]]);
   function ConnectionStatus($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, ConnectionStatus);
@@ -12529,7 +13081,7 @@ ${component_stack}
       }
     }
     var $$exports = { ...legacy_api() };
-    var div = root6();
+    var div = root7();
     var node = child(div);
     {
       var consequent = ($$anchor2) => {
@@ -12596,7 +13148,7 @@ ${component_stack}
   StatusBar[FILENAME] = "src/webview/components/StatusBar.svelte";
   var root_18 = add_locations(from_html(`<div class="status-section connection-info svelte-1764dnv"><span class="label svelte-1764dnv">Connection:</span> <span class="value svelte-1764dnv"> </span></div>`), StatusBar[FILENAME], [[79, 4, [[80, 6], [81, 6]]]]);
   var root_35 = add_locations(from_html(`<div class="status-section timer-active svelte-1764dnv"><span class="label svelte-1764dnv">Timer:</span> <span class="value svelte-1764dnv"> </span></div>`), StatusBar[FILENAME], [[88, 4, [[89, 6], [90, 6]]]]);
-  var root7 = add_locations(from_html(`<div class="status-bar svelte-1764dnv"><!> <!> <!></div>`), StatusBar[FILENAME], [[77, 0]]);
+  var root8 = add_locations(from_html(`<div class="status-bar svelte-1764dnv"><!> <!> <!></div>`), StatusBar[FILENAME], [[77, 0]]);
   function StatusBar($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, StatusBar);
@@ -12616,7 +13168,7 @@ ${component_stack}
       return conn.id;
     }
     var $$exports = { ...legacy_api() };
-    var div = root7();
+    var div = root8();
     var node = child(div);
     {
       var consequent = ($$anchor2) => {
@@ -12696,7 +13248,7 @@ ${component_stack}
   // src/webview/components/ConnectionView.svelte
   ConnectionView[FILENAME] = "src/webview/components/ConnectionView.svelte";
   var root_19 = add_locations(from_html(`<div class="connection-content svelte-5unw23"><!> <!></div>`), ConnectionView[FILENAME], [[51, 4]]);
-  var root8 = add_locations(from_html(`<div><!></div>`), ConnectionView[FILENAME], [[44, 0]]);
+  var root9 = add_locations(from_html(`<div><!></div>`), ConnectionView[FILENAME], [[44, 0]]);
   function ConnectionView($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, ConnectionView);
@@ -12708,7 +13260,7 @@ ${component_stack}
       });
     }
     var $$exports = { ...legacy_api() };
-    var div = root8();
+    var div = root9();
     let classes;
     var node = child(div);
     {
@@ -12771,7 +13323,7 @@ ${component_stack}
           add_svelte_meta(
             () => if_block(node_1, ($$render) => {
               if (strict_equals($$props.viewMode, "kanban")) $$render(consequent);
-              else $$render(alternate, false);
+              else $$render(alternate, -1);
             }),
             "if",
             ConnectionView,
@@ -12816,7 +13368,7 @@ ${component_stack}
 
   // src/webview/components/ConnectionViews.svelte
   ConnectionViews[FILENAME] = "src/webview/components/ConnectionViews.svelte";
-  var root9 = add_locations(from_html(`<div class="connection-views svelte-19sc4ta"></div>`), ConnectionViews[FILENAME], [[56, 0]]);
+  var root10 = add_locations(from_html(`<div class="connection-views svelte-19sc4ta"></div>`), ConnectionViews[FILENAME], [[56, 0]]);
   function ConnectionViews($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, ConnectionViews);
@@ -12857,7 +13409,7 @@ ${component_stack}
       "connectionViewModes"
     );
     var $$exports = { ...legacy_api() };
-    var div = root9();
+    var div = root10();
     add_svelte_meta(
       () => each(div, 21, () => $$props.connections, (connection) => connection.id, ($$anchor2, connection) => {
         const isActive = tag(user_derived(() => strict_equals(get(connection).id, $$props.activeConnectionId)), "isActive");
@@ -12949,7 +13501,7 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_42 = add_locations(from_html(`<span class="error-hint svelte-cv3w9g"> </span>`), AuthReminder[FILENAME], [[284, 8]]);
+  var root_4 = add_locations(from_html(`<span class="error-hint svelte-cv3w9g"> </span>`), AuthReminder[FILENAME], [[284, 8]]);
   var root_36 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Failed</strong> <span class="error-detail svelte-cv3w9g"> </span> <!></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
     [
       276,
@@ -12961,7 +13513,7 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_54 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Failed</strong> <span class="error-detail svelte-cv3w9g"> </span></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
+  var root_53 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Failed</strong> <span class="error-detail svelte-cv3w9g"> </span></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
     [
       299,
       2,
@@ -13151,7 +13703,7 @@ ${component_stack}
         var node_1 = sibling(span_2, 2);
         {
           var consequent_2 = ($$anchor3) => {
-            var span_3 = root_42();
+            var span_3 = root_4();
             var text_4 = child(span_3);
             reset(span_3);
             template_effect(() => set_text(text_4, `Suggested: ${get(connectionHealthError).suggestedAction ?? ""}`));
@@ -13181,7 +13733,7 @@ ${component_stack}
         append($$anchor2, div_6);
       };
       var consequent_4 = ($$anchor2) => {
-        var div_9 = root_54();
+        var div_9 = root_53();
         var div_10 = sibling(child(div_9), 2);
         var span_4 = sibling(child(div_10), 2);
         var text_5 = child(span_4, true);
@@ -13242,7 +13794,7 @@ ${component_stack}
           add_svelte_meta(
             () => if_block(node_2, ($$render) => {
               if (get(isEntraAuth)) $$render(consequent_6);
-              else $$render(alternate, false);
+              else $$render(alternate, -1);
             }),
             "if",
             AuthReminder,
@@ -13277,27 +13829,40 @@ ${component_stack}
   }
   delegate(["click"]);
 
+  // packages/ui-web/src/components/IconButton.svelte
+  IconButton[FILENAME] = "packages/ui-web/src/components/IconButton.svelte";
+  var root11 = add_locations(from_html(`<button><span class="dojo-icon-btn__icon svelte-4udubj" aria-hidden="true"> </span></button>`), IconButton[FILENAME], [[29, 0, [[39, 2]]]]);
+  function IconButton($$anchor, $$props) {
+    check_target(new.target);
+    push($$props, true, IconButton);
+    const disabled = prop($$props, "disabled", 3, false), active = prop($$props, "active", 3, false), type2 = prop($$props, "type", 3, "button");
+    var $$exports = { ...legacy_api() };
+    var button = root11();
+    let classes;
+    var span = child(button);
+    var text2 = child(span, true);
+    reset(span);
+    reset(button);
+    template_effect(() => {
+      classes = set_class(button, 1, "dojo-icon-btn svelte-4udubj", null, classes, { "dojo-icon-btn--active": active() });
+      set_attribute2(button, "type", type2());
+      button.disabled = disabled();
+      set_attribute2(button, "aria-label", $$props["aria-label"]);
+      set_attribute2(button, "aria-pressed", active() || void 0);
+      set_attribute2(button, "title", $$props.title ?? $$props["aria-label"]);
+      set_text(text2, $$props.icon);
+    });
+    delegated("click", button, function(...$$args) {
+      apply(() => $$props.onclick, this, $$args, IconButton, [37, 3]);
+    });
+    append($$anchor, button);
+    return pop($$exports);
+  }
+  delegate(["click"]);
+
   // src/webview/components/WebviewHeader.svelte
   WebviewHeader[FILENAME] = "src/webview/components/WebviewHeader.svelte";
-  var root_111 = add_locations(from_html(`<button class="header-btn svelte-1bw0sfy" title="Toggle Debug View" aria-label="Toggle Debug View"><span class="codicon svelte-1bw0sfy">\u{1F41B}</span></button>`), WebviewHeader[FILENAME], [[91, 6, [[97, 8]]]]);
-  var root10 = add_locations(from_html(`<header class="webview-header svelte-1bw0sfy"><div class="header-actions svelte-1bw0sfy"><button class="header-btn svelte-1bw0sfy" title="Toggle Kanban View" aria-label="Toggle Kanban View"><span class="codicon svelte-1bw0sfy">\u268F</span></button> <button title="Refresh Work Items (R)" aria-label="Refresh Work Items"><span class="codicon svelte-1bw0sfy">\u21BB</span></button> <button class="header-btn svelte-1bw0sfy" title="Create Work Item" aria-label="Create Work Item"><span class="codicon svelte-1bw0sfy">\uFF0B</span></button> <button class="header-btn svelte-1bw0sfy" title="Setup or Manage Connections" aria-label="Setup or Manage Connections"><span class="codicon svelte-1bw0sfy">\u2699</span></button> <!></div></header>`), WebviewHeader[FILENAME], [
-    [
-      47,
-      0,
-      [
-        [
-          48,
-          2,
-          [
-            [50, 4, [[56, 6]]],
-            [60, 4, [[66, 6]]],
-            [70, 4, [[76, 6]]],
-            [80, 4, [[86, 6]]]
-          ]
-        ]
-      ]
-    ]
-  ]);
+  var root12 = add_locations(from_html(`<header class="webview-header svelte-1bw0sfy"><div class="header-actions svelte-1bw0sfy"><!> <span><!></span> <!> <!> <!></div></header>`), WebviewHeader[FILENAME], [[48, 0, [[49, 2, [[58, 4]]]]]]);
   function WebviewHeader($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, WebviewHeader);
@@ -13325,45 +13890,157 @@ ${component_stack}
       $$props.sendEvent?.({ type: "TOGGLE_DEBUG_VIEW" });
     }
     const showDebugButton = tag(user_derived(() => strict_equals($$props.context?.debugLoggingEnabled, true)), "showDebugButton");
+    const isKanban = tag(user_derived(() => strict_equals($$props.context?.viewMode, "kanban")), "isKanban");
     var $$exports = { ...legacy_api() };
-    var header = root10();
+    var header = root12();
     var div = child(header);
-    var button = child(div);
-    var button_1 = sibling(button, 2);
-    var button_2 = sibling(button_1, 2);
-    var button_3 = sibling(button_2, 2);
-    var node = sibling(button_3, 2);
+    var node = child(div);
+    add_svelte_meta(
+      () => IconButton(node, {
+        icon: "\u268F",
+        "aria-label": "Toggle Kanban View",
+        title: "Toggle Kanban View",
+        get active() {
+          return get(isKanban);
+        },
+        onclick: handleToggleKanban
+      }),
+      "component",
+      WebviewHeader,
+      50,
+      4,
+      { componentTag: "IconButton" }
+    );
+    var span = sibling(node, 2);
+    let classes;
+    var node_1 = child(span);
+    add_svelte_meta(
+      () => IconButton(node_1, {
+        icon: "\u21BB",
+        "aria-label": "Refresh Work Items",
+        title: "Refresh Work Items (R)",
+        onclick: handleRefresh
+      }),
+      "component",
+      WebviewHeader,
+      59,
+      6,
+      { componentTag: "IconButton" }
+    );
+    reset(span);
+    var node_2 = sibling(span, 2);
+    add_svelte_meta(
+      () => IconButton(node_2, {
+        icon: "\uFF0B",
+        "aria-label": "Create Work Item",
+        title: "Create Work Item",
+        onclick: handleCreateWorkItem
+      }),
+      "component",
+      WebviewHeader,
+      67,
+      4,
+      { componentTag: "IconButton" }
+    );
+    var node_3 = sibling(node_2, 2);
+    add_svelte_meta(
+      () => IconButton(node_3, {
+        icon: "\u2699",
+        "aria-label": "Setup or Manage Connections",
+        title: "Setup or Manage Connections",
+        onclick: handleSetup
+      }),
+      "component",
+      WebviewHeader,
+      74,
+      4,
+      { componentTag: "IconButton" }
+    );
+    var node_4 = sibling(node_3, 2);
     {
       var consequent = ($$anchor2) => {
-        var button_4 = root_111();
-        delegated("click", button_4, handleToggleDebug);
-        append($$anchor2, button_4);
+        add_svelte_meta(
+          () => IconButton($$anchor2, {
+            icon: "\u{1F41B}",
+            "aria-label": "Toggle Debug View",
+            title: "Toggle Debug View",
+            onclick: handleToggleDebug
+          }),
+          "component",
+          WebviewHeader,
+          82,
+          6,
+          { componentTag: "IconButton" }
+        );
       };
       add_svelte_meta(
-        () => if_block(node, ($$render) => {
+        () => if_block(node_4, ($$render) => {
           if (get(showDebugButton)) $$render(consequent);
         }),
         "if",
         WebviewHeader,
-        90,
+        81,
         4
       );
     }
     reset(div);
     reset(header);
-    template_effect(() => set_class(button_1, 1, `header-btn ${get(isRefreshing) ? "refreshing" : ""}`, "svelte-1bw0sfy"));
-    delegated("click", button, handleToggleKanban);
-    delegated("click", button_1, handleRefresh);
-    delegated("click", button_2, handleCreateWorkItem);
-    delegated("click", button_3, handleSetup);
+    template_effect(() => classes = set_class(span, 1, "refresh-wrapper svelte-1bw0sfy", null, classes, { refreshing: get(isRefreshing) }));
     append($$anchor, header);
+    return pop($$exports);
+  }
+
+  // node_modules/svelte/src/internal/flags/legacy.js
+  enable_legacy_mode_flag();
+
+  // packages/ui-web/src/components/Toast.svelte
+  Toast[FILENAME] = "packages/ui-web/src/components/Toast.svelte";
+  var root13 = add_locations(from_html(`<div role="alert" aria-live="polite"><span class="dojo-toast__message svelte-1sc699v"> </span> <button class="dojo-toast__close svelte-1sc699v" aria-label="Dismiss notification" title="Dismiss">\xD7</button></div>`), Toast[FILENAME], [[45, 0, [[51, 2], [52, 2]]]]);
+  function Toast($$anchor, $$props) {
+    check_target(new.target);
+    push($$props, true, Toast);
+    const type2 = prop($$props, "type", 3, "info");
+    const bgMap = {
+      success: "var(--color-success-fg)",
+      error: "var(--color-danger-fg)",
+      info: "var(--color-info-fg)",
+      warning: "var(--color-warning-fg)"
+    };
+    const bg = tag(user_derived(() => bgMap[type2()] ?? bgMap.info), "bg");
+    const autoDismissMs = tag(
+      user_derived(() => strict_equals($$props.duration, void 0, false) ? $$props.duration : strict_equals(type2(), "success") || strict_equals(type2(), "info") ? 5e3 : 0),
+      "autoDismissMs"
+    );
+    function dismiss() {
+      $$props.ondismiss?.();
+    }
+    onMount(() => {
+      if (get(autoDismissMs) > 0) {
+        const timer = setTimeout(dismiss, get(autoDismissMs));
+        return () => clearTimeout(timer);
+      }
+      return void 0;
+    });
+    var $$exports = { ...legacy_api() };
+    var div = root13();
+    var span = child(div);
+    var text2 = child(span, true);
+    reset(span);
+    var button = sibling(span, 2);
+    reset(div);
+    template_effect(() => {
+      set_class(div, 1, `dojo-toast dojo-toast--${type2() ?? ""}`, "svelte-1sc699v");
+      set_style(div, `--_toast-bg: ${get(bg) ?? ""}`);
+      set_text(text2, $$props.message);
+    });
+    delegated("click", button, dismiss);
+    append($$anchor, div);
     return pop($$exports);
   }
   delegate(["click"]);
 
   // src/webview/components/Notification.svelte
   Notification[FILENAME] = "src/webview/components/Notification.svelte";
-  var root11 = add_locations(from_html(`<div role="alert"><span class="message svelte-1eagtgd"> </span> <button class="close-btn svelte-1eagtgd" aria-label="Close">\xD7</button></div>`), Notification[FILENAME], [[19, 0, [[20, 2], [21, 2]]]]);
   function Notification($$anchor, $$props) {
     check_target(new.target);
     push($$props, false, Notification);
@@ -13373,29 +14050,30 @@ ${component_stack}
     function dismiss() {
       dispatch("dismiss");
     }
-    if (strict_equals(type2(), "success") || strict_equals(type2(), "info")) {
-      setTimeout(dismiss, 5e3);
-    }
     var $$exports = { ...legacy_api() };
     init();
-    var div = root11();
-    var span = child(div);
-    var text2 = child(span, true);
-    reset(span);
-    var button = sibling(span, 2);
-    reset(div);
-    template_effect(() => {
-      set_class(div, 1, `notification ${type2() ?? ""}`, "svelte-1eagtgd");
-      set_text(text2, message());
-    });
-    event("click", button, dismiss);
-    append($$anchor, div);
+    add_svelte_meta(
+      () => Toast($$anchor, {
+        get type() {
+          return type2();
+        },
+        get message() {
+          return message();
+        },
+        ondismiss: dismiss
+      }),
+      "component",
+      Notification,
+      21,
+      0,
+      { componentTag: "Toast" }
+    );
     return pop($$exports);
   }
 
   // src/webview/components/ComposeCommentDialog.svelte
   ComposeCommentDialog[FILENAME] = "src/webview/components/ComposeCommentDialog.svelte";
-  var root12 = add_locations(from_html(`<div class="modal-overlay svelte-w8xrzn"><div class="modal svelte-w8xrzn" role="dialog" aria-modal="true" aria-labelledby="modal-title"><h3 id="modal-title" class="svelte-w8xrzn"> </h3> <div class="content"><textarea placeholder="Type your comment here..." rows="5" class="svelte-w8xrzn"></textarea></div> <div class="actions svelte-w8xrzn"><button class="secondary svelte-w8xrzn">Cancel</button> <button class="primary svelte-w8xrzn"> </button></div></div></div>`), ComposeCommentDialog[FILENAME], [
+  var root14 = add_locations(from_html(`<div class="modal-overlay svelte-w8xrzn"><div class="modal svelte-w8xrzn" role="dialog" aria-modal="true" aria-labelledby="modal-title"><h3 id="modal-title" class="svelte-w8xrzn"> </h3> <div class="content"><textarea placeholder="Type your comment here..." rows="5" class="svelte-w8xrzn"></textarea></div> <div class="actions svelte-w8xrzn"><button class="secondary svelte-w8xrzn">Cancel</button> <button class="primary svelte-w8xrzn"> </button></div></div></div>`), ComposeCommentDialog[FILENAME], [
     [
       23,
       0,
@@ -13430,7 +14108,7 @@ ${component_stack}
     }
     var $$exports = { ...legacy_api() };
     init();
-    var div = root12();
+    var div = root14();
     var div_1 = child(div);
     var h3 = child(div_1);
     var text2 = child(h3);
@@ -13476,7 +14154,7 @@ ${component_stack}
 
   // src/webview/components/HistoryControls.svelte
   HistoryControls[FILENAME] = "src/webview/components/HistoryControls.svelte";
-  var root13 = add_locations(from_html(`<div class="history-controls svelte-11qegyq"><button class="history-button undo svelte-11qegyq" title="Undo last action (Ctrl+Z)">\u27F2 Undo</button> <button class="history-button redo svelte-11qegyq" title="Redo last action (Ctrl+Shift+Z)">\u27F3 Redo</button></div>`), HistoryControls[FILENAME], [[50, 0, [[51, 2], [59, 2]]]]);
+  var root15 = add_locations(from_html(`<div class="history-controls svelte-11qegyq"><button class="history-button undo svelte-11qegyq" title="Undo last action (Ctrl+Z)">\u27F2 Undo</button> <button class="history-button redo svelte-11qegyq" title="Redo last action (Ctrl+Shift+Z)">\u27F3 Redo</button></div>`), HistoryControls[FILENAME], [[50, 0, [[51, 2], [59, 2]]]]);
   function HistoryControls($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, HistoryControls);
@@ -13515,7 +14193,7 @@ ${component_stack}
       }
     }
     var $$exports = { ...legacy_api() };
-    var div = root13();
+    var div = root15();
     var button = child(div);
     var button_1 = sibling(button, 2);
     reset(div);
@@ -13682,11 +14360,11 @@ ${component_stack}
   // src/webview/components/HistoryTimeline.svelte
   HistoryTimeline[FILENAME] = "src/webview/components/HistoryTimeline.svelte";
   var root_28 = add_locations(from_html(`<div class="entry-label svelte-uzfmon"> </div>`), HistoryTimeline[FILENAME], [[108, 12]]);
-  var root_43 = add_locations(from_html(`<span class="event-tag svelte-uzfmon"> </span>`), HistoryTimeline[FILENAME], [[113, 16]]);
-  var root_55 = add_locations(from_html(`<span class="event-more svelte-uzfmon"> </span>`), HistoryTimeline[FILENAME], [[116, 16]]);
+  var root_42 = add_locations(from_html(`<span class="event-tag svelte-uzfmon"> </span>`), HistoryTimeline[FILENAME], [[113, 16]]);
+  var root_54 = add_locations(from_html(`<span class="event-more svelte-uzfmon"> </span>`), HistoryTimeline[FILENAME], [[116, 16]]);
   var root_37 = add_locations(from_html(`<div class="entry-events svelte-uzfmon"><!> <!></div>`), HistoryTimeline[FILENAME], [[111, 12]]);
   var root_64 = add_locations(from_html(`<button class="action-button svelte-uzfmon" title="Compare with previous">Diff</button>`), HistoryTimeline[FILENAME], [[124, 12]]);
-  var root_112 = add_locations(from_html(`<div title="Click to jump to this snapshot"><div class="entry-index svelte-uzfmon"></div> <div class="entry-content svelte-uzfmon"><div class="entry-state svelte-uzfmon"> </div> <!> <!> <div class="entry-timestamp svelte-uzfmon"> </div></div> <div class="entry-actions svelte-uzfmon"><!></div></div>`), HistoryTimeline[FILENAME], [
+  var root_111 = add_locations(from_html(`<div title="Click to jump to this snapshot"><div class="entry-index svelte-uzfmon"></div> <div class="entry-content svelte-uzfmon"><div class="entry-state svelte-uzfmon"> </div> <!> <!> <div class="entry-timestamp svelte-uzfmon"> </div></div> <div class="entry-actions svelte-uzfmon"><!></div></div>`), HistoryTimeline[FILENAME], [
     [
       97,
       6,
@@ -13703,7 +14381,7 @@ ${component_stack}
       ]
     ]
   ]);
-  var root14 = add_locations(from_html(`<div class="history-timeline-container svelte-uzfmon"><div class="timeline-header svelte-uzfmon"><h3 class="svelte-uzfmon">State History Timeline</h3> <div class="timeline-controls svelte-uzfmon"><button class="control-button svelte-uzfmon" title="Clear history">Clear</button> <span class="history-count svelte-uzfmon"> </span></div></div> <div class="timeline-entries svelte-uzfmon"></div> <!></div>`), HistoryTimeline[FILENAME], [
+  var root16 = add_locations(from_html(`<div class="history-timeline-container svelte-uzfmon"><div class="timeline-header svelte-uzfmon"><h3 class="svelte-uzfmon">State History Timeline</h3> <div class="timeline-controls svelte-uzfmon"><button class="control-button svelte-uzfmon" title="Clear history">Clear</button> <span class="history-count svelte-uzfmon"> </span></div></div> <div class="timeline-entries svelte-uzfmon"></div> <!></div>`), HistoryTimeline[FILENAME], [
     [
       78,
       0,
@@ -13765,7 +14443,7 @@ ${component_stack}
       "selectedDiff"
     );
     var $$exports = { ...legacy_api() };
-    var div = root14();
+    var div = root16();
     var div_1 = child(div);
     var div_2 = sibling(child(div_1), 2);
     var button = child(div_2);
@@ -13777,7 +14455,7 @@ ${component_stack}
     var div_3 = sibling(div_1, 2);
     add_svelte_meta(
       () => each(div_3, 21, () => get(historyEntries), index, ($$anchor2, entry, index2) => {
-        var div_4 = root_112();
+        var div_4 = root_111();
         let classes;
         var div_5 = child(div_4);
         div_5.textContent = index2;
@@ -13811,7 +14489,7 @@ ${component_stack}
             var node_2 = child(div_9);
             add_svelte_meta(
               () => each(node_2, 17, () => get(entry).events.slice(0, 2), index, ($$anchor4, event2) => {
-                var span_1 = root_43();
+                var span_1 = root_42();
                 var text_3 = child(span_1, true);
                 reset(span_1);
                 template_effect(($0) => set_text(text_3, $0), [() => formatEventTag(get(event2).tag)]);
@@ -13825,7 +14503,7 @@ ${component_stack}
             var node_3 = sibling(node_2, 2);
             {
               var consequent_1 = ($$anchor4) => {
-                var span_2 = root_55();
+                var span_2 = root_54();
                 var text_4 = child(span_2);
                 reset(span_2);
                 template_effect(() => set_text(text_4, `+${get(entry).events.length - 2} more`));
@@ -14082,7 +14760,7 @@ ${component_stack}
 
   // src/webview/components/PerformanceDashboard.svelte
   PerformanceDashboard[FILENAME] = "src/webview/components/PerformanceDashboard.svelte";
-  var root_44 = add_locations(from_html(`<span class="transition-label svelte-1rs9uqy"> </span>`), PerformanceDashboard[FILENAME], [[110, 18]]);
+  var root_43 = add_locations(from_html(`<span class="transition-label svelte-1rs9uqy"> </span>`), PerformanceDashboard[FILENAME], [[110, 18]]);
   var root_38 = add_locations(from_html(`<div class="transition-item slow svelte-1rs9uqy"><div class="transition-header svelte-1rs9uqy"><span class="transition-states svelte-1rs9uqy"> </span> <span class="transition-duration slow svelte-1rs9uqy"> </span></div> <div class="transition-details svelte-1rs9uqy"><span> </span> <span> </span> <!></div></div>`), PerformanceDashboard[FILENAME], [
     [
       97,
@@ -14095,7 +14773,7 @@ ${component_stack}
   ]);
   var root_29 = add_locations(from_html(`<div class="slow-transitions svelte-1rs9uqy"><h4 class="svelte-1rs9uqy"> </h4> <div class="transitions-list svelte-1rs9uqy"></div></div>`), PerformanceDashboard[FILENAME], [[93, 6, [[94, 8], [95, 8]]]]);
   var root_65 = add_locations(from_html(`<span class="transition-label svelte-1rs9uqy"> </span>`), PerformanceDashboard[FILENAME], [[136, 16]]);
-  var root_56 = add_locations(from_html(`<div><div class="transition-header svelte-1rs9uqy"><span class="transition-states svelte-1rs9uqy"> </span> <span> </span></div> <div class="transition-details svelte-1rs9uqy"><span> </span> <span> </span> <!></div></div>`), PerformanceDashboard[FILENAME], [
+  var root_55 = add_locations(from_html(`<div><div class="transition-header svelte-1rs9uqy"><span class="transition-states svelte-1rs9uqy"> </span> <span> </span></div> <div class="transition-details svelte-1rs9uqy"><span> </span> <span> </span> <!></div></div>`), PerformanceDashboard[FILENAME], [
     [
       123,
       10,
@@ -14105,7 +14783,7 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_113 = add_locations(from_html(`<div class="dashboard-summary svelte-1rs9uqy"><div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Total Transitions</span> <span class="summary-value svelte-1rs9uqy"> </span></div> <div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Avg Transition</span> <span class="summary-value svelte-1rs9uqy"> </span></div> <div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Total Duration</span> <span class="summary-value svelte-1rs9uqy"> </span></div> <div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Avg Context Size</span> <span class="summary-value svelte-1rs9uqy"> </span></div></div> <!> <div class="all-transitions svelte-1rs9uqy"><h4 class="svelte-1rs9uqy">All Transitions</h4> <div class="transitions-list svelte-1rs9uqy"></div></div>`, 1), PerformanceDashboard[FILENAME], [
+  var root_112 = add_locations(from_html(`<div class="dashboard-summary svelte-1rs9uqy"><div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Total Transitions</span> <span class="summary-value svelte-1rs9uqy"> </span></div> <div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Avg Transition</span> <span class="summary-value svelte-1rs9uqy"> </span></div> <div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Total Duration</span> <span class="summary-value svelte-1rs9uqy"> </span></div> <div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Avg Context Size</span> <span class="summary-value svelte-1rs9uqy"> </span></div></div> <!> <div class="all-transitions svelte-1rs9uqy"><h4 class="svelte-1rs9uqy">All Transitions</h4> <div class="transitions-list svelte-1rs9uqy"></div></div>`, 1), PerformanceDashboard[FILENAME], [
     [
       73,
       4,
@@ -14119,7 +14797,7 @@ ${component_stack}
     [119, 4, [[120, 6], [121, 6]]]
   ]);
   var root_74 = add_locations(from_html(`<div class="no-data svelte-1rs9uqy"><p>No performance data available. Perform some actions to see metrics.</p></div>`), PerformanceDashboard[FILENAME], [[144, 4, [[145, 6]]]]);
-  var root15 = add_locations(from_html(`<div class="performance-dashboard svelte-1rs9uqy"><div class="dashboard-header svelte-1rs9uqy"><h3 class="svelte-1rs9uqy">Performance Dashboard</h3> <div class="dashboard-controls svelte-1rs9uqy"><label><input type="checkbox"/> </label> <input type="range" min="0" max="1000" step="10" class="threshold-slider svelte-1rs9uqy"/> <span class="threshold-value svelte-1rs9uqy"> </span></div></div> <!></div>`), PerformanceDashboard[FILENAME], [
+  var root17 = add_locations(from_html(`<div class="performance-dashboard svelte-1rs9uqy"><div class="dashboard-header svelte-1rs9uqy"><h3 class="svelte-1rs9uqy">Performance Dashboard</h3> <div class="dashboard-controls svelte-1rs9uqy"><label><input type="checkbox"/> </label> <input type="range" min="0" max="1000" step="10" class="threshold-slider svelte-1rs9uqy"/> <span class="threshold-value svelte-1rs9uqy"> </span></div></div> <!></div>`), PerformanceDashboard[FILENAME], [
     [
       52,
       0,
@@ -14178,7 +14856,7 @@ ${component_stack}
       "slowTransitions"
     );
     var $$exports = { ...legacy_api() };
-    var div = root15();
+    var div = root17();
     var div_1 = child(div);
     var div_2 = sibling(child(div_1), 2);
     var label = child(div_2);
@@ -14196,7 +14874,7 @@ ${component_stack}
     var node = sibling(div_1, 2);
     {
       var consequent_3 = ($$anchor2) => {
-        var fragment = root_113();
+        var fragment = root_112();
         var div_3 = first_child(fragment);
         var div_4 = child(div_3);
         var span_1 = sibling(child(div_4), 2);
@@ -14248,7 +14926,7 @@ ${component_stack}
                 var node_2 = sibling(span_8, 2);
                 {
                   var consequent = ($$anchor5) => {
-                    var span_9 = root_44();
+                    var span_9 = root_43();
                     var text_11 = child(span_9, true);
                     reset(span_9);
                     template_effect(() => set_text(text_11, get(transition2).label));
@@ -14304,7 +14982,7 @@ ${component_stack}
         var div_14 = sibling(child(div_13), 2);
         add_svelte_meta(
           () => each(div_14, 21, () => get(displayedTransitions), index, ($$anchor3, transition2) => {
-            var div_15 = root_56();
+            var div_15 = root_55();
             let classes;
             var div_16 = child(div_15);
             var span_10 = child(div_16);
@@ -14388,7 +15066,7 @@ ${component_stack}
       add_svelte_meta(
         () => if_block(node, ($$render) => {
           if (get(profile)) $$render(consequent_3);
-          else $$render(alternate, false);
+          else $$render(alternate, -1);
         }),
         "if",
         PerformanceDashboard,
@@ -14425,25 +15103,25 @@ ${component_stack}
 
   // src/webview/App.svelte
   App[FILENAME] = "src/webview/App.svelte";
-  var root_39 = add_locations(from_html(`<div class="single-connection-header svelte-db2r4i"><span class="single-connection-label svelte-db2r4i" title="Active Connection"> </span></div>`), App[FILENAME], [[168, 6, [[169, 8]]]]);
-  var root_45 = add_locations(from_html(`<div class="error-banner svelte-db2r4i"><span class="codicon codicon-error"></span> <span> </span> <button class="retry-btn svelte-db2r4i">Retry</button></div>`), App[FILENAME], [[177, 6, [[178, 8], [179, 8], [180, 8]]]]);
-  var root_57 = add_locations(from_html(`<div class="debug-panel svelte-db2r4i" role="region" aria-label="Debug View"><h3 class="svelte-db2r4i">Debug View</h3> <pre class="debug-json svelte-db2r4i"> </pre></div> <div class="history-timeline-panel svelte-db2r4i"><!></div> <div class="performance-dashboard-panel svelte-db2r4i"><!></div>`, 1), App[FILENAME], [[194, 6, [[195, 8], [196, 8]]], [208, 6], [213, 6]]);
-  var root_114 = add_locations(from_html(`<!> <div class="history-controls-container svelte-db2r4i"><!></div> <!> <!> <!> <!> <!> <!> <!>`, 1), App[FILENAME], [[158, 4]]);
-  var root_93 = add_locations(from_html(`<div class="loading svelte-db2r4i"><p>Initializing Azure DevOps Integration...</p> <p class="sub-text">Waiting for connection data...</p> <p class="sub-text" style="font-size: 0.8em; margin-top: 10px;">If this persists, check the browser console (F12) for errors.</p></div>`), App[FILENAME], [[239, 6, [[240, 8], [241, 8], [242, 8]]]]);
-  var root_115 = add_locations(from_html(`<p style="font-size: 0.9em; margin-top: 10px;"> </p>`), App[FILENAME], [[251, 10]]);
-  var root_102 = add_locations(from_html(`<div class="error-container svelte-db2r4i"><h2>Connection Error</h2> <p> </p> <!> <button class="svelte-db2r4i">Retry</button></div>`), App[FILENAME], [[247, 6, [[248, 8], [249, 8], [255, 8]]]]);
+  var root_39 = add_locations(from_html(`<div class="single-connection-header svelte-db2r4i"><span class="single-connection-label svelte-db2r4i" title="Active Connection"> </span></div>`), App[FILENAME], [[169, 6, [[170, 8]]]]);
+  var root_44 = add_locations(from_html(`<div class="error-banner svelte-db2r4i"><span class="codicon codicon-error"></span> <span> </span> <button class="retry-btn svelte-db2r4i">Retry</button></div>`), App[FILENAME], [[178, 6, [[179, 8], [180, 8], [181, 8]]]]);
+  var root_56 = add_locations(from_html(`<div class="debug-panel svelte-db2r4i" role="region" aria-label="Debug View"><h3 class="svelte-db2r4i">Debug View</h3> <pre class="debug-json svelte-db2r4i"> </pre></div> <div class="history-timeline-panel svelte-db2r4i"><!></div> <div class="performance-dashboard-panel svelte-db2r4i"><!></div>`, 1), App[FILENAME], [[195, 6, [[196, 8], [197, 8]]], [209, 6], [214, 6]]);
+  var root_113 = add_locations(from_html(`<!> <div class="history-controls-container svelte-db2r4i"><!></div> <!> <!> <!> <!> <!> <!> <!>`, 1), App[FILENAME], [[159, 4]]);
+  var root_93 = add_locations(from_html(`<div class="loading svelte-db2r4i"><p>Initializing Azure DevOps Integration...</p> <p class="sub-text">Waiting for connection data...</p> <p class="sub-text" style="font-size: 0.8em; margin-top: 10px;">If this persists, check the browser console (F12) for errors.</p></div>`), App[FILENAME], [[240, 6, [[241, 8], [242, 8], [243, 8]]]]);
+  var root_114 = add_locations(from_html(`<p style="font-size: 0.9em; margin-top: 10px;"> </p>`), App[FILENAME], [[252, 10]]);
+  var root_102 = add_locations(from_html(`<div class="error-container svelte-db2r4i"><h2>Connection Error</h2> <p> </p> <!> <button class="svelte-db2r4i">Retry</button></div>`), App[FILENAME], [[248, 6, [[249, 8], [250, 8], [256, 8]]]]);
   var root_123 = add_locations(from_html(`<div class="empty-state"><p>No connections configured.</p> <button class="svelte-db2r4i">Configure Connections</button> <div style="margin-top: 20px; font-size: 0.8em; color: var(--vscode-descriptionForeground); text-align: left;"><details><summary>Debug Info (v2)</summary> <pre> </pre></details></div></div>`), App[FILENAME], [
     [
-      258,
+      259,
       6,
       [
-        [259, 8],
         [260, 8],
-        [263, 8, [[264, 10, [[265, 12], [266, 12]]]]]
+        [261, 8],
+        [264, 8, [[265, 10, [[266, 12], [267, 12]]]]]
       ]
     ]
   ]);
-  var root16 = add_locations(from_html(`<main class="svelte-db2r4i"><!></main>`), App[FILENAME], [[152, 0]]);
+  var root18 = add_locations(from_html(`<main class="svelte-db2r4i"><!></main>`), App[FILENAME], [[153, 0]]);
   function App($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, App);
@@ -14520,11 +15198,11 @@ ${component_stack}
     }
     window.__toggleDebugView = toggleDebugView;
     var $$exports = { ...legacy_api() };
-    var main = root16();
+    var main = root18();
     var node = child(main);
     {
       var consequent_6 = ($$anchor2) => {
-        var fragment = root_114();
+        var fragment = root_113();
         var node_1 = first_child(fragment);
         add_svelte_meta(
           () => WebviewHeader(node_1, {
@@ -14535,13 +15213,13 @@ ${component_stack}
           }),
           "component",
           App,
-          155,
+          156,
           4,
           { componentTag: "WebviewHeader" }
         );
         var div = sibling(node_1, 2);
         var node_2 = child(div);
-        add_svelte_meta(() => HistoryControls(node_2, {}), "component", App, 159, 6, { componentTag: "HistoryControls" });
+        add_svelte_meta(() => HistoryControls(node_2, {}), "component", App, 160, 6, { componentTag: "HistoryControls" });
         reset(div);
         var node_3 = sibling(div, 2);
         {
@@ -14557,7 +15235,7 @@ ${component_stack}
               }),
               "component",
               App,
-              163,
+              164,
               6,
               { componentTag: "ConnectionTabs" }
             );
@@ -14580,14 +15258,14 @@ ${component_stack}
             }),
             "if",
             App,
-            162,
+            163,
             4
           );
         }
         var node_4 = sibling(node_3, 2);
         {
           var consequent_2 = ($$anchor3) => {
-            var div_2 = root_45();
+            var div_2 = root_44();
             var span_1 = sibling(child(div_2), 2);
             var text_1 = child(span_1, true);
             reset(span_1);
@@ -14605,7 +15283,7 @@ ${component_stack}
             }),
             "if",
             App,
-            176,
+            177,
             4
           );
         }
@@ -14626,7 +15304,7 @@ ${component_stack}
           }),
           "component",
           App,
-          184,
+          185,
           4,
           { componentTag: "ConnectionViews" }
         );
@@ -14640,14 +15318,14 @@ ${component_stack}
           }),
           "component",
           App,
-          192,
+          193,
           4,
           { componentTag: "AuthReminder" }
         );
         var node_7 = sibling(node_6, 2);
         {
           var consequent_3 = ($$anchor3) => {
-            var fragment_2 = root_57();
+            var fragment_2 = root_56();
             var div_3 = first_child(fragment_2);
             var pre = sibling(child(div_3), 2);
             var text_2 = child(pre, true);
@@ -14655,11 +15333,11 @@ ${component_stack}
             reset(div_3);
             var div_4 = sibling(div_3, 2);
             var node_8 = child(div_4);
-            add_svelte_meta(() => HistoryTimeline(node_8, {}), "component", App, 209, 8, { componentTag: "HistoryTimeline" });
+            add_svelte_meta(() => HistoryTimeline(node_8, {}), "component", App, 210, 8, { componentTag: "HistoryTimeline" });
             reset(div_4);
             var div_5 = sibling(div_4, 2);
             var node_9 = child(div_5);
-            add_svelte_meta(() => PerformanceDashboard(node_9, {}), "component", App, 214, 8, { componentTag: "PerformanceDashboard" });
+            add_svelte_meta(() => PerformanceDashboard(node_9, {}), "component", App, 215, 8, { componentTag: "PerformanceDashboard" });
             reset(div_5);
             template_effect(($0) => set_text(text_2, $0), [
               () => JSON.stringify(
@@ -14680,7 +15358,7 @@ ${component_stack}
             }),
             "if",
             App,
-            193,
+            194,
             4
           );
         }
@@ -14699,7 +15377,7 @@ ${component_stack}
               }),
               "component",
               App,
-              220,
+              221,
               6,
               { componentTag: "Notification" }
             );
@@ -14710,7 +15388,7 @@ ${component_stack}
             }),
             "if",
             App,
-            219,
+            220,
             4
           );
         }
@@ -14732,7 +15410,7 @@ ${component_stack}
               }),
               "component",
               App,
-              228,
+              229,
               6,
               { componentTag: "ComposeCommentDialog" }
             );
@@ -14743,7 +15421,7 @@ ${component_stack}
             }),
             "if",
             App,
-            227,
+            228,
             4
           );
         }
@@ -14765,7 +15443,7 @@ ${component_stack}
             var node_13 = sibling(p, 2);
             {
               var consequent_8 = ($$anchor4) => {
-                var p_1 = root_115();
+                var p_1 = root_114();
                 var text_4 = child(p_1);
                 reset(p_1);
                 template_effect(() => set_text(text_4, `Connection: ${get(appContext).activeConnectionId ?? ""}`));
@@ -14777,7 +15455,7 @@ ${component_stack}
                 }),
                 "if",
                 App,
-                250,
+                251,
                 8
               );
             }
@@ -14826,11 +15504,11 @@ ${component_stack}
             () => if_block(node_12, ($$render) => {
               if (get(isActivating) && (!get(appContext) || strict_equals(get(appContext).applicationState, "inactive"))) $$render(consequent_7);
               else if (get(isActivationFailed)) $$render(consequent_9, 1);
-              else $$render(alternate, false);
+              else $$render(alternate, -1);
             }),
             "if",
             App,
-            238,
+            239,
             4
           );
         }
@@ -14839,11 +15517,11 @@ ${component_stack}
       add_svelte_meta(
         () => if_block(node, ($$render) => {
           if (get(hasConnections)) $$render(consequent_6);
-          else $$render(alternate_1, false);
+          else $$render(alternate_1, -1);
         }),
         "if",
         App,
-        153,
+        154,
         2
       );
     }
@@ -15237,16 +15915,16 @@ ${component_stack}
   function tryBootstrap(reason) {
     if (mountAttempted) return;
     mountAttempted = true;
-    const root17 = ensureMountTarget();
-    rootRef = root17;
+    const root19 = ensureMountTarget();
+    rootRef = root19;
     try {
-      root17.dataset.bootstrap = reason;
-      root17.innerText = `Bootstrapping webview (${reason})\u2026`;
+      root19.dataset.bootstrap = reason;
+      root19.innerText = `Bootstrapping webview (${reason})\u2026`;
     } catch {
     }
     try {
       const vscode2 = getVsCodeApi();
-      mount(App, { target: root17 });
+      mount(App, { target: root19 });
       mounted = true;
       if (vscode2) {
         vscode2.postMessage({ type: "webviewReady" });
@@ -15257,7 +15935,7 @@ ${component_stack}
       try {
         const escaped = (detail.message || String(e)).replace(/</g, "&lt;");
         const stack2 = detail.stack ? `<pre style="white-space:pre-wrap">${detail.stack}</pre>` : "";
-        root17.innerHTML = `<div style="padding:12px;color:var(--vscode-errorForeground,red);">Webview mount failed: ${escaped}${stack2}</div>`;
+        root19.innerHTML = `<div style="padding:12px;color:var(--vscode-errorForeground,red);">Webview mount failed: ${escaped}${stack2}</div>`;
       } catch {
       }
     }

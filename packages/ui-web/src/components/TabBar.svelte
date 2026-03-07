@@ -74,6 +74,7 @@
   role="tablist"
   aria-label={ariaLabel}
   aria-orientation="horizontal"
+  tabindex="-1"
   onkeydown={handleKeydown}
 >
   {#each sortedTabs as tab, i}
