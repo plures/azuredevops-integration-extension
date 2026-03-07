@@ -64,6 +64,16 @@ function describeError(err: unknown) {
   };
 }
 
+/** Escape HTML special characters to prevent XSS when inserting into innerHTML. */
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // -------------------------------------------------------------
 // Minimal Node `process` shim for browser (VS Code webview) context.
 // Bundled dependencies reference process.env / arch / platform.
@@ -283,8 +293,6 @@ function tryBootstrap(reason: string) {
     const detail = describeError(e);
     mountFailed = true;
     try {
-      const escHtml = (s: string) =>
-        s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
       const escaped = escHtml(detail.message || String(e));
       const stack = detail.stack ? `<pre style="white-space:pre-wrap">${escHtml(detail.stack)}</pre>` : '';
       root.innerHTML = `<div style="padding:12px;color:var(--vscode-errorForeground,red);">Webview mount failed: ${escaped}${stack}</div>`;
