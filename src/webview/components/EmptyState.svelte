@@ -63,6 +63,6 @@
   <DojoEmptyState
     icon="📋"
     heading="No work items found"
-    description="Adjust your filters or refresh to see results."
+    description="Select a query or refresh to view work items."
   />
 {/if}

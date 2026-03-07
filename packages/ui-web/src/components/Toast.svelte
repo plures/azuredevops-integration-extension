@@ -9,7 +9,7 @@
   interface Props {
     type?: 'success' | 'error' | 'info' | 'warning';
     message: string;
-    /** Auto-dismiss after this many milliseconds; 0 = never. Defaults to 5000 for success/info. */
+    /** Auto-dismiss after this many milliseconds (0 = never). Defaults to 5000 for success/info. */
     duration?: number;
     ondismiss?: () => void;
   }
