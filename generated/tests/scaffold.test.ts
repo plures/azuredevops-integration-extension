@@ -31,7 +31,9 @@ describe('Praxis schema – rule registry completeness', () => {
 
   it('rule "application.activationComplete" is registered in the schema', () => {
     // Triggers on: ACTIVATION_COMPLETE
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'application.activationComplete');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'application.activationComplete'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
@@ -52,7 +54,9 @@ describe('Praxis schema – rule registry completeness', () => {
 
   it('rule "application.deactivationComplete" is registered in the schema', () => {
     // Triggers on: DEACTIVATION_COMPLETE
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'application.deactivationComplete');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'application.deactivationComplete'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
@@ -80,35 +84,45 @@ describe('Praxis schema – rule registry completeness', () => {
 
   it('rule "application.deviceCodeStarted" is registered in the schema', () => {
     // Triggers on: DEVICE_CODE_STARTED
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'application.deviceCodeStarted');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'application.deviceCodeStarted'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "application.deviceCodeCompleted" is registered in the schema', () => {
     // Triggers on: DEVICE_CODE_COMPLETED
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'application.deviceCodeCompleted');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'application.deviceCodeCompleted'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "application.deviceCodeCancelled" is registered in the schema', () => {
     // Triggers on: DEVICE_CODE_CANCELLED
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'application.deviceCodeCancelled');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'application.deviceCodeCancelled'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "application.authCodeFlowStarted" is registered in the schema', () => {
     // Triggers on: AUTH_CODE_FLOW_STARTED
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'application.authCodeFlowStarted');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'application.authCodeFlowStarted'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "application.authCodeFlowCompleted" is registered in the schema', () => {
     // Triggers on: AUTH_CODE_FLOW_COMPLETED
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'application.authCodeFlowCompleted');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'application.authCodeFlowCompleted'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
@@ -185,14 +199,18 @@ describe('Praxis schema – rule registry completeness', () => {
 
   it('rule "application.authReminderRequested" is registered in the schema', () => {
     // Triggers on: AUTH_REMINDER_REQUESTED
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'application.authReminderRequested');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'application.authReminderRequested'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "application.authReminderCleared" is registered in the schema', () => {
     // Triggers on: AUTH_REMINDER_CLEARED
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'application.authReminderCleared');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'application.authReminderCleared'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
@@ -255,77 +273,99 @@ describe('Praxis schema – rule registry completeness', () => {
 
   it('rule "decision.auth.deviceCodeStart" is registered in the schema', () => {
     // Triggers on: DEVICE_CODE_STARTED
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'decision.auth.deviceCodeStart');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'decision.auth.deviceCodeStart'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "decision.auth.deviceCodeComplete" is registered in the schema', () => {
     // Triggers on: DEVICE_CODE_COMPLETED
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'decision.auth.deviceCodeComplete');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'decision.auth.deviceCodeComplete'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "decision.auth.deviceCodeCancel" is registered in the schema', () => {
     // Triggers on: DEVICE_CODE_CANCELLED
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'decision.auth.deviceCodeCancel');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'decision.auth.deviceCodeCancel'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "decision.auth.authCodeFlowStart" is registered in the schema', () => {
     // Triggers on: AUTH_CODE_FLOW_STARTED
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'decision.auth.authCodeFlowStart');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'decision.auth.authCodeFlowStart'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "decision.auth.authCodeFlowComplete" is registered in the schema', () => {
     // Triggers on: AUTH_CODE_FLOW_COMPLETED
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'decision.auth.authCodeFlowComplete');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'decision.auth.authCodeFlowComplete'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "decision.operations.createWorkItem" is registered in the schema', () => {
     // Triggers on: CREATE_WORK_ITEM
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'decision.operations.createWorkItem');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'decision.operations.createWorkItem'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "decision.operations.bulkAssign" is registered in the schema', () => {
     // Triggers on: BULK_ASSIGN
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'decision.operations.bulkAssign');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'decision.operations.bulkAssign'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "decision.operations.createBranch" is registered in the schema', () => {
     // Triggers on: CREATE_BRANCH
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'decision.operations.createBranch');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'decision.operations.createBranch'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "decision.operations.createPullRequest" is registered in the schema', () => {
     // Triggers on: CREATE_PULL_REQUEST
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'decision.operations.createPullRequest');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'decision.operations.createPullRequest'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "decision.operations.selectConnection" is registered in the schema', () => {
     // Triggers on: SELECT_CONNECTION
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'decision.operations.selectConnection');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'decision.operations.selectConnection'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
 
   it('rule "decision.operations.generateCopilotPrompt" is registered in the schema', () => {
     // Triggers on: GENERATE_COPILOT_PROMPT
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'decision.operations.generateCopilotPrompt');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'decision.operations.generateCopilotPrompt'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
@@ -339,7 +379,9 @@ describe('Praxis schema – rule registry completeness', () => {
 
   it('rule "decision.operations.deactivate" is registered in the schema', () => {
     // Triggers on: DEACTIVATE
-    const found = schemaDescriptor.rules.find((rule) => rule.id === 'decision.operations.deactivate');
+    const found = schemaDescriptor.rules.find(
+      (rule) => rule.id === 'decision.operations.deactivate'
+    );
     expect(found).toBeDefined();
     expect(found?.description).toBeTruthy();
   });
