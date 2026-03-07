@@ -11528,13 +11528,16 @@ ${component_stack}
 
   // packages/ui-web/src/components/TabBar.svelte
   TabBar[FILENAME] = "packages/ui-web/src/components/TabBar.svelte";
-  var root_1 = add_locations(from_html(`<button role="tab"> </button>`), TabBar[FILENAME], [[85, 4]]);
-  var root = add_locations(from_html(`<div class="dojo-tab-bar svelte-7bvgl0" role="tablist" aria-orientation="horizontal" tabindex="-1"></div>`), TabBar[FILENAME], [[75, 0]]);
+  var root_1 = add_locations(from_html(`<button role="tab"> </button>`), TabBar[FILENAME], [[90, 4]]);
+  var root = add_locations(from_html(`<div class="dojo-tab-bar svelte-7bvgl0" role="tablist" aria-orientation="horizontal" tabindex="-1"></div>`), TabBar[FILENAME], [[80, 0]]);
   function TabBar($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, TabBar);
-    const ariaLabel = prop($$props, "aria-label", 3, "Tabs");
-    const sortedTabs = tag(user_derived(() => ($$props.tabs || []).slice().sort((a, b) => a.label.localeCompare(b.label))), "sortedTabs");
+    const ariaLabel = prop($$props, "aria-label", 3, "Tabs"), sort = prop($$props, "sort", 3, true);
+    const sortedTabs = tag(
+      user_derived(() => sort() ? ($$props.tabs || []).slice().sort((a, b) => a.label.localeCompare(b.label)) : ($$props.tabs || []).slice()),
+      "sortedTabs"
+    );
     const selectedIndex = tag(user_derived(() => get(sortedTabs).findIndex((t) => strict_equals(t.id, $$props.activeId))), "selectedIndex");
     let tabRefs = tag_proxy(proxy([]), "tabRefs");
     function focusAt(index2) {
@@ -11580,7 +11583,7 @@ ${component_stack}
         let classes;
         var text2 = child(button, true);
         reset(button);
-        validate_binding("bind:this={tabRefs[i]}", [], () => tabRefs, () => i, 92, 6);
+        validate_binding("bind:this={tabRefs[i]}", [], () => tabRefs, () => i, 97, 6);
         bind_this(button, ($$value, i2) => tabRefs[i2] = $$value, (i2) => tabRefs?.[i2], () => [i]);
         template_effect(() => {
           set_attribute2(button, "aria-selected", get(isActive));
@@ -11595,7 +11598,7 @@ ${component_stack}
       }),
       "each",
       TabBar,
-      83,
+      88,
       2
     );
     reset(div);
@@ -15933,9 +15936,16 @@ ${component_stack}
       const detail = describeError(e);
       mountFailed = true;
       try {
-        const escaped = (detail.message || String(e)).replace(/</g, "&lt;");
-        const stack2 = detail.stack ? `<pre style="white-space:pre-wrap">${detail.stack}</pre>` : "";
-        root19.innerHTML = `<div style="padding:12px;color:var(--vscode-errorForeground,red);">Webview mount failed: ${escaped}${stack2}</div>`;
+        const errorDiv = document.createElement("div");
+        errorDiv.style.cssText = "padding:12px;color:var(--vscode-errorForeground,red);";
+        errorDiv.textContent = `Webview mount failed: ${detail.message || String(e)}`;
+        if (detail.stack) {
+          const pre = document.createElement("pre");
+          pre.style.whiteSpace = "pre-wrap";
+          pre.textContent = detail.stack;
+          errorDiv.appendChild(pre);
+        }
+        root19.replaceChildren(errorDiv);
       } catch {
       }
     }
@@ -15954,11 +15964,10 @@ ${component_stack}
     if (mountFailed) return;
     const target = rootRef || findExistingMount();
     if (!target) return;
-    if (mountAttempted) {
-      target.innerHTML = `<div style="padding:12px;color:var(--vscode-descriptionForeground);">Webview did not finish mounting. Check logs.</div>`;
-    } else {
-      target.innerHTML = `<div style="padding:12px;color:var(--vscode-descriptionForeground);">Webview bootstrap not attempted.</div>`;
-    }
+    const hint = document.createElement("div");
+    hint.style.cssText = "padding:12px;color:var(--vscode-descriptionForeground)";
+    hint.textContent = mountAttempted ? "Webview did not finish mounting. Check logs." : "Webview bootstrap not attempted.";
+    target.replaceChildren(hint);
   }, 300);
 })();
 /*! Bundled license information:
