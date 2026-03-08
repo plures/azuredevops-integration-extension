@@ -9,115 +9,115 @@
  */
 export interface ApplicationEventPayloads {
   /** Group: lifecycle */
-  ACTIVATE: unknown;
+  'ACTIVATE': unknown;
   /** Group: lifecycle */
-  ACTIVATION_COMPLETE: unknown;
+  'ACTIVATION_COMPLETE': unknown;
   /** Group: lifecycle */
-  APP_ACTIVATION_FAILED: unknown;
+  'APP_ACTIVATION_FAILED': unknown;
   /** Group: lifecycle */
-  DEACTIVATE: unknown;
+  'DEACTIVATE': unknown;
   /** Group: lifecycle */
-  DEACTIVATION_COMPLETE: unknown;
+  'DEACTIVATION_COMPLETE': unknown;
   /** Group: lifecycle */
-  RETRY: unknown;
+  'RETRY': unknown;
   /** Group: lifecycle */
-  RESET: unknown;
+  'RESET': unknown;
   /** Group: connection */
-  CONNECTIONS_LOADED: unknown;
+  'CONNECTIONS_LOADED': unknown;
   /** Group: connection */
-  CONNECTION_SELECTED: unknown;
+  'CONNECTION_SELECTED': unknown;
   /** Group: connection */
-  SELECT_CONNECTION: unknown;
+  'SELECT_CONNECTION': unknown;
   /** Group: connection */
-  CONNECTION_STATE_UPDATED: unknown;
+  'CONNECTION_STATE_UPDATED': unknown;
   /** Group: connection */
-  REFRESH_DATA: unknown;
+  'REFRESH_DATA': unknown;
   /** Group: auth */
-  SIGN_IN_ENTRA: unknown;
+  'SIGN_IN_ENTRA': unknown;
   /** Group: auth */
-  SIGN_OUT_ENTRA: unknown;
+  'SIGN_OUT_ENTRA': unknown;
   /** Group: auth */
-  AUTHENTICATION_SUCCESS: unknown;
+  'AUTHENTICATION_SUCCESS': unknown;
   /** Group: auth */
-  AUTHENTICATION_FAILED: unknown;
+  'AUTHENTICATION_FAILED': unknown;
   /** Group: auth */
-  AUTH_REMINDER_REQUESTED: unknown;
+  'AUTH_REMINDER_REQUESTED': unknown;
   /** Group: auth */
-  AUTH_REMINDER_CLEARED: unknown;
+  'AUTH_REMINDER_CLEARED': unknown;
   /** Group: auth */
-  DEVICE_CODE_STARTED: unknown;
+  'DEVICE_CODE_STARTED': unknown;
   /** Group: auth */
-  DEVICE_CODE_COMPLETED: unknown;
+  'DEVICE_CODE_COMPLETED': unknown;
   /** Group: auth */
-  DEVICE_CODE_CANCELLED: unknown;
+  'DEVICE_CODE_CANCELLED': unknown;
   /** Group: auth */
-  DEVICE_CODE_COPY_FAILED: unknown;
+  'DEVICE_CODE_COPY_FAILED': unknown;
   /** Group: auth */
-  DEVICE_CODE_BROWSER_OPEN_FAILED: unknown;
+  'DEVICE_CODE_BROWSER_OPEN_FAILED': unknown;
   /** Group: auth */
-  DEVICE_CODE_SESSION_NOT_FOUND: unknown;
+  'DEVICE_CODE_SESSION_NOT_FOUND': unknown;
   /** Group: auth */
-  DEVICE_CODE_BROWSER_OPENED: unknown;
+  'DEVICE_CODE_BROWSER_OPENED': unknown;
   /** Group: auth */
-  AUTH_CODE_FLOW_STARTED: unknown;
+  'AUTH_CODE_FLOW_STARTED': unknown;
   /** Group: auth */
-  AUTH_CODE_FLOW_COMPLETED: unknown;
+  'AUTH_CODE_FLOW_COMPLETED': unknown;
   /** Group: auth */
-  AUTH_CODE_FLOW_BROWSER_OPEN_FAILED: unknown;
+  'AUTH_CODE_FLOW_BROWSER_OPEN_FAILED': unknown;
   /** Group: auth */
-  AUTH_CODE_FLOW_BROWSER_OPENED: unknown;
+  'AUTH_CODE_FLOW_BROWSER_OPENED': unknown;
   /** Group: auth */
-  AUTH_REDIRECT_RECEIVED: unknown;
+  'AUTH_REDIRECT_RECEIVED': unknown;
   /** Group: workItem */
-  QUERY_CHANGED: unknown;
+  'QUERY_CHANGED': unknown;
   /** Group: workItem */
-  VIEW_MODE_CHANGED: unknown;
+  'VIEW_MODE_CHANGED': unknown;
   /** Group: workItem */
-  WORK_ITEMS_LOADED: unknown;
+  'WORK_ITEMS_LOADED': unknown;
   /** Group: workItem */
-  WORK_ITEMS_ERROR: unknown;
+  'WORK_ITEMS_ERROR': unknown;
   /** Group: workItem */
-  CREATE_WORK_ITEM: unknown;
+  'CREATE_WORK_ITEM': unknown;
   /** Group: workItem */
-  BULK_ASSIGN: unknown;
+  'BULK_ASSIGN': unknown;
   /** Group: workItem */
-  GENERATE_COPILOT_PROMPT: unknown;
+  'GENERATE_COPILOT_PROMPT': unknown;
   /** Group: timer */
-  StartTimer: unknown;
+  'StartTimer': unknown;
   /** Group: timer */
-  PauseTimer: unknown;
+  'PauseTimer': unknown;
   /** Group: timer */
-  StopTimer: unknown;
+  'StopTimer': unknown;
   /** Group: timer */
-  RequestTimerHistory: unknown;
+  'RequestTimerHistory': unknown;
   /** Group: timer */
-  TimerHistoryLoaded: unknown;
+  'TimerHistoryLoaded': unknown;
   /** Group: ui */
-  SyncState: unknown;
+  'SyncState': unknown;
   /** Group: ui */
-  TOGGLE_DEBUG_VIEW: unknown;
+  'TOGGLE_DEBUG_VIEW': unknown;
   /** Group: ui */
-  OPEN_SETTINGS: unknown;
+  'OPEN_SETTINGS': unknown;
   /** Group: ui */
-  SELF_TEST_WEBVIEW: unknown;
+  'SELF_TEST_WEBVIEW': unknown;
   /** Group: ui */
-  WEBVIEW_READY: unknown;
+  'WEBVIEW_READY': unknown;
   /** Group: ui */
-  APPLICATION_ERROR: unknown;
+  'APPLICATION_ERROR': unknown;
   /** Group: ui */
-  SHOW_TIME_REPORT: unknown;
+  'SHOW_TIME_REPORT': unknown;
   /** Group: ui */
-  SHOW_PULL_REQUESTS: unknown;
+  'SHOW_PULL_REQUESTS': unknown;
   /** Group: ui */
-  SHOW_BUILD_STATUS: unknown;
+  'SHOW_BUILD_STATUS': unknown;
   /** Group: ui */
-  SELECT_TEAM: unknown;
+  'SELECT_TEAM': unknown;
   /** Group: ui */
-  RESET_PREFERRED_REPOSITORIES: unknown;
+  'RESET_PREFERRED_REPOSITORIES': unknown;
   /** Group: ui */
-  CREATE_BRANCH: unknown;
+  'CREATE_BRANCH': unknown;
   /** Group: ui */
-  CREATE_PULL_REQUEST: unknown;
+  'CREATE_PULL_REQUEST': unknown;
 }
 
 /** Union of all event tags. */
@@ -151,13 +151,9 @@ export interface ApplicationRuleRegistry {
   /** Triggers: DEVICE_CODE_CANCELLED */
   'application.deviceCodeCancelled': { description: 'Handle device code flow cancelled' };
   /** Triggers: AUTH_CODE_FLOW_STARTED */
-  'application.authCodeFlowStarted': {
-    description: 'Handle authorization code flow with PKCE started';
-  };
+  'application.authCodeFlowStarted': { description: 'Handle authorization code flow with PKCE started' };
   /** Triggers: AUTH_CODE_FLOW_COMPLETED */
-  'application.authCodeFlowCompleted': {
-    description: 'Handle authorization code flow with PKCE completed';
-  };
+  'application.authCodeFlowCompleted': { description: 'Handle authorization code flow with PKCE completed' };
   /** Triggers: WORK_ITEMS_LOADED */
   'workItems.loaded': { description: 'Handle work items loaded' };
   /** Triggers: WORK_ITEMS_ERROR */
@@ -201,19 +197,13 @@ export interface ApplicationRuleRegistry {
   /** Triggers: DEVICE_CODE_STARTED */
   'decision.auth.deviceCodeStart': { description: 'Record decision when device code flow starts' };
   /** Triggers: DEVICE_CODE_COMPLETED */
-  'decision.auth.deviceCodeComplete': {
-    description: 'Record decision when device code flow completes';
-  };
+  'decision.auth.deviceCodeComplete': { description: 'Record decision when device code flow completes' };
   /** Triggers: DEVICE_CODE_CANCELLED */
-  'decision.auth.deviceCodeCancel': {
-    description: 'Record decision when device code flow is cancelled';
-  };
+  'decision.auth.deviceCodeCancel': { description: 'Record decision when device code flow is cancelled' };
   /** Triggers: AUTH_CODE_FLOW_STARTED */
   'decision.auth.authCodeFlowStart': { description: 'Record decision when auth code flow starts' };
   /** Triggers: AUTH_CODE_FLOW_COMPLETED */
-  'decision.auth.authCodeFlowComplete': {
-    description: 'Record decision when auth code flow completes';
-  };
+  'decision.auth.authCodeFlowComplete': { description: 'Record decision when auth code flow completes' };
   /** Triggers: CREATE_WORK_ITEM */
   'decision.operations.createWorkItem': { description: 'Record decision to create a work item' };
   /** Triggers: BULK_ASSIGN */
@@ -221,15 +211,11 @@ export interface ApplicationRuleRegistry {
   /** Triggers: CREATE_BRANCH */
   'decision.operations.createBranch': { description: 'Record decision to create a branch' };
   /** Triggers: CREATE_PULL_REQUEST */
-  'decision.operations.createPullRequest': {
-    description: 'Record decision to create a pull request';
-  };
+  'decision.operations.createPullRequest': { description: 'Record decision to create a pull request' };
   /** Triggers: SELECT_CONNECTION */
   'decision.operations.selectConnection': { description: 'Record decision to select a connection' };
   /** Triggers: GENERATE_COPILOT_PROMPT */
-  'decision.operations.generateCopilotPrompt': {
-    description: 'Record decision to generate a Copilot prompt';
-  };
+  'decision.operations.generateCopilotPrompt': { description: 'Record decision to generate a Copilot prompt' };
   /** Triggers: ACTIVATE */
   'decision.operations.activate': { description: 'Record decision to activate application' };
   /** Triggers: DEACTIVATE */
