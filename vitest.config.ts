@@ -77,6 +77,17 @@ export default defineConfig({
           include: ['generated/tests/**/*.test.ts'],
         },
       },
+      // ── Praxis unit tests ───────────────────────────────────────────────
+      // Tests for the Praxis-based rules, managers, and flows. Require the
+      // vscode stub and the praxis history setup file.
+      {
+        test: {
+          name: 'praxis',
+          environment: 'node',
+          setupFiles: ['tests/setup/praxis-history-setup.ts'],
+          include: ['tests/praxis/**/*.test.ts'],
+        },
+      },
     ],
   },
 });

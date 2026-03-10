@@ -1,4 +1,4 @@
-/* eslint-disable max-lines, max-lines-per-function */
+/* eslint-disable max-lines */
 /**
  * Developer Scenarios Test Suite
  *
@@ -84,7 +84,9 @@ async function bootWithConnection(conn: ProjectConnection): Promise<void> {
   // to this connection regardless of any previously-active connection that
   // survived resetEngine() (resetRule does not clear activeConnectionId).
   dispatch([ConnectionSelectedEvent.create({ connectionId: conn.id })]);
-  await waitForState((ctx) => ctx.activeConnectionId === conn.id && ctx.applicationState === 'active');
+  await waitForState(
+    (ctx) => ctx.activeConnectionId === conn.id && ctx.applicationState === 'active'
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -17,6 +17,7 @@ LLM-GUARD:
   import { get } from 'svelte/store';
   import { praxisStore } from './praxis/store.js';
   import { applicationSnapshot } from './praxisSnapshotStore.js';
+  import '@ado-ext/ui-web/tokens.css';
   // import Settings from './components/Settings.svelte';
   import ConnectionTabs from './components/ConnectionTabs.svelte';
   import ConnectionViews from './components/ConnectionViews.svelte';
@@ -283,93 +284,103 @@ LLM-GUARD:
 
 <style>
   main {
-    padding: 1rem;
-    font-family: var(--vscode-font-family, sans-serif);
-    color: var(--vscode-foreground);
+    padding: var(--space-4);
+    font-family: var(--text-font-family);
+    color: var(--color-text-default);
   }
   .loading {
     text-align: center;
-    padding: 2rem;
+    padding: var(--space-8);
+    color: var(--color-text-subtle);
   }
   .error-container {
-    color: var(--vscode-errorForeground);
-    padding: 1rem;
-    margin: 1rem 0;
+    color: var(--color-danger-fg);
+    padding: var(--space-4);
+    margin: var(--space-4) 0;
   }
   .error-banner {
-    background-color: var(--vscode-inputValidation-errorBackground);
-    border: 1px solid var(--vscode-inputValidation-errorBorder);
-    color: var(--vscode-foreground);
-    padding: 0.5rem;
-    margin-bottom: 0.5rem;
+    background-color: var(--color-danger-bg);
+    border: 1px solid var(--color-danger-border);
+    color: var(--color-text-default);
+    padding: var(--space-2);
+    margin-bottom: var(--space-2);
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    border-radius: 2px;
+    gap: var(--space-2);
+    border-radius: var(--radius-sm);
   }
   .retry-btn {
     margin-left: auto;
     padding: 2px 8px;
-    font-size: 0.8em;
+    font-size: var(--text-size-xs);
+    background: transparent;
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-default);
+    cursor: pointer;
+  }
+  .retry-btn:hover {
+    background: var(--color-action-ghost-hover-bg);
   }
   button {
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border: none;
-    padding: 0.5rem 1rem;
+    background: var(--color-action-primary-bg);
+    color: var(--color-action-primary-fg);
+    border: 1px solid var(--color-action-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-4);
     cursor: pointer;
-    margin-top: 0.5rem;
+    margin-top: var(--space-2);
   }
   button:hover {
-    background: var(--vscode-button-hoverBackground);
+    background: var(--color-action-primary-hover-bg);
   }
   .single-connection-header {
-    padding: 0.5rem 0;
-    margin-bottom: 0.5rem;
+    padding: var(--space-2) 0;
+    margin-bottom: var(--space-2);
   }
-  
+
   .history-controls-container {
     display: flex;
     justify-content: flex-end;
-    padding: 0.5rem 1rem;
-    border-bottom: 1px solid var(--vscode-panel-border);
+    padding: var(--space-2) var(--space-4);
+    border-bottom: 1px solid var(--color-border-strong);
   }
   .debug-panel {
-    margin: 0.5rem 0 0.75rem;
-    padding: 0.5rem;
-    background: var(--vscode-editorWidget-background);
-    border: 1px solid var(--vscode-panel-border, var(--vscode-input-border));
-    border-radius: 4px;
+    margin: var(--space-2) 0 var(--space-3);
+    padding: var(--space-2);
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-md);
     max-height: 300px;
     overflow: auto;
-    font-size: 0.65rem;
+    font-size: var(--text-size-xs);
   }
   .debug-panel h3 {
     margin: 0 0 0.4rem;
-    font-size: 0.75rem;
+    font-size: var(--text-size-sm);
   }
   .debug-json {
     margin: 0;
-    font-family: monospace;
+    font-family: var(--text-font-mono);
     white-space: pre-wrap;
   }
   .single-connection-label {
-    font-size: 0.75rem;
+    font-size: var(--text-size-sm);
     padding: 0.35rem 0.55rem;
-    background: var(--vscode-tab-activeBackground);
-    border: 1px solid var(--vscode-tab-activeBorder, var(--vscode-focusBorder));
-    border-radius: 4px;
-    color: var(--vscode-tab-activeForeground);
+    background: var(--color-tab-active-bg);
+    border: 1px solid var(--color-tab-active-border);
+    border-radius: var(--radius-md);
+    color: var(--color-tab-active-fg);
   }
-  
+
   .history-timeline-panel {
-    margin: 0.5rem 0;
+    margin: var(--space-2) 0;
     max-height: 400px;
     overflow: hidden;
   }
-  
+
   .performance-dashboard-panel {
-    margin: 0.5rem 0;
+    margin: var(--space-2) 0;
     max-height: 500px;
     overflow: hidden;
   }

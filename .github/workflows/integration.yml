@@ -1,10 +1,20 @@
 name: Nightly Integration Tests
 
 on:
+  push:
+    branches: ['copilot/**']
   schedule:
     - cron: '0 2 * * *' # Daily at 02:00 UTC
   workflow_dispatch: {}
   pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  # pull_request_target runs in the base-branch context and is NOT subject to
+  # the action_required approval gate for bot-authored PRs (e.g. Copilot). The
+  # checkout step below explicitly checks out the PR head SHA so the PR's own
+  # code is tested. This file already exists on main, so this trigger is active
+  # immediately for all open PRs targeting main.
+  pull_request_target:
     branches: [main]
     types: [opened, synchronize, reopened]
 
@@ -12,9 +22,24 @@ jobs:
   integration-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # Minimal read-only permissions so PR code running under pull_request_target
+    # cannot use write-scoped tokens.
+    permissions:
+      contents: read
+    # For pull_request_target: only run for trusted bot actors (e.g. the Copilot
+    # bot) to prevent cache-poisoning from untrusted code running in the
+    # base-branch context. Regular contributors use the pull_request trigger.
+    if: >-
+      github.event_name != 'pull_request_target' ||
+      github.event.pull_request.user.login == 'github-copilot[bot]' ||
+      github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # On pull_request_target, github.sha is the base-branch HEAD, not the
+          # PR head. Explicitly checkout the PR head SHA so the PR's code is tested.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

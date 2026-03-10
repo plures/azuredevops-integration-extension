@@ -1,12 +1,22 @@
 name: PR Lane Event Relay
 
 on:
+  push:
+    branches: ['copilot/**']
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled]
   pull_request_review:
     types: [submitted, dismissed, edited]
   check_suite:
     types: [completed]
+  # pull_request_target runs in the base-branch context and is NOT subject to
+  # the action_required approval gate for bot-authored PRs (e.g. Copilot). The
+  # workflow uses no code from the PR, so no checkout is needed. Once this file
+  # lands on main, it is immediately active for all open PRs targeting main.
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled]
+  # workflow_dispatch allows a maintainer to manually trigger this relay from the
+  # Actions UI on any branch, bypassing the action_required org-policy gate.
   workflow_dispatch:
 
 permissions:
@@ -15,6 +25,12 @@ permissions:
 jobs:
   relay:
     runs-on: ubuntu-latest
+    # For pull_request_target: only run for trusted bot actors to prevent misuse.
+    # Regular contributors use the pull_request trigger.
+    if: >-
+      github.event_name != 'pull_request_target' ||
+      github.event.pull_request.user.login == 'github-copilot[bot]' ||
+      github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       - name: Skip when relay secret is missing
         id: preflight

@@ -35,4 +35,3 @@ export const applicationRules = [
   ...timerRules,
   ...decisionRules,
 ];
-

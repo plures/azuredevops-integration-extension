@@ -95,19 +95,19 @@ LLM-GUARD:
 <style>
   .status-bar {
     display: flex;
-    gap: 1rem;
-    padding: 0.35rem 0.75rem;
-    background: var(--vscode-statusBar-background);
-    color: var(--vscode-statusBar-foreground);
-    border-top: 1px solid var(--vscode-panel-border);
-    font-size: 0.75rem;
+    gap: var(--space-4);
+    padding: 0.35rem var(--space-3);
+    background: var(--color-statusbar-bg);
+    color: var(--color-statusbar-fg);
+    border-top: 1px solid var(--color-border-strong);
+    font-size: var(--text-size-sm);
     position: sticky;
     bottom: 0;
   }
 
   .status-section {
     display: flex;
-    gap: 0.4rem;
+    gap: var(--space-1);
     align-items: center;
   }
 
@@ -120,13 +120,13 @@ LLM-GUARD:
   }
 
   .connection-info {
-    color: var(--vscode-foreground);
+    color: var(--color-text-default);
   }
 
   .timer-active {
-    color: var(--vscode-statusBarItem-prominentForeground);
-    background: var(--vscode-statusBarItem-prominentBackground);
-    padding: 0.25rem 0.5rem;
-    border-radius: 3px;
+    color: var(--color-statusbar-prominent-fg);
+    background: var(--color-statusbar-prominent-bg);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
   }
 </style>

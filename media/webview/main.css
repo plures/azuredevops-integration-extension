@@ -1,66 +1,175 @@
-/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/ConnectionTabs.esbuild-svelte-fake-css */
-.tab-bar.svelte-2w6d2o {
-  display: flex;
-  gap: 0.25rem;
-  align-items: flex-end;
-  padding: 0 0.25rem;
-  background: var(--vscode-editorWidget-background);
-  border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-input-border));
+/* packages/ui-web/src/tokens.css */
+:root {
+  --color-surface-default: var(--vscode-editor-background);
+  --color-surface-raised: var(--vscode-editorWidget-background);
+  --color-surface-sunken: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  --color-surface-overlay: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+  --color-text-default: var(--vscode-foreground);
+  --color-text-subtle: var(--vscode-descriptionForeground);
+  --color-text-link: var(--vscode-textLink-foreground);
+  --color-text-disabled: var(--vscode-disabledForeground, var(--vscode-descriptionForeground));
+  --color-border-default: var(--vscode-widget-border, var(--vscode-input-border));
+  --color-border-focus: var(--vscode-focusBorder);
+  --color-border-strong: var(--vscode-panel-border);
+  --color-action-primary-bg: var(--vscode-button-background, #0078d4);
+  --color-action-primary-fg: var(--vscode-button-foreground, #ffffff);
+  --color-action-primary-hover-bg: var(--vscode-button-hoverBackground, #106ebe);
+  --color-action-secondary-bg: var(--vscode-button-secondaryBackground);
+  --color-action-secondary-fg: var(--vscode-button-secondaryForeground);
+  --color-action-secondary-hover-bg: var(--vscode-button-secondaryHoverBackground);
+  --color-action-ghost-hover-bg: var(--vscode-toolbar-hoverBackground);
+  --color-action-ghost-active-bg: var(--vscode-toolbar-activeBackground);
+  --color-action-border: var(--vscode-button-border, transparent);
+  --color-success-bg: rgba(16, 124, 16, 0.1);
+  --color-success-fg: #107c10;
+  --color-success-border: rgba(16, 124, 16, 0.25);
+  --color-warning-bg: rgba(248, 150, 30, 0.1);
+  --color-warning-fg: #f8961e;
+  --color-warning-border: rgba(248, 150, 30, 0.25);
+  --color-danger-bg: var(--vscode-inputValidation-errorBackground, rgba(209, 52, 56, 0.1));
+  --color-danger-fg: var(--vscode-errorForeground, #d13438);
+  --color-danger-border: var(--vscode-inputValidation-errorBorder, rgba(209, 52, 56, 0.25));
+  --color-info-bg: rgba(0, 120, 212, 0.1);
+  --color-info-fg: #0078d4;
+  --color-info-border: rgba(0, 120, 212, 0.25);
+  --color-input-bg: var(--vscode-input-background);
+  --color-input-fg: var(--vscode-input-foreground);
+  --color-input-border: var(--vscode-input-border);
+  --color-input-placeholder: var(--vscode-input-placeholderForeground);
+  --color-tab-inactive-fg: var(--vscode-tab-inactiveForeground, var(--vscode-foreground));
+  --color-tab-active-bg: var(--vscode-tab-activeBackground, var(--vscode-editor-background));
+  --color-tab-active-fg: var(--vscode-tab-activeForeground, var(--vscode-foreground));
+  --color-tab-active-border: var(--vscode-focusBorder);
+  --color-tab-hover-fg: var(--vscode-tab-hoverForeground, var(--vscode-foreground));
+  --color-tab-hover-bg: var(--vscode-tab-hoverBackground, rgba(255, 255, 255, 0.05));
+  --color-tab-bar-bg: var(--vscode-editorWidget-background);
+  --color-tab-bar-border: var(--vscode-editorWidget-border, var(--vscode-input-border));
+  --color-statusbar-bg: var(--vscode-statusBar-background);
+  --color-statusbar-fg: var(--vscode-statusBar-foreground);
+  --color-statusbar-prominent-bg: var(--vscode-statusBarItem-prominentBackground);
+  --color-statusbar-prominent-fg: var(--vscode-statusBarItem-prominentForeground);
+  --color-badge-bg: var(--vscode-badge-background);
+  --color-badge-fg: var(--vscode-badge-foreground);
+  --ado-state-new-bg: rgba(0, 120, 212, 0.1);
+  --ado-state-new-fg: #0078d4;
+  --ado-state-active-bg: rgba(248, 150, 30, 0.1);
+  --ado-state-active-fg: #f8961e;
+  --ado-state-resolved-bg: rgba(16, 124, 16, 0.1);
+  --ado-state-resolved-fg: #107c10;
+  --ado-state-closed-bg: var(--vscode-textBlockQuote-background, rgba(255, 255, 255, 0.05));
+  --ado-state-closed-fg: var(--vscode-descriptionForeground);
+  --ado-state-removed-bg: rgba(209, 52, 56, 0.08);
+  --ado-state-removed-fg: #d13438;
+  --ado-type-task-bg: rgba(0, 120, 212, 0.1);
+  --ado-type-task-fg: #0078d4;
+  --ado-type-task-border: rgba(0, 120, 212, 0.2);
+  --ado-type-bug-bg: rgba(209, 52, 56, 0.1);
+  --ado-type-bug-fg: #d13438;
+  --ado-type-bug-border: rgba(209, 52, 56, 0.2);
+  --ado-type-story-bg: rgba(16, 124, 16, 0.1);
+  --ado-type-story-fg: #107c10;
+  --ado-type-story-border: rgba(16, 124, 16, 0.2);
+  --ado-type-feature-bg: rgba(92, 45, 145, 0.1);
+  --ado-type-feature-fg: #5c2d91;
+  --ado-type-feature-border: rgba(92, 45, 145, 0.2);
+  --ado-type-epic-bg: rgba(92, 45, 145, 0.15);
+  --ado-type-epic-fg: #5c2d91;
+  --ado-type-epic-border: rgba(92, 45, 145, 0.3);
+  --ado-priority-1-bg: rgba(209, 36, 36, 0.08);
+  --ado-priority-1-fg: #d12424;
+  --ado-priority-2-bg: rgba(248, 150, 30, 0.06);
+  --ado-priority-2-fg: #f8961e;
+  --ado-priority-3-bg: rgba(16, 124, 16, 0.05);
+  --ado-priority-3-fg: #107c10;
+  --ado-priority-4-bg: rgba(0, 122, 204, 0.04);
+  --ado-priority-4-fg: #007acc;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-pill: 9999px;
+  --text-font-family: var(--vscode-font-family, sans-serif);
+  --text-font-mono: var(--vscode-editor-font-family, monospace);
+  --text-size-xs: 0.65rem;
+  --text-size-sm: 0.75rem;
+  --text-size-md: 0.85rem;
+  --text-size-base: 1rem;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-focus: 0 0 0 2px var(--color-border-focus);
+  --motion-speed-fast: 0.1s;
+  --motion-speed-normal: 0.15s;
+  --motion-speed-slow: 0.3s;
+  --motion-easing: ease;
 }
-.tab.svelte-2w6d2o,
-.connection-tab.svelte-2w6d2o {
+
+/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/packages/ui-web/src/components/TabBar.esbuild-svelte-fake-css */
+.dojo-tab-bar.svelte-7bvgl0 {
+  display: flex;
+  gap: var(--space-1);
+  align-items: flex-end;
+  padding: 0 var(--space-1);
+  background: var(--color-tab-bar-bg);
+  border-bottom: 1px solid var(--color-tab-bar-border);
+}
+.dojo-tab.svelte-7bvgl0 {
   position: relative;
   background: transparent;
-  color: var(--vscode-tab-inactiveForeground, var(--vscode-foreground));
+  color: var(--color-tab-inactive-fg);
   border: none;
   padding: 0.45rem 0.75rem 0.35rem;
-  font-size: 0.75rem;
+  font-size: var(--text-size-sm);
+  font-family: var(--text-font-family);
   line-height: 1;
   cursor: pointer;
-  border-top-left-radius: 4px;
-  border-top-right-radius: 4px;
+  border-top-left-radius: var(--radius-md);
+  border-top-right-radius: var(--radius-md);
   display: inline-flex;
   align-items: center;
-  transition: color 0.15s ease, background 0.15s ease;
+  gap: var(--space-1);
+  transition: color var(--motion-speed-normal) var(--motion-easing), background var(--motion-speed-normal) var(--motion-easing);
+  white-space: nowrap;
 }
-.tab.svelte-2w6d2o:hover,
-.connection-tab.svelte-2w6d2o:hover {
-  color: var(--vscode-tab-hoverForeground, var(--vscode-foreground));
-  background: var(--vscode-tab-hoverBackground, rgba(255, 255, 255, 0.05));
+.dojo-tab.svelte-7bvgl0:hover {
+  color: var(--color-tab-hover-fg);
+  background: var(--color-tab-hover-bg);
 }
-.tab.active.svelte-2w6d2o,
-.connection-tab.active.svelte-2w6d2o {
-  background: var(--vscode-tab-activeBackground, var(--vscode-editor-background));
-  color: var(--vscode-tab-activeForeground, var(--vscode-foreground));
+.dojo-tab--active.svelte-7bvgl0 {
+  background: var(--color-tab-active-bg);
+  color: var(--color-tab-active-fg);
 }
-.tab.active.svelte-2w6d2o::after,
-.connection-tab.active.svelte-2w6d2o::after {
+.dojo-tab--active.svelte-7bvgl0::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
   height: 2px;
-  background: var(--vscode-focusBorder);
+  background: var(--color-tab-active-border);
   border-radius: 1px;
 }
-.tab.svelte-2w6d2o:focus,
-.connection-tab.svelte-2w6d2o:focus {
-  outline: 1px solid var(--vscode-focusBorder);
+.dojo-tab.svelte-7bvgl0:focus-visible {
+  outline: 1px solid var(--color-border-focus);
   outline-offset: -1px;
 }
-.tab.svelte-2w6d2o:not(.active)::before,
-.connection-tab.svelte-2w6d2o:not(.active)::before {
+.dojo-tab.svelte-7bvgl0:not(.dojo-tab--active)::before {
   content: "";
   position: absolute;
   right: 0;
   top: 25%;
   bottom: 25%;
   width: 1px;
-  background: var(--vscode-editorWidget-border, var(--vscode-input-border));
+  background: var(--color-tab-bar-border);
 }
-.tab.svelte-2w6d2o:last-child::before,
-.connection-tab.svelte-2w6d2o:last-child::before {
+.dojo-tab.svelte-7bvgl0:last-child::before {
   display: none;
 }
 
@@ -146,118 +255,155 @@
   color: var(--vscode-list-focusForeground, var(--vscode-list-hoverForeground));
 }
 
-/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/ErrorBanner.esbuild-svelte-fake-css */
-.error-banner.svelte-1ju6edo {
+/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/packages/ui-web/src/components/Alert.esbuild-svelte-fake-css */
+.dojo-alert.svelte-dhhn2a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  background: var(--vscode-inputValidation-errorBackground);
-  border: 1px solid var(--vscode-inputValidation-errorBorder);
-  color: var(--vscode-errorForeground);
-  border-radius: 4px;
-  margin-bottom: 1rem;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-size-sm);
 }
-.error-content.svelte-1ju6edo {
+.dojo-alert__body.svelte-dhhn2a {
   display: flex;
   align-items: flex-start;
-  gap: 0.75rem;
+  gap: var(--space-2);
   flex: 1;
+  min-width: 0;
 }
-.error-icon.svelte-1ju6edo {
-  font-size: 1.25rem;
+.dojo-alert__icon.svelte-dhhn2a {
   flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1.2;
 }
-.error-message.svelte-1ju6edo {
+.dojo-alert__text.svelte-dhhn2a {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  flex: 1;
+  gap: 0.15rem;
+  min-width: 0;
 }
-.error-message.svelte-1ju6edo strong:where(.svelte-1ju6edo) {
+.dojo-alert__message.svelte-dhhn2a {
   font-weight: 600;
 }
-.error-hint.svelte-1ju6edo {
-  font-size: 0.875rem;
-  opacity: 0.9;
+.dojo-alert__hint.svelte-dhhn2a {
+  opacity: 0.85;
+  font-size: var(--text-size-xs);
 }
-.error-actions.svelte-1ju6edo {
+.dojo-alert__actions.svelte-dhhn2a {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-1);
   align-items: center;
   flex-shrink: 0;
 }
-.action-button.svelte-1ju6edo {
-  padding: 0.375rem 0.75rem;
-  border: 1px solid transparent;
-  border-radius: 3px;
-  font-size: 0.875rem;
+.dojo-alert__btn.svelte-dhhn2a {
+  padding: 0.15rem 0.5rem;
+  font-size: var(--text-size-xs);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 0.2s;
-}
-.action-button.primary.svelte-1ju6edo {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-}
-.action-button.primary.svelte-1ju6edo:hover {
-  background: var(--vscode-button-hoverBackground);
-}
-.action-button.secondary.svelte-1ju6edo {
   background: transparent;
-  color: var(--vscode-foreground);
-  border-color: var(--vscode-input-border);
-  padding: 0.25rem 0.5rem;
-  min-width: 1.5rem;
+  transition: background var(--motion-speed-normal) var(--motion-easing);
 }
-.action-button.secondary.svelte-1ju6edo:hover {
-  background: var(--vscode-list-hoverBackground);
+.dojo-alert__btn.svelte-dhhn2a:focus-visible {
+  outline: 1px solid var(--color-border-focus);
+  outline-offset: 1px;
+}
+.dojo-alert--error.svelte-dhhn2a {
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger-border);
+  color: var(--color-danger-fg);
+}
+.dojo-alert--error.svelte-dhhn2a .dojo-alert__btn:where(.svelte-dhhn2a) {
+  border: 1px solid var(--color-danger-border);
+  color: var(--color-danger-fg);
+}
+.dojo-alert--error.svelte-dhhn2a .dojo-alert__btn:where(.svelte-dhhn2a):hover {
+  background: var(--color-danger-border);
+}
+.dojo-alert--warning.svelte-dhhn2a {
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  color: var(--color-warning-fg);
+}
+.dojo-alert--warning.svelte-dhhn2a .dojo-alert__btn:where(.svelte-dhhn2a) {
+  border: 1px solid var(--color-warning-border);
+  color: var(--color-warning-fg);
+}
+.dojo-alert--warning.svelte-dhhn2a .dojo-alert__btn:where(.svelte-dhhn2a):hover {
+  background: var(--color-warning-border);
+}
+.dojo-alert--info.svelte-dhhn2a {
+  background: var(--color-info-bg);
+  border: 1px solid var(--color-info-border);
+  color: var(--color-info-fg);
+}
+.dojo-alert--info.svelte-dhhn2a .dojo-alert__btn:where(.svelte-dhhn2a) {
+  border: 1px solid var(--color-info-border);
+  color: var(--color-info-fg);
+}
+.dojo-alert--info.svelte-dhhn2a .dojo-alert__btn:where(.svelte-dhhn2a):hover {
+  background: var(--color-info-border);
+}
+.dojo-alert--success.svelte-dhhn2a {
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success-border);
+  color: var(--color-success-fg);
+}
+.dojo-alert--success.svelte-dhhn2a .dojo-alert__btn:where(.svelte-dhhn2a) {
+  border: 1px solid var(--color-success-border);
+  color: var(--color-success-fg);
+}
+.dojo-alert--success.svelte-dhhn2a .dojo-alert__btn:where(.svelte-dhhn2a):hover {
+  background: var(--color-success-border);
 }
 
-/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/EmptyState.esbuild-svelte-fake-css */
-.empty-state.svelte-qlco7a {
+/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/packages/ui-web/src/components/EmptyState.esbuild-svelte-fake-css */
+.dojo-empty-state.svelte-8jlr7m {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 300px;
-  padding: 2rem;
-}
-.empty-state-content.svelte-qlco7a {
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-4);
   text-align: center;
-  max-width: 400px;
+  color: var(--color-text-subtle);
 }
-.empty-state-content.error.svelte-qlco7a {
-  color: var(--vscode-errorForeground);
+.dojo-empty-state__icon.svelte-8jlr7m {
+  font-size: 2rem;
+  opacity: 0.5;
+  display: block;
+  margin-bottom: var(--space-1);
 }
-.empty-state-icon.svelte-qlco7a {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  opacity: 0.6;
+.dojo-empty-state__heading.svelte-8jlr7m {
+  margin: 0;
+  font-size: var(--text-size-md);
+  font-weight: 500;
+  color: var(--color-text-default);
 }
-.empty-state-title.svelte-qlco7a {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin: 0 0 0.5rem 0;
-  color: var(--vscode-foreground);
-}
-.empty-state-message.svelte-qlco7a {
-  font-size: 0.875rem;
-  color: var(--vscode-descriptionForeground);
-  margin: 0 0 1.5rem 0;
+.dojo-empty-state__description.svelte-8jlr7m {
+  margin: 0;
+  font-size: var(--text-size-sm);
+  max-width: 28ch;
   line-height: 1.5;
 }
-.empty-state-action.svelte-qlco7a {
-  padding: 0.5rem 1rem;
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-  border: none;
-  border-radius: 3px;
-  font-size: 0.875rem;
+.dojo-empty-state__btn.svelte-8jlr7m {
+  margin-top: var(--space-2);
+  padding: 0.35rem 0.75rem;
+  font-size: var(--text-size-sm);
+  background: var(--color-action-primary-bg);
+  color: var(--color-action-primary-fg);
+  border: 1px solid var(--color-action-border);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background var(--motion-speed-normal) var(--motion-easing);
 }
-.empty-state-action.svelte-qlco7a:hover {
-  background: var(--vscode-button-hoverBackground);
+.dojo-empty-state__btn.svelte-8jlr7m:hover {
+  background: var(--color-action-primary-hover-bg);
+}
+.dojo-empty-state__btn.svelte-8jlr7m:focus-visible {
+  outline: 1px solid var(--color-border-focus);
+  outline-offset: 1px;
 }
 
 /* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/WorkItemList.esbuild-svelte-fake-css */
@@ -782,18 +928,18 @@ h3.svelte-j9p4i1 {
 /* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/StatusBar.esbuild-svelte-fake-css */
 .status-bar.svelte-1764dnv {
   display: flex;
-  gap: 1rem;
-  padding: 0.35rem 0.75rem;
-  background: var(--vscode-statusBar-background);
-  color: var(--vscode-statusBar-foreground);
-  border-top: 1px solid var(--vscode-panel-border);
-  font-size: 0.75rem;
+  gap: var(--space-4);
+  padding: 0.35rem var(--space-3);
+  background: var(--color-statusbar-bg);
+  color: var(--color-statusbar-fg);
+  border-top: 1px solid var(--color-border-strong);
+  font-size: var(--text-size-sm);
   position: sticky;
   bottom: 0;
 }
 .status-section.svelte-1764dnv {
   display: flex;
-  gap: 0.4rem;
+  gap: var(--space-1);
   align-items: center;
 }
 .label.svelte-1764dnv {
@@ -803,13 +949,13 @@ h3.svelte-j9p4i1 {
   font-weight: 500;
 }
 .connection-info.svelte-1764dnv {
-  color: var(--vscode-foreground);
+  color: var(--color-text-default);
 }
 .timer-active.svelte-1764dnv {
-  color: var(--vscode-statusBarItem-prominentForeground);
-  background: var(--vscode-statusBarItem-prominentBackground);
-  padding: 0.25rem 0.5rem;
-  border-radius: 3px;
+  color: var(--color-statusbar-prominent-fg);
+  background: var(--color-statusbar-prominent-bg);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
 }
 
 /* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/ConnectionView.esbuild-svelte-fake-css */
@@ -822,7 +968,7 @@ h3.svelte-j9p4i1 {
 .connection-content.svelte-5unw23 {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 
 /* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/ConnectionViews.esbuild-svelte-fake-css */
@@ -836,23 +982,23 @@ h3.svelte-j9p4i1 {
   display: flex;
   align-items: flex-start;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-  color: var(--vscode-foreground);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+  color: var(--color-text-default);
   max-width: 100%;
   box-sizing: border-box;
 }
 .auth-reminder-banner.error.svelte-cv3w9g {
-  background: var(--vscode-inputValidation-errorBackground);
-  border: 1px solid var(--vscode-inputValidation-errorBorder);
-  color: var(--vscode-errorForeground);
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger-border);
+  color: var(--color-danger-fg);
 }
 .auth-reminder-banner.warning.svelte-cv3w9g {
-  background: var(--vscode-inputValidation-warningBackground);
-  border: 1px solid var(--vscode-inputValidation-warningBorder);
-  color: var(--vscode-foreground);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  color: var(--color-text-default);
 }
 .auth-icon.svelte-cv3w9g {
   font-size: 1.2rem;
@@ -864,32 +1010,32 @@ h3.svelte-j9p4i1 {
   max-width: 100%;
 }
 .auth-message.svelte-cv3w9g {
-  font-size: 0.9rem;
+  font-size: var(--text-size-md);
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
 div.auth-message.svelte-cv3w9g {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--space-1);
 }
 .auth-message.svelte-cv3w9g strong:where(.svelte-cv3w9g) {
   font-weight: 600;
   font-size: 0.95rem;
 }
 .error-detail.svelte-cv3w9g {
-  font-size: 0.85rem;
+  font-size: var(--text-size-sm);
   opacity: 0.9;
 }
 .error-hint.svelte-cv3w9g {
-  font-size: 0.8rem;
+  font-size: var(--text-size-xs);
   font-style: italic;
   opacity: 0.8;
-  margin-top: 0.25rem;
+  margin-top: var(--space-1);
 }
 .auth-actions.svelte-cv3w9g {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
   flex-shrink: 0;
   flex-wrap: wrap;
   align-items: center;
@@ -903,7 +1049,7 @@ div.auth-message.svelte-cv3w9g {
   .auth-message-container.svelte-cv3w9g {
     width: 100%;
     max-width: 100%;
-    margin-bottom: 0.5rem;
+    margin-bottom: var(--space-2);
   }
   .auth-actions.svelte-cv3w9g {
     width: 100%;
@@ -920,16 +1066,16 @@ div.auth-message.svelte-cv3w9g {
   margin: 0;
   background: transparent;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  color: var(--vscode-icon-foreground);
-  transition: background-color 0.2s ease;
+  color: var(--vscode-icon-foreground, var(--color-text-default));
+  transition: background-color var(--motion-speed-normal) var(--motion-easing);
 }
 .auth-action.svelte-cv3w9g:hover {
-  background: var(--vscode-toolbar-hoverBackground);
+  background: var(--color-action-ghost-hover-bg);
 }
 .auth-action.svelte-cv3w9g:active {
-  background: var(--vscode-toolbar-activeBackground);
+  background: var(--color-action-ghost-active-bg);
 }
 .auth-action.svelte-cv3w9g .codicon:where(.svelte-cv3w9g) {
   font-family: "codicon";
@@ -952,22 +1098,9 @@ div.auth-message.svelte-cv3w9g {
   opacity: 1;
 }
 
-/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/WebviewHeader.esbuild-svelte-fake-css */
-.webview-header.svelte-1bw0sfy {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border-bottom: 1px solid var(--vscode-panel-border);
-  background: transparent;
-}
-.header-actions.svelte-1bw0sfy {
-  display: flex;
-  gap: 0.25rem;
-  align-items: center;
-}
-.header-btn.svelte-1bw0sfy {
-  display: flex;
+/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/packages/ui-web/src/components/IconButton.esbuild-svelte-fake-css */
+.dojo-icon-btn.svelte-4udubj {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 2rem;
@@ -975,36 +1108,58 @@ div.auth-message.svelte-cv3w9g {
   padding: 0;
   margin: 0;
   background: transparent;
-  border: none;
-  border-radius: 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  color: var(--vscode-icon-foreground);
-  transition: background-color 0.2s ease;
+  color: var(--vscode-icon-foreground, var(--color-text-default));
+  transition:
+    background var(--motion-speed-normal) var(--motion-easing),
+    color var(--motion-speed-normal) var(--motion-easing),
+    border-color var(--motion-speed-normal) var(--motion-easing);
 }
-.header-btn.svelte-1bw0sfy:hover {
-  background: var(--vscode-toolbar-hoverBackground);
+.dojo-icon-btn.svelte-4udubj:hover:not(:disabled) {
+  background: var(--color-action-ghost-hover-bg);
 }
-.header-btn.svelte-1bw0sfy:active {
-  background: var(--vscode-toolbar-activeBackground);
+.dojo-icon-btn.svelte-4udubj:active:not(:disabled) {
+  background: var(--color-action-ghost-active-bg);
 }
-.header-btn.svelte-1bw0sfy .codicon:where(.svelte-1bw0sfy) {
-  font-family: "codicon";
-  font-size: 16px;
-  font-weight: normal;
-  font-style: normal;
+.dojo-icon-btn--active.svelte-4udubj {
+  background: var(--color-action-ghost-hover-bg);
+  color: var(--color-text-link);
+  border-color: var(--color-border-focus);
+}
+.dojo-icon-btn.svelte-4udubj:focus-visible {
+  outline: 1px solid var(--color-border-focus);
+  outline-offset: 1px;
+}
+.dojo-icon-btn.svelte-4udubj:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.dojo-icon-btn__icon.svelte-4udubj {
+  font-size: 1rem;
   line-height: 1;
-  display: inline-block;
-  text-decoration: none;
-  text-rendering: auto;
-  text-align: center;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  user-select: none;
+  display: block;
 }
-.header-btn.refreshing.svelte-1bw0sfy .codicon:where(.svelte-1bw0sfy) {
-  animation: svelte-1bw0sfy-spin 500ms ease-in-out;
+
+/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/WebviewHeader.esbuild-svelte-fake-css */
+.webview-header.svelte-1bw0sfy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-bottom: 1px solid var(--color-border-strong);
+  background: transparent;
 }
-@keyframes svelte-1bw0sfy-spin {
+.header-actions.svelte-1bw0sfy {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+.refresh-wrapper.refreshing.svelte-1bw0sfy .dojo-icon-btn__icon {
+  animation: svelte-1bw0sfy-dojo-header-spin 0.5s ease-in-out;
+}
+@keyframes svelte-1bw0sfy-dojo-header-spin {
   from {
     transform: rotate(0deg);
   }
@@ -1013,56 +1168,27 @@ div.auth-message.svelte-cv3w9g {
   }
 }
 
-/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/Notification.esbuild-svelte-fake-css */
-.notification.svelte-1eagtgd {
+/* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/packages/ui-web/src/components/Toast.esbuild-svelte-fake-css */
+.dojo-toast.svelte-1sc699v {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
-  padding: 12px 16px;
-  border-radius: 4px;
+  bottom: 1.25rem;
+  right: 1.25rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-width: 300px;
-  max-width: 400px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  gap: var(--space-3);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-lg);
+  min-width: 18rem;
+  max-width: 25rem;
+  box-shadow: var(--shadow-md);
   z-index: 1000;
-  animation: svelte-1eagtgd-slideIn 0.3s ease-out;
+  background: var(--_toast-bg, var(--color-info-fg));
+  color: #fff;
+  font-size: var(--text-size-sm);
+  animation: svelte-1sc699v-dojo-toast-in var(--motion-speed-slow) var(--motion-easing);
 }
-.success.svelte-1eagtgd {
-  background-color: var(--vscode-notificationsInfoIcon-foreground, #3794ff);
-  color: white;
-}
-.error.svelte-1eagtgd {
-  background-color: var(--vscode-notificationsErrorIcon-foreground, #f14c4c);
-  color: white;
-}
-.info.svelte-1eagtgd {
-  background-color: var(--vscode-notificationsInfoIcon-foreground, #3794ff);
-  color: white;
-}
-.warning.svelte-1eagtgd {
-  background-color: var(--vscode-notificationsWarningIcon-foreground, #cca700);
-  color: white;
-}
-.message.svelte-1eagtgd {
-  flex-grow: 1;
-  margin-right: 12px;
-}
-.close-btn.svelte-1eagtgd {
-  background: none;
-  border: none;
-  color: inherit;
-  font-size: 20px;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-  opacity: 0.8;
-}
-.close-btn.svelte-1eagtgd:hover {
-  opacity: 1;
-}
-@keyframes svelte-1eagtgd-slideIn {
+@keyframes svelte-1sc699v-dojo-toast-in {
   from {
     transform: translateY(100%);
     opacity: 0;
@@ -1071,6 +1197,28 @@ div.auth-message.svelte-cv3w9g {
     transform: translateY(0);
     opacity: 1;
   }
+}
+.dojo-toast__message.svelte-1sc699v {
+  flex: 1;
+}
+.dojo-toast__close.svelte-1sc699v {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.85;
+  transition: opacity var(--motion-speed-fast);
+}
+.dojo-toast__close.svelte-1sc699v:hover {
+  opacity: 1;
+}
+.dojo-toast__close.svelte-1sc699v:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.8);
+  outline-offset: 1px;
+  border-radius: var(--radius-sm);
 }
 
 /* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/components/ComposeCommentDialog.esbuild-svelte-fake-css */
@@ -1461,90 +1609,100 @@ button.svelte-w8xrzn:disabled {
 
 /* fakecss:/home/runner/work/azuredevops-integration-extension/azuredevops-integration-extension/src/webview/App.esbuild-svelte-fake-css */
 main.svelte-db2r4i {
-  padding: 1rem;
-  font-family: var(--vscode-font-family, sans-serif);
-  color: var(--vscode-foreground);
+  padding: var(--space-4);
+  font-family: var(--text-font-family);
+  color: var(--color-text-default);
 }
 .loading.svelte-db2r4i {
   text-align: center;
-  padding: 2rem;
+  padding: var(--space-8);
+  color: var(--color-text-subtle);
 }
 .error-container.svelte-db2r4i {
-  color: var(--vscode-errorForeground);
-  padding: 1rem;
-  margin: 1rem 0;
+  color: var(--color-danger-fg);
+  padding: var(--space-4);
+  margin: var(--space-4) 0;
 }
 .error-banner.svelte-db2r4i {
-  background-color: var(--vscode-inputValidation-errorBackground);
-  border: 1px solid var(--vscode-inputValidation-errorBorder);
-  color: var(--vscode-foreground);
-  padding: 0.5rem;
-  margin-bottom: 0.5rem;
+  background-color: var(--color-danger-bg);
+  border: 1px solid var(--color-danger-border);
+  color: var(--color-text-default);
+  padding: var(--space-2);
+  margin-bottom: var(--space-2);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  border-radius: 2px;
+  gap: var(--space-2);
+  border-radius: var(--radius-sm);
 }
 .retry-btn.svelte-db2r4i {
   margin-left: auto;
   padding: 2px 8px;
-  font-size: 0.8em;
+  font-size: var(--text-size-xs);
+  background: transparent;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-default);
+  cursor: pointer;
+}
+.retry-btn.svelte-db2r4i:hover {
+  background: var(--color-action-ghost-hover-bg);
 }
 button.svelte-db2r4i {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-  border: none;
-  padding: 0.5rem 1rem;
+  background: var(--color-action-primary-bg);
+  color: var(--color-action-primary-fg);
+  border: 1px solid var(--color-action-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
   cursor: pointer;
-  margin-top: 0.5rem;
+  margin-top: var(--space-2);
 }
 button.svelte-db2r4i:hover {
-  background: var(--vscode-button-hoverBackground);
+  background: var(--color-action-primary-hover-bg);
 }
 .single-connection-header.svelte-db2r4i {
-  padding: 0.5rem 0;
-  margin-bottom: 0.5rem;
+  padding: var(--space-2) 0;
+  margin-bottom: var(--space-2);
 }
 .history-controls-container.svelte-db2r4i {
   display: flex;
   justify-content: flex-end;
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border-strong);
 }
 .debug-panel.svelte-db2r4i {
-  margin: 0.5rem 0 0.75rem;
-  padding: 0.5rem;
-  background: var(--vscode-editorWidget-background);
-  border: 1px solid var(--vscode-panel-border, var(--vscode-input-border));
-  border-radius: 4px;
+  margin: var(--space-2) 0 var(--space-3);
+  padding: var(--space-2);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
   max-height: 300px;
   overflow: auto;
-  font-size: 0.65rem;
+  font-size: var(--text-size-xs);
 }
 .debug-panel.svelte-db2r4i h3:where(.svelte-db2r4i) {
   margin: 0 0 0.4rem;
-  font-size: 0.75rem;
+  font-size: var(--text-size-sm);
 }
 .debug-json.svelte-db2r4i {
   margin: 0;
-  font-family: monospace;
+  font-family: var(--text-font-mono);
   white-space: pre-wrap;
 }
 .single-connection-label.svelte-db2r4i {
-  font-size: 0.75rem;
+  font-size: var(--text-size-sm);
   padding: 0.35rem 0.55rem;
-  background: var(--vscode-tab-activeBackground);
-  border: 1px solid var(--vscode-tab-activeBorder, var(--vscode-focusBorder));
-  border-radius: 4px;
-  color: var(--vscode-tab-activeForeground);
+  background: var(--color-tab-active-bg);
+  border: 1px solid var(--color-tab-active-border);
+  border-radius: var(--radius-md);
+  color: var(--color-tab-active-fg);
 }
 .history-timeline-panel.svelte-db2r4i {
-  margin: 0.5rem 0;
+  margin: var(--space-2) 0;
   max-height: 400px;
   overflow: hidden;
 }
 .performance-dashboard-panel.svelte-db2r4i {
-  margin: 0.5rem 0;
+  margin: var(--space-2) 0;
   max-height: 500px;
   overflow: hidden;
 }

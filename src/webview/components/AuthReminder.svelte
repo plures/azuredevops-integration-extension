@@ -354,25 +354,25 @@ LLM-GUARD:
     display: flex;
     align-items: flex-start;
     flex-wrap: wrap;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    border-radius: 4px;
-    margin-bottom: 1rem;
-    color: var(--vscode-foreground);
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-4);
+    color: var(--color-text-default);
     max-width: 100%;
     box-sizing: border-box;
   }
 
   .auth-reminder-banner.error {
-    background: var(--vscode-inputValidation-errorBackground);
-    border: 1px solid var(--vscode-inputValidation-errorBorder);
-    color: var(--vscode-errorForeground);
+    background: var(--color-danger-bg);
+    border: 1px solid var(--color-danger-border);
+    color: var(--color-danger-fg);
   }
 
   .auth-reminder-banner.warning {
-    background: var(--vscode-inputValidation-warningBackground);
-    border: 1px solid var(--vscode-inputValidation-warningBorder);
-    color: var(--vscode-foreground);
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning-border);
+    color: var(--color-text-default);
   }
 
   .auth-icon {
@@ -387,7 +387,7 @@ LLM-GUARD:
   }
 
   .auth-message {
-    font-size: 0.9rem;
+    font-size: var(--text-size-md);
     word-wrap: break-word;
     overflow-wrap: break-word;
   }
@@ -395,7 +395,7 @@ LLM-GUARD:
   div.auth-message {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: var(--space-1);
   }
 
   .auth-message strong {
@@ -404,20 +404,20 @@ LLM-GUARD:
   }
 
   .error-detail {
-    font-size: 0.85rem;
+    font-size: var(--text-size-sm);
     opacity: 0.9;
   }
 
   .error-hint {
-    font-size: 0.8rem;
+    font-size: var(--text-size-xs);
     font-style: italic;
     opacity: 0.8;
-    margin-top: 0.25rem;
+    margin-top: var(--space-1);
   }
 
   .auth-actions {
     display: flex;
-    gap: 0.5rem;
+    gap: var(--space-2);
     flex-shrink: 0;
     flex-wrap: wrap;
     align-items: center;
@@ -435,7 +435,7 @@ LLM-GUARD:
     .auth-message-container {
       width: 100%;
       max-width: 100%;
-      margin-bottom: 0.5rem;
+      margin-bottom: var(--space-2);
     }
 
     .auth-actions {
@@ -454,18 +454,18 @@ LLM-GUARD:
     margin: 0;
     background: transparent;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     cursor: pointer;
-    color: var(--vscode-icon-foreground);
-    transition: background-color 0.2s ease;
+    color: var(--vscode-icon-foreground, var(--color-text-default));
+    transition: background-color var(--motion-speed-normal) var(--motion-easing);
   }
 
   .auth-action:hover {
-    background: var(--vscode-toolbar-hoverBackground);
+    background: var(--color-action-ghost-hover-bg);
   }
 
   .auth-action:active {
-    background: var(--vscode-toolbar-activeBackground);
+    background: var(--color-action-ghost-active-bg);
   }
 
   .auth-action .codicon {
