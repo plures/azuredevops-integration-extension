@@ -6,6 +6,14 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.22.0] - 2026-03-10
+
+### Added
+
+- design-dojo component library + VS Code extension UI migration (#159)
+- SSoT derivation pipeline – Praxis schema drives UI/docs/tests via `npm run derive` (#158)
+
+
 ## [2.20.1] - 2026-03-07
 
 ### Other
