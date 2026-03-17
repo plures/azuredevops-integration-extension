@@ -2,8 +2,8 @@ name: Release
 
 permissions:
   contents: write
-  id-token: write
   packages: write
+  id-token: write
 
 on:
   push:
