@@ -12,13 +12,11 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - build(deps-dev): bump undici (#183)
 
-
 ## [2.22.1] - 2026-03-12
 
 ### Other
 
 - build(deps): bump devalue from 5.6.3 to 5.6.4 in the npm_and_yarn group across 1 directory (#181)
-
 
 ## [2.22.0] - 2026-03-10
 
@@ -26,7 +24,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - design-dojo component library + VS Code extension UI migration (#159)
 - SSoT derivation pipeline – Praxis schema drives UI/docs/tests via `npm run derive` (#158)
-
 
 ## [2.20.1] - 2026-03-07
 
