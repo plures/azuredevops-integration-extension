@@ -206,7 +206,7 @@ jobs:
           fi
 
           # Check if tag already exists (locally or on remote) to prevent duplicate tag creation
-          if git rev-parse "v$new_version" >/dev/null 2>&1; then
+          if git rev-parse -q --verify "refs/tags/v$new_version" >/dev/null 2>&1; then
             echo "⚠️ Tag v$new_version already exists locally, skipping release"
             exit 0
           fi
