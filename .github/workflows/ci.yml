@@ -211,7 +211,7 @@ jobs:
           # git fetch --tags --force (above) has already synced all remote tags locally,
           # so a local ref check is sufficient; no separate remote lookup needed.
           if git rev-parse -q --verify "refs/tags/v$new_version" >/dev/null 2>&1; then
-            echo "⚠️ Tag v$new_version already exists, skipping release"
+            echo "⚠️ Tag v$new_version already exists (expected on re-run or if a parallel run tagged first), skipping release"
             exit 0
           fi
 
