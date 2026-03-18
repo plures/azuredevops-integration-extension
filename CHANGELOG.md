@@ -6,18 +6,6 @@ All notable changes to the "Azure DevOps Integration" extension will be document
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [2.22.2] - 2026-03-17
-
-### Other
-
-- build(deps-dev): bump undici (#183)
-
-## [2.22.1] - 2026-03-12
-
-### Other
-
-- build(deps): bump devalue from 5.6.3 to 5.6.4 in the npm_and_yarn group across 1 directory (#181)
-
 ## [2.22.0] - 2026-03-10
 
 ### Added
