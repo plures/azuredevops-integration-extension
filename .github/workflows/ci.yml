@@ -205,6 +205,16 @@ jobs:
             fi
           fi
 
+          # Check if tag already exists (locally or on remote) to prevent duplicate tag creation
+          if git rev-parse "v$new_version" >/dev/null 2>&1; then
+            echo "⚠️ Tag v$new_version already exists locally, skipping release"
+            exit 0
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$new_version" >/dev/null 2>&1; then
+            echo "⚠️ Tag v$new_version already exists on remote, skipping release"
+            exit 0
+          fi
+
           # Update changelog with new version
           node scripts/update-changelog.js "$new_version"
 
