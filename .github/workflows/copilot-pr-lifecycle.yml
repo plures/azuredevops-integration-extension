@@ -73,10 +73,11 @@ jobs:
               const relevant = checks.data.check_runs.filter(c =>
                 !['lifecycle', 'queue-advance', 'Copilot code review'].includes(c.name)
               );
-              const allDone = relevant.length === 0 || relevant.every(c => c.status === 'completed');
-              const allGreen = allDone && (relevant.length === 0 || relevant.every(c =>
+              const hasRelevant = relevant.length > 0;
+              const allDone = hasRelevant && relevant.every(c => c.status === 'completed');
+              const allGreen = allDone && relevant.every(c =>
                 c.conclusion === 'success' || c.conclusion === 'skipped'
-              ));
+              );
               const failing = relevant.filter(c => c.conclusion === 'failure');
 
               // Check reviews
