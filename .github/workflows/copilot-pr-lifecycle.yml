@@ -44,7 +44,9 @@ jobs:
           gh api repos/plures/qa/dispatches \
             --method POST \
             --field event_type="pr-merged" \
-            --field client_payload='{"repo":"${{ github.repository }}","pr":${{ github.event.pull_request.number }},"title":"${{ github.event.pull_request.title }}"}' || true
+            --field client_payload[repo]="${{ github.repository }}" \
+            --field client_payload[pr]="${{ github.event.pull_request.number }}" \
+            --field client_payload[title]="${{ github.event.pull_request.title }}" || true
         env:
           GH_TOKEN: ${{ secrets.COPILOT_PAT }}
 
