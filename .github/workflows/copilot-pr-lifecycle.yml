@@ -65,7 +65,9 @@ jobs:
 
             // ── Phase 1: Process open Copilot PRs ──
             const openPRs = await github.rest.pulls.list({ owner, repo, state: 'open', per_page: 10 });
-            const copilotPRs = openPRs.data.filter(p => p.user.login === 'Copilot');
+            const openPRs = await github.rest.pulls.list({ owner, repo, state: 'open', per_page: 10 });
+            const copilotPRs = openPRs.data.filter(p => p.user.login === 'Copilot' || p.user.type === 'Bot');
+            console.log(`Processing ${copilotPRs.length} Copilot PRs out of ${openPRs.data.length} open`);
             let prHandled = false;
 
             for (const pr of copilotPRs) {
