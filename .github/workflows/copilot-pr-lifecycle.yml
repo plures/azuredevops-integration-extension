@@ -139,7 +139,7 @@ jobs:
                 } else {
                   console.log(`⏳ Review already requested on PR #${pr.number}`);
                 }
-                return;
+                continue;
               }
 
               // ── Path C: CI failing → create fix issue for Copilot ──
@@ -162,12 +162,12 @@ jobs:
                   } catch (e) {}
                   console.log(`🐛 Created CI fix issue #${issue.data.number} for PR #${pr.number}`);
                 }
-                return;
+                continue;
               }
 
               // ── Path D: CI still running — wait ──
               console.log(`⏳ PR #${pr.number} waiting (CI done: ${allDone}, green: ${allGreen}, reviewed: ${!!copilotReview})`);
-              return;
+              continue;
             }
 
             // ── Phase 2: No open PRs (or just merged) → assign next issue ──
