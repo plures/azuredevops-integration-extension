@@ -15,6 +15,11 @@ on:
 
 jobs:
   lifecycle:
+    if: github.actor != 'dependabot[bot]'
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
     uses: plures/repo-template/.github/workflows/copilot-pr-lifecycle-reusable.yml@main
     secrets:
       COPILOT_PAT: ${{ secrets.COPILOT_PAT }}
