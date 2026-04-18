@@ -1,3 +1,35 @@
+## [2.23.0] — 2026-04-18
+
+- feat(lifecycle v11): smart CI failure handling — infra vs code (daf08218)
+- fix(lifecycle): label-based retry counter + CI fix priority (5f96154b)
+- fix: inline reusable workflow to fix schedule trigger failures (c16f87a7)
+- chore: remove CodeQL — keep only on security-critical repos to reduce Actions cost (6b096b2c)
+- chore: remove redundant workflow — handled by centralized ci-reusable.yml or obsolete (25f56ee9)
+- chore: remove redundant workflow — handled by centralized ci-reusable.yml or obsolete (761fe751)
+- chore: remove redundant workflow — handled by centralized ci-reusable.yml or obsolete (2170a306)
+- chore: remove redundant workflow — handled by centralized ci-reusable.yml or obsolete (6707b95a)
+- build(deps-dev): bump the npm_and_yarn group across 1 directory with 2 updates (#195) (da5d0598)
+- chore: centralize release to org-wide reusable workflow (59762d53)
+- chore: centralize CI to org-wide reusable workflow (444b99cd)
+- ci: standardize Node version to lts/* — remove hardcoded versions (7e3edd74)
+- ci: centralize lifecycle — event-driven with schedule guard (7e7e9ea0)
+- fix(lifecycle): v9.2 — process all PRs per tick (return→continue), widen bot filter (7d220a72)
+- fix(lifecycle): change return→continue so all PRs process in one tick (848ae8b6)
+- build(deps): bump path-to-regexp (#194) (feefc4be)
+- fix(lifecycle): v9.1 — fix QA dispatch (client_payload as JSON object) (2b0c718e)
+- fix(lifecycle): rewrite v9 — apply suggestions, merge, no nudges (8669b80e)
+- chore: standardize license to MIT (dc9d2120)
+- chore: standardize copilot-pr-lifecycle.yml to canonical version (d741013b)
+- docs: add ROADMAP.md (db459579)
+- fix(tests): re-enable integration tests — point test:integration at praxis example suite (#193) (aabb973e)
+- chore: apply org-standard automation files (#192) (40ab0817)
+- build(deps-dev): bump picomatch (#191) (b6d5b8ea)
+- build(deps-dev): bump flatted (#190) (db9c942d)
+- build(deps): bump rustls-webpki (#189) (f7814cad)
+- build(deps): bump tar (#188) (38e6f60b)
+- fix(ci): gracefully skip version-bump when computed tag already exists (#187) (31b80b66)
+- fix(ci): add id-token permission to release workflow (#185) (20fa511b)
+
 # Change Log
 
 <!-- markdownlint-disable MD024 -->
