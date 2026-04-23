@@ -1,6 +1,6 @@
 {
   "name": "azure-devops-mcp-server",
-  "version": "0.1.0",
+  "version": "2.25.0",
   "private": true,
   "type": "module",
   "description": "Model Context Protocol server exposing Azure DevOps work items via JSON-RPC over stdio.",

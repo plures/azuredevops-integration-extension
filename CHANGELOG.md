@@ -1,3 +1,9 @@
+## [2.25.0] — 2026-04-23
+
+- feat(lifecycle): milestone-close triggers roadmap-aware release (18358c69)
+- Stabilize `lifecycle / queue-advance` by scoping workflow concurrency per trigger (#199) (b4b214ca)
+- build(deps): bump the npm_and_yarn group across 2 directories with 1 update (#198) (3d9bc489)
+
 ## [2.24.0] — 2026-04-18
 
 - feat(lifecycle v12): auto-release when milestone completes (1f52833a)

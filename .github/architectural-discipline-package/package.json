@@ -1,6 +1,6 @@
 {
   "name": "@architectural-discipline/monorepo",
-  "version": "1.0.0",
+  "version": "2.25.0",
   "description": "Intelligent Architectural Discipline System - A comprehensive toolkit for enforcing sustainable software architecture patterns",
   "private": true,
   "workspaces": [

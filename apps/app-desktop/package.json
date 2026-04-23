@@ -1,6 +1,6 @@
 {
   "name": "azuredevops-integration-desktop",
-  "version": "2.4.4",
+  "version": "2.25.0",
   "description": "Cross-platform Azure DevOps Integration Desktop Application",
   "type": "module",
   "scripts": {
