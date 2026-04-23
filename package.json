@@ -964,7 +964,7 @@
     "@vscode/vsce": "^3.7.1",
     "chai": "^6.2.2",
     "chokidar": "^5.0.0",
-    "esbuild": "^0.27.5",
+    "esbuild": "^0.28.0",
     "esbuild-svelte": "^0.9.4",
     "eslint": "^9.39.2",
     "gifenc": "^1.0.3",
