@@ -1,29 +1,27 @@
 # azuredevops-integration-extension Roadmap
 
-## Role in Plures Ecosystem
-This VS Code extension is the developer-facing interface to Azure DevOps inside the Plures workflow. It dogfoods Praxis for state management and demonstrates a full productivity surface (work items, time tracking, Git automation) embedded directly in the IDE.
+## Role in OASIS
+This VS Code extension is the developer-facing bridge between Azure DevOps work management and the OASIS delivery pipeline. It keeps OASIS work items, branches, and time tracking local-first inside the editor while enforcing praxis-driven workflows and producing traceable artifacts for decentralized commerce operations.
 
 ## Current State
-The extension already supports work item lists and Kanban views, time tracking, and Git branch creation with robust authentication (Entra ID + PAT). The codebase includes Svelte 5 views, Praxis logic, caching, telemetry, and a full command surface. Remaining gaps are deeper work item editing, richer board interactions, and marketplace release polish.
+- Core work item querying, Kanban/list views, time tracking, and Git branch creation are implemented.
+- Authentication supports Entra ID + PAT with secure storage.
+- Praxis-based state management, telemetry, and command surface are established.
+- Gaps remain in deeper work item editing, richer board interactions, and marketplace polish.
 
-## Milestones
-
-### Near-term (Q2 2026)
+## Phase 1 — OASIS Baseline Reliability (Now → Q2 2026)
+- Resolve CI/integration test instability and restore green release gates.
 - Implement full work item edit/create flows (fields, comments, links).
-- Add richer Kanban interactions (drag/drop, swimlanes, filters).
-- Improve time tracking export (daily summaries, CSV/ADO sync).
-- Ship stable marketplace build pipeline and signed packages.
-- Expand test coverage for auth and webview lifecycle.
+- Strengthen Kanban interactions (drag/drop, swimlanes, filtering).
+- Harden auth lifecycle + offline caching for resilient OASIS workflows.
 
-### Mid-term (Q3–Q4 2026)
-- Add sprint analytics and personal productivity dashboards.
-- Integrate pull request + build status views inside the extension.
-- Offline mode with queued updates and background sync.
-- Multi-organization workspace profiles and quick switching.
-- Enhanced accessibility and keyboard shortcuts parity.
+## Phase 2 — OASIS Workflow Acceleration (Q3–Q4 2026)
+- Add PR/build status panels tied to OASIS delivery milestones.
+- Introduce personal/team productivity dashboards with time/effort rollups.
+- Multi-org workspace profiles and fast context switching for partner teams.
+- Expand accessibility and keyboard-driven command coverage.
 
-### Long-term
-- Team-level dashboards and shared reporting views.
-- Native integration with Praxis Business governance workflows.
-- Extension API for third-party panels (custom queries, widgets).
-- Full feature parity with Azure DevOps web UX.
+## Phase 3 — OASIS Operational Scale (2027)
+- Team-level reporting and shared dashboards for cross-org commerce initiatives.
+- Extension APIs for custom panels and OASIS-specific workflows.
+- Full UX parity with Azure DevOps web for core work management flows.
