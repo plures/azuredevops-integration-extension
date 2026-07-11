@@ -966,7 +966,7 @@
     "chokidar": "^5.0.0",
     "esbuild": "^0.28.0",
     "esbuild-svelte": "^0.9.4",
-    "eslint": "^9.39.2",
+    "eslint": "^10.7.0",
     "gifenc": "^1.0.3",
     "glob": "^13.0.0",
     "globals": "^17.7.0",
