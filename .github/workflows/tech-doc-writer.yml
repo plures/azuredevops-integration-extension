@@ -45,7 +45,7 @@ jobs:
 
       - name: Create doc update issue (unassigned)
         if: steps.context.outputs.skip != 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.COPILOT_PAT }}
           script: |
