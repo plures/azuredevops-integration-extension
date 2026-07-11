@@ -943,7 +943,7 @@
   },
   "devDependencies": {
     "@commitlint/cli": "^20.2.0",
-    "@commitlint/config-conventional": "^20.2.0",
+    "@commitlint/config-conventional": "^21.2.0",
     "@esbuild-kit/esm-loader": "^2.6.5",
     "@esbuild/linux-x64": "^0.28.1",
     "@eslint/css": "^0.14.1",
