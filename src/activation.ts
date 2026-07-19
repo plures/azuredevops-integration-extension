@@ -134,7 +134,7 @@ let lastStateSignature: string | undefined = undefined;
 let lastResetAuthTime = 0;
 const RESET_AUTH_DEBOUNCE_MS = 2000; // 2 seconds
 let provider: WorkItemsProvider | undefined;
-let sessionTelemetry: SessionTelemetryManager | undefined;
+const sessionTelemetry: SessionTelemetryManager | undefined = undefined;
 let client: AzureDevOpsIntClient | undefined;
 let statusBarItem: vscode.StatusBarItem | undefined;
 let authStatusBarItem: vscode.StatusBarItem | undefined;

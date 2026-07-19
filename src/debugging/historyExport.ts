@@ -102,7 +102,7 @@ export function importHistoryFromJSON(json: string): void {
     const exported = JSON.parse(json) as ExportedHistory;
     importHistory(exported);
   } catch (error) {
-    throw new Error(`Failed to parse history JSON: ${error}`);
+    throw new Error(`Failed to parse history JSON: ${error}`, { cause: error });
   }
 }
 

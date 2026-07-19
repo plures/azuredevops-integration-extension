@@ -401,7 +401,7 @@ export class TraceLogger {
 
       return session.id;
     } catch (error) {
-      throw new Error(`Failed to import session: ${error}`);
+      throw new Error(`Failed to import session: ${error}`, { cause: error });
     }
   }
 
