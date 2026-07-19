@@ -1007,5 +1007,6 @@
     "*.{json,md}": [
       "npm run format:staged"
     ]
-  }
+  },
+  "packageManager": "npm@10.9.2"
 }

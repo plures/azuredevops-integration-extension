@@ -239,9 +239,9 @@ export function parseAzureDevOpsUrl(url: string): ParsedAzureDevOpsUrl {
   const isVisualStudio =
     host.endsWith('.visualstudio.com') || host.endsWith('.vsrm.visualstudio.com');
 
-  let organization = '';
-  let project = '';
-  let baseUrl = '';
+  let organization: string;
+  let project: string;
+  let baseUrl: string;
   let isSimplifiedOnPrem = false;
 
   if (isCloudRoot) {

@@ -1021,7 +1021,8 @@ export class AzureDevOpsIntClient {
               if (this._isTooManyResultsError(retryErr)) {
                 throw new Error(
                   `Query "${query}" returns too many work items (>20,000). ` +
-                    `Try filtering by a specific area path, iteration, or work item type to narrow results.`
+                    `Try filtering by a specific area path, iteration, or work item type to narrow results.`,
+                  { cause: retryErr }
                 );
               }
               throw retryErr;
@@ -1225,7 +1226,7 @@ export class AzureDevOpsIntClient {
         }
 
         // Re-throw with detailed message instead of silently returning []
-        throw new Error(errorMessage);
+        throw new Error(errorMessage, { cause: err });
       }
     });
   }
