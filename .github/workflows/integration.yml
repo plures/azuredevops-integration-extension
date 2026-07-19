@@ -35,7 +35,7 @@ jobs:
       github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # On pull_request_target, github.sha is the base-branch HEAD, not the
           # PR head. Explicitly checkout the PR head SHA so the PR's code is tested.
