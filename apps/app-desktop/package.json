@@ -35,7 +35,7 @@
     "@tauri-apps/cli": "^2",
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",
-    "svelte-preprocess": "^5.1.4",
+    "svelte-preprocess": "^6.0.5",
     "typescript": "~7.0.2",
     "vite": "^6.0.3"
   }
