@@ -4,3 +4,14 @@ test-artifacts/
 node_modules/
 coverage/
 node_modules/.bin/*
+
+# Build artifacts
+*.vsix
+dist/
+temp_extract/
+
+# Temporary files
+tmp/
+*.tsbuildinfo
+tsc_*.txt
+test_output.txt
