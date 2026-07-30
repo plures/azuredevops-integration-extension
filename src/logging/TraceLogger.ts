@@ -125,7 +125,12 @@ export class TraceLogger {
   // ============================================================================
 
   public startNewSession(description?: string): string {
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const randomSuffix = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(5)), (b) =>
+      b.toString(36)
+    )
+      .join('')
+      .substring(0, 9);
+    const sessionId = `session_${Date.now()}_${randomSuffix}`;
 
     // End current session if exists
     if (this.currentSession) {
