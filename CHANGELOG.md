@@ -1,3 +1,8 @@
+## [3.2.0] — 2026-07-30
+
+- chore(release): scope installer targets to windows only per kbristol (734a528a)
+- chore(release): restore installer-building via .plures/release.toml (aedd2ffb)
+
 ## [3.1.4] — 2026-07-30
 
 - chore: upgrade all dependencies, fix security vulnerabilities, modernize README (#272) (e5d04602)
