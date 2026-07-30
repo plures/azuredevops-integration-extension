@@ -1,3 +1,9 @@
+## [3.2.7] — 2026-07-30
+
+- Merge PR #279: diag verbose npm install log (2c46d74d)
+- diag: verbose npm install log (temporary, fixes broken diagnostic pwsh syntax) (8f19882f)
+- diag: dump npm debug log tail on windows install failure (temporary) (a489dcf4)
+
 ## [3.2.6] — 2026-07-30
 
 - diag: dump npm debug log tail on windows install failure (temporary) (#278) (df93ef4d)
