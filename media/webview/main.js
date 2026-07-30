@@ -42,8 +42,13 @@
     if (typeof require !== "undefined") return require.apply(this, arguments);
     throw Error('Dynamic require of "' + x + '" is not supported');
   });
-  var __esm = (fn, res) => function __init() {
-    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+  var __esm = (fn, res, err) => function __init() {
+    if (err) throw err[0];
+    try {
+      return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+    } catch (e) {
+      throw err = [e], e;
+    }
   };
   var __copyProps = (to, from, except, desc) => {
     if (from && typeof from === "object" || typeof from === "function") {
@@ -322,6 +327,7 @@
   var INERT = 1 << 13;
   var DESTROYED = 1 << 14;
   var REACTION_RAN = 1 << 15;
+  var DESTROYING = 1 << 25;
   var EFFECT_TRANSPARENT = 1 << 16;
   var EAGER_EFFECT = 1 << 17;
   var HEAD_EFFECT = 1 << 18;
@@ -336,6 +342,12 @@
   var LEGACY_PROPS = /* @__PURE__ */ Symbol("legacy props");
   var LOADING_ATTR_SYMBOL = /* @__PURE__ */ Symbol("");
   var PROXY_PATH_SYMBOL = /* @__PURE__ */ Symbol("proxy path");
+  var ATTRIBUTES_CACHE = /* @__PURE__ */ Symbol("attributes");
+  var CLASS_CACHE = /* @__PURE__ */ Symbol("class");
+  var STYLE_CACHE = /* @__PURE__ */ Symbol("style");
+  var TEXT_CACHE = /* @__PURE__ */ Symbol("text");
+  var FORM_RESET_HANDLER = /* @__PURE__ */ Symbol("form reset");
+  var HMR_ANCHOR = /* @__PURE__ */ Symbol("hmr anchor");
   var STALE_REACTION = new class StaleReactionError extends Error {
     constructor() {
       super(...arguments);
@@ -353,6 +365,17 @@
   var DOCUMENT_FRAGMENT_NODE = 11;
 
   // node_modules/svelte/src/internal/shared/errors.js
+  function invariant_violation(message) {
+    if (dev_fallback_default) {
+      const error = new Error(`invariant_violation
+An invariant violation occurred, meaning Svelte's internal assumptions were flawed. This is a bug in Svelte, not your app \u2014 please open an issue at https://github.com/sveltejs/svelte, citing the following message: "${message}"
+https://svelte.dev/e/invariant_violation`);
+      error.name = "Svelte error";
+      throw error;
+    } else {
+      throw new Error(`https://svelte.dev/e/invariant_violation`);
+    }
+  }
   function lifecycle_outside_component(name) {
     if (dev_fallback_default) {
       const error = new Error(`lifecycle_outside_component
@@ -589,13 +612,22 @@ https://svelte.dev/e/svelte_boundary_reset_onerror`);
   var HYDRATION_ERROR = {};
   var ELEMENT_PRESERVE_ATTRIBUTE_CASE = 1 << 1;
   var ELEMENT_IS_INPUT = 1 << 2;
-  var UNINITIALIZED = /* @__PURE__ */ Symbol();
+  var UNINITIALIZED = /* @__PURE__ */ Symbol("uninitialized");
   var FILENAME = /* @__PURE__ */ Symbol("filename");
   var NAMESPACE_HTML = "http://www.w3.org/1999/xhtml";
 
   // node_modules/svelte/src/internal/client/warnings.js
   var bold = "font-weight: bold";
   var normal = "font-weight: normal";
+  function await_reactivity_loss(name) {
+    if (dev_fallback_default) {
+      console.warn(`%c[svelte] await_reactivity_loss
+%cDetected reactivity loss when reading \`${name}\`. This happens when state is read in an async function after an earlier \`await\`
+https://svelte.dev/e/await_reactivity_loss`, bold, normal);
+    } else {
+      console.warn(`https://svelte.dev/e/await_reactivity_loss`);
+    }
+  }
   function await_waterfall(name, location) {
     if (dev_fallback_default) {
       console.warn(`%c[svelte] await_waterfall
@@ -625,6 +657,15 @@ https://svelte.dev/e/binding_property_non_reactive`,
 https://svelte.dev/e/console_log_state`, bold, normal);
     } else {
       console.warn(`https://svelte.dev/e/console_log_state`);
+    }
+  }
+  function derived_inert() {
+    if (dev_fallback_default) {
+      console.warn(`%c[svelte] derived_inert
+%cReading a derived belonging to a now-destroyed effect may result in stale values
+https://svelte.dev/e/derived_inert`, bold, normal);
+    } else {
+      console.warn(`https://svelte.dev/e/derived_inert`);
     }
   }
   function event_handler_invalid(handler, suggestion) {
@@ -968,6 +1009,12 @@ https://svelte.dev/e/state_snapshot_uncloneable`,
     }
     return new_lines;
   }
+  function invariant(condition, message) {
+    if (!dev_fallback_default) {
+      throw new Error("invariant(...) was not guarded by if (DEV)");
+    }
+    if (!condition) invariant_violation(message);
+  }
 
   // node_modules/svelte/src/internal/client/context.js
   var component_context = null;
@@ -1006,6 +1053,10 @@ https://svelte.dev/e/state_snapshot_uncloneable`,
       e: null,
       s: props,
       x: null,
+      r: (
+        /** @type {Effect} */
+        active_effect
+      ),
       l: legacy_mode_flag && !runes ? { s: null, u: null, $: [] } : null
     };
     if (dev_fallback_default) {
@@ -1082,6 +1133,9 @@ https://svelte.dev/e/state_snapshot_uncloneable`,
     invoke_error_boundary(error, effect2);
   }
   function invoke_error_boundary(error, effect2) {
+    if (effect2 !== null && (effect2.f & DESTROYED) !== 0) {
+      return;
+    }
     while (effect2 !== null) {
       if ((effect2.f & BOUNDARY_EFFECT) !== 0) {
         if ((effect2.f & REACTION_RAN) === 0) {
@@ -1169,32 +1223,1048 @@ ${component_stack}
     set_signal_status(effect2, CLEAN);
   }
 
+  // node_modules/svelte/src/store/utils.js
+  function subscribe_to_store(store, run3, invalidate) {
+    if (store == null) {
+      run3(void 0);
+      if (invalidate) invalidate(void 0);
+      return noop;
+    }
+    const unsub = untrack(
+      () => store.subscribe(
+        run3,
+        // @ts-expect-error
+        invalidate
+      )
+    );
+    return unsub.unsubscribe ? () => unsub.unsubscribe() : unsub;
+  }
+
+  // node_modules/svelte/src/store/shared/index.js
+  var subscriber_queue = [];
+  function writable(value, start = noop) {
+    let stop = null;
+    const subscribers = /* @__PURE__ */ new Set();
+    function set3(new_value) {
+      if (safe_not_equal(value, new_value)) {
+        value = new_value;
+        if (stop) {
+          const run_queue = !subscriber_queue.length;
+          for (const subscriber of subscribers) {
+            subscriber[1]();
+            subscriber_queue.push(subscriber, value);
+          }
+          if (run_queue) {
+            for (let i = 0; i < subscriber_queue.length; i += 2) {
+              subscriber_queue[i][0](subscriber_queue[i + 1]);
+            }
+            subscriber_queue.length = 0;
+          }
+        }
+      }
+    }
+    function update2(fn) {
+      set3(fn(
+        /** @type {T} */
+        value
+      ));
+    }
+    function subscribe(run3, invalidate = noop) {
+      const subscriber = [run3, invalidate];
+      subscribers.add(subscriber);
+      if (subscribers.size === 1) {
+        stop = start(set3, update2) || noop;
+      }
+      run3(
+        /** @type {T} */
+        value
+      );
+      return () => {
+        subscribers.delete(subscriber);
+        if (subscribers.size === 0 && stop) {
+          stop();
+          stop = null;
+        }
+      };
+    }
+    return { set: set3, update: update2, subscribe };
+  }
+  function get(store) {
+    let value;
+    subscribe_to_store(store, (_) => value = _)();
+    return value;
+  }
+
+  // node_modules/svelte/src/internal/client/reactivity/store.js
+  var legacy_is_updating_store = false;
+  var is_store_binding = false;
+  function capture_store_binding(fn) {
+    var previous_is_store_binding = is_store_binding;
+    try {
+      is_store_binding = false;
+      return [fn(), is_store_binding];
+    } finally {
+      is_store_binding = previous_is_store_binding;
+    }
+  }
+
+  // node_modules/svelte/src/internal/client/dom/elements/misc.js
+  function remove_textarea_child(dom) {
+    if (hydrating && get_first_child(dom) !== null) {
+      clear_text_content(dom);
+    }
+  }
+  var listening_to_form_reset = false;
+  function add_form_reset_listener() {
+    if (!listening_to_form_reset) {
+      listening_to_form_reset = true;
+      document.addEventListener(
+        "reset",
+        (evt) => {
+          Promise.resolve().then(() => {
+            if (!evt.defaultPrevented) {
+              for (
+                const e of
+                /**@type {HTMLFormElement} */
+                evt.target.elements
+              ) {
+                e[FORM_RESET_HANDLER]?.();
+              }
+            }
+          });
+        },
+        // In the capture phase to guarantee we get noticed of it (no possibility of stopPropagation)
+        { capture: true }
+      );
+    }
+  }
+
+  // node_modules/svelte/src/internal/client/dom/elements/bindings/shared.js
+  function without_reactive_context(fn) {
+    var previous_reaction = active_reaction;
+    var previous_effect = active_effect;
+    set_active_reaction(null);
+    set_active_effect(null);
+    try {
+      return fn();
+    } finally {
+      set_active_reaction(previous_reaction);
+      set_active_effect(previous_effect);
+    }
+  }
+  function listen_to_event_and_reset_event(element2, event2, handler, on_reset = handler) {
+    element2.addEventListener(event2, () => without_reactive_context(handler));
+    const prev = (
+      /** @type {any} */
+      element2[FORM_RESET_HANDLER]
+    );
+    if (prev) {
+      element2[FORM_RESET_HANDLER] = () => {
+        prev();
+        on_reset(true);
+      };
+    } else {
+      element2[FORM_RESET_HANDLER] = () => on_reset(true);
+    }
+    add_form_reset_listener();
+  }
+
+  // node_modules/svelte/src/reactivity/create-subscriber.js
+  function createSubscriber(start) {
+    let subscribers = 0;
+    let version = source(0);
+    let stop;
+    if (dev_fallback_default) {
+      tag(version, "createSubscriber version");
+    }
+    return () => {
+      if (effect_tracking()) {
+        get2(version);
+        render_effect(() => {
+          if (subscribers === 0) {
+            stop = untrack(() => start(() => increment(version)));
+          }
+          subscribers += 1;
+          return () => {
+            queue_micro_task(() => {
+              subscribers -= 1;
+              if (subscribers === 0) {
+                stop?.();
+                stop = void 0;
+                increment(version);
+              }
+            });
+          };
+        });
+      }
+    };
+  }
+
+  // node_modules/svelte/src/internal/client/dom/blocks/boundary.js
+  var flags = EFFECT_TRANSPARENT | EFFECT_PRESERVED;
+  function boundary(node, props, children, transform_error) {
+    new Boundary(node, props, children, transform_error);
+  }
+  var _anchor, _hydrate_open, _props, _children, _effect, _main_effect, _pending_effect, _failed_effect, _offscreen_fragment, _local_pending_count, _pending_count, _pending_count_update_queued, _dirty_effects, _maybe_dirty_effects, _effect_pending, _effect_pending_subscriber, _Boundary_instances, hydrate_resolved_content_fn, hydrate_failed_content_fn, create_reset_fn, hydrate_pending_content_fn, render_fn, resolve_fn, run_fn, update_pending_count_fn, handle_error_fn;
+  var Boundary = class {
+    /**
+     * @param {TemplateNode} node
+     * @param {BoundaryProps} props
+     * @param {((anchor: Node) => void)} children
+     * @param {((error: unknown) => unknown) | undefined} [transform_error]
+     */
+    constructor(node, props, children, transform_error) {
+      __privateAdd(this, _Boundary_instances);
+      /** @type {Boundary | null} */
+      __publicField(this, "parent");
+      __publicField(this, "is_pending", false);
+      /**
+       * API-level transformError transform function. Transforms errors before they reach the `failed` snippet.
+       * Inherited from parent boundary, or defaults to identity.
+       * @type {(error: unknown) => unknown}
+       */
+      __publicField(this, "transform_error");
+      /** @type {TemplateNode} */
+      __privateAdd(this, _anchor);
+      /** @type {TemplateNode | null} */
+      __privateAdd(this, _hydrate_open, hydrating ? hydrate_node : null);
+      /** @type {BoundaryProps} */
+      __privateAdd(this, _props);
+      /** @type {((anchor: Node) => void)} */
+      __privateAdd(this, _children);
+      /** @type {Effect} */
+      __privateAdd(this, _effect);
+      /** @type {Effect | null} */
+      __privateAdd(this, _main_effect, null);
+      /** @type {Effect | null} */
+      __privateAdd(this, _pending_effect, null);
+      /** @type {Effect | null} */
+      __privateAdd(this, _failed_effect, null);
+      /** @type {DocumentFragment | null} */
+      __privateAdd(this, _offscreen_fragment, null);
+      __privateAdd(this, _local_pending_count, 0);
+      __privateAdd(this, _pending_count, 0);
+      __privateAdd(this, _pending_count_update_queued, false);
+      /** @type {Set<Effect>} */
+      __privateAdd(this, _dirty_effects, /* @__PURE__ */ new Set());
+      /** @type {Set<Effect>} */
+      __privateAdd(this, _maybe_dirty_effects, /* @__PURE__ */ new Set());
+      /**
+       * A source containing the number of pending async deriveds/expressions.
+       * Only created if `$effect.pending()` is used inside the boundary,
+       * otherwise updating the source results in needless `Batch.ensure()`
+       * calls followed by no-op flushes
+       * @type {Source<number> | null}
+       */
+      __privateAdd(this, _effect_pending, null);
+      __privateAdd(this, _effect_pending_subscriber, createSubscriber(() => {
+        __privateSet(this, _effect_pending, source(__privateGet(this, _local_pending_count)));
+        if (dev_fallback_default) {
+          tag(__privateGet(this, _effect_pending), "$effect.pending()");
+        }
+        return () => {
+          __privateSet(this, _effect_pending, null);
+        };
+      }));
+      __privateSet(this, _anchor, node);
+      __privateSet(this, _props, props);
+      __privateSet(this, _children, (anchor) => {
+        var effect2 = (
+          /** @type {Effect} */
+          active_effect
+        );
+        effect2.b = this;
+        effect2.f |= BOUNDARY_EFFECT;
+        children(anchor);
+      });
+      this.parent = /** @type {Effect} */
+      active_effect.b;
+      this.transform_error = transform_error ?? this.parent?.transform_error ?? ((e) => e);
+      __privateSet(this, _effect, block(() => {
+        if (hydrating) {
+          const comment2 = (
+            /** @type {Comment} */
+            __privateGet(this, _hydrate_open)
+          );
+          hydrate_next();
+          const server_rendered_pending = comment2.data === HYDRATION_START_ELSE;
+          const server_rendered_failed = comment2.data.startsWith(HYDRATION_START_FAILED);
+          if (server_rendered_failed) {
+            const serialized_error = JSON.parse(comment2.data.slice(HYDRATION_START_FAILED.length));
+            __privateMethod(this, _Boundary_instances, hydrate_failed_content_fn).call(this, serialized_error);
+          } else if (server_rendered_pending) {
+            __privateMethod(this, _Boundary_instances, hydrate_pending_content_fn).call(this);
+          } else {
+            __privateMethod(this, _Boundary_instances, hydrate_resolved_content_fn).call(this);
+          }
+        } else {
+          __privateMethod(this, _Boundary_instances, render_fn).call(this);
+        }
+      }, flags));
+      if (hydrating) {
+        __privateSet(this, _anchor, hydrate_node);
+      }
+    }
+    /**
+     * Defer an effect inside a pending boundary until the boundary resolves
+     * @param {Effect} effect
+     */
+    defer_effect(effect2) {
+      defer_effect(effect2, __privateGet(this, _dirty_effects), __privateGet(this, _maybe_dirty_effects));
+    }
+    /**
+     * Returns `false` if the effect exists inside a boundary whose pending snippet is shown
+     * @returns {boolean}
+     */
+    is_rendered() {
+      return !this.is_pending && (!this.parent || this.parent.is_rendered());
+    }
+    has_pending_snippet() {
+      return !!__privateGet(this, _props).pending;
+    }
+    /**
+     * Update the source that powers `$effect.pending()` inside this boundary,
+     * and controls when the current `pending` snippet (if any) is removed.
+     * Do not call from inside the class
+     * @param {1 | -1} d
+     * @param {Batch} batch
+     */
+    update_pending_count(d, batch) {
+      __privateMethod(this, _Boundary_instances, update_pending_count_fn).call(this, d, batch);
+      __privateSet(this, _local_pending_count, __privateGet(this, _local_pending_count) + d);
+      if (!__privateGet(this, _effect_pending) || __privateGet(this, _pending_count_update_queued)) return;
+      __privateSet(this, _pending_count_update_queued, true);
+      queue_micro_task(() => {
+        __privateSet(this, _pending_count_update_queued, false);
+        if (__privateGet(this, _effect_pending)) {
+          internal_set(__privateGet(this, _effect_pending), __privateGet(this, _local_pending_count));
+        }
+      });
+    }
+    get_effect_pending() {
+      __privateGet(this, _effect_pending_subscriber).call(this);
+      return get2(
+        /** @type {Source<number>} */
+        __privateGet(this, _effect_pending)
+      );
+    }
+    /** @param {unknown} error */
+    error(error) {
+      if (!__privateGet(this, _props).onerror && !__privateGet(this, _props).failed) {
+        throw error;
+      }
+      if (current_batch?.is_fork) {
+        if (__privateGet(this, _main_effect)) current_batch.skip_effect(__privateGet(this, _main_effect));
+        if (__privateGet(this, _pending_effect)) current_batch.skip_effect(__privateGet(this, _pending_effect));
+        if (__privateGet(this, _failed_effect)) current_batch.skip_effect(__privateGet(this, _failed_effect));
+        current_batch.oncommit(() => {
+          __privateMethod(this, _Boundary_instances, handle_error_fn).call(this, error);
+        });
+      } else {
+        __privateMethod(this, _Boundary_instances, handle_error_fn).call(this, error);
+      }
+    }
+  };
+  _anchor = new WeakMap();
+  _hydrate_open = new WeakMap();
+  _props = new WeakMap();
+  _children = new WeakMap();
+  _effect = new WeakMap();
+  _main_effect = new WeakMap();
+  _pending_effect = new WeakMap();
+  _failed_effect = new WeakMap();
+  _offscreen_fragment = new WeakMap();
+  _local_pending_count = new WeakMap();
+  _pending_count = new WeakMap();
+  _pending_count_update_queued = new WeakMap();
+  _dirty_effects = new WeakMap();
+  _maybe_dirty_effects = new WeakMap();
+  _effect_pending = new WeakMap();
+  _effect_pending_subscriber = new WeakMap();
+  _Boundary_instances = new WeakSet();
+  hydrate_resolved_content_fn = function() {
+    try {
+      __privateSet(this, _main_effect, branch(() => __privateGet(this, _children).call(this, __privateGet(this, _anchor))));
+    } catch (error) {
+      this.error(error);
+    }
+  };
+  /**
+   * @param {unknown} error The deserialized error from the server's hydration comment
+   */
+  hydrate_failed_content_fn = function(error) {
+    const failed = __privateGet(this, _props).failed;
+    const { reset: reset2, invoke_onerror } = __privateMethod(this, _Boundary_instances, create_reset_fn).call(this, error);
+    queue_micro_task(invoke_onerror);
+    if (!failed) return;
+    __privateSet(this, _failed_effect, branch(() => {
+      failed(
+        __privateGet(this, _anchor),
+        () => error,
+        () => reset2
+      );
+    }));
+  };
+  /**
+   * Creates the `reset` function for a failed boundary, along with a function
+   * that invokes `onerror` with it (if provided)
+   * @param {unknown} error
+   * @returns {{ reset: () => void, invoke_onerror: () => void }}
+   */
+  create_reset_fn = function(error) {
+    var did_reset = false;
+    var calling_on_error = false;
+    const reset2 = () => {
+      if (did_reset) {
+        svelte_boundary_reset_noop();
+        return;
+      }
+      did_reset = true;
+      if (calling_on_error) {
+        svelte_boundary_reset_onerror();
+      }
+      if (__privateGet(this, _failed_effect) !== null) {
+        pause_effect(__privateGet(this, _failed_effect), () => {
+          __privateSet(this, _failed_effect, null);
+        });
+      }
+      __privateMethod(this, _Boundary_instances, run_fn).call(this, () => {
+        __privateMethod(this, _Boundary_instances, render_fn).call(this);
+      });
+    };
+    const invoke_onerror = () => {
+      try {
+        calling_on_error = true;
+        __privateGet(this, _props).onerror?.(error, reset2);
+        calling_on_error = false;
+      } catch (err) {
+        invoke_error_boundary(err, __privateGet(this, _effect) && __privateGet(this, _effect).parent);
+      }
+    };
+    return { reset: reset2, invoke_onerror };
+  };
+  hydrate_pending_content_fn = function() {
+    const pending2 = __privateGet(this, _props).pending;
+    if (!pending2) return;
+    this.is_pending = true;
+    __privateSet(this, _pending_effect, branch(() => pending2(__privateGet(this, _anchor))));
+    queue_micro_task(() => {
+      var fragment = __privateSet(this, _offscreen_fragment, document.createDocumentFragment());
+      var anchor = create_text();
+      fragment.append(anchor);
+      __privateSet(this, _main_effect, __privateMethod(this, _Boundary_instances, run_fn).call(this, () => {
+        return branch(() => __privateGet(this, _children).call(this, anchor));
+      }));
+      if (__privateGet(this, _pending_count) === 0) {
+        __privateGet(this, _anchor).before(fragment);
+        __privateSet(this, _offscreen_fragment, null);
+        pause_effect(
+          /** @type {Effect} */
+          __privateGet(this, _pending_effect),
+          () => {
+            __privateSet(this, _pending_effect, null);
+          }
+        );
+        __privateMethod(this, _Boundary_instances, resolve_fn).call(
+          this,
+          /** @type {Batch} */
+          current_batch
+        );
+      }
+    });
+  };
+  render_fn = function() {
+    try {
+      this.is_pending = this.has_pending_snippet();
+      __privateSet(this, _pending_count, 0);
+      __privateSet(this, _local_pending_count, 0);
+      __privateSet(this, _main_effect, branch(() => {
+        __privateGet(this, _children).call(this, __privateGet(this, _anchor));
+      }));
+      if (__privateGet(this, _pending_count) > 0) {
+        var fragment = __privateSet(this, _offscreen_fragment, document.createDocumentFragment());
+        move_effect(__privateGet(this, _main_effect), fragment);
+        const pending2 = (
+          /** @type {(anchor: Node) => void} */
+          __privateGet(this, _props).pending
+        );
+        __privateSet(this, _pending_effect, branch(() => pending2(__privateGet(this, _anchor))));
+      } else {
+        __privateMethod(this, _Boundary_instances, resolve_fn).call(
+          this,
+          /** @type {Batch} */
+          current_batch
+        );
+      }
+    } catch (error) {
+      this.error(error);
+    }
+  };
+  /**
+   * @param {Batch} batch
+   */
+  resolve_fn = function(batch) {
+    this.is_pending = false;
+    batch.transfer_effects(__privateGet(this, _dirty_effects), __privateGet(this, _maybe_dirty_effects));
+  };
+  /**
+   * @template T
+   * @param {() => T} fn
+   */
+  run_fn = function(fn) {
+    var previous_effect = active_effect;
+    var previous_reaction = active_reaction;
+    var previous_ctx = component_context;
+    set_active_effect(__privateGet(this, _effect));
+    set_active_reaction(__privateGet(this, _effect));
+    set_component_context(__privateGet(this, _effect).ctx);
+    try {
+      Batch.ensure();
+      return fn();
+    } catch (e) {
+      handle_error(e);
+      return null;
+    } finally {
+      set_active_effect(previous_effect);
+      set_active_reaction(previous_reaction);
+      set_component_context(previous_ctx);
+    }
+  };
+  /**
+   * Updates the pending count associated with the currently visible pending snippet,
+   * if any, such that we can replace the snippet with content once work is done
+   * @param {1 | -1} d
+   * @param {Batch} batch
+   */
+  update_pending_count_fn = function(d, batch) {
+    var _a2;
+    if (!this.has_pending_snippet()) {
+      if (this.parent) {
+        __privateMethod(_a2 = this.parent, _Boundary_instances, update_pending_count_fn).call(_a2, d, batch);
+      }
+      return;
+    }
+    __privateSet(this, _pending_count, __privateGet(this, _pending_count) + d);
+    if (__privateGet(this, _pending_count) === 0) {
+      __privateMethod(this, _Boundary_instances, resolve_fn).call(this, batch);
+      if (__privateGet(this, _pending_effect)) {
+        pause_effect(__privateGet(this, _pending_effect), () => {
+          __privateSet(this, _pending_effect, null);
+        });
+      }
+      if (__privateGet(this, _offscreen_fragment)) {
+        __privateGet(this, _anchor).before(__privateGet(this, _offscreen_fragment));
+        __privateSet(this, _offscreen_fragment, null);
+      }
+    }
+  };
+  /**
+   * @param {unknown} error
+   */
+  handle_error_fn = function(error) {
+    if (__privateGet(this, _main_effect)) {
+      destroy_effect(__privateGet(this, _main_effect));
+      __privateSet(this, _main_effect, null);
+    }
+    if (__privateGet(this, _pending_effect)) {
+      destroy_effect(__privateGet(this, _pending_effect));
+      __privateSet(this, _pending_effect, null);
+    }
+    if (__privateGet(this, _failed_effect)) {
+      destroy_effect(__privateGet(this, _failed_effect));
+      __privateSet(this, _failed_effect, null);
+    }
+    if (hydrating) {
+      set_hydrate_node(
+        /** @type {TemplateNode} */
+        __privateGet(this, _hydrate_open)
+      );
+      next();
+      set_hydrate_node(skip_nodes());
+    }
+    let failed = __privateGet(this, _props).failed;
+    const handle_error_result = (transformed_error) => {
+      const { reset: reset2, invoke_onerror } = __privateMethod(this, _Boundary_instances, create_reset_fn).call(this, transformed_error);
+      invoke_onerror();
+      if (failed) {
+        __privateSet(this, _failed_effect, __privateMethod(this, _Boundary_instances, run_fn).call(this, () => {
+          try {
+            return branch(() => {
+              var effect2 = (
+                /** @type {Effect} */
+                active_effect
+              );
+              effect2.b = this;
+              effect2.f |= BOUNDARY_EFFECT;
+              failed(
+                __privateGet(this, _anchor),
+                () => transformed_error,
+                () => reset2
+              );
+            });
+          } catch (error2) {
+            invoke_error_boundary(
+              error2,
+              /** @type {Effect} */
+              __privateGet(this, _effect).parent
+            );
+            return null;
+          }
+        }));
+      }
+    };
+    queue_micro_task(() => {
+      var result;
+      try {
+        result = this.transform_error(error);
+      } catch (e) {
+        invoke_error_boundary(e, __privateGet(this, _effect) && __privateGet(this, _effect).parent);
+        return;
+      }
+      if (result !== null && typeof result === "object" && typeof /** @type {any} */
+      result.then === "function") {
+        result.then(
+          handle_error_result,
+          /** @param {unknown} e */
+          (e) => invoke_error_boundary(e, __privateGet(this, _effect) && __privateGet(this, _effect).parent)
+        );
+      } else {
+        handle_error_result(result);
+      }
+    });
+  };
+
+  // node_modules/svelte/src/internal/client/reactivity/async.js
+  function flatten(blockers, sync, async2, fn) {
+    const d = is_runes() ? derived : derived_safe_equal;
+    var pending2 = blockers.filter((b) => !b.settled);
+    var deriveds = sync.map(d);
+    if (dev_fallback_default) {
+      deriveds.forEach((d2, i) => {
+        d2.label = sync[i].toString().replace("() => ", "").replaceAll("$.eager(() => ", "$state.eager(").replace(/\$\.get\((.+?)\)/g, (_, id) => id);
+      });
+    }
+    if (async2.length === 0 && pending2.length === 0) {
+      fn(deriveds);
+      return;
+    }
+    var parent = (
+      /** @type {Effect} */
+      active_effect
+    );
+    var restore = capture();
+    var blocker_promise = pending2.length === 1 ? pending2[0].promise : pending2.length > 1 ? Promise.all(pending2.map((b) => b.promise)) : null;
+    function finish(async3) {
+      if ((parent.f & DESTROYED) !== 0) {
+        return;
+      }
+      restore();
+      try {
+        fn([...deriveds, ...async3]);
+      } catch (error) {
+        invoke_error_boundary(error, parent);
+      }
+      unset_context();
+    }
+    var decrement_pending = increment_pending();
+    if (async2.length === 0) {
+      blocker_promise.then(() => finish([])).finally(decrement_pending);
+      return;
+    }
+    function run3() {
+      Promise.all(async2.map((expression) => async_derived(expression))).then(finish).catch((error) => invoke_error_boundary(error, parent)).finally(decrement_pending);
+    }
+    if (blocker_promise) {
+      blocker_promise.then(() => {
+        restore();
+        run3();
+        unset_context();
+      });
+    } else {
+      run3();
+    }
+  }
+  function run_after_blockers(blockers, fn) {
+    flatten(blockers, [], [], fn);
+  }
+  function capture() {
+    var previous_effect = (
+      /** @type {Effect} */
+      active_effect
+    );
+    var previous_reaction = active_reaction;
+    var previous_component_context = component_context;
+    var previous_batch2 = (
+      /** @type {Batch} */
+      current_batch
+    );
+    if (dev_fallback_default) {
+      var previous_dev_stack = dev_stack;
+    }
+    return function restore(activate_batch = true) {
+      set_active_effect(previous_effect);
+      set_active_reaction(previous_reaction);
+      set_component_context(previous_component_context);
+      if (activate_batch && (previous_effect.f & DESTROYED) === 0) {
+        previous_batch2?.activate();
+        previous_batch2?.apply();
+      }
+      if (dev_fallback_default) {
+        set_reactivity_loss_tracker(null);
+        set_dev_stack(previous_dev_stack);
+      }
+    };
+  }
+  function unset_context(deactivate_batch = true) {
+    set_active_effect(null);
+    set_active_reaction(null);
+    set_component_context(null);
+    if (deactivate_batch) current_batch?.deactivate();
+    if (dev_fallback_default) {
+      set_reactivity_loss_tracker(null);
+      set_dev_stack(null);
+    }
+  }
+  function increment_pending() {
+    var effect2 = (
+      /** @type {Effect} */
+      active_effect
+    );
+    var boundary2 = effect2.b;
+    var batch = (
+      /** @type {Batch} */
+      current_batch
+    );
+    var blocking = !!boundary2?.is_rendered();
+    boundary2?.update_pending_count(1, batch);
+    batch.increment(blocking, effect2);
+    return () => {
+      boundary2?.update_pending_count(-1, batch);
+      batch.decrement(blocking, effect2);
+    };
+  }
+
+  // node_modules/svelte/src/internal/client/reactivity/deriveds.js
+  var reactivity_loss_tracker = null;
+  function set_reactivity_loss_tracker(v) {
+    reactivity_loss_tracker = v;
+  }
+  var recent_async_deriveds = /* @__PURE__ */ new Set();
+  // @__NO_SIDE_EFFECTS__
+  function derived(fn) {
+    var flags2 = DERIVED | DIRTY;
+    if (active_effect !== null) {
+      active_effect.f |= EFFECT_PRESERVED;
+    }
+    const signal = {
+      ctx: component_context,
+      deps: null,
+      effects: null,
+      equals,
+      f: flags2,
+      fn,
+      reactions: null,
+      rv: 0,
+      v: (
+        /** @type {V} */
+        UNINITIALIZED
+      ),
+      wv: 0,
+      parent: active_effect,
+      ac: null
+    };
+    if (dev_fallback_default && tracing_mode_flag) {
+      signal.created = get_error("created at");
+    }
+    return signal;
+  }
+  var OBSOLETE = /* @__PURE__ */ Symbol("obsolete");
+  // @__NO_SIDE_EFFECTS__
+  function async_derived(fn, label, location) {
+    let parent = (
+      /** @type {Effect | null} */
+      active_effect
+    );
+    if (parent === null) {
+      async_derived_orphan();
+    }
+    var promise = (
+      /** @type {Promise<V>} */
+      /** @type {unknown} */
+      void 0
+    );
+    var signal = source(
+      /** @type {V} */
+      UNINITIALIZED
+    );
+    if (dev_fallback_default) signal.label = label ?? fn.toString();
+    var should_suspend = !active_reaction;
+    var deferreds = /* @__PURE__ */ new Set();
+    async_effect(() => {
+      var effect2 = (
+        /** @type {Effect} */
+        active_effect
+      );
+      if (dev_fallback_default) {
+        reactivity_loss_tracker = { effect: effect2, effect_deps: /* @__PURE__ */ new Set(), warned: false };
+      }
+      var d = deferred();
+      promise = d.promise;
+      try {
+        Promise.resolve(fn()).then(d.resolve, (e) => {
+          if (e !== STALE_REACTION) d.reject(e);
+        }).finally(unset_context);
+      } catch (error) {
+        d.reject(error);
+        unset_context();
+      }
+      if (dev_fallback_default) {
+        if (reactivity_loss_tracker) {
+          if (effect2.deps !== null) {
+            for (let i = 0; i < skipped_deps; i += 1) {
+              reactivity_loss_tracker.effect_deps.add(effect2.deps[i]);
+            }
+          }
+          if (new_deps !== null) {
+            for (let i = 0; i < new_deps.length; i += 1) {
+              reactivity_loss_tracker.effect_deps.add(new_deps[i]);
+            }
+          }
+        }
+        reactivity_loss_tracker = null;
+      }
+      var batch = (
+        /** @type {Batch} */
+        current_batch
+      );
+      if (should_suspend) {
+        if ((effect2.f & REACTION_RAN) !== 0) {
+          var decrement_pending = increment_pending();
+        }
+        if (
+          // boundary can be null if the async derived is inside an $effect.root not connected to the component render tree
+          parent.b?.is_rendered()
+        ) {
+          batch.async_deriveds.get(effect2)?.reject(OBSOLETE);
+        } else {
+          for (const d2 of deferreds.values()) {
+            d2.reject(OBSOLETE);
+          }
+        }
+        deferreds.add(d);
+        batch.async_deriveds.set(effect2, d);
+      }
+      const handler = (value, error = void 0) => {
+        if (dev_fallback_default) {
+          reactivity_loss_tracker = null;
+        }
+        decrement_pending?.();
+        deferreds.delete(d);
+        if (error === OBSOLETE) return;
+        batch.activate();
+        if (error) {
+          signal.f |= ERROR_VALUE;
+          internal_set(signal, error);
+        } else {
+          if ((signal.f & ERROR_VALUE) !== 0) {
+            signal.f ^= ERROR_VALUE;
+          }
+          if (dev_fallback_default && location !== void 0 && !signal.equals(value)) {
+            recent_async_deriveds.add(signal);
+            setTimeout(() => {
+              if (recent_async_deriveds.has(signal) && (effect2.f & DESTROYED) === 0) {
+                await_waterfall(
+                  /** @type {string} */
+                  signal.label,
+                  location
+                );
+                recent_async_deriveds.delete(signal);
+              }
+            });
+          }
+          internal_set(signal, value);
+        }
+        batch.deactivate();
+      };
+      d.promise.then(handler, (e) => handler(null, e || "unknown"));
+    });
+    teardown(() => {
+      for (const d of deferreds) {
+        d.reject(OBSOLETE);
+      }
+    });
+    if (dev_fallback_default) {
+      signal.f |= ASYNC;
+    }
+    return new Promise((fulfil) => {
+      function next2(p) {
+        function go() {
+          if (p === promise) {
+            fulfil(signal);
+          } else {
+            next2(promise);
+          }
+        }
+        p.then(go, go);
+      }
+      next2(promise);
+    });
+  }
+  // @__NO_SIDE_EFFECTS__
+  function user_derived(fn) {
+    const d = /* @__PURE__ */ derived(fn);
+    if (!async_mode_flag) push_reaction_value(d);
+    return d;
+  }
+  // @__NO_SIDE_EFFECTS__
+  function derived_safe_equal(fn) {
+    const signal = /* @__PURE__ */ derived(fn);
+    signal.equals = safe_equals;
+    return signal;
+  }
+  function destroy_derived_effects(derived3) {
+    var effects = derived3.effects;
+    if (effects !== null) {
+      derived3.effects = null;
+      for (var i = 0; i < effects.length; i += 1) {
+        destroy_effect(
+          /** @type {Effect} */
+          effects[i]
+        );
+      }
+    }
+  }
+  var stack = [];
+  function execute_derived(derived3) {
+    var value;
+    var prev_active_effect = active_effect;
+    var parent = derived3.parent;
+    if (!is_destroying_effect && parent !== null && derived3.v !== UNINITIALIZED && // if it was never evaluated before, it's guaranteed to fail downstream, so we try to execute instead
+    (parent.f & (DESTROYED | INERT)) !== 0) {
+      derived_inert();
+      return derived3.v;
+    }
+    set_active_effect(parent);
+    if (dev_fallback_default) {
+      let prev_eager_effects = eager_effects;
+      set_eager_effects(/* @__PURE__ */ new Set());
+      try {
+        if (includes.call(stack, derived3)) {
+          derived_references_self();
+        }
+        stack.push(derived3);
+        derived3.f &= ~WAS_MARKED;
+        destroy_derived_effects(derived3);
+        value = update_reaction(derived3);
+      } finally {
+        set_active_effect(prev_active_effect);
+        set_eager_effects(prev_eager_effects);
+        stack.pop();
+      }
+    } else {
+      try {
+        derived3.f &= ~WAS_MARKED;
+        destroy_derived_effects(derived3);
+        value = update_reaction(derived3);
+      } finally {
+        set_active_effect(prev_active_effect);
+      }
+    }
+    return value;
+  }
+  function update_derived(derived3) {
+    var value = execute_derived(derived3);
+    if (!derived3.equals(value)) {
+      derived3.wv = increment_write_version();
+      if (!current_batch?.is_fork || derived3.deps === null) {
+        if (current_batch !== null) {
+          current_batch.capture(derived3, value, true);
+          previous_batch?.capture(derived3, value, true);
+        } else {
+          derived3.v = value;
+        }
+        if (derived3.deps === null) {
+          set_signal_status(derived3, CLEAN);
+          return;
+        }
+      }
+    }
+    if (is_destroying_effect) {
+      return;
+    }
+    if (batch_values !== null) {
+      if (effect_tracking() || current_batch?.is_fork) {
+        batch_values.set(derived3, value);
+      }
+    } else {
+      update_derived_status(derived3);
+    }
+  }
+  function freeze_derived_effects(derived3) {
+    if (derived3.effects === null) return;
+    for (const e of derived3.effects) {
+      if (e.teardown || e.ac) {
+        e.teardown?.();
+        if (e.ac !== null) {
+          without_reactive_context(() => {
+            e.ac.abort(STALE_REACTION);
+            e.ac = null;
+          });
+        }
+        if (e.fn !== null) e.teardown = noop;
+        remove_reactions(e, 0);
+        destroy_effect_children(e);
+      }
+    }
+  }
+  function unfreeze_derived_effects(derived3) {
+    if (derived3.effects === null) return;
+    for (const e of derived3.effects) {
+      if (e.teardown && e.fn !== null) {
+        update_effect(e);
+      }
+    }
+  }
+
   // node_modules/svelte/src/internal/client/reactivity/batch.js
-  var batches = /* @__PURE__ */ new Set();
+  var first_batch = null;
+  var last_batch = null;
   var current_batch = null;
   var previous_batch = null;
   var batch_values = null;
-  var queued_root_effects = [];
   var last_scheduled_effect = null;
   var is_flushing_sync = false;
+  var is_processing = false;
   var collected_effects = null;
+  var legacy_updates = null;
+  var flush_count = 0;
+  var source_stacks = /* @__PURE__ */ new Set();
   var uid = 1;
-  var _commit_callbacks, _discard_callbacks, _pending, _blocking_pending, _deferred, _dirty_effects, _maybe_dirty_effects, _skipped_branches, _decrement_queued, _Batch_instances, is_deferred_fn, traverse_effect_tree_fn, defer_effects_fn, commit_fn;
+  var _started, _prev, _next, _commit_callbacks, _discard_callbacks, _pending, _blocking_pending, _deferred, _roots, _new_effects, _dirty_effects2, _maybe_dirty_effects2, _skipped_branches, _unskipped_branches, _decrement_queued, _Batch_instances, is_deferred_fn, process_fn, traverse_fn, find_earlier_batch_fn, merge_fn, defer_effects_fn, commit_fn, unlink_fn;
   var _Batch = class _Batch {
     constructor() {
       __privateAdd(this, _Batch_instances);
-      // for debugging. TODO remove once async is stable
       __publicField(this, "id", uid++);
+      /** True as soon as `#process` was called */
+      __privateAdd(this, _started, false);
+      __publicField(this, "linked", true);
+      /** @type {Batch | null} */
+      __privateAdd(this, _prev, null);
+      /** @type {Batch | null} */
+      __privateAdd(this, _next, null);
+      /** @type {Map<Effect, ReturnType<typeof deferred<any>>>} */
+      __publicField(this, "async_deriveds", /* @__PURE__ */ new Map());
       /**
-       * The current values of any sources that are updated in this batch
+       * The current values of any signals that are updated in this batch.
+       * Tuple format: [value, is_derived] (note: is_derived is false for deriveds, too, if they were overridden via assignment)
        * They keys of this map are identical to `this.#previous`
-       * @type {Map<Source, any>}
+       * @type {Map<Value, [any, boolean]>}
        */
       __publicField(this, "current", /* @__PURE__ */ new Map());
       /**
-       * The values of any sources that are updated in this batch _before_ those updates took place.
+       * The values of any signals (sources and deriveds) that are updated in this batch _before_ those updates took place.
        * They keys of this map are identical to `this.#current`
-       * @type {Map<Source, any>}
+       * @type {Map<Value, any>}
        */
       __publicField(this, "previous", /* @__PURE__ */ new Map());
       /**
@@ -1213,9 +2283,10 @@ ${component_stack}
        */
       __privateAdd(this, _pending, 0);
       /**
-       * The number of async effects that are currently in flight, _not_ inside a pending boundary
+       * Async effects that are currently in flight, _not_ inside a pending boundary
+       * @type {Map<Effect, number>}
        */
-      __privateAdd(this, _blocking_pending, 0);
+      __privateAdd(this, _blocking_pending, /* @__PURE__ */ new Map());
       /**
        * A deferred that resolves when the batch is committed, used with `settled()`
        * TODO replace with Promise.withResolvers once supported widely enough
@@ -1223,15 +2294,25 @@ ${component_stack}
        */
       __privateAdd(this, _deferred, null);
       /**
+       * The root effects that need to be flushed
+       * @type {Effect[]}
+       */
+      __privateAdd(this, _roots, []);
+      /**
+       * Effects created while this batch was active.
+       * @type {Effect[]}
+       */
+      __privateAdd(this, _new_effects, []);
+      /**
        * Deferred effects (which run after async work has completed) that are DIRTY
        * @type {Set<Effect>}
        */
-      __privateAdd(this, _dirty_effects, /* @__PURE__ */ new Set());
+      __privateAdd(this, _dirty_effects2, /* @__PURE__ */ new Set());
       /**
        * Deferred effects that are MAYBE_DIRTY
        * @type {Set<Effect>}
        */
-      __privateAdd(this, _maybe_dirty_effects, /* @__PURE__ */ new Set());
+      __privateAdd(this, _maybe_dirty_effects2, /* @__PURE__ */ new Set());
       /**
        * A map of branches that still exist, but will be destroyed when this batch
        * is committed — we skip over these during `process`.
@@ -1240,8 +2321,20 @@ ${component_stack}
        * @type {Map<Effect, { d: Effect[], m: Effect[] }>}
        */
       __privateAdd(this, _skipped_branches, /* @__PURE__ */ new Map());
+      /**
+       * Inverse of #skipped_branches which we need to tell prior batches to unskip them when committing
+       * @type {Set<Effect>}
+       */
+      __privateAdd(this, _unskipped_branches, /* @__PURE__ */ new Set());
       __publicField(this, "is_fork", false);
       __privateAdd(this, _decrement_queued, false);
+      if (last_batch === null) {
+        first_batch = last_batch = this;
+      } else {
+        __privateSet(last_batch, _next, this);
+        __privateSet(this, _prev, last_batch);
+      }
+      last_batch = this;
     }
     /**
      * Add an effect to the #skipped_branches map and reset its children
@@ -1251,139 +2344,141 @@ ${component_stack}
       if (!__privateGet(this, _skipped_branches).has(effect2)) {
         __privateGet(this, _skipped_branches).set(effect2, { d: [], m: [] });
       }
+      __privateGet(this, _unskipped_branches).delete(effect2);
     }
     /**
      * Remove an effect from the #skipped_branches map and reschedule
      * any tracked dirty/maybe_dirty child effects
      * @param {Effect} effect
+     * @param {(e: Effect) => void} callback
      */
-    unskip_effect(effect2) {
+    unskip_effect(effect2, callback = (e) => this.schedule(e)) {
       var tracked = __privateGet(this, _skipped_branches).get(effect2);
       if (tracked) {
         __privateGet(this, _skipped_branches).delete(effect2);
         for (var e of tracked.d) {
           set_signal_status(e, DIRTY);
-          schedule_effect(e);
+          callback(e);
         }
         for (e of tracked.m) {
           set_signal_status(e, MAYBE_DIRTY);
-          schedule_effect(e);
+          callback(e);
         }
       }
-    }
-    /**
-     *
-     * @param {Effect[]} root_effects
-     */
-    process(root_effects) {
-      queued_root_effects = [];
-      this.apply();
-      var effects = collected_effects = [];
-      var render_effects = [];
-      for (const root19 of root_effects) {
-        __privateMethod(this, _Batch_instances, traverse_effect_tree_fn).call(this, root19, effects, render_effects);
-      }
-      collected_effects = null;
-      if (__privateMethod(this, _Batch_instances, is_deferred_fn).call(this)) {
-        __privateMethod(this, _Batch_instances, defer_effects_fn).call(this, render_effects);
-        __privateMethod(this, _Batch_instances, defer_effects_fn).call(this, effects);
-        for (const [e, t] of __privateGet(this, _skipped_branches)) {
-          reset_branch(e, t);
-        }
-      } else {
-        previous_batch = this;
-        current_batch = null;
-        for (const fn of __privateGet(this, _commit_callbacks)) fn(this);
-        __privateGet(this, _commit_callbacks).clear();
-        if (__privateGet(this, _pending) === 0) {
-          __privateMethod(this, _Batch_instances, commit_fn).call(this);
-        }
-        flush_queued_effects(render_effects);
-        flush_queued_effects(effects);
-        __privateGet(this, _dirty_effects).clear();
-        __privateGet(this, _maybe_dirty_effects).clear();
-        previous_batch = null;
-        __privateGet(this, _deferred)?.resolve();
-      }
-      batch_values = null;
+      __privateGet(this, _unskipped_branches).add(effect2);
     }
     /**
      * Associate a change to a given source with the current
      * batch, noting its previous and current values
-     * @param {Source} source
+     * @param {Value} source
      * @param {any} value
+     * @param {boolean} [is_derived]
      */
-    capture(source2, value) {
-      if (value !== UNINITIALIZED && !this.previous.has(source2)) {
-        this.previous.set(source2, value);
+    capture(source2, value, is_derived = false) {
+      if (source2.v !== UNINITIALIZED && !this.previous.has(source2)) {
+        this.previous.set(source2, source2.v);
       }
       if ((source2.f & ERROR_VALUE) === 0) {
-        this.current.set(source2, source2.v);
-        batch_values?.set(source2, source2.v);
+        this.current.set(source2, [value, is_derived]);
+        batch_values?.set(source2, value);
+      }
+      if (!this.is_fork) {
+        source2.v = value;
       }
     }
     activate() {
       current_batch = this;
-      this.apply();
     }
     deactivate() {
-      if (current_batch !== this) return;
       current_batch = null;
       batch_values = null;
     }
     flush() {
-      if (queued_root_effects.length > 0) {
+      try {
+        if (dev_fallback_default) {
+          source_stacks.clear();
+        }
+        is_processing = true;
         current_batch = this;
-        flush_effects();
-      } else if (__privateGet(this, _pending) === 0 && !this.is_fork) {
-        for (const fn of __privateGet(this, _commit_callbacks)) fn(this);
-        __privateGet(this, _commit_callbacks).clear();
-        __privateMethod(this, _Batch_instances, commit_fn).call(this);
-        __privateGet(this, _deferred)?.resolve();
+        __privateMethod(this, _Batch_instances, process_fn).call(this);
+      } finally {
+        flush_count = 0;
+        last_scheduled_effect = null;
+        collected_effects = null;
+        legacy_updates = null;
+        is_processing = false;
+        current_batch = null;
+        batch_values = null;
+        old_values.clear();
+        if (dev_fallback_default) {
+          for (const source2 of source_stacks) {
+            source2.updated = null;
+          }
+        }
       }
-      this.deactivate();
     }
     discard() {
       for (const fn of __privateGet(this, _discard_callbacks)) fn(this);
       __privateGet(this, _discard_callbacks).clear();
+      for (const deferred2 of this.async_deriveds.values()) {
+        deferred2.reject(OBSOLETE);
+      }
+      __privateMethod(this, _Batch_instances, unlink_fn).call(this);
+      __privateGet(this, _deferred)?.resolve();
     }
     /**
-     *
-     * @param {boolean} blocking
+     * @param {Effect} effect
      */
-    increment(blocking) {
+    register_created_effect(effect2) {
+      __privateGet(this, _new_effects).push(effect2);
+    }
+    /**
+     * @param {boolean} blocking
+     * @param {Effect} effect
+     */
+    increment(blocking, effect2) {
       __privateSet(this, _pending, __privateGet(this, _pending) + 1);
-      if (blocking) __privateSet(this, _blocking_pending, __privateGet(this, _blocking_pending) + 1);
+      if (blocking) {
+        let blocking_pending_count = __privateGet(this, _blocking_pending).get(effect2) ?? 0;
+        __privateGet(this, _blocking_pending).set(effect2, blocking_pending_count + 1);
+      }
     }
     /**
-     *
      * @param {boolean} blocking
+     * @param {Effect} effect
      */
-    decrement(blocking) {
+    decrement(blocking, effect2) {
       __privateSet(this, _pending, __privateGet(this, _pending) - 1);
-      if (blocking) __privateSet(this, _blocking_pending, __privateGet(this, _blocking_pending) - 1);
+      if (blocking) {
+        let blocking_pending_count = __privateGet(this, _blocking_pending).get(effect2) ?? 0;
+        if (blocking_pending_count === 1) {
+          __privateGet(this, _blocking_pending).delete(effect2);
+        } else {
+          __privateGet(this, _blocking_pending).set(effect2, blocking_pending_count - 1);
+        }
+      }
       if (__privateGet(this, _decrement_queued)) return;
       __privateSet(this, _decrement_queued, true);
       queue_micro_task(() => {
         __privateSet(this, _decrement_queued, false);
-        if (!__privateMethod(this, _Batch_instances, is_deferred_fn).call(this)) {
-          this.revive();
-        } else if (queued_root_effects.length > 0) {
+        if (this.linked) {
           this.flush();
         }
       });
     }
-    revive() {
-      for (const e of __privateGet(this, _dirty_effects)) {
-        __privateGet(this, _maybe_dirty_effects).delete(e);
-        set_signal_status(e, DIRTY);
-        schedule_effect(e);
+    /**
+     * @param {Set<Effect>} dirty_effects
+     * @param {Set<Effect>} maybe_dirty_effects
+     */
+    transfer_effects(dirty_effects, maybe_dirty_effects) {
+      for (const e of dirty_effects) {
+        __privateGet(this, _dirty_effects2).add(e);
       }
-      for (const e of __privateGet(this, _maybe_dirty_effects)) {
-        set_signal_status(e, MAYBE_DIRTY);
-        schedule_effect(e);
+      for (const e of maybe_dirty_effects) {
+        __privateGet(this, _maybe_dirty_effects2).add(e);
       }
-      this.flush();
+      dirty_effects.clear();
+      maybe_dirty_effects.clear();
     }
     /** @param {(batch: Batch) => void} fn */
     oncommit(fn) {
@@ -1399,43 +2494,206 @@ ${component_stack}
     static ensure() {
       if (current_batch === null) {
         const batch = current_batch = new _Batch();
-        batches.add(current_batch);
-        if (!is_flushing_sync) {
+        if (!is_processing && !is_flushing_sync) {
           queue_micro_task(() => {
-            if (current_batch !== batch) {
-              return;
+            if (!__privateGet(batch, _started)) {
+              batch.flush();
             }
-            batch.flush();
           });
         }
       }
       return current_batch;
     }
     apply() {
-      if (!async_mode_flag || !this.is_fork && batches.size === 1) return;
-      batch_values = new Map(this.current);
-      for (const batch of batches) {
-        if (batch === this) continue;
-        for (const [source2, previous] of batch.previous) {
-          if (!batch_values.has(source2)) {
-            batch_values.set(source2, previous);
+      if (!async_mode_flag || !this.is_fork && __privateGet(this, _prev) === null && __privateGet(this, _next) === null) {
+        batch_values = null;
+        return;
+      }
+      batch_values = /* @__PURE__ */ new Map();
+      for (const [source2, [value]] of this.current) {
+        batch_values.set(source2, value);
+      }
+      for (let batch = first_batch; batch !== null; batch = __privateGet(batch, _next)) {
+        if (batch === this || batch.is_fork) continue;
+        var intersects = false;
+        if (batch.id < this.id) {
+          for (const [source2, [, is_derived]] of batch.current) {
+            if (is_derived) continue;
+            if (this.current.has(source2)) {
+              intersects = true;
+              break;
+            }
+          }
+        }
+        if (!intersects) {
+          for (const [source2, previous] of batch.previous) {
+            if (!batch_values.has(source2)) {
+              batch_values.set(source2, previous);
+            }
           }
         }
       }
     }
+    /**
+     *
+     * @param {Effect} effect
+     */
+    schedule(effect2) {
+      last_scheduled_effect = effect2;
+      if (effect2.b?.is_pending && (effect2.f & (EFFECT | RENDER_EFFECT | MANAGED_EFFECT)) !== 0 && (effect2.f & REACTION_RAN) === 0) {
+        effect2.b.defer_effect(effect2);
+        return;
+      }
+      var e = effect2;
+      while (e.parent !== null) {
+        e = e.parent;
+        var flags2 = e.f;
+        if (collected_effects !== null && e === active_effect) {
+          if (async_mode_flag) return;
+          if ((active_reaction === null || (active_reaction.f & DERIVED) === 0) && !legacy_is_updating_store) {
+            return;
+          }
+        }
+        if ((flags2 & (ROOT_EFFECT | BRANCH_EFFECT)) !== 0) {
+          if ((flags2 & CLEAN) === 0) {
+            return;
+          }
+          e.f ^= CLEAN;
+        }
+      }
+      __privateGet(this, _roots).push(e);
+    }
   };
+  _started = new WeakMap();
+  _prev = new WeakMap();
+  _next = new WeakMap();
   _commit_callbacks = new WeakMap();
   _discard_callbacks = new WeakMap();
   _pending = new WeakMap();
   _blocking_pending = new WeakMap();
   _deferred = new WeakMap();
-  _dirty_effects = new WeakMap();
-  _maybe_dirty_effects = new WeakMap();
+  _roots = new WeakMap();
+  _new_effects = new WeakMap();
+  _dirty_effects2 = new WeakMap();
+  _maybe_dirty_effects2 = new WeakMap();
   _skipped_branches = new WeakMap();
+  _unskipped_branches = new WeakMap();
   _decrement_queued = new WeakMap();
   _Batch_instances = new WeakSet();
   is_deferred_fn = function() {
-    return this.is_fork || __privateGet(this, _blocking_pending) > 0;
+    if (this.is_fork) return true;
+    for (const effect2 of __privateGet(this, _blocking_pending).keys()) {
+      var e = effect2;
+      var skipped = false;
+      while (e.parent !== null) {
+        if (__privateGet(this, _skipped_branches).has(e)) {
+          skipped = true;
+          break;
+        }
+        e = e.parent;
+      }
+      if (!skipped) {
+        return true;
+      }
+    }
+    return false;
+  };
+  process_fn = function() {
+    var _a2, _b, _c;
+    __privateSet(this, _started, true);
+    if (flush_count++ > 1e3) {
+      __privateMethod(this, _Batch_instances, unlink_fn).call(this);
+      infinite_loop_guard();
+    }
+    if (dev_fallback_default) {
+      for (const value of this.current.keys()) {
+        source_stacks.add(value);
+      }
+    }
+    for (const e of __privateGet(this, _dirty_effects2)) {
+      __privateGet(this, _maybe_dirty_effects2).delete(e);
+      set_signal_status(e, DIRTY);
+      this.schedule(e);
+    }
+    for (const e of __privateGet(this, _maybe_dirty_effects2)) {
+      set_signal_status(e, MAYBE_DIRTY);
+      this.schedule(e);
+    }
+    const roots = __privateGet(this, _roots);
+    __privateSet(this, _roots, []);
+    this.apply();
+    var effects = collected_effects = [];
+    var render_effects = [];
+    var updates = legacy_updates = [];
+    for (const root20 of roots) {
+      try {
+        __privateMethod(this, _Batch_instances, traverse_fn).call(this, root20, effects, render_effects);
+      } catch (e) {
+        reset_all(root20);
+        if (!__privateMethod(this, _Batch_instances, is_deferred_fn).call(this)) this.discard();
+        throw e;
+      }
+    }
+    current_batch = null;
+    if (updates.length > 0) {
+      var batch = _Batch.ensure();
+      for (const e of updates) {
+        batch.schedule(e);
+      }
+    }
+    collected_effects = null;
+    legacy_updates = null;
+    if (__privateMethod(this, _Batch_instances, is_deferred_fn).call(this)) {
+      __privateMethod(this, _Batch_instances, defer_effects_fn).call(this, render_effects);
+      __privateMethod(this, _Batch_instances, defer_effects_fn).call(this, effects);
+      for (const [e, t] of __privateGet(this, _skipped_branches)) {
+        reset_branch(e, t);
+      }
+      if (updates.length > 0) {
+        /** @type {unknown} */
+        __privateMethod(_a2 = current_batch, _Batch_instances, process_fn).call(_a2);
+      }
+      return;
+    }
+    const earlier_batch = __privateMethod(this, _Batch_instances, find_earlier_batch_fn).call(this);
+    if (earlier_batch) {
+      __privateMethod(this, _Batch_instances, defer_effects_fn).call(this, render_effects);
+      __privateMethod(this, _Batch_instances, defer_effects_fn).call(this, effects);
+      __privateMethod(_b = earlier_batch, _Batch_instances, merge_fn).call(_b, this);
+      return;
+    }
+    __privateGet(this, _dirty_effects2).clear();
+    __privateGet(this, _maybe_dirty_effects2).clear();
+    for (const fn of __privateGet(this, _commit_callbacks)) fn(this);
+    __privateGet(this, _commit_callbacks).clear();
+    previous_batch = this;
+    flush_queued_effects(render_effects);
+    flush_queued_effects(effects);
+    previous_batch = null;
+    __privateGet(this, _deferred)?.resolve();
+    var next_batch = (
+      /** @type {Batch | null} */
+      /** @type {unknown} */
+      current_batch
+    );
+    if (__privateGet(this, _pending) === 0 && (__privateGet(this, _roots).length === 0 || next_batch !== null)) {
+      __privateMethod(this, _Batch_instances, unlink_fn).call(this);
+      if (async_mode_flag) {
+        __privateMethod(this, _Batch_instances, commit_fn).call(this);
+        current_batch = next_batch;
+      }
+    }
+    if (__privateGet(this, _roots).length > 0) {
+      if (next_batch !== null) {
+        const batch2 = next_batch;
+        __privateGet(batch2, _roots).push(...__privateGet(this, _roots).filter((r) => !__privateGet(batch2, _roots).includes(r)));
+      } else {
+        next_batch = this;
+      }
+    }
+    if (next_batch !== null) {
+      __privateMethod(_c = next_batch, _Batch_instances, process_fn).call(_c);
+    }
   };
   /**
    * Traverse the effect tree, executing effects or stashing
@@ -1444,28 +2702,24 @@ ${component_stack}
    * @param {Effect[]} effects
    * @param {Effect[]} render_effects
    */
-  traverse_effect_tree_fn = function(root19, effects, render_effects) {
-    root19.f ^= CLEAN;
-    var effect2 = root19.first;
+  traverse_fn = function(root20, effects, render_effects) {
+    root20.f ^= CLEAN;
+    var effect2 = root20.first;
     while (effect2 !== null) {
       var flags2 = effect2.f;
       var is_branch = (flags2 & (BRANCH_EFFECT | ROOT_EFFECT)) !== 0;
       var is_skippable_branch = is_branch && (flags2 & CLEAN) !== 0;
-      var inert = (flags2 & INERT) !== 0;
-      var skip = is_skippable_branch || __privateGet(this, _skipped_branches).has(effect2);
+      var skip = is_skippable_branch || (flags2 & INERT) !== 0 || __privateGet(this, _skipped_branches).has(effect2);
       if (!skip && effect2.fn !== null) {
         if (is_branch) {
-          if (!inert) effect2.f ^= CLEAN;
+          effect2.f ^= CLEAN;
         } else if ((flags2 & EFFECT) !== 0) {
           effects.push(effect2);
-        } else if ((flags2 & (RENDER_EFFECT | MANAGED_EFFECT)) !== 0 && (async_mode_flag || inert)) {
+        } else if (async_mode_flag && (flags2 & (RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
           render_effects.push(effect2);
         } else if (is_dirty(effect2)) {
+          if ((flags2 & BLOCK_EFFECT) !== 0) __privateGet(this, _maybe_dirty_effects2).add(effect2);
           update_effect(effect2);
-          if ((flags2 & BLOCK_EFFECT) !== 0) {
-            __privateGet(this, _maybe_dirty_effects).add(effect2);
-            if (inert) set_signal_status(effect2, DIRTY);
-          }
         }
         var child2 = effect2.first;
         if (child2 !== null) {
@@ -1483,65 +2737,180 @@ ${component_stack}
       }
     }
   };
+  find_earlier_batch_fn = function() {
+    var batch = __privateGet(this, _prev);
+    while (batch !== null) {
+      if (!batch.is_fork) {
+        for (const [value, [, is_derived]] of this.current) {
+          if (batch.current.has(value) && !is_derived) {
+            return batch;
+          }
+        }
+      }
+      batch = __privateGet(batch, _prev);
+    }
+    return null;
+  };
+  /**
+   * @param {Batch} batch
+   */
+  merge_fn = function(batch) {
+    var _a2;
+    for (const [source2, value] of batch.current) {
+      if (!this.previous.has(source2) && batch.previous.has(source2)) {
+        this.previous.set(source2, batch.previous.get(source2));
+      }
+      this.current.set(source2, value);
+    }
+    for (const [effect2, deferred2] of batch.async_deriveds) {
+      const d = this.async_deriveds.get(effect2);
+      if (d) deferred2.promise.then(d.resolve).catch(d.reject);
+    }
+    batch.async_deriveds.clear();
+    this.transfer_effects(__privateGet(batch, _dirty_effects2), __privateGet(batch, _maybe_dirty_effects2));
+    const mark = (value) => {
+      var reactions = value.reactions;
+      if (reactions === null) return;
+      if ((value.f & DERIVED) !== 0 && (value.f & (DIRTY | MAYBE_DIRTY)) === 0) {
+        return;
+      }
+      for (const reaction of reactions) {
+        var flags2 = reaction.f;
+        if ((flags2 & DERIVED) !== 0) {
+          mark(
+            /** @type {Derived} */
+            reaction
+          );
+        } else {
+          var effect2 = (
+            /** @type {Effect} */
+            reaction
+          );
+          if (flags2 & (ASYNC | BLOCK_EFFECT) && !this.async_deriveds.has(effect2)) {
+            __privateGet(this, _maybe_dirty_effects2).delete(effect2);
+            set_signal_status(effect2, DIRTY);
+            this.schedule(effect2);
+          }
+        }
+      }
+    };
+    for (const source2 of this.current.keys()) {
+      mark(source2);
+    }
+    this.oncommit(() => batch.discard());
+    __privateMethod(_a2 = batch, _Batch_instances, unlink_fn).call(_a2);
+    current_batch = this;
+    __privateMethod(this, _Batch_instances, process_fn).call(this);
+  };
   /**
    * @param {Effect[]} effects
    */
   defer_effects_fn = function(effects) {
     for (var i = 0; i < effects.length; i += 1) {
-      defer_effect(effects[i], __privateGet(this, _dirty_effects), __privateGet(this, _maybe_dirty_effects));
+      defer_effect(effects[i], __privateGet(this, _dirty_effects2), __privateGet(this, _maybe_dirty_effects2));
     }
   };
   commit_fn = function() {
     var _a2;
-    if (batches.size > 1) {
-      this.previous.clear();
-      var previous_batch2 = current_batch;
-      var previous_batch_values = batch_values;
-      var is_earlier = true;
-      for (const batch of batches) {
-        if (batch === this) {
-          is_earlier = false;
-          continue;
-        }
-        const sources = [];
-        for (const [source2, value] of this.current) {
-          if (batch.current.has(source2)) {
-            if (is_earlier && value !== batch.current.get(source2)) {
-              batch.current.set(source2, value);
-            } else {
-              continue;
-            }
+    for (let batch = first_batch; batch !== null; batch = __privateGet(batch, _next)) {
+      var is_earlier = batch.id < this.id;
+      var sources = [];
+      for (const [source3, [value, is_derived]] of this.current) {
+        if (batch.current.has(source3)) {
+          var batch_value = (
+            /** @type {[any, boolean]} */
+            batch.current.get(source3)[0]
+          );
+          if (is_earlier && value !== batch_value) {
+            batch.current.set(source3, [value, is_derived]);
+          } else {
+            continue;
           }
-          sources.push(source2);
         }
-        if (sources.length === 0) {
-          continue;
-        }
-        const others = [...batch.current.keys()].filter((s) => !this.current.has(s));
-        if (others.length > 0) {
-          var prev_queued_root_effects = queued_root_effects;
-          queued_root_effects = [];
-          const marked = /* @__PURE__ */ new Set();
-          const checked = /* @__PURE__ */ new Map();
-          for (const source2 of sources) {
-            mark_effects(source2, others, marked, checked);
-          }
-          if (queued_root_effects.length > 0) {
-            current_batch = batch;
-            batch.apply();
-            for (const root19 of queued_root_effects) {
-              __privateMethod(_a2 = batch, _Batch_instances, traverse_effect_tree_fn).call(_a2, root19, [], []);
-            }
-            batch.deactivate();
-          }
-          queued_root_effects = prev_queued_root_effects;
+        sources.push(source3);
+      }
+      if (is_earlier) {
+        for (const [effect2, deferred2] of this.async_deriveds) {
+          const d = batch.async_deriveds.get(effect2);
+          if (d) deferred2.promise.then(d.resolve).catch(d.reject);
         }
       }
-      current_batch = previous_batch2;
-      batch_values = previous_batch_values;
+      var current = [...batch.current.keys()].filter(
+        (source3) => !/** @type {[any, boolean]} */
+        batch.current.get(source3)[1]
+      );
+      if (!__privateGet(batch, _started) || current.length === 0) continue;
+      var others = current.filter((source3) => !this.current.has(source3));
+      if (others.length === 0) {
+        if (is_earlier) {
+          batch.discard();
+        }
+      } else if (sources.length > 0) {
+        if (dev_fallback_default && !__privateGet(batch, _decrement_queued)) {
+          invariant(__privateGet(batch, _roots).length === 0, "Batch has scheduled roots");
+        }
+        if (is_earlier) {
+          for (const unskipped of __privateGet(this, _unskipped_branches)) {
+            batch.unskip_effect(unskipped, (e) => {
+              var _a3;
+              if ((e.f & (BLOCK_EFFECT | ASYNC)) !== 0) {
+                batch.schedule(e);
+              } else {
+                __privateMethod(_a3 = batch, _Batch_instances, defer_effects_fn).call(_a3, [e]);
+              }
+            });
+          }
+        }
+        batch.activate();
+        var marked = /* @__PURE__ */ new Set();
+        var checked = /* @__PURE__ */ new Map();
+        for (var source2 of sources) {
+          mark_effects(source2, others, marked, checked);
+        }
+        checked = /* @__PURE__ */ new Map();
+        var current_unequal = [...batch.current].filter(([c, v1]) => {
+          const v2 = this.current.get(c);
+          if (!v2) return true;
+          return v2[0] !== v1[0] || v2[1] !== v1[1];
+        }).map(([c]) => c);
+        if (current_unequal.length > 0) {
+          for (const effect2 of __privateGet(this, _new_effects)) {
+            if ((effect2.f & (DESTROYED | INERT | EAGER_EFFECT)) === 0 && depends_on(effect2, current_unequal, checked)) {
+              if ((effect2.f & (ASYNC | BLOCK_EFFECT)) !== 0) {
+                set_signal_status(effect2, DIRTY);
+                batch.schedule(effect2);
+              } else {
+                __privateGet(batch, _dirty_effects2).add(effect2);
+              }
+            }
+          }
+        }
+        if (__privateGet(batch, _roots).length > 0 && !__privateGet(batch, _decrement_queued)) {
+          batch.apply();
+          for (var root20 of __privateGet(batch, _roots)) {
+            __privateMethod(_a2 = batch, _Batch_instances, traverse_fn).call(_a2, root20, [], []);
+          }
+          __privateSet(batch, _roots, []);
+        }
+        batch.deactivate();
+      }
     }
-    __privateGet(this, _skipped_branches).clear();
-    batches.delete(this);
+  };
+  unlink_fn = function() {
+    if (!this.linked) return;
+    var prev = __privateGet(this, _prev);
+    var next2 = __privateGet(this, _next);
+    if (prev === null) {
+      first_batch = next2;
+    } else {
+      __privateSet(prev, _next, next2);
+    }
+    if (next2 === null) {
+      last_batch = prev;
+    } else {
+      __privateSet(next2, _prev, prev);
+    }
+    this.linked = false;
   };
   var Batch = _Batch;
   function flushSync(fn) {
@@ -1550,80 +2919,48 @@ ${component_stack}
     try {
       var result;
       if (fn) {
-        if (current_batch !== null) {
-          flush_effects();
+        if (current_batch !== null && !current_batch.is_fork) {
+          current_batch.flush();
         }
         result = fn();
       }
       while (true) {
         flush_tasks();
-        if (queued_root_effects.length === 0) {
-          current_batch?.flush();
-          if (queued_root_effects.length === 0) {
-            last_scheduled_effect = null;
-            return (
-              /** @type {T} */
-              result
-            );
-          }
+        if (current_batch === null) {
+          return (
+            /** @type {T} */
+            result
+          );
         }
-        flush_effects();
+        current_batch.flush();
       }
     } finally {
       is_flushing_sync = was_flushing_sync;
     }
   }
-  function flush_effects() {
-    var source_stacks = dev_fallback_default ? /* @__PURE__ */ new Set() : null;
-    try {
-      var flush_count = 0;
-      while (queued_root_effects.length > 0) {
-        var batch = Batch.ensure();
-        if (flush_count++ > 1e3) {
-          if (dev_fallback_default) {
-            var updates = /* @__PURE__ */ new Map();
-            for (const source2 of batch.current.keys()) {
-              for (const [stack2, update2] of source2.updated ?? []) {
-                var entry = updates.get(stack2);
-                if (!entry) {
-                  entry = { error: update2.error, count: 0 };
-                  updates.set(stack2, entry);
-                }
-                entry.count += update2.count;
-              }
-            }
-            for (const update2 of updates.values()) {
-              if (update2.error) {
-                console.error(update2.error);
-              }
-            }
+  function infinite_loop_guard() {
+    if (dev_fallback_default) {
+      var updates = /* @__PURE__ */ new Map();
+      for (
+        const source2 of
+        /** @type {Batch} */
+        current_batch.current.keys()
+      ) {
+        for (const [stack2, update2] of source2.updated ?? []) {
+          var entry = updates.get(stack2);
+          if (!entry) {
+            entry = { error: update2.error, count: 0 };
+            updates.set(stack2, entry);
           }
-          infinite_loop_guard();
-        }
-        batch.process(queued_root_effects);
-        old_values.clear();
-        if (dev_fallback_default) {
-          for (const source2 of batch.current.keys()) {
-            source_stacks.add(source2);
-          }
+          entry.count += update2.count;
         }
       }
-    } finally {
-      queued_root_effects = [];
-      last_scheduled_effect = null;
-      collected_effects = null;
-      if (dev_fallback_default) {
-        for (
-          const source2 of
-          /** @type {Set<Source>} */
-          source_stacks
-        ) {
-          source2.updated = null;
+      for (const update2 of updates.values()) {
+        if (update2.error) {
+          console.error(update2.error);
         }
       }
     }
-  }
-  function infinite_loop_guard() {
     try {
       effect_update_depth_exceeded();
     } catch (error) {
@@ -1721,29 +3058,8 @@ ${component_stack}
     checked.set(reaction, false);
     return false;
   }
-  function schedule_effect(signal) {
-    var effect2 = last_scheduled_effect = signal;
-    var boundary2 = effect2.b;
-    if (boundary2?.is_pending && (signal.f & (EFFECT | RENDER_EFFECT | MANAGED_EFFECT)) !== 0 && (signal.f & REACTION_RAN) === 0) {
-      boundary2.defer_effect(signal);
-      return;
-    }
-    while (effect2.parent !== null) {
-      effect2 = effect2.parent;
-      var flags2 = effect2.f;
-      if (collected_effects !== null && effect2 === active_effect) {
-        if (async_mode_flag || (signal.f & RENDER_EFFECT) === 0) {
-          return;
-        }
-      }
-      if ((flags2 & (ROOT_EFFECT | BRANCH_EFFECT)) !== 0) {
-        if ((flags2 & CLEAN) === 0) {
-          return;
-        }
-        effect2.f ^= CLEAN;
-      }
-    }
-    queued_root_effects.push(effect2);
+  function schedule_effect(effect2) {
+    current_batch.schedule(effect2);
   }
   function reset_branch(effect2, tracked) {
     if ((effect2.f & BRANCH_EFFECT) !== 0 && (effect2.f & CLEAN) !== 0) {
@@ -1761,784 +3077,12 @@ ${component_stack}
       e = e.next;
     }
   }
-
-  // node_modules/svelte/src/reactivity/create-subscriber.js
-  function createSubscriber(start) {
-    let subscribers = 0;
-    let version = source(0);
-    let stop;
-    if (dev_fallback_default) {
-      tag(version, "createSubscriber version");
-    }
-    return () => {
-      if (effect_tracking()) {
-        get(version);
-        render_effect(() => {
-          if (subscribers === 0) {
-            stop = untrack(() => start(() => increment(version)));
-          }
-          subscribers += 1;
-          return () => {
-            queue_micro_task(() => {
-              subscribers -= 1;
-              if (subscribers === 0) {
-                stop?.();
-                stop = void 0;
-                increment(version);
-              }
-            });
-          };
-        });
-      }
-    };
-  }
-
-  // node_modules/svelte/src/internal/client/dom/blocks/boundary.js
-  var flags = EFFECT_TRANSPARENT | EFFECT_PRESERVED;
-  function boundary(node, props, children, transform_error) {
-    new Boundary(node, props, children, transform_error);
-  }
-  var _anchor, _hydrate_open, _props, _children, _effect, _main_effect, _pending_effect, _failed_effect, _offscreen_fragment, _local_pending_count, _pending_count, _pending_count_update_queued, _dirty_effects2, _maybe_dirty_effects2, _effect_pending, _effect_pending_subscriber, _Boundary_instances, hydrate_resolved_content_fn, hydrate_failed_content_fn, hydrate_pending_content_fn, render_fn, resolve_fn, run_fn, update_pending_count_fn;
-  var Boundary = class {
-    /**
-     * @param {TemplateNode} node
-     * @param {BoundaryProps} props
-     * @param {((anchor: Node) => void)} children
-     * @param {((error: unknown) => unknown) | undefined} [transform_error]
-     */
-    constructor(node, props, children, transform_error) {
-      __privateAdd(this, _Boundary_instances);
-      /** @type {Boundary | null} */
-      __publicField(this, "parent");
-      __publicField(this, "is_pending", false);
-      /**
-       * API-level transformError transform function. Transforms errors before they reach the `failed` snippet.
-       * Inherited from parent boundary, or defaults to identity.
-       * @type {(error: unknown) => unknown}
-       */
-      __publicField(this, "transform_error");
-      /** @type {TemplateNode} */
-      __privateAdd(this, _anchor);
-      /** @type {TemplateNode | null} */
-      __privateAdd(this, _hydrate_open, hydrating ? hydrate_node : null);
-      /** @type {BoundaryProps} */
-      __privateAdd(this, _props);
-      /** @type {((anchor: Node) => void)} */
-      __privateAdd(this, _children);
-      /** @type {Effect} */
-      __privateAdd(this, _effect);
-      /** @type {Effect | null} */
-      __privateAdd(this, _main_effect, null);
-      /** @type {Effect | null} */
-      __privateAdd(this, _pending_effect, null);
-      /** @type {Effect | null} */
-      __privateAdd(this, _failed_effect, null);
-      /** @type {DocumentFragment | null} */
-      __privateAdd(this, _offscreen_fragment, null);
-      __privateAdd(this, _local_pending_count, 0);
-      __privateAdd(this, _pending_count, 0);
-      __privateAdd(this, _pending_count_update_queued, false);
-      /** @type {Set<Effect>} */
-      __privateAdd(this, _dirty_effects2, /* @__PURE__ */ new Set());
-      /** @type {Set<Effect>} */
-      __privateAdd(this, _maybe_dirty_effects2, /* @__PURE__ */ new Set());
-      /**
-       * A source containing the number of pending async deriveds/expressions.
-       * Only created if `$effect.pending()` is used inside the boundary,
-       * otherwise updating the source results in needless `Batch.ensure()`
-       * calls followed by no-op flushes
-       * @type {Source<number> | null}
-       */
-      __privateAdd(this, _effect_pending, null);
-      __privateAdd(this, _effect_pending_subscriber, createSubscriber(() => {
-        __privateSet(this, _effect_pending, source(__privateGet(this, _local_pending_count)));
-        if (dev_fallback_default) {
-          tag(__privateGet(this, _effect_pending), "$effect.pending()");
-        }
-        return () => {
-          __privateSet(this, _effect_pending, null);
-        };
-      }));
-      __privateSet(this, _anchor, node);
-      __privateSet(this, _props, props);
-      __privateSet(this, _children, (anchor) => {
-        var effect2 = (
-          /** @type {Effect} */
-          active_effect
-        );
-        effect2.b = this;
-        effect2.f |= BOUNDARY_EFFECT;
-        children(anchor);
-      });
-      this.parent = /** @type {Effect} */
-      active_effect.b;
-      this.transform_error = transform_error ?? this.parent?.transform_error ?? ((e) => e);
-      __privateSet(this, _effect, block(() => {
-        if (hydrating) {
-          const comment2 = (
-            /** @type {Comment} */
-            __privateGet(this, _hydrate_open)
-          );
-          hydrate_next();
-          const server_rendered_pending = comment2.data === HYDRATION_START_ELSE;
-          const server_rendered_failed = comment2.data.startsWith(HYDRATION_START_FAILED);
-          if (server_rendered_failed) {
-            const serialized_error = JSON.parse(comment2.data.slice(HYDRATION_START_FAILED.length));
-            __privateMethod(this, _Boundary_instances, hydrate_failed_content_fn).call(this, serialized_error);
-          } else if (server_rendered_pending) {
-            __privateMethod(this, _Boundary_instances, hydrate_pending_content_fn).call(this);
-          } else {
-            __privateMethod(this, _Boundary_instances, hydrate_resolved_content_fn).call(this);
-          }
-        } else {
-          __privateMethod(this, _Boundary_instances, render_fn).call(this);
-        }
-      }, flags));
-      if (hydrating) {
-        __privateSet(this, _anchor, hydrate_node);
-      }
-    }
-    /**
-     * Defer an effect inside a pending boundary until the boundary resolves
-     * @param {Effect} effect
-     */
-    defer_effect(effect2) {
-      defer_effect(effect2, __privateGet(this, _dirty_effects2), __privateGet(this, _maybe_dirty_effects2));
-    }
-    /**
-     * Returns `false` if the effect exists inside a boundary whose pending snippet is shown
-     * @returns {boolean}
-     */
-    is_rendered() {
-      return !this.is_pending && (!this.parent || this.parent.is_rendered());
-    }
-    has_pending_snippet() {
-      return !!__privateGet(this, _props).pending;
-    }
-    /**
-     * Update the source that powers `$effect.pending()` inside this boundary,
-     * and controls when the current `pending` snippet (if any) is removed.
-     * Do not call from inside the class
-     * @param {1 | -1} d
-     */
-    update_pending_count(d) {
-      __privateMethod(this, _Boundary_instances, update_pending_count_fn).call(this, d);
-      __privateSet(this, _local_pending_count, __privateGet(this, _local_pending_count) + d);
-      if (!__privateGet(this, _effect_pending) || __privateGet(this, _pending_count_update_queued)) return;
-      __privateSet(this, _pending_count_update_queued, true);
-      queue_micro_task(() => {
-        __privateSet(this, _pending_count_update_queued, false);
-        if (__privateGet(this, _effect_pending)) {
-          internal_set(__privateGet(this, _effect_pending), __privateGet(this, _local_pending_count));
-        }
-      });
-    }
-    get_effect_pending() {
-      __privateGet(this, _effect_pending_subscriber).call(this);
-      return get(
-        /** @type {Source<number>} */
-        __privateGet(this, _effect_pending)
-      );
-    }
-    /** @param {unknown} error */
-    error(error) {
-      var onerror = __privateGet(this, _props).onerror;
-      let failed = __privateGet(this, _props).failed;
-      if (!onerror && !failed) {
-        throw error;
-      }
-      if (__privateGet(this, _main_effect)) {
-        destroy_effect(__privateGet(this, _main_effect));
-        __privateSet(this, _main_effect, null);
-      }
-      if (__privateGet(this, _pending_effect)) {
-        destroy_effect(__privateGet(this, _pending_effect));
-        __privateSet(this, _pending_effect, null);
-      }
-      if (__privateGet(this, _failed_effect)) {
-        destroy_effect(__privateGet(this, _failed_effect));
-        __privateSet(this, _failed_effect, null);
-      }
-      if (hydrating) {
-        set_hydrate_node(
-          /** @type {TemplateNode} */
-          __privateGet(this, _hydrate_open)
-        );
-        next();
-        set_hydrate_node(skip_nodes());
-      }
-      var did_reset = false;
-      var calling_on_error = false;
-      const reset2 = () => {
-        if (did_reset) {
-          svelte_boundary_reset_noop();
-          return;
-        }
-        did_reset = true;
-        if (calling_on_error) {
-          svelte_boundary_reset_onerror();
-        }
-        if (__privateGet(this, _failed_effect) !== null) {
-          pause_effect(__privateGet(this, _failed_effect), () => {
-            __privateSet(this, _failed_effect, null);
-          });
-        }
-        __privateMethod(this, _Boundary_instances, run_fn).call(this, () => {
-          Batch.ensure();
-          __privateMethod(this, _Boundary_instances, render_fn).call(this);
-        });
-      };
-      const handle_error_result = (transformed_error) => {
-        try {
-          calling_on_error = true;
-          onerror?.(transformed_error, reset2);
-          calling_on_error = false;
-        } catch (error2) {
-          invoke_error_boundary(error2, __privateGet(this, _effect) && __privateGet(this, _effect).parent);
-        }
-        if (failed) {
-          __privateSet(this, _failed_effect, __privateMethod(this, _Boundary_instances, run_fn).call(this, () => {
-            Batch.ensure();
-            try {
-              return branch(() => {
-                var effect2 = (
-                  /** @type {Effect} */
-                  active_effect
-                );
-                effect2.b = this;
-                effect2.f |= BOUNDARY_EFFECT;
-                failed(
-                  __privateGet(this, _anchor),
-                  () => transformed_error,
-                  () => reset2
-                );
-              });
-            } catch (error2) {
-              invoke_error_boundary(
-                error2,
-                /** @type {Effect} */
-                __privateGet(this, _effect).parent
-              );
-              return null;
-            }
-          }));
-        }
-      };
-      queue_micro_task(() => {
-        var result;
-        try {
-          result = this.transform_error(error);
-        } catch (e) {
-          invoke_error_boundary(e, __privateGet(this, _effect) && __privateGet(this, _effect).parent);
-          return;
-        }
-        if (result !== null && typeof result === "object" && typeof /** @type {any} */
-        result.then === "function") {
-          result.then(
-            handle_error_result,
-            /** @param {unknown} e */
-            (e) => invoke_error_boundary(e, __privateGet(this, _effect) && __privateGet(this, _effect).parent)
-          );
-        } else {
-          handle_error_result(result);
-        }
-      });
-    }
-  };
-  _anchor = new WeakMap();
-  _hydrate_open = new WeakMap();
-  _props = new WeakMap();
-  _children = new WeakMap();
-  _effect = new WeakMap();
-  _main_effect = new WeakMap();
-  _pending_effect = new WeakMap();
-  _failed_effect = new WeakMap();
-  _offscreen_fragment = new WeakMap();
-  _local_pending_count = new WeakMap();
-  _pending_count = new WeakMap();
-  _pending_count_update_queued = new WeakMap();
-  _dirty_effects2 = new WeakMap();
-  _maybe_dirty_effects2 = new WeakMap();
-  _effect_pending = new WeakMap();
-  _effect_pending_subscriber = new WeakMap();
-  _Boundary_instances = new WeakSet();
-  hydrate_resolved_content_fn = function() {
-    try {
-      __privateSet(this, _main_effect, branch(() => __privateGet(this, _children).call(this, __privateGet(this, _anchor))));
-    } catch (error) {
-      this.error(error);
-    }
-  };
-  /**
-   * @param {unknown} error The deserialized error from the server's hydration comment
-   */
-  hydrate_failed_content_fn = function(error) {
-    const failed = __privateGet(this, _props).failed;
-    if (!failed) return;
-    __privateSet(this, _failed_effect, branch(() => {
-      failed(
-        __privateGet(this, _anchor),
-        () => error,
-        () => () => {
-        }
-      );
-    }));
-  };
-  hydrate_pending_content_fn = function() {
-    const pending2 = __privateGet(this, _props).pending;
-    if (!pending2) return;
-    this.is_pending = true;
-    __privateSet(this, _pending_effect, branch(() => pending2(__privateGet(this, _anchor))));
-    queue_micro_task(() => {
-      var fragment = __privateSet(this, _offscreen_fragment, document.createDocumentFragment());
-      var anchor = create_text();
-      fragment.append(anchor);
-      __privateSet(this, _main_effect, __privateMethod(this, _Boundary_instances, run_fn).call(this, () => {
-        Batch.ensure();
-        return branch(() => __privateGet(this, _children).call(this, anchor));
-      }));
-      if (__privateGet(this, _pending_count) === 0) {
-        __privateGet(this, _anchor).before(fragment);
-        __privateSet(this, _offscreen_fragment, null);
-        pause_effect(
-          /** @type {Effect} */
-          __privateGet(this, _pending_effect),
-          () => {
-            __privateSet(this, _pending_effect, null);
-          }
-        );
-        __privateMethod(this, _Boundary_instances, resolve_fn).call(this);
-      }
-    });
-  };
-  render_fn = function() {
-    try {
-      this.is_pending = this.has_pending_snippet();
-      __privateSet(this, _pending_count, 0);
-      __privateSet(this, _local_pending_count, 0);
-      __privateSet(this, _main_effect, branch(() => {
-        __privateGet(this, _children).call(this, __privateGet(this, _anchor));
-      }));
-      if (__privateGet(this, _pending_count) > 0) {
-        var fragment = __privateSet(this, _offscreen_fragment, document.createDocumentFragment());
-        move_effect(__privateGet(this, _main_effect), fragment);
-        const pending2 = (
-          /** @type {(anchor: Node) => void} */
-          __privateGet(this, _props).pending
-        );
-        __privateSet(this, _pending_effect, branch(() => pending2(__privateGet(this, _anchor))));
-      } else {
-        __privateMethod(this, _Boundary_instances, resolve_fn).call(this);
-      }
-    } catch (error) {
-      this.error(error);
-    }
-  };
-  resolve_fn = function() {
-    this.is_pending = false;
-    for (const e of __privateGet(this, _dirty_effects2)) {
-      set_signal_status(e, DIRTY);
-      schedule_effect(e);
-    }
-    for (const e of __privateGet(this, _maybe_dirty_effects2)) {
-      set_signal_status(e, MAYBE_DIRTY);
-      schedule_effect(e);
-    }
-    __privateGet(this, _dirty_effects2).clear();
-    __privateGet(this, _maybe_dirty_effects2).clear();
-  };
-  /**
-   * @template T
-   * @param {() => T} fn
-   */
-  run_fn = function(fn) {
-    var previous_effect = active_effect;
-    var previous_reaction = active_reaction;
-    var previous_ctx = component_context;
-    set_active_effect(__privateGet(this, _effect));
-    set_active_reaction(__privateGet(this, _effect));
-    set_component_context(__privateGet(this, _effect).ctx);
-    try {
-      return fn();
-    } catch (e) {
-      handle_error(e);
-      return null;
-    } finally {
-      set_active_effect(previous_effect);
-      set_active_reaction(previous_reaction);
-      set_component_context(previous_ctx);
-    }
-  };
-  /**
-   * Updates the pending count associated with the currently visible pending snippet,
-   * if any, such that we can replace the snippet with content once work is done
-   * @param {1 | -1} d
-   */
-  update_pending_count_fn = function(d) {
-    var _a2;
-    if (!this.has_pending_snippet()) {
-      if (this.parent) {
-        __privateMethod(_a2 = this.parent, _Boundary_instances, update_pending_count_fn).call(_a2, d);
-      }
-      return;
-    }
-    __privateSet(this, _pending_count, __privateGet(this, _pending_count) + d);
-    if (__privateGet(this, _pending_count) === 0) {
-      __privateMethod(this, _Boundary_instances, resolve_fn).call(this);
-      if (__privateGet(this, _pending_effect)) {
-        pause_effect(__privateGet(this, _pending_effect), () => {
-          __privateSet(this, _pending_effect, null);
-        });
-      }
-      if (__privateGet(this, _offscreen_fragment)) {
-        __privateGet(this, _anchor).before(__privateGet(this, _offscreen_fragment));
-        __privateSet(this, _offscreen_fragment, null);
-      }
-    }
-  };
-
-  // node_modules/svelte/src/internal/client/reactivity/async.js
-  function flatten(blockers, sync, async2, fn) {
-    const d = is_runes() ? derived : derived_safe_equal;
-    var pending2 = blockers.filter((b) => !b.settled);
-    if (async2.length === 0 && pending2.length === 0) {
-      fn(sync.map(d));
-      return;
-    }
-    var batch = current_batch;
-    var parent = (
-      /** @type {Effect} */
-      active_effect
-    );
-    var restore = capture();
-    var blocker_promise = pending2.length === 1 ? pending2[0].promise : pending2.length > 1 ? Promise.all(pending2.map((b) => b.promise)) : null;
-    function finish(values) {
-      restore();
-      try {
-        fn(values);
-      } catch (error) {
-        if ((parent.f & DESTROYED) === 0) {
-          invoke_error_boundary(error, parent);
-        }
-      }
-      unset_context();
-    }
-    if (async2.length === 0) {
-      blocker_promise.then(() => finish(sync.map(d)));
-      return;
-    }
-    function run3() {
-      restore();
-      Promise.all(async2.map((expression) => async_derived(expression))).then((result) => finish([...sync.map(d), ...result])).catch((error) => invoke_error_boundary(error, parent));
-    }
-    if (blocker_promise) {
-      blocker_promise.then(run3);
-    } else {
-      run3();
-    }
-  }
-  function run_after_blockers(blockers, fn) {
-    flatten(blockers, [], [], fn);
-  }
-  function capture() {
-    var previous_effect = active_effect;
-    var previous_reaction = active_reaction;
-    var previous_component_context = component_context;
-    var previous_batch2 = current_batch;
-    if (dev_fallback_default) {
-      var previous_dev_stack = dev_stack;
-    }
-    return function restore(activate_batch = true) {
-      set_active_effect(previous_effect);
-      set_active_reaction(previous_reaction);
-      set_component_context(previous_component_context);
-      if (activate_batch) previous_batch2?.activate();
-      if (dev_fallback_default) {
-        set_from_async_derived(null);
-        set_dev_stack(previous_dev_stack);
-      }
-    };
-  }
-  function unset_context(deactivate_batch = true) {
-    set_active_effect(null);
-    set_active_reaction(null);
-    set_component_context(null);
-    if (deactivate_batch) current_batch?.deactivate();
-    if (dev_fallback_default) {
-      set_from_async_derived(null);
-      set_dev_stack(null);
-    }
-  }
-  function increment_pending() {
-    var boundary2 = (
-      /** @type {Boundary} */
-      /** @type {Effect} */
-      active_effect.b
-    );
-    var batch = (
-      /** @type {Batch} */
-      current_batch
-    );
-    var blocking = boundary2.is_rendered();
-    boundary2.update_pending_count(1);
-    batch.increment(blocking);
-    return () => {
-      boundary2.update_pending_count(-1);
-      batch.decrement(blocking);
-    };
-  }
-
-  // node_modules/svelte/src/internal/client/reactivity/deriveds.js
-  var current_async_effect = null;
-  function set_from_async_derived(v) {
-    current_async_effect = v;
-  }
-  var recent_async_deriveds = /* @__PURE__ */ new Set();
-  // @__NO_SIDE_EFFECTS__
-  function derived(fn) {
-    var flags2 = DERIVED | DIRTY;
-    var parent_derived = active_reaction !== null && (active_reaction.f & DERIVED) !== 0 ? (
-      /** @type {Derived} */
-      active_reaction
-    ) : null;
-    if (active_effect !== null) {
-      active_effect.f |= EFFECT_PRESERVED;
-    }
-    const signal = {
-      ctx: component_context,
-      deps: null,
-      effects: null,
-      equals,
-      f: flags2,
-      fn,
-      reactions: null,
-      rv: 0,
-      v: (
-        /** @type {V} */
-        UNINITIALIZED
-      ),
-      wv: 0,
-      parent: parent_derived ?? active_effect,
-      ac: null
-    };
-    if (dev_fallback_default && tracing_mode_flag) {
-      signal.created = get_error("created at");
-    }
-    return signal;
-  }
-  // @__NO_SIDE_EFFECTS__
-  function async_derived(fn, label, location) {
-    let parent = (
-      /** @type {Effect | null} */
-      active_effect
-    );
-    if (parent === null) {
-      async_derived_orphan();
-    }
-    var promise = (
-      /** @type {Promise<V>} */
-      /** @type {unknown} */
-      void 0
-    );
-    var signal = source(
-      /** @type {V} */
-      UNINITIALIZED
-    );
-    if (dev_fallback_default) signal.label = label;
-    var should_suspend = !active_reaction;
-    var deferreds = /* @__PURE__ */ new Map();
-    async_effect(() => {
-      if (dev_fallback_default) current_async_effect = active_effect;
-      var d = deferred();
-      promise = d.promise;
-      try {
-        Promise.resolve(fn()).then(d.resolve, d.reject).finally(unset_context);
-      } catch (error) {
-        d.reject(error);
-        unset_context();
-      }
-      if (dev_fallback_default) current_async_effect = null;
-      var batch = (
-        /** @type {Batch} */
-        current_batch
-      );
-      if (should_suspend) {
-        var decrement_pending = increment_pending();
-        deferreds.get(batch)?.reject(STALE_REACTION);
-        deferreds.delete(batch);
-        deferreds.set(batch, d);
-      }
-      const handler = (value, error = void 0) => {
-        current_async_effect = null;
-        batch.activate();
-        if (error) {
-          if (error !== STALE_REACTION) {
-            signal.f |= ERROR_VALUE;
-            internal_set(signal, error);
-          }
-        } else {
-          if ((signal.f & ERROR_VALUE) !== 0) {
-            signal.f ^= ERROR_VALUE;
-          }
-          internal_set(signal, value);
-          for (const [b, d2] of deferreds) {
-            deferreds.delete(b);
-            if (b === batch) break;
-            d2.reject(STALE_REACTION);
-          }
-          if (dev_fallback_default && location !== void 0) {
-            recent_async_deriveds.add(signal);
-            setTimeout(() => {
-              if (recent_async_deriveds.has(signal)) {
-                await_waterfall(
-                  /** @type {string} */
-                  signal.label,
-                  location
-                );
-                recent_async_deriveds.delete(signal);
-              }
-            });
-          }
-        }
-        if (decrement_pending) {
-          decrement_pending();
-        }
-      };
-      d.promise.then(handler, (e) => handler(null, e || "unknown"));
-    });
-    teardown(() => {
-      for (const d of deferreds.values()) {
-        d.reject(STALE_REACTION);
-      }
-    });
-    if (dev_fallback_default) {
-      signal.f |= ASYNC;
-    }
-    return new Promise((fulfil) => {
-      function next2(p) {
-        function go() {
-          if (p === promise) {
-            fulfil(signal);
-          } else {
-            next2(promise);
-          }
-        }
-        p.then(go, go);
-      }
-      next2(promise);
-    });
-  }
-  // @__NO_SIDE_EFFECTS__
-  function user_derived(fn) {
-    const d = /* @__PURE__ */ derived(fn);
-    if (!async_mode_flag) push_reaction_value(d);
-    return d;
-  }
-  // @__NO_SIDE_EFFECTS__
-  function derived_safe_equal(fn) {
-    const signal = /* @__PURE__ */ derived(fn);
-    signal.equals = safe_equals;
-    return signal;
-  }
-  function destroy_derived_effects(derived3) {
-    var effects = derived3.effects;
-    if (effects !== null) {
-      derived3.effects = null;
-      for (var i = 0; i < effects.length; i += 1) {
-        destroy_effect(
-          /** @type {Effect} */
-          effects[i]
-        );
-      }
-    }
-  }
-  var stack = [];
-  function get_derived_parent_effect(derived3) {
-    var parent = derived3.parent;
-    while (parent !== null) {
-      if ((parent.f & DERIVED) === 0) {
-        return (parent.f & DESTROYED) === 0 ? (
-          /** @type {Effect} */
-          parent
-        ) : null;
-      }
-      parent = parent.parent;
-    }
-    return null;
-  }
-  function execute_derived(derived3) {
-    var value;
-    var prev_active_effect = active_effect;
-    set_active_effect(get_derived_parent_effect(derived3));
-    if (dev_fallback_default) {
-      let prev_eager_effects = eager_effects;
-      set_eager_effects(/* @__PURE__ */ new Set());
-      try {
-        if (includes.call(stack, derived3)) {
-          derived_references_self();
-        }
-        stack.push(derived3);
-        derived3.f &= ~WAS_MARKED;
-        destroy_derived_effects(derived3);
-        value = update_reaction(derived3);
-      } finally {
-        set_active_effect(prev_active_effect);
-        set_eager_effects(prev_eager_effects);
-        stack.pop();
-      }
-    } else {
-      try {
-        derived3.f &= ~WAS_MARKED;
-        destroy_derived_effects(derived3);
-        value = update_reaction(derived3);
-      } finally {
-        set_active_effect(prev_active_effect);
-      }
-    }
-    return value;
-  }
-  function update_derived(derived3) {
-    var value = execute_derived(derived3);
-    if (!derived3.equals(value)) {
-      derived3.wv = increment_write_version();
-      if (!current_batch?.is_fork || derived3.deps === null) {
-        derived3.v = value;
-        if (derived3.deps === null) {
-          set_signal_status(derived3, CLEAN);
-          return;
-        }
-      }
-    }
-    if (is_destroying_effect) {
-      return;
-    }
-    if (batch_values !== null) {
-      if (effect_tracking() || current_batch?.is_fork) {
-        batch_values.set(derived3, value);
-      }
-    } else {
-      update_derived_status(derived3);
-    }
-  }
-  function freeze_derived_effects(derived3) {
-    if (derived3.effects === null) return;
-    for (const e of derived3.effects) {
-      if (e.teardown || e.ac) {
-        e.teardown?.();
-        e.ac?.abort(STALE_REACTION);
-        e.teardown = noop;
-        e.ac = null;
-        remove_reactions(e, 0);
-        destroy_effect_children(e);
-      }
-    }
-  }
-  function unfreeze_derived_effects(derived3) {
-    if (derived3.effects === null) return;
-    for (const e of derived3.effects) {
-      if (e.teardown) {
-        update_effect(e);
-      }
+  function reset_all(effect2) {
+    set_signal_status(effect2, CLEAN);
+    var e = effect2.first;
+    while (e !== null) {
+      reset_all(e);
+      e = e.next;
     }
   }
 
@@ -2591,7 +3135,7 @@ ${component_stack}
   function set(source2, value, should_proxy = false) {
     if (active_reaction !== null && // since we are untracking the function inside `$inspect.with` we need to add this check
     // to ensure we error if state is set inside an inspect effect
-    (!untracking || (active_reaction.f & EAGER_EFFECT) !== 0) && is_runes() && (active_reaction.f & (DERIVED | BLOCK_EFFECT | ASYNC | EAGER_EFFECT)) !== 0 && (current_sources === null || !includes.call(current_sources, source2))) {
+    (!untracking || (active_reaction.f & EAGER_EFFECT) !== 0) && is_runes() && (active_reaction.f & (DERIVED | BLOCK_EFFECT | ASYNC | EAGER_EFFECT)) !== 0 && (current_sources === null || !current_sources.has(source2))) {
       state_unsafe_mutation();
     }
     let new_value = should_proxy ? proxy(value) : value;
@@ -2602,19 +3146,13 @@ ${component_stack}
         source2.label
       );
     }
-    return internal_set(source2, new_value);
+    return internal_set(source2, new_value, legacy_updates);
   }
-  function internal_set(source2, value) {
+  function internal_set(source2, value, updated_during_traversal = null) {
     if (!source2.equals(value)) {
-      var old_value = source2.v;
-      if (is_destroying_effect) {
-        old_values.set(source2, value);
-      } else {
-        old_values.set(source2, old_value);
-      }
-      source2.v = value;
+      old_values.set(source2, is_destroying_effect ? value : source2.v);
       var batch = Batch.ensure();
-      batch.capture(source2, old_value);
+      batch.capture(source2, value);
       if (dev_fallback_default) {
         if (tracing_mode_flag || active_effect !== null) {
           source2.updated ?? (source2.updated = /* @__PURE__ */ new Map());
@@ -2647,10 +3185,12 @@ ${component_stack}
         if ((source2.f & DIRTY) !== 0) {
           execute_derived(derived3);
         }
-        update_derived_status(derived3);
+        if (batch_values === null) {
+          update_derived_status(derived3);
+        }
       }
       source2.wv = increment_write_version();
-      mark_reactions(source2, DIRTY);
+      mark_reactions(source2, DIRTY, updated_during_traversal);
       if (is_runes() && active_effect !== null && (active_effect.f & CLEAN) !== 0 && (active_effect.f & (BRANCH_EFFECT | ROOT_EFFECT)) === 0) {
         if (untracked_writes === null) {
           set_untracked_writes([source2]);
@@ -2670,7 +3210,13 @@ ${component_stack}
       if ((effect2.f & CLEAN) !== 0) {
         set_signal_status(effect2, MAYBE_DIRTY);
       }
-      if (is_dirty(effect2)) {
+      let dirty;
+      try {
+        dirty = is_dirty(effect2);
+      } catch {
+        dirty = true;
+      }
+      if (dirty) {
         update_effect(effect2);
       }
     }
@@ -2679,7 +3225,7 @@ ${component_stack}
   function increment(source2) {
     set(source2, source2.v + 1);
   }
-  function mark_reactions(signal, status) {
+  function mark_reactions(signal, status, updated_during_traversal) {
     var reactions = signal.reactions;
     if (reactions === null) return;
     var runes = is_runes();
@@ -2688,37 +3234,40 @@ ${component_stack}
       var reaction = reactions[i];
       var flags2 = reaction.f;
       if (!runes && reaction === active_effect) continue;
-      if (dev_fallback_default && (flags2 & EAGER_EFFECT) !== 0) {
-        eager_effects.add(reaction);
-        continue;
-      }
       var not_dirty = (flags2 & DIRTY) === 0;
       if (not_dirty) {
         set_signal_status(reaction, status);
       }
-      if ((flags2 & DERIVED) !== 0) {
+      if ((flags2 & EAGER_EFFECT) !== 0) {
+        eager_effects.add(
+          /** @type {Effect} */
+          reaction
+        );
+      } else if ((flags2 & DERIVED) !== 0) {
         var derived3 = (
           /** @type {Derived} */
           reaction
         );
         batch_values?.delete(derived3);
         if ((flags2 & WAS_MARKED) === 0) {
-          if (flags2 & CONNECTED) {
+          if (flags2 & CONNECTED && (active_effect === null || (active_effect.f & REACTION_IS_UPDATING) === 0)) {
             reaction.f |= WAS_MARKED;
           }
-          mark_reactions(derived3, MAYBE_DIRTY);
+          mark_reactions(derived3, MAYBE_DIRTY, updated_during_traversal);
         }
       } else if (not_dirty) {
-        if ((flags2 & BLOCK_EFFECT) !== 0 && eager_block_effects !== null) {
-          eager_block_effects.add(
-            /** @type {Effect} */
-            reaction
-          );
-        }
-        schedule_effect(
+        var effect2 = (
           /** @type {Effect} */
           reaction
         );
+        if ((flags2 & BLOCK_EFFECT) !== 0 && eager_block_effects !== null) {
+          eager_block_effects.add(effect2);
+        }
+        if (updated_during_traversal !== null) {
+          updated_during_traversal.push(effect2);
+        } else {
+          schedule_effect(effect2);
+        }
       }
     }
   }
@@ -2838,7 +3387,7 @@ ${component_stack}
             sources.set(prop2, s);
           }
           if (s !== void 0) {
-            var v = get(s);
+            var v = get2(s);
             return v === UNINITIALIZED ? void 0 : v;
           }
           return Reflect.get(target, prop2, receiver);
@@ -2847,7 +3396,7 @@ ${component_stack}
           var descriptor = Reflect.getOwnPropertyDescriptor(target, prop2);
           if (descriptor && "value" in descriptor) {
             var s = sources.get(prop2);
-            if (s) descriptor.value = get(s);
+            if (s) descriptor.value = get2(s);
           } else if (descriptor === void 0) {
             var source2 = sources.get(prop2);
             var value2 = source2?.v;
@@ -2880,7 +3429,7 @@ ${component_stack}
               });
               sources.set(prop2, s);
             }
-            var value2 = get(s);
+            var value2 = get2(s);
             if (value2 === UNINITIALIZED) {
               return false;
             }
@@ -2939,7 +3488,7 @@ ${component_stack}
           return true;
         },
         ownKeys(target) {
-          get(version);
+          get2(version);
           var own_keys = Reflect.ownKeys(target).filter((key3) => {
             var source3 = sources.get(key3);
             return source3 === void 0 || source3.v !== UNINITIALIZED;
@@ -3081,14 +3630,13 @@ ${component_stack}
     first_child_getter = get_descriptor(node_prototype, "firstChild").get;
     next_sibling_getter = get_descriptor(node_prototype, "nextSibling").get;
     if (is_extensible(element_prototype)) {
-      element_prototype.__click = void 0;
-      element_prototype.__className = void 0;
-      element_prototype.__attributes = null;
-      element_prototype.__style = void 0;
+      element_prototype[CLASS_CACHE] = void 0;
+      element_prototype[ATTRIBUTES_CACHE] = null;
+      element_prototype[STYLE_CACHE] = void 0;
       element_prototype.__e = void 0;
     }
     if (is_extensible(text_prototype)) {
-      text_prototype.__t = void 0;
+      text_prototype[TEXT_CACHE] = void 0;
     }
     if (dev_fallback_default) {
       element_prototype.__svelte_meta = null;
@@ -3197,10 +3745,15 @@ ${component_stack}
     return (flags2 & REACTION_RAN) !== 0;
   }
   function create_element(tag2, namespace, is2) {
-    let options = is2 ? { is: is2 } : void 0;
+    if (namespace == null || namespace === NAMESPACE_HTML) {
+      return (
+        /** @type {T extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[T] : Element} */
+        is2 ? document.createElement(tag2, { is: is2 }) : document.createElement(tag2)
+      );
+    }
     return (
       /** @type {T extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[T] : Element} */
-      document.createElementNS(namespace ?? NAMESPACE_HTML, tag2, options)
+      is2 ? document.createElementNS(namespace, tag2, { is: is2 }) : document.createElementNS(namespace, tag2)
     );
   }
   function merge_text_nodes(text2) {
@@ -3217,64 +3770,6 @@ ${component_stack}
       next2.nodeValue;
       next2 = text2.nextSibling;
     }
-  }
-
-  // node_modules/svelte/src/internal/client/dom/elements/misc.js
-  function remove_textarea_child(dom) {
-    if (hydrating && get_first_child(dom) !== null) {
-      clear_text_content(dom);
-    }
-  }
-  var listening_to_form_reset = false;
-  function add_form_reset_listener() {
-    if (!listening_to_form_reset) {
-      listening_to_form_reset = true;
-      document.addEventListener(
-        "reset",
-        (evt) => {
-          Promise.resolve().then(() => {
-            if (!evt.defaultPrevented) {
-              for (
-                const e of
-                /**@type {HTMLFormElement} */
-                evt.target.elements
-              ) {
-                e.__on_r?.();
-              }
-            }
-          });
-        },
-        // In the capture phase to guarantee we get noticed of it (no possibility of stopPropagation)
-        { capture: true }
-      );
-    }
-  }
-
-  // node_modules/svelte/src/internal/client/dom/elements/bindings/shared.js
-  function without_reactive_context(fn) {
-    var previous_reaction = active_reaction;
-    var previous_effect = active_effect;
-    set_active_reaction(null);
-    set_active_effect(null);
-    try {
-      return fn();
-    } finally {
-      set_active_reaction(previous_reaction);
-      set_active_effect(previous_effect);
-    }
-  }
-  function listen_to_event_and_reset_event(element2, event2, handler, on_reset = handler) {
-    element2.addEventListener(event2, () => without_reactive_context(handler));
-    const prev = element2.__on_r;
-    if (prev) {
-      element2.__on_r = () => {
-        prev();
-        on_reset(true);
-      };
-    } else {
-      element2.__on_r = () => on_reset(true);
-    }
-    add_form_reset_listener();
   }
 
   // node_modules/svelte/src/internal/client/reactivity/effects.js
@@ -3328,12 +3823,13 @@ ${component_stack}
     if (dev_fallback_default) {
       effect2.component_function = dev_current_component_function;
     }
+    current_batch?.register_created_effect(effect2);
     var e = effect2;
     if ((type2 & EFFECT) !== 0) {
       if (collected_effects !== null) {
         collected_effects.push(effect2);
       } else {
-        schedule_effect(effect2);
+        Batch.ensure().schedule(effect2);
       }
     } else if (fn !== null) {
       try {
@@ -3385,7 +3881,7 @@ ${component_stack}
       /** @type {Effect} */
       active_effect.f
     );
-    var defer = !active_reaction && (flags2 & BRANCH_EFFECT) !== 0 && (flags2 & REACTION_RAN) === 0;
+    var defer = !active_reaction && (flags2 & BRANCH_EFFECT) !== 0 && component_context !== null && !component_context.i;
     if (defer) {
       var context = (
         /** @type {ComponentContext} */
@@ -3443,7 +3939,9 @@ ${component_stack}
   }
   function template_effect(fn, sync = [], async2 = [], blockers = []) {
     flatten(blockers, sync, async2, (values) => {
-      create_effect(RENDER_EFFECT, () => fn(...values.map(get)));
+      create_effect(RENDER_EFFECT, () => {
+        fn(...values.map(get2));
+      });
     });
   }
   function block(fn, flags2 = 0) {
@@ -3510,9 +4008,9 @@ ${component_stack}
       );
       removed = true;
     }
+    effect2.f |= DESTROYING;
     destroy_effect_children(effect2, remove_dom && !removed);
     remove_reactions(effect2, 0);
-    set_signal_status(effect2, DESTROYED);
     var transitions = effect2.nodes && effect2.nodes.t;
     if (transitions !== null) {
       for (const transition2 of transitions) {
@@ -3520,6 +4018,8 @@ ${component_stack}
       }
     }
     execute_effect_teardown(effect2);
+    effect2.f ^= DESTROYING;
+    effect2.f |= DESTROYED;
     var parent = effect2.parent;
     if (parent !== null && parent.first !== null) {
       unlink_effect(effect2);
@@ -3527,7 +4027,7 @@ ${component_stack}
     if (dev_fallback_default) {
       effect2.component_function = null;
     }
-    effect2.next = effect2.prev = effect2.teardown = effect2.ctx = effect2.deps = effect2.fn = effect2.nodes = effect2.ac = null;
+    effect2.next = effect2.prev = effect2.teardown = effect2.ctx = effect2.deps = effect2.fn = effect2.nodes = effect2.ac = effect2.b = null;
   }
   function remove_effect_dom(node, end) {
     while (node !== null) {
@@ -3578,11 +4078,13 @@ ${component_stack}
     var child2 = effect2.first;
     while (child2 !== null) {
       var sibling2 = child2.next;
-      var transparent = (child2.f & EFFECT_TRANSPARENT) !== 0 || // If this is a branch effect without a block effect parent,
-      // it means the parent block effect was pruned. In that case,
-      // transparency information was transferred to the branch effect.
-      (child2.f & BRANCH_EFFECT) !== 0 && (effect2.f & BLOCK_EFFECT) !== 0;
-      pause_children(child2, transitions, transparent ? local : false);
+      if ((child2.f & ROOT_EFFECT) === 0) {
+        var transparent = (child2.f & EFFECT_TRANSPARENT) !== 0 || // If this is a branch effect without a block effect parent,
+        // it means the parent block effect was pruned. In that case,
+        // transparency information was transferred to the branch effect.
+        (child2.f & BRANCH_EFFECT) !== 0 && (effect2.f & BLOCK_EFFECT) !== 0;
+        pause_children(child2, transitions, transparent ? local : false);
+      }
       child2 = sibling2;
     }
   }
@@ -3592,8 +4094,9 @@ ${component_stack}
   function resume_children(effect2, local) {
     if ((effect2.f & INERT) === 0) return;
     effect2.f ^= INERT;
-    if (async_mode_flag && (effect2.f & BRANCH_EFFECT) !== 0 && (effect2.f & CLEAN) === 0) {
-      effect2.f ^= CLEAN;
+    if ((effect2.f & CLEAN) === 0) {
+      set_signal_status(effect2, DIRTY);
+      Batch.ensure().schedule(effect2);
     }
     var child2 = effect2.first;
     while (child2 !== null) {
@@ -3643,11 +4146,7 @@ ${component_stack}
   var current_sources = null;
   function push_reaction_value(value) {
     if (active_reaction !== null && (!async_mode_flag || (active_reaction.f & DERIVED) !== 0)) {
-      if (current_sources === null) {
-        current_sources = [value];
-      } else {
-        current_sources.push(value);
-      }
+      (current_sources ?? (current_sources = /* @__PURE__ */ new Set())).add(value);
     }
   }
   var new_deps = null;
@@ -3702,10 +4201,10 @@ ${component_stack}
     }
     return false;
   }
-  function schedule_possible_effect_self_invalidation(signal, effect2, root19 = true) {
+  function schedule_possible_effect_self_invalidation(signal, effect2, root20 = true) {
     var reactions = signal.reactions;
     if (reactions === null) return;
-    if (!async_mode_flag && current_sources !== null && includes.call(current_sources, signal)) {
+    if (!async_mode_flag && current_sources !== null && current_sources.has(signal)) {
       return;
     }
     for (var i = 0; i < reactions.length; i++) {
@@ -3718,7 +4217,7 @@ ${component_stack}
           false
         );
       } else if (effect2 === reaction) {
-        if (root19) {
+        if (root20) {
           set_signal_status(reaction, DIRTY);
         } else if ((reaction.f & CLEAN) !== 0) {
           set_signal_status(reaction, MAYBE_DIRTY);
@@ -3863,7 +4362,16 @@ ${component_stack}
         derived3.f ^= CONNECTED;
         derived3.f &= ~WAS_MARKED;
       }
-      update_derived_status(derived3);
+      if (derived3.v !== UNINITIALIZED) {
+        update_derived_status(derived3);
+      }
+      if (derived3.ac !== null) {
+        without_reactive_context(() => {
+          derived3.ac.abort(STALE_REACTION);
+          derived3.ac = null;
+          set_signal_status(derived3, DIRTY);
+        });
+      }
       freeze_derived_effects(derived3);
       remove_reactions(derived3, 0);
     }
@@ -3884,7 +4392,7 @@ ${component_stack}
     var previous_effect = active_effect;
     var was_updating_effect = is_updating_effect;
     active_effect = effect2;
-    is_updating_effect = true;
+    is_updating_effect = (flags2 & (BRANCH_EFFECT | ROOT_EFFECT)) === 0;
     if (dev_fallback_default) {
       var previous_component_fn = dev_current_component_function;
       set_dev_current_component_function(effect2.component_function);
@@ -3931,13 +4439,13 @@ ${component_stack}
     await Promise.resolve();
     flushSync();
   }
-  function get(signal) {
+  function get2(signal) {
     var flags2 = signal.f;
     var is_derived = (flags2 & DERIVED) !== 0;
     captured_signals?.add(signal);
     if (active_reaction !== null && !untracking) {
       var destroyed = active_effect !== null && (active_effect.f & DESTROYED) !== 0;
-      if (!destroyed && (current_sources === null || !includes.call(current_sources, signal))) {
+      if (!destroyed && (current_sources === null || !current_sources.has(signal))) {
         var deps = active_reaction.deps;
         if ((active_reaction.f & REACTION_IS_UPDATING) !== 0) {
           if (signal.rv < read_version) {
@@ -3951,7 +4459,10 @@ ${component_stack}
             }
           }
         } else {
-          (active_reaction.deps ?? (active_reaction.deps = [])).push(signal);
+          active_reaction.deps ?? (active_reaction.deps = []);
+          if (!includes.call(active_reaction.deps, signal)) {
+            active_reaction.deps.push(signal);
+          }
           var reactions = signal.reactions;
           if (reactions === null) {
             signal.reactions = [active_reaction];
@@ -3962,12 +4473,24 @@ ${component_stack}
       }
     }
     if (dev_fallback_default) {
+      if (!untracking && reactivity_loss_tracker && // By checking that current/previous batch are null we filter out false positives.
+      // reactivity_loss_tracker is only reset after a microtask, so if a flush happens
+      // before that, we get warnings for things we shouldn't warn on.
+      current_batch === null && previous_batch === null && !reactivity_loss_tracker.warned && (reactivity_loss_tracker.effect.f & REACTION_IS_UPDATING) === 0 && !reactivity_loss_tracker.effect_deps.has(signal)) {
+        reactivity_loss_tracker.warned = true;
+        await_reactivity_loss(
+          /** @type {string} */
+          signal.label
+        );
+        var trace2 = get_error("traced at");
+        if (trace2) console.warn(trace2);
+      }
       recent_async_deriveds.delete(signal);
       if (tracing_mode_flag && !untracking && tracing_expressions !== null && active_reaction !== null && tracing_expressions.reaction === active_reaction) {
         if (signal.trace) {
           signal.trace();
         } else {
-          var trace2 = get_error("traced at");
+          trace2 = get_error("traced at");
           if (trace2) {
             var entry = tracing_expressions.entries.get(signal);
             if (entry === void 0) {
@@ -4324,8 +4847,7 @@ ${component_stack}
       var throw_error;
       var other_errors = [];
       while (current_target !== null) {
-        var parent_element = current_target.assignedSlot || current_target.parentNode || /** @type {any} */
-        current_target.host || null;
+        if (current_target === handler_element) break;
         try {
           var delegated2 = current_target[event_symbol]?.[event_name];
           if (delegated2 != null && (!/** @type {any} */
@@ -4341,10 +4863,12 @@ ${component_stack}
             throw_error = error;
           }
         }
-        if (event2.cancelBubble || parent_element === handler_element || parent_element === null) {
-          break;
-        }
-        current_target = parent_element;
+        if (event2.cancelBubble) break;
+        path_idx++;
+        current_target = path_idx < path.length ? (
+          /** @type {Element} */
+          path[path_idx]
+        ) : null;
       }
       if (throw_error) {
         for (let error of other_errors) {
@@ -4488,9 +5012,11 @@ ${component_stack}
   // node_modules/svelte/src/internal/client/render.js
   var should_intro = true;
   function set_text(text2, value) {
+    var _a2;
     var str2 = value == null ? "" : typeof value === "object" ? `${value}` : value;
-    if (str2 !== (text2.__t ?? (text2.__t = text2.nodeValue))) {
-      text2.__t = str2;
+    if (str2 !== /** @type {any} */
+    (text2[_a2 = TEXT_CACHE] ?? (text2[_a2] = text2.nodeValue))) {
+      text2[TEXT_CACHE] = str2;
       text2.nodeValue = `${str2}`;
     }
   }
@@ -4736,9 +5262,13 @@ ${component_stack}
           __privateGet(this, _outroing).delete(key2);
         } else {
           var offscreen = __privateGet(this, _offscreen).get(key2);
-          if (offscreen && (offscreen.effect.f & INERT) === 0) {
+          if (offscreen) {
+            resume_effect(offscreen.effect);
             __privateGet(this, _onscreen).set(key2, offscreen.effect);
             __privateGet(this, _offscreen).delete(key2);
+            if (dev_fallback_default) {
+              offscreen.fragment.lastChild[HMR_ANCHOR] = this.anchor;
+            }
             offscreen.fragment.lastChild.remove();
             this.anchor.before(offscreen.fragment);
             onscreen = offscreen.effect;
@@ -4757,7 +5287,6 @@ ${component_stack}
         }
         for (const [k, effect2] of __privateGet(this, _onscreen)) {
           if (k === key2 || __privateGet(this, _outroing).has(k)) continue;
-          if ((effect2.f & INERT) !== 0) continue;
           const on_destroy = () => {
             const keys = Array.from(__privateGet(this, _batches).values());
             if (keys.includes(k)) {
@@ -4996,8 +5525,14 @@ ${component_stack}
     var fallback2 = null;
     var each_array = derived_safe_equal(() => {
       var collection = get_collection();
-      return is_array(collection) ? collection : collection == null ? [] : array_from(collection);
+      return (
+        /** @type {V[]} */
+        is_array(collection) ? collection : collection == null ? [] : array_from(collection)
+      );
     });
+    if (dev_fallback_default) {
+      tag(each_array, "{#each ...}");
+    }
     var array;
     var pending2 = /* @__PURE__ */ new Map();
     var first_run = true;
@@ -5028,7 +5563,7 @@ ${component_stack}
     }
     var effect2 = block(() => {
       array = /** @type {V[]} */
-      get(each_array);
+      get2(each_array);
       var length = array.length;
       let mismatch = false;
       if (hydrating) {
@@ -5122,7 +5657,7 @@ ${component_stack}
       if (mismatch) {
         set_hydrating(true);
       }
-      get(each_array);
+      get2(each_array);
     });
     var state2 = { effect: effect2, flags: flags2, items, pending: pending2, outrogroups: null, fallback: fallback2 };
     first_run = false;
@@ -5173,6 +5708,13 @@ ${component_stack}
           group.done.delete(effect2);
         }
       }
+      if ((effect2.f & INERT) !== 0) {
+        resume_effect(effect2);
+        if (is_animated) {
+          effect2.nodes?.a?.unfix();
+          (to_animate ?? (to_animate = /* @__PURE__ */ new Set())).delete(effect2);
+        }
+      }
       if ((effect2.f & EFFECT_OFFSCREEN) !== 0) {
         effect2.f ^= EFFECT_OFFSCREEN;
         if (effect2 === current) {
@@ -5192,13 +5734,6 @@ ${component_stack}
           stashed = [];
           current = skip_to_branch(prev.next);
           continue;
-        }
-      }
-      if ((effect2.f & INERT) !== 0) {
-        resume_effect(effect2);
-        if (is_animated) {
-          effect2.nodes?.a?.unfix();
-          (to_animate ?? (to_animate = /* @__PURE__ */ new Set())).delete(effect2);
         }
       }
       if (effect2 !== current) {
@@ -5489,7 +6024,10 @@ ${component_stack}
 
   // node_modules/svelte/src/internal/client/dom/elements/class.js
   function set_class(dom, is_html, value, hash2, prev_classes, next_classes) {
-    var prev = dom.__className;
+    var prev = (
+      /** @type {any} */
+      dom[CLASS_CACHE]
+    );
     if (hydrating || prev !== value || prev === void 0) {
       var next_class_name = to_class(value, hash2, next_classes);
       if (!hydrating || next_class_name !== dom.getAttribute("class")) {
@@ -5501,7 +6039,7 @@ ${component_stack}
           dom.setAttribute("class", next_class_name);
         }
       }
-      dom.__className = value;
+      dom[CLASS_CACHE] = value;
     } else if (next_classes && prev_classes !== next_classes) {
       for (var key2 in next_classes) {
         var is_present = !!next_classes[key2];
@@ -5527,7 +6065,10 @@ ${component_stack}
     }
   }
   function set_style(dom, value, prev_styles, next_styles) {
-    var prev = dom.__style;
+    var prev = (
+      /** @type {any} */
+      dom[STYLE_CACHE]
+    );
     if (hydrating || prev !== value) {
       var next_style_attr = to_style(value, next_styles);
       if (!hydrating || next_style_attr !== dom.getAttribute("style")) {
@@ -5537,7 +6078,7 @@ ${component_stack}
           dom.style.cssText = next_style_attr;
         }
       }
-      dom.__style = value;
+      dom[STYLE_CACHE] = value;
     } else if (next_styles) {
       if (Array.isArray(next_styles)) {
         update_styles(dom, prev_styles?.[0], next_styles[0]);
@@ -5570,7 +6111,7 @@ ${component_stack}
         input.checked = checked;
       }
     };
-    input.__on_r = remove_defaults;
+    input[FORM_RESET_HANDLER] = remove_defaults;
     queue_micro_task(remove_defaults);
     add_form_reset_listener();
   }
@@ -5598,10 +6139,11 @@ ${component_stack}
     }
   }
   function get_attributes(element2) {
+    var _a2;
     return (
       /** @type {Record<string | symbol, unknown>} **/
-      // @ts-expect-error
-      element2.__attributes ?? (element2.__attributes = {
+      /** @type {any} */
+      element2[_a2 = ATTRIBUTES_CACHE] ?? (element2[_a2] = {
         [IS_CUSTOM_ELEMENT]: element2.nodeName.includes("-"),
         [IS_HTML]: element2.namespaceURI === NAMESPACE_HTML
       })
@@ -5619,7 +6161,8 @@ ${component_stack}
     while (element_proto !== proto) {
       descriptors = get_descriptors(proto);
       for (var key2 in descriptors) {
-        if (descriptors[key2].set) {
+        if (descriptors[key2].set && // better safe than sorry, we don't want spread attributes to mess with HTML content
+        key2 !== "innerHTML" && key2 !== "textContent" && key2 !== "innerText") {
           setters.push(key2);
         }
       }
@@ -5659,7 +6202,7 @@ ${component_stack}
 
   // node_modules/svelte/src/internal/client/dom/elements/bindings/input.js
   function bind_value(input, get3, set3 = get3) {
-    var batches2 = /* @__PURE__ */ new WeakSet();
+    var batches = /* @__PURE__ */ new WeakSet();
     listen_to_event_and_reset_event(input, "input", async (is_reset) => {
       if (dev_fallback_default && input.type === "checkbox") {
         bind_invalid_checkbox_value();
@@ -5668,7 +6211,7 @@ ${component_stack}
       value = is_numberlike_input(input) ? to_number(value) : value;
       set3(value);
       if (current_batch !== null) {
-        batches2.add(current_batch);
+        batches.add(current_batch);
       }
       await tick();
       if (value !== (value = get3())) {
@@ -5697,7 +6240,7 @@ ${component_stack}
     ) {
       set3(is_numberlike_input(input) ? to_number(input.value) : input.value);
       if (current_batch !== null) {
-        batches2.add(current_batch);
+        batches.add(current_batch);
       }
     }
     render_effect(() => {
@@ -5708,9 +6251,9 @@ ${component_stack}
       if (input === document.activeElement) {
         var batch = (
           /** @type {Batch} */
-          previous_batch ?? current_batch
+          async_mode_flag ? previous_batch : current_batch
         );
-        if (batches2.has(batch)) {
+        if (batches.has(batch)) {
           return;
         }
       }
@@ -5756,6 +6299,14 @@ ${component_stack}
     return bound_value === element_or_component || bound_value?.[STATE_SYMBOL] === element_or_component;
   }
   function bind_this(element_or_component = {}, update2, get_value, get_parts) {
+    var component_effect = (
+      /** @type {ComponentContext} */
+      component_context.r
+    );
+    var parent = (
+      /** @type {Effect} */
+      active_effect
+    );
     effect(() => {
       var old_parts;
       var parts;
@@ -5763,7 +6314,7 @@ ${component_stack}
         old_parts = parts;
         parts = get_parts?.() || [];
         untrack(() => {
-          if (element_or_component !== get_value(...parts)) {
+          if (!is_bound_this(get_value(...parts), element_or_component)) {
             update2(element_or_component, ...parts);
             if (old_parts && is_bound_this(get_value(...old_parts), element_or_component)) {
               update2(null, ...old_parts);
@@ -5772,11 +6323,20 @@ ${component_stack}
         });
       });
       return () => {
-        queue_micro_task(() => {
+        let p = parent;
+        while (p !== component_effect && p.parent !== null && p.parent.f & DESTROYING) {
+          p = p.parent;
+        }
+        const teardown2 = () => {
           if (parts && is_bound_this(get_value(...parts), element_or_component)) {
             update2(null, ...parts);
           }
-        });
+        };
+        const original_teardown = p.teardown;
+        p.teardown = () => {
+          teardown2();
+          original_teardown?.();
+        };
       };
     });
     return element_or_component;
@@ -5809,7 +6369,7 @@ ${component_stack}
         if (changed) version++;
         return version;
       });
-      props = () => get(d);
+      props = () => get2(d);
     }
     if (callbacks.b.length) {
       user_pre_effect(() => {
@@ -5836,93 +6396,9 @@ ${component_stack}
   }
   function observe_all(context, props) {
     if (context.l.s) {
-      for (const signal of context.l.s) get(signal);
+      for (const signal of context.l.s) get2(signal);
     }
     props();
-  }
-
-  // node_modules/svelte/src/store/utils.js
-  function subscribe_to_store(store, run3, invalidate) {
-    if (store == null) {
-      run3(void 0);
-      if (invalidate) invalidate(void 0);
-      return noop;
-    }
-    const unsub = untrack(
-      () => store.subscribe(
-        run3,
-        // @ts-expect-error
-        invalidate
-      )
-    );
-    return unsub.unsubscribe ? () => unsub.unsubscribe() : unsub;
-  }
-
-  // node_modules/svelte/src/store/shared/index.js
-  var subscriber_queue = [];
-  function writable(value, start = noop) {
-    let stop = null;
-    const subscribers = /* @__PURE__ */ new Set();
-    function set3(new_value) {
-      if (safe_not_equal(value, new_value)) {
-        value = new_value;
-        if (stop) {
-          const run_queue = !subscriber_queue.length;
-          for (const subscriber of subscribers) {
-            subscriber[1]();
-            subscriber_queue.push(subscriber, value);
-          }
-          if (run_queue) {
-            for (let i = 0; i < subscriber_queue.length; i += 2) {
-              subscriber_queue[i][0](subscriber_queue[i + 1]);
-            }
-            subscriber_queue.length = 0;
-          }
-        }
-      }
-    }
-    function update2(fn) {
-      set3(fn(
-        /** @type {T} */
-        value
-      ));
-    }
-    function subscribe(run3, invalidate = noop) {
-      const subscriber = [run3, invalidate];
-      subscribers.add(subscriber);
-      if (subscribers.size === 1) {
-        stop = start(set3, update2) || noop;
-      }
-      run3(
-        /** @type {T} */
-        value
-      );
-      return () => {
-        subscribers.delete(subscriber);
-        if (subscribers.size === 0 && stop) {
-          stop();
-          stop = null;
-        }
-      };
-    }
-    return { set: set3, update: update2, subscribe };
-  }
-  function get2(store) {
-    let value;
-    subscribe_to_store(store, (_) => value = _)();
-    return value;
-  }
-
-  // node_modules/svelte/src/internal/client/reactivity/store.js
-  var is_store_binding = false;
-  function capture_store_binding(fn) {
-    var previous_is_store_binding = is_store_binding;
-    try {
-      is_store_binding = false;
-      return [fn(), is_store_binding];
-    } finally {
-      is_store_binding = previous_is_store_binding;
-    }
   }
 
   // node_modules/svelte/src/internal/client/reactivity/props.js
@@ -5935,7 +6411,18 @@ ${component_stack}
       fallback2
     );
     var fallback_dirty = true;
+    var fallback_signal = (
+      /** @type {Derived<V> | undefined} */
+      void 0
+    );
     var get_fallback = () => {
+      if (lazy && runes) {
+        fallback_signal ?? (fallback_signal = derived(
+          /** @type {() => V} */
+          fallback2
+        ));
+        return get2(fallback_signal);
+      }
       if (fallback_dirty) {
         fallback_dirty = false;
         fallback_value = lazy ? untrack(
@@ -5948,7 +6435,7 @@ ${component_stack}
       }
       return fallback_value;
     };
-    var setter;
+    let setter;
     if (bindable) {
       var is_entry_props = STATE_SYMBOL in props || LEGACY_PROPS in props;
       setter = get_descriptor(props, key2)?.set ?? (is_entry_props && key2 in props ? (v) => props[key2] = v : void 0);
@@ -6021,7 +6508,7 @@ ${component_stack}
     if (dev_fallback_default) {
       d.label = key2;
     }
-    if (bindable) get(d);
+    if (bindable) get2(d);
     var parent_effect = (
       /** @type {Effect} */
       active_effect
@@ -6030,7 +6517,7 @@ ${component_stack}
       /** @type {() => V} */
       (function(value, mutation) {
         if (arguments.length > 0) {
-          const new_value = mutation ? get(d) : runes && bindable ? proxy(value) : value;
+          const new_value = mutation ? get2(d) : runes && bindable ? proxy(value) : value;
           set(d, new_value);
           overridden = true;
           if (fallback_value !== void 0) {
@@ -6041,7 +6528,7 @@ ${component_stack}
         if (is_destroying_effect && overridden || (parent_effect.f & DESTROYED) !== 0) {
           return d.v;
         }
-        return get(d);
+        return get2(d);
       })
     );
   }
@@ -6097,11 +6584,11 @@ ${component_stack}
         { ...options.props || {}, $$events: {} },
         {
           get(target, prop2) {
-            return get(sources.get(prop2) ?? add_source(prop2, Reflect.get(target, prop2)));
+            return get2(sources.get(prop2) ?? add_source(prop2, Reflect.get(target, prop2)));
           },
           has(target, prop2) {
             if (prop2 === LEGACY_PROPS) return true;
-            get(sources.get(prop2) ?? add_source(prop2, Reflect.get(target, prop2)));
+            get2(sources.get(prop2) ?? add_source(prop2, Reflect.get(target, prop2)));
             return Reflect.has(target, prop2);
           },
           set(target, prop2, value) {
@@ -6741,1730 +7228,2091 @@ ${component_stack}
   init_chunk_JQ64KMLN();
 
   // node_modules/js-yaml/dist/js-yaml.mjs
-  function isNothing(subject) {
-    return typeof subject === "undefined" || subject === null;
+  function getDefaultExportFromCjs(x) {
+    return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
   }
-  function isObject(subject) {
-    return typeof subject === "object" && subject !== null;
-  }
-  function toArray(sequence) {
-    if (Array.isArray(sequence)) return sequence;
-    else if (isNothing(sequence)) return [];
-    return [sequence];
-  }
-  function extend(target, source2) {
-    var index2, length, key2, sourceKeys;
-    if (source2) {
-      sourceKeys = Object.keys(source2);
-      for (index2 = 0, length = sourceKeys.length; index2 < length; index2 += 1) {
-        key2 = sourceKeys[index2];
-        target[key2] = source2[key2];
-      }
+  var jsYaml = {};
+  var loader = {};
+  var common = {};
+  var hasRequiredCommon;
+  function requireCommon() {
+    if (hasRequiredCommon) return common;
+    hasRequiredCommon = 1;
+    function isNothing(subject) {
+      return typeof subject === "undefined" || subject === null;
     }
-    return target;
-  }
-  function repeat(string, count) {
-    var result = "", cycle;
-    for (cycle = 0; cycle < count; cycle += 1) {
-      result += string;
+    function isObject(subject) {
+      return typeof subject === "object" && subject !== null;
     }
-    return result;
-  }
-  function isNegativeZero(number) {
-    return number === 0 && Number.NEGATIVE_INFINITY === 1 / number;
-  }
-  var isNothing_1 = isNothing;
-  var isObject_1 = isObject;
-  var toArray_1 = toArray;
-  var repeat_1 = repeat;
-  var isNegativeZero_1 = isNegativeZero;
-  var extend_1 = extend;
-  var common = {
-    isNothing: isNothing_1,
-    isObject: isObject_1,
-    toArray: toArray_1,
-    repeat: repeat_1,
-    isNegativeZero: isNegativeZero_1,
-    extend: extend_1
-  };
-  function formatError(exception2, compact) {
-    var where = "", message = exception2.reason || "(unknown reason)";
-    if (!exception2.mark) return message;
-    if (exception2.mark.name) {
-      where += 'in "' + exception2.mark.name + '" ';
+    function toArray(sequence) {
+      if (Array.isArray(sequence)) return sequence;
+      else if (isNothing(sequence)) return [];
+      return [sequence];
     }
-    where += "(" + (exception2.mark.line + 1) + ":" + (exception2.mark.column + 1) + ")";
-    if (!compact && exception2.mark.snippet) {
-      where += "\n\n" + exception2.mark.snippet;
-    }
-    return message + " " + where;
-  }
-  function YAMLException$1(reason, mark) {
-    Error.call(this);
-    this.name = "YAMLException";
-    this.reason = reason;
-    this.mark = mark;
-    this.message = formatError(this, false);
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, this.constructor);
-    } else {
-      this.stack = new Error().stack || "";
-    }
-  }
-  YAMLException$1.prototype = Object.create(Error.prototype);
-  YAMLException$1.prototype.constructor = YAMLException$1;
-  YAMLException$1.prototype.toString = function toString(compact) {
-    return this.name + ": " + formatError(this, compact);
-  };
-  var exception = YAMLException$1;
-  function getLine(buffer, lineStart, lineEnd, position, maxLineLength) {
-    var head2 = "";
-    var tail = "";
-    var maxHalfLength = Math.floor(maxLineLength / 2) - 1;
-    if (position - lineStart > maxHalfLength) {
-      head2 = " ... ";
-      lineStart = position - maxHalfLength + head2.length;
-    }
-    if (lineEnd - position > maxHalfLength) {
-      tail = " ...";
-      lineEnd = position + maxHalfLength - tail.length;
-    }
-    return {
-      str: head2 + buffer.slice(lineStart, lineEnd).replace(/\t/g, "\u2192") + tail,
-      pos: position - lineStart + head2.length
-      // relative position
-    };
-  }
-  function padStart(string, max) {
-    return common.repeat(" ", max - string.length) + string;
-  }
-  function makeSnippet(mark, options) {
-    options = Object.create(options || null);
-    if (!mark.buffer) return null;
-    if (!options.maxLength) options.maxLength = 79;
-    if (typeof options.indent !== "number") options.indent = 1;
-    if (typeof options.linesBefore !== "number") options.linesBefore = 3;
-    if (typeof options.linesAfter !== "number") options.linesAfter = 2;
-    var re = /\r?\n|\r|\0/g;
-    var lineStarts = [0];
-    var lineEnds = [];
-    var match;
-    var foundLineNo = -1;
-    while (match = re.exec(mark.buffer)) {
-      lineEnds.push(match.index);
-      lineStarts.push(match.index + match[0].length);
-      if (mark.position <= match.index && foundLineNo < 0) {
-        foundLineNo = lineStarts.length - 2;
-      }
-    }
-    if (foundLineNo < 0) foundLineNo = lineStarts.length - 1;
-    var result = "", i, line;
-    var lineNoLength = Math.min(mark.line + options.linesAfter, lineEnds.length).toString().length;
-    var maxLineLength = options.maxLength - (options.indent + lineNoLength + 3);
-    for (i = 1; i <= options.linesBefore; i++) {
-      if (foundLineNo - i < 0) break;
-      line = getLine(
-        mark.buffer,
-        lineStarts[foundLineNo - i],
-        lineEnds[foundLineNo - i],
-        mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo - i]),
-        maxLineLength
-      );
-      result = common.repeat(" ", options.indent) + padStart((mark.line - i + 1).toString(), lineNoLength) + " | " + line.str + "\n" + result;
-    }
-    line = getLine(mark.buffer, lineStarts[foundLineNo], lineEnds[foundLineNo], mark.position, maxLineLength);
-    result += common.repeat(" ", options.indent) + padStart((mark.line + 1).toString(), lineNoLength) + " | " + line.str + "\n";
-    result += common.repeat("-", options.indent + lineNoLength + 3 + line.pos) + "^\n";
-    for (i = 1; i <= options.linesAfter; i++) {
-      if (foundLineNo + i >= lineEnds.length) break;
-      line = getLine(
-        mark.buffer,
-        lineStarts[foundLineNo + i],
-        lineEnds[foundLineNo + i],
-        mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo + i]),
-        maxLineLength
-      );
-      result += common.repeat(" ", options.indent) + padStart((mark.line + i + 1).toString(), lineNoLength) + " | " + line.str + "\n";
-    }
-    return result.replace(/\n$/, "");
-  }
-  var snippet2 = makeSnippet;
-  var TYPE_CONSTRUCTOR_OPTIONS = [
-    "kind",
-    "multi",
-    "resolve",
-    "construct",
-    "instanceOf",
-    "predicate",
-    "represent",
-    "representName",
-    "defaultStyle",
-    "styleAliases"
-  ];
-  var YAML_NODE_KINDS = [
-    "scalar",
-    "sequence",
-    "mapping"
-  ];
-  function compileStyleAliases(map2) {
-    var result = {};
-    if (map2 !== null) {
-      Object.keys(map2).forEach(function(style) {
-        map2[style].forEach(function(alias) {
-          result[String(alias)] = style;
-        });
-      });
-    }
-    return result;
-  }
-  function Type$1(tag2, options) {
-    options = options || {};
-    Object.keys(options).forEach(function(name) {
-      if (TYPE_CONSTRUCTOR_OPTIONS.indexOf(name) === -1) {
-        throw new exception('Unknown option "' + name + '" is met in definition of "' + tag2 + '" YAML type.');
-      }
-    });
-    this.options = options;
-    this.tag = tag2;
-    this.kind = options["kind"] || null;
-    this.resolve = options["resolve"] || function() {
-      return true;
-    };
-    this.construct = options["construct"] || function(data) {
-      return data;
-    };
-    this.instanceOf = options["instanceOf"] || null;
-    this.predicate = options["predicate"] || null;
-    this.represent = options["represent"] || null;
-    this.representName = options["representName"] || null;
-    this.defaultStyle = options["defaultStyle"] || null;
-    this.multi = options["multi"] || false;
-    this.styleAliases = compileStyleAliases(options["styleAliases"] || null);
-    if (YAML_NODE_KINDS.indexOf(this.kind) === -1) {
-      throw new exception('Unknown kind "' + this.kind + '" is specified for "' + tag2 + '" YAML type.');
-    }
-  }
-  var type = Type$1;
-  function compileList(schema2, name) {
-    var result = [];
-    schema2[name].forEach(function(currentType) {
-      var newIndex = result.length;
-      result.forEach(function(previousType, previousIndex) {
-        if (previousType.tag === currentType.tag && previousType.kind === currentType.kind && previousType.multi === currentType.multi) {
-          newIndex = previousIndex;
+    function extend(target, source2) {
+      if (source2) {
+        const sourceKeys = Object.keys(source2);
+        for (let index2 = 0, length = sourceKeys.length; index2 < length; index2 += 1) {
+          const key2 = sourceKeys[index2];
+          target[key2] = source2[key2];
         }
-      });
-      result[newIndex] = currentType;
-    });
-    return result;
-  }
-  function compileMap() {
-    var result = {
-      scalar: {},
-      sequence: {},
-      mapping: {},
-      fallback: {},
-      multi: {
-        scalar: [],
-        sequence: [],
-        mapping: [],
-        fallback: []
       }
-    }, index2, length;
-    function collectType(type2) {
-      if (type2.multi) {
-        result.multi[type2.kind].push(type2);
-        result.multi["fallback"].push(type2);
+      return target;
+    }
+    function repeat(string, count) {
+      let result = "";
+      for (let cycle = 0; cycle < count; cycle += 1) {
+        result += string;
+      }
+      return result;
+    }
+    function isNegativeZero(number) {
+      return number === 0 && Number.NEGATIVE_INFINITY === 1 / number;
+    }
+    common.isNothing = isNothing;
+    common.isObject = isObject;
+    common.toArray = toArray;
+    common.repeat = repeat;
+    common.isNegativeZero = isNegativeZero;
+    common.extend = extend;
+    return common;
+  }
+  var exception;
+  var hasRequiredException;
+  function requireException() {
+    if (hasRequiredException) return exception;
+    hasRequiredException = 1;
+    function formatError(exception2, compact) {
+      let where = "";
+      const message = exception2.reason || "(unknown reason)";
+      if (!exception2.mark) return message;
+      if (exception2.mark.name) {
+        where += 'in "' + exception2.mark.name + '" ';
+      }
+      where += "(" + (exception2.mark.line + 1) + ":" + (exception2.mark.column + 1) + ")";
+      if (!compact && exception2.mark.snippet) {
+        where += "\n\n" + exception2.mark.snippet;
+      }
+      return message + " " + where;
+    }
+    function YAMLException2(reason, mark) {
+      Error.call(this);
+      this.name = "YAMLException";
+      this.reason = reason;
+      this.mark = mark;
+      this.message = formatError(this, false);
+      if (Error.captureStackTrace) {
+        Error.captureStackTrace(this, this.constructor);
       } else {
-        result[type2.kind][type2.tag] = result["fallback"][type2.tag] = type2;
+        this.stack = new Error().stack || "";
       }
     }
-    for (index2 = 0, length = arguments.length; index2 < length; index2 += 1) {
-      arguments[index2].forEach(collectType);
-    }
-    return result;
+    YAMLException2.prototype = Object.create(Error.prototype);
+    YAMLException2.prototype.constructor = YAMLException2;
+    YAMLException2.prototype.toString = function toString(compact) {
+      return this.name + ": " + formatError(this, compact);
+    };
+    exception = YAMLException2;
+    return exception;
   }
-  function Schema$1(definition) {
-    return this.extend(definition);
-  }
-  Schema$1.prototype.extend = function extend2(definition) {
-    var implicit = [];
-    var explicit = [];
-    if (definition instanceof type) {
-      explicit.push(definition);
-    } else if (Array.isArray(definition)) {
-      explicit = explicit.concat(definition);
-    } else if (definition && (Array.isArray(definition.implicit) || Array.isArray(definition.explicit))) {
-      if (definition.implicit) implicit = implicit.concat(definition.implicit);
-      if (definition.explicit) explicit = explicit.concat(definition.explicit);
-    } else {
-      throw new exception("Schema.extend argument should be a Type, [ Type ], or a schema definition ({ implicit: [...], explicit: [...] })");
+  var snippet2;
+  var hasRequiredSnippet;
+  function requireSnippet() {
+    if (hasRequiredSnippet) return snippet2;
+    hasRequiredSnippet = 1;
+    const common2 = requireCommon();
+    function getLine(buffer, lineStart, lineEnd, position, maxLineLength) {
+      let head2 = "";
+      let tail = "";
+      const maxHalfLength = Math.floor(maxLineLength / 2) - 1;
+      if (position - lineStart > maxHalfLength) {
+        head2 = " ... ";
+        lineStart = position - maxHalfLength + head2.length;
+      }
+      if (lineEnd - position > maxHalfLength) {
+        tail = " ...";
+        lineEnd = position + maxHalfLength - tail.length;
+      }
+      return {
+        str: head2 + buffer.slice(lineStart, lineEnd).replace(/\t/g, "\u2192") + tail,
+        pos: position - lineStart + head2.length
+        // relative position
+      };
     }
-    implicit.forEach(function(type$1) {
-      if (!(type$1 instanceof type)) {
-        throw new exception("Specified list of YAML types (or a single Type object) contains a non-Type object.");
+    function padStart(string, max) {
+      return common2.repeat(" ", max - string.length) + string;
+    }
+    function makeSnippet(mark, options) {
+      options = Object.create(options || null);
+      if (!mark.buffer) return null;
+      if (!options.maxLength) options.maxLength = 79;
+      if (typeof options.indent !== "number") options.indent = 1;
+      if (typeof options.linesBefore !== "number") options.linesBefore = 3;
+      if (typeof options.linesAfter !== "number") options.linesAfter = 2;
+      const re = /\r?\n|\r|\0/g;
+      const lineStarts = [0];
+      const lineEnds = [];
+      let match;
+      let foundLineNo = -1;
+      while (match = re.exec(mark.buffer)) {
+        lineEnds.push(match.index);
+        lineStarts.push(match.index + match[0].length);
+        if (mark.position <= match.index && foundLineNo < 0) {
+          foundLineNo = lineStarts.length - 2;
+        }
       }
-      if (type$1.loadKind && type$1.loadKind !== "scalar") {
-        throw new exception("There is a non-scalar type in the implicit list of a schema. Implicit resolving of such types is not supported.");
+      if (foundLineNo < 0) foundLineNo = lineStarts.length - 1;
+      let result = "";
+      const lineNoLength = Math.min(mark.line + options.linesAfter, lineEnds.length).toString().length;
+      const maxLineLength = options.maxLength - (options.indent + lineNoLength + 3);
+      for (let i = 1; i <= options.linesBefore; i++) {
+        if (foundLineNo - i < 0) break;
+        const line2 = getLine(
+          mark.buffer,
+          lineStarts[foundLineNo - i],
+          lineEnds[foundLineNo - i],
+          mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo - i]),
+          maxLineLength
+        );
+        result = common2.repeat(" ", options.indent) + padStart((mark.line - i + 1).toString(), lineNoLength) + " | " + line2.str + "\n" + result;
       }
-      if (type$1.multi) {
-        throw new exception("There is a multi type in the implicit list of a schema. Multi tags can only be listed as explicit.");
+      const line = getLine(mark.buffer, lineStarts[foundLineNo], lineEnds[foundLineNo], mark.position, maxLineLength);
+      result += common2.repeat(" ", options.indent) + padStart((mark.line + 1).toString(), lineNoLength) + " | " + line.str + "\n";
+      result += common2.repeat("-", options.indent + lineNoLength + 3 + line.pos) + "^\n";
+      for (let i = 1; i <= options.linesAfter; i++) {
+        if (foundLineNo + i >= lineEnds.length) break;
+        const line2 = getLine(
+          mark.buffer,
+          lineStarts[foundLineNo + i],
+          lineEnds[foundLineNo + i],
+          mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo + i]),
+          maxLineLength
+        );
+        result += common2.repeat(" ", options.indent) + padStart((mark.line + i + 1).toString(), lineNoLength) + " | " + line2.str + "\n";
+      }
+      return result.replace(/\n$/, "");
+    }
+    snippet2 = makeSnippet;
+    return snippet2;
+  }
+  var type;
+  var hasRequiredType;
+  function requireType() {
+    if (hasRequiredType) return type;
+    hasRequiredType = 1;
+    const YAMLException2 = requireException();
+    const TYPE_CONSTRUCTOR_OPTIONS = [
+      "kind",
+      "multi",
+      "resolve",
+      "construct",
+      "instanceOf",
+      "predicate",
+      "represent",
+      "representName",
+      "defaultStyle",
+      "styleAliases"
+    ];
+    const YAML_NODE_KINDS = [
+      "scalar",
+      "sequence",
+      "mapping"
+    ];
+    function compileStyleAliases(map2) {
+      const result = {};
+      if (map2 !== null) {
+        Object.keys(map2).forEach(function(style) {
+          map2[style].forEach(function(alias) {
+            result[String(alias)] = style;
+          });
+        });
+      }
+      return result;
+    }
+    function Type2(tag2, options) {
+      options = options || {};
+      Object.keys(options).forEach(function(name) {
+        if (TYPE_CONSTRUCTOR_OPTIONS.indexOf(name) === -1) {
+          throw new YAMLException2('Unknown option "' + name + '" is met in definition of "' + tag2 + '" YAML type.');
+        }
+      });
+      this.options = options;
+      this.tag = tag2;
+      this.kind = options["kind"] || null;
+      this.resolve = options["resolve"] || function() {
+        return true;
+      };
+      this.construct = options["construct"] || function(data) {
+        return data;
+      };
+      this.instanceOf = options["instanceOf"] || null;
+      this.predicate = options["predicate"] || null;
+      this.represent = options["represent"] || null;
+      this.representName = options["representName"] || null;
+      this.defaultStyle = options["defaultStyle"] || null;
+      this.multi = options["multi"] || false;
+      this.styleAliases = compileStyleAliases(options["styleAliases"] || null);
+      if (YAML_NODE_KINDS.indexOf(this.kind) === -1) {
+        throw new YAMLException2('Unknown kind "' + this.kind + '" is specified for "' + tag2 + '" YAML type.');
+      }
+    }
+    type = Type2;
+    return type;
+  }
+  var schema;
+  var hasRequiredSchema;
+  function requireSchema() {
+    if (hasRequiredSchema) return schema;
+    hasRequiredSchema = 1;
+    const YAMLException2 = requireException();
+    const Type2 = requireType();
+    function compileList(schema2, name) {
+      const result = [];
+      schema2[name].forEach(function(currentType) {
+        let newIndex = result.length;
+        result.forEach(function(previousType, previousIndex) {
+          if (previousType.tag === currentType.tag && previousType.kind === currentType.kind && previousType.multi === currentType.multi) {
+            newIndex = previousIndex;
+          }
+        });
+        result[newIndex] = currentType;
+      });
+      return result;
+    }
+    function compileMap() {
+      const result = {
+        scalar: {},
+        sequence: {},
+        mapping: {},
+        fallback: {},
+        multi: {
+          scalar: [],
+          sequence: [],
+          mapping: [],
+          fallback: []
+        }
+      };
+      function collectType(type2) {
+        if (type2.multi) {
+          result.multi[type2.kind].push(type2);
+          result.multi["fallback"].push(type2);
+        } else {
+          result[type2.kind][type2.tag] = result["fallback"][type2.tag] = type2;
+        }
+      }
+      for (let index2 = 0, length = arguments.length; index2 < length; index2 += 1) {
+        arguments[index2].forEach(collectType);
+      }
+      return result;
+    }
+    function Schema2(definition) {
+      return this.extend(definition);
+    }
+    Schema2.prototype.extend = function extend(definition) {
+      let implicit = [];
+      let explicit = [];
+      if (definition instanceof Type2) {
+        explicit.push(definition);
+      } else if (Array.isArray(definition)) {
+        explicit = explicit.concat(definition);
+      } else if (definition && (Array.isArray(definition.implicit) || Array.isArray(definition.explicit))) {
+        if (definition.implicit) implicit = implicit.concat(definition.implicit);
+        if (definition.explicit) explicit = explicit.concat(definition.explicit);
+      } else {
+        throw new YAMLException2("Schema.extend argument should be a Type, [ Type ], or a schema definition ({ implicit: [...], explicit: [...] })");
+      }
+      implicit.forEach(function(type2) {
+        if (!(type2 instanceof Type2)) {
+          throw new YAMLException2("Specified list of YAML types (or a single Type object) contains a non-Type object.");
+        }
+        if (type2.loadKind && type2.loadKind !== "scalar") {
+          throw new YAMLException2("There is a non-scalar type in the implicit list of a schema. Implicit resolving of such types is not supported.");
+        }
+        if (type2.multi) {
+          throw new YAMLException2("There is a multi type in the implicit list of a schema. Multi tags can only be listed as explicit.");
+        }
+      });
+      explicit.forEach(function(type2) {
+        if (!(type2 instanceof Type2)) {
+          throw new YAMLException2("Specified list of YAML types (or a single Type object) contains a non-Type object.");
+        }
+      });
+      const result = Object.create(Schema2.prototype);
+      result.implicit = (this.implicit || []).concat(implicit);
+      result.explicit = (this.explicit || []).concat(explicit);
+      result.compiledImplicit = compileList(result, "implicit");
+      result.compiledExplicit = compileList(result, "explicit");
+      result.compiledTypeMap = compileMap(result.compiledImplicit, result.compiledExplicit);
+      return result;
+    };
+    schema = Schema2;
+    return schema;
+  }
+  var str;
+  var hasRequiredStr;
+  function requireStr() {
+    if (hasRequiredStr) return str;
+    hasRequiredStr = 1;
+    const Type2 = requireType();
+    str = new Type2("tag:yaml.org,2002:str", {
+      kind: "scalar",
+      construct: function(data) {
+        return data !== null ? data : "";
       }
     });
-    explicit.forEach(function(type$1) {
-      if (!(type$1 instanceof type)) {
-        throw new exception("Specified list of YAML types (or a single Type object) contains a non-Type object.");
+    return str;
+  }
+  var seq;
+  var hasRequiredSeq;
+  function requireSeq() {
+    if (hasRequiredSeq) return seq;
+    hasRequiredSeq = 1;
+    const Type2 = requireType();
+    seq = new Type2("tag:yaml.org,2002:seq", {
+      kind: "sequence",
+      construct: function(data) {
+        return data !== null ? data : [];
       }
     });
-    var result = Object.create(Schema$1.prototype);
-    result.implicit = (this.implicit || []).concat(implicit);
-    result.explicit = (this.explicit || []).concat(explicit);
-    result.compiledImplicit = compileList(result, "implicit");
-    result.compiledExplicit = compileList(result, "explicit");
-    result.compiledTypeMap = compileMap(result.compiledImplicit, result.compiledExplicit);
-    return result;
-  };
-  var schema = Schema$1;
-  var str = new type("tag:yaml.org,2002:str", {
-    kind: "scalar",
-    construct: function(data) {
-      return data !== null ? data : "";
-    }
-  });
-  var seq = new type("tag:yaml.org,2002:seq", {
-    kind: "sequence",
-    construct: function(data) {
-      return data !== null ? data : [];
-    }
-  });
-  var map = new type("tag:yaml.org,2002:map", {
-    kind: "mapping",
-    construct: function(data) {
-      return data !== null ? data : {};
-    }
-  });
-  var failsafe = new schema({
-    explicit: [
-      str,
-      seq,
-      map
-    ]
-  });
-  function resolveYamlNull(data) {
-    if (data === null) return true;
-    var max = data.length;
-    return max === 1 && data === "~" || max === 4 && (data === "null" || data === "Null" || data === "NULL");
+    return seq;
   }
-  function constructYamlNull() {
-    return null;
-  }
-  function isNull(object) {
-    return object === null;
-  }
-  var _null = new type("tag:yaml.org,2002:null", {
-    kind: "scalar",
-    resolve: resolveYamlNull,
-    construct: constructYamlNull,
-    predicate: isNull,
-    represent: {
-      canonical: function() {
-        return "~";
-      },
-      lowercase: function() {
-        return "null";
-      },
-      uppercase: function() {
-        return "NULL";
-      },
-      camelcase: function() {
-        return "Null";
-      },
-      empty: function() {
-        return "";
+  var map;
+  var hasRequiredMap;
+  function requireMap() {
+    if (hasRequiredMap) return map;
+    hasRequiredMap = 1;
+    const Type2 = requireType();
+    map = new Type2("tag:yaml.org,2002:map", {
+      kind: "mapping",
+      construct: function(data) {
+        return data !== null ? data : {};
       }
-    },
-    defaultStyle: "lowercase"
-  });
-  function resolveYamlBoolean(data) {
-    if (data === null) return false;
-    var max = data.length;
-    return max === 4 && (data === "true" || data === "True" || data === "TRUE") || max === 5 && (data === "false" || data === "False" || data === "FALSE");
+    });
+    return map;
   }
-  function constructYamlBoolean(data) {
-    return data === "true" || data === "True" || data === "TRUE";
+  var failsafe;
+  var hasRequiredFailsafe;
+  function requireFailsafe() {
+    if (hasRequiredFailsafe) return failsafe;
+    hasRequiredFailsafe = 1;
+    const Schema2 = requireSchema();
+    failsafe = new Schema2({
+      explicit: [
+        requireStr(),
+        requireSeq(),
+        requireMap()
+      ]
+    });
+    return failsafe;
   }
-  function isBoolean(object) {
-    return Object.prototype.toString.call(object) === "[object Boolean]";
-  }
-  var bool = new type("tag:yaml.org,2002:bool", {
-    kind: "scalar",
-    resolve: resolveYamlBoolean,
-    construct: constructYamlBoolean,
-    predicate: isBoolean,
-    represent: {
-      lowercase: function(object) {
-        return object ? "true" : "false";
-      },
-      uppercase: function(object) {
-        return object ? "TRUE" : "FALSE";
-      },
-      camelcase: function(object) {
-        return object ? "True" : "False";
-      }
-    },
-    defaultStyle: "lowercase"
-  });
-  function isHexCode(c) {
-    return 48 <= c && c <= 57 || 65 <= c && c <= 70 || 97 <= c && c <= 102;
-  }
-  function isOctCode(c) {
-    return 48 <= c && c <= 55;
-  }
-  function isDecCode(c) {
-    return 48 <= c && c <= 57;
-  }
-  function resolveYamlInteger(data) {
-    if (data === null) return false;
-    var max = data.length, index2 = 0, hasDigits = false, ch;
-    if (!max) return false;
-    ch = data[index2];
-    if (ch === "-" || ch === "+") {
-      ch = data[++index2];
+  var _null;
+  var hasRequired_null;
+  function require_null() {
+    if (hasRequired_null) return _null;
+    hasRequired_null = 1;
+    const Type2 = requireType();
+    function resolveYamlNull(data) {
+      if (data === null) return true;
+      const max = data.length;
+      return max === 1 && data === "~" || max === 4 && (data === "null" || data === "Null" || data === "NULL");
     }
-    if (ch === "0") {
-      if (index2 + 1 === max) return true;
-      ch = data[++index2];
-      if (ch === "b") {
-        index2++;
-        for (; index2 < max; index2++) {
-          ch = data[index2];
-          if (ch === "_") continue;
-          if (ch !== "0" && ch !== "1") return false;
-          hasDigits = true;
+    function constructYamlNull() {
+      return null;
+    }
+    function isNull(object) {
+      return object === null;
+    }
+    _null = new Type2("tag:yaml.org,2002:null", {
+      kind: "scalar",
+      resolve: resolveYamlNull,
+      construct: constructYamlNull,
+      predicate: isNull,
+      represent: {
+        canonical: function() {
+          return "~";
+        },
+        lowercase: function() {
+          return "null";
+        },
+        uppercase: function() {
+          return "NULL";
+        },
+        camelcase: function() {
+          return "Null";
+        },
+        empty: function() {
+          return "";
         }
-        return hasDigits && ch !== "_";
-      }
-      if (ch === "x") {
-        index2++;
-        for (; index2 < max; index2++) {
-          ch = data[index2];
-          if (ch === "_") continue;
-          if (!isHexCode(data.charCodeAt(index2))) return false;
-          hasDigits = true;
-        }
-        return hasDigits && ch !== "_";
-      }
-      if (ch === "o") {
-        index2++;
-        for (; index2 < max; index2++) {
-          ch = data[index2];
-          if (ch === "_") continue;
-          if (!isOctCode(data.charCodeAt(index2))) return false;
-          hasDigits = true;
-        }
-        return hasDigits && ch !== "_";
-      }
+      },
+      defaultStyle: "lowercase"
+    });
+    return _null;
+  }
+  var bool;
+  var hasRequiredBool;
+  function requireBool() {
+    if (hasRequiredBool) return bool;
+    hasRequiredBool = 1;
+    const Type2 = requireType();
+    function resolveYamlBoolean(data) {
+      if (data === null) return false;
+      const max = data.length;
+      return max === 4 && (data === "true" || data === "True" || data === "TRUE") || max === 5 && (data === "false" || data === "False" || data === "FALSE");
     }
-    if (ch === "_") return false;
-    for (; index2 < max; index2++) {
-      ch = data[index2];
-      if (ch === "_") continue;
-      if (!isDecCode(data.charCodeAt(index2))) {
+    function constructYamlBoolean(data) {
+      return data === "true" || data === "True" || data === "TRUE";
+    }
+    function isBoolean(object) {
+      return Object.prototype.toString.call(object) === "[object Boolean]";
+    }
+    bool = new Type2("tag:yaml.org,2002:bool", {
+      kind: "scalar",
+      resolve: resolveYamlBoolean,
+      construct: constructYamlBoolean,
+      predicate: isBoolean,
+      represent: {
+        lowercase: function(object) {
+          return object ? "true" : "false";
+        },
+        uppercase: function(object) {
+          return object ? "TRUE" : "FALSE";
+        },
+        camelcase: function(object) {
+          return object ? "True" : "False";
+        }
+      },
+      defaultStyle: "lowercase"
+    });
+    return bool;
+  }
+  var int;
+  var hasRequiredInt;
+  function requireInt() {
+    if (hasRequiredInt) return int;
+    hasRequiredInt = 1;
+    const common2 = requireCommon();
+    const Type2 = requireType();
+    function isHexCode(c) {
+      return c >= 48 && c <= 57 || c >= 65 && c <= 70 || c >= 97 && c <= 102;
+    }
+    function isOctCode(c) {
+      return c >= 48 && c <= 55;
+    }
+    function isDecCode(c) {
+      return c >= 48 && c <= 57;
+    }
+    function resolveYamlInteger(data) {
+      if (data === null) return false;
+      const max = data.length;
+      let index2 = 0;
+      let hasDigits = false;
+      if (!max) return false;
+      let ch = data[index2];
+      if (ch === "-" || ch === "+") {
+        ch = data[++index2];
+      }
+      if (ch === "0") {
+        if (index2 + 1 === max) return true;
+        ch = data[++index2];
+        if (ch === "b") {
+          index2++;
+          for (; index2 < max; index2++) {
+            ch = data[index2];
+            if (ch !== "0" && ch !== "1") return false;
+            hasDigits = true;
+          }
+          return hasDigits && isFinite(parseYamlInteger(data));
+        }
+        if (ch === "x") {
+          index2++;
+          for (; index2 < max; index2++) {
+            if (!isHexCode(data.charCodeAt(index2))) return false;
+            hasDigits = true;
+          }
+          return hasDigits && isFinite(parseYamlInteger(data));
+        }
+        if (ch === "o") {
+          index2++;
+          for (; index2 < max; index2++) {
+            if (!isOctCode(data.charCodeAt(index2))) return false;
+            hasDigits = true;
+          }
+          return hasDigits && isFinite(parseYamlInteger(data));
+        }
+      }
+      for (; index2 < max; index2++) {
+        if (!isDecCode(data.charCodeAt(index2))) {
+          return false;
+        }
+        hasDigits = true;
+      }
+      if (!hasDigits) return false;
+      return isFinite(parseYamlInteger(data));
+    }
+    function parseYamlInteger(data) {
+      let value = data;
+      let sign = 1;
+      let ch = value[0];
+      if (ch === "-" || ch === "+") {
+        if (ch === "-") sign = -1;
+        value = value.slice(1);
+        ch = value[0];
+      }
+      if (value === "0") return 0;
+      if (ch === "0") {
+        if (value[1] === "b") return sign * parseInt(value.slice(2), 2);
+        if (value[1] === "x") return sign * parseInt(value.slice(2), 16);
+        if (value[1] === "o") return sign * parseInt(value.slice(2), 8);
+      }
+      return sign * parseInt(value, 10);
+    }
+    function constructYamlInteger(data) {
+      return parseYamlInteger(data);
+    }
+    function isInteger(object) {
+      return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 === 0 && !common2.isNegativeZero(object));
+    }
+    int = new Type2("tag:yaml.org,2002:int", {
+      kind: "scalar",
+      resolve: resolveYamlInteger,
+      construct: constructYamlInteger,
+      predicate: isInteger,
+      represent: {
+        binary: function(obj) {
+          return obj >= 0 ? "0b" + obj.toString(2) : "-0b" + obj.toString(2).slice(1);
+        },
+        octal: function(obj) {
+          return obj >= 0 ? "0o" + obj.toString(8) : "-0o" + obj.toString(8).slice(1);
+        },
+        decimal: function(obj) {
+          return obj.toString(10);
+        },
+        hexadecimal: function(obj) {
+          return obj >= 0 ? "0x" + obj.toString(16).toUpperCase() : "-0x" + obj.toString(16).toUpperCase().slice(1);
+        }
+      },
+      defaultStyle: "decimal",
+      styleAliases: {
+        binary: [2, "bin"],
+        octal: [8, "oct"],
+        decimal: [10, "dec"],
+        hexadecimal: [16, "hex"]
+      }
+    });
+    return int;
+  }
+  var float;
+  var hasRequiredFloat;
+  function requireFloat() {
+    if (hasRequiredFloat) return float;
+    hasRequiredFloat = 1;
+    const common2 = requireCommon();
+    const Type2 = requireType();
+    const YAML_FLOAT_PATTERN = new RegExp(
+      // 2.5e4, 2.5 and integers
+      "^(?:[-+]?(?:[0-9]+)(?:\\.[0-9]*)?(?:[eE][-+]?[0-9]+)?|\\.[0-9]+(?:[eE][-+]?[0-9]+)?|[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN))$"
+    );
+    const YAML_FLOAT_SPECIAL_PATTERN = new RegExp(
+      "^(?:[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN))$"
+    );
+    function resolveYamlFloat(data) {
+      if (data === null) return false;
+      if (!YAML_FLOAT_PATTERN.test(data)) {
         return false;
       }
-      hasDigits = true;
-    }
-    if (!hasDigits || ch === "_") return false;
-    return true;
-  }
-  function constructYamlInteger(data) {
-    var value = data, sign = 1, ch;
-    if (value.indexOf("_") !== -1) {
-      value = value.replace(/_/g, "");
-    }
-    ch = value[0];
-    if (ch === "-" || ch === "+") {
-      if (ch === "-") sign = -1;
-      value = value.slice(1);
-      ch = value[0];
-    }
-    if (value === "0") return 0;
-    if (ch === "0") {
-      if (value[1] === "b") return sign * parseInt(value.slice(2), 2);
-      if (value[1] === "x") return sign * parseInt(value.slice(2), 16);
-      if (value[1] === "o") return sign * parseInt(value.slice(2), 8);
-    }
-    return sign * parseInt(value, 10);
-  }
-  function isInteger(object) {
-    return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 === 0 && !common.isNegativeZero(object));
-  }
-  var int = new type("tag:yaml.org,2002:int", {
-    kind: "scalar",
-    resolve: resolveYamlInteger,
-    construct: constructYamlInteger,
-    predicate: isInteger,
-    represent: {
-      binary: function(obj) {
-        return obj >= 0 ? "0b" + obj.toString(2) : "-0b" + obj.toString(2).slice(1);
-      },
-      octal: function(obj) {
-        return obj >= 0 ? "0o" + obj.toString(8) : "-0o" + obj.toString(8).slice(1);
-      },
-      decimal: function(obj) {
-        return obj.toString(10);
-      },
-      /* eslint-disable max-len */
-      hexadecimal: function(obj) {
-        return obj >= 0 ? "0x" + obj.toString(16).toUpperCase() : "-0x" + obj.toString(16).toUpperCase().slice(1);
+      if (isFinite(parseFloat(data, 10))) {
+        return true;
       }
-    },
-    defaultStyle: "decimal",
-    styleAliases: {
-      binary: [2, "bin"],
-      octal: [8, "oct"],
-      decimal: [10, "dec"],
-      hexadecimal: [16, "hex"]
+      return YAML_FLOAT_SPECIAL_PATTERN.test(data);
     }
-  });
-  var YAML_FLOAT_PATTERN = new RegExp(
-    // 2.5e4, 2.5 and integers
-    "^(?:[-+]?(?:[0-9][0-9_]*)(?:\\.[0-9_]*)?(?:[eE][-+]?[0-9]+)?|\\.[0-9_]+(?:[eE][-+]?[0-9]+)?|[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN))$"
-  );
-  function resolveYamlFloat(data) {
-    if (data === null) return false;
-    if (!YAML_FLOAT_PATTERN.test(data) || // Quick hack to not allow integers end with `_`
-    // Probably should update regexp & check speed
-    data[data.length - 1] === "_") {
+    function constructYamlFloat(data) {
+      let value = data.toLowerCase();
+      const sign = value[0] === "-" ? -1 : 1;
+      if ("+-".indexOf(value[0]) >= 0) {
+        value = value.slice(1);
+      }
+      if (value === ".inf") {
+        return sign === 1 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+      } else if (value === ".nan") {
+        return NaN;
+      }
+      return sign * parseFloat(value, 10);
+    }
+    const SCIENTIFIC_WITHOUT_DOT = /^[-+]?[0-9]+e/;
+    function representYamlFloat(object, style) {
+      if (isNaN(object)) {
+        switch (style) {
+          case "lowercase":
+            return ".nan";
+          case "uppercase":
+            return ".NAN";
+          case "camelcase":
+            return ".NaN";
+        }
+      } else if (Number.POSITIVE_INFINITY === object) {
+        switch (style) {
+          case "lowercase":
+            return ".inf";
+          case "uppercase":
+            return ".INF";
+          case "camelcase":
+            return ".Inf";
+        }
+      } else if (Number.NEGATIVE_INFINITY === object) {
+        switch (style) {
+          case "lowercase":
+            return "-.inf";
+          case "uppercase":
+            return "-.INF";
+          case "camelcase":
+            return "-.Inf";
+        }
+      } else if (common2.isNegativeZero(object)) {
+        return "-0.0";
+      }
+      const res = object.toString(10);
+      return SCIENTIFIC_WITHOUT_DOT.test(res) ? res.replace("e", ".e") : res;
+    }
+    function isFloat(object) {
+      return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 !== 0 || common2.isNegativeZero(object));
+    }
+    float = new Type2("tag:yaml.org,2002:float", {
+      kind: "scalar",
+      resolve: resolveYamlFloat,
+      construct: constructYamlFloat,
+      predicate: isFloat,
+      represent: representYamlFloat,
+      defaultStyle: "lowercase"
+    });
+    return float;
+  }
+  var json;
+  var hasRequiredJson;
+  function requireJson() {
+    if (hasRequiredJson) return json;
+    hasRequiredJson = 1;
+    json = requireFailsafe().extend({
+      implicit: [
+        require_null(),
+        requireBool(),
+        requireInt(),
+        requireFloat()
+      ]
+    });
+    return json;
+  }
+  var core;
+  var hasRequiredCore;
+  function requireCore() {
+    if (hasRequiredCore) return core;
+    hasRequiredCore = 1;
+    core = requireJson();
+    return core;
+  }
+  var timestamp;
+  var hasRequiredTimestamp;
+  function requireTimestamp() {
+    if (hasRequiredTimestamp) return timestamp;
+    hasRequiredTimestamp = 1;
+    const Type2 = requireType();
+    const YAML_DATE_REGEXP = new RegExp(
+      "^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])$"
+    );
+    const YAML_TIMESTAMP_REGEXP = new RegExp(
+      "^([0-9][0-9][0-9][0-9])-([0-9][0-9]?)-([0-9][0-9]?)(?:[Tt]|[ \\t]+)([0-9][0-9]?):([0-9][0-9]):([0-9][0-9])(?:\\.([0-9]*))?(?:[ \\t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?$"
+    );
+    function resolveYamlTimestamp(data) {
+      if (data === null) return false;
+      if (YAML_DATE_REGEXP.exec(data) !== null) return true;
+      if (YAML_TIMESTAMP_REGEXP.exec(data) !== null) return true;
       return false;
     }
-    return true;
-  }
-  function constructYamlFloat(data) {
-    var value, sign;
-    value = data.replace(/_/g, "").toLowerCase();
-    sign = value[0] === "-" ? -1 : 1;
-    if ("+-".indexOf(value[0]) >= 0) {
-      value = value.slice(1);
-    }
-    if (value === ".inf") {
-      return sign === 1 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
-    } else if (value === ".nan") {
-      return NaN;
-    }
-    return sign * parseFloat(value, 10);
-  }
-  var SCIENTIFIC_WITHOUT_DOT = /^[-+]?[0-9]+e/;
-  function representYamlFloat(object, style) {
-    var res;
-    if (isNaN(object)) {
-      switch (style) {
-        case "lowercase":
-          return ".nan";
-        case "uppercase":
-          return ".NAN";
-        case "camelcase":
-          return ".NaN";
+    function constructYamlTimestamp(data) {
+      let fraction = 0;
+      let delta = null;
+      let match = YAML_DATE_REGEXP.exec(data);
+      if (match === null) match = YAML_TIMESTAMP_REGEXP.exec(data);
+      if (match === null) throw new Error("Date resolve error");
+      const year = +match[1];
+      const month = +match[2] - 1;
+      const day = +match[3];
+      if (!match[4]) {
+        return new Date(Date.UTC(year, month, day));
       }
-    } else if (Number.POSITIVE_INFINITY === object) {
-      switch (style) {
-        case "lowercase":
-          return ".inf";
-        case "uppercase":
-          return ".INF";
-        case "camelcase":
-          return ".Inf";
+      const hour = +match[4];
+      const minute = +match[5];
+      const second = +match[6];
+      if (match[7]) {
+        fraction = match[7].slice(0, 3);
+        while (fraction.length < 3) {
+          fraction += "0";
+        }
+        fraction = +fraction;
       }
-    } else if (Number.NEGATIVE_INFINITY === object) {
-      switch (style) {
-        case "lowercase":
-          return "-.inf";
-        case "uppercase":
-          return "-.INF";
-        case "camelcase":
-          return "-.Inf";
+      if (match[9]) {
+        const tzHour = +match[10];
+        const tzMinute = +(match[11] || 0);
+        delta = (tzHour * 60 + tzMinute) * 6e4;
+        if (match[9] === "-") delta = -delta;
       }
-    } else if (common.isNegativeZero(object)) {
-      return "-0.0";
+      const date = new Date(Date.UTC(year, month, day, hour, minute, second, fraction));
+      if (delta) date.setTime(date.getTime() - delta);
+      return date;
     }
-    res = object.toString(10);
-    return SCIENTIFIC_WITHOUT_DOT.test(res) ? res.replace("e", ".e") : res;
-  }
-  function isFloat(object) {
-    return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 !== 0 || common.isNegativeZero(object));
-  }
-  var float = new type("tag:yaml.org,2002:float", {
-    kind: "scalar",
-    resolve: resolveYamlFloat,
-    construct: constructYamlFloat,
-    predicate: isFloat,
-    represent: representYamlFloat,
-    defaultStyle: "lowercase"
-  });
-  var json = failsafe.extend({
-    implicit: [
-      _null,
-      bool,
-      int,
-      float
-    ]
-  });
-  var core = json;
-  var YAML_DATE_REGEXP = new RegExp(
-    "^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])$"
-  );
-  var YAML_TIMESTAMP_REGEXP = new RegExp(
-    "^([0-9][0-9][0-9][0-9])-([0-9][0-9]?)-([0-9][0-9]?)(?:[Tt]|[ \\t]+)([0-9][0-9]?):([0-9][0-9]):([0-9][0-9])(?:\\.([0-9]*))?(?:[ \\t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?$"
-  );
-  function resolveYamlTimestamp(data) {
-    if (data === null) return false;
-    if (YAML_DATE_REGEXP.exec(data) !== null) return true;
-    if (YAML_TIMESTAMP_REGEXP.exec(data) !== null) return true;
-    return false;
-  }
-  function constructYamlTimestamp(data) {
-    var match, year, month, day, hour, minute, second, fraction = 0, delta = null, tz_hour, tz_minute, date;
-    match = YAML_DATE_REGEXP.exec(data);
-    if (match === null) match = YAML_TIMESTAMP_REGEXP.exec(data);
-    if (match === null) throw new Error("Date resolve error");
-    year = +match[1];
-    month = +match[2] - 1;
-    day = +match[3];
-    if (!match[4]) {
-      return new Date(Date.UTC(year, month, day));
+    function representYamlTimestamp(object) {
+      return object.toISOString();
     }
-    hour = +match[4];
-    minute = +match[5];
-    second = +match[6];
-    if (match[7]) {
-      fraction = match[7].slice(0, 3);
-      while (fraction.length < 3) {
-        fraction += "0";
+    timestamp = new Type2("tag:yaml.org,2002:timestamp", {
+      kind: "scalar",
+      resolve: resolveYamlTimestamp,
+      construct: constructYamlTimestamp,
+      instanceOf: Date,
+      represent: representYamlTimestamp
+    });
+    return timestamp;
+  }
+  var merge;
+  var hasRequiredMerge;
+  function requireMerge() {
+    if (hasRequiredMerge) return merge;
+    hasRequiredMerge = 1;
+    const Type2 = requireType();
+    function resolveYamlMerge(data) {
+      return data === "<<" || data === null;
+    }
+    merge = new Type2("tag:yaml.org,2002:merge", {
+      kind: "scalar",
+      resolve: resolveYamlMerge
+    });
+    return merge;
+  }
+  var binary;
+  var hasRequiredBinary;
+  function requireBinary() {
+    if (hasRequiredBinary) return binary;
+    hasRequiredBinary = 1;
+    const Type2 = requireType();
+    const BASE64_MAP = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r";
+    function resolveYamlBinary(data) {
+      if (data === null) return false;
+      let bitlen = 0;
+      const max = data.length;
+      const map2 = BASE64_MAP;
+      for (let idx = 0; idx < max; idx++) {
+        const code = map2.indexOf(data.charAt(idx));
+        if (code > 64) continue;
+        if (code < 0) return false;
+        bitlen += 6;
       }
-      fraction = +fraction;
+      return bitlen % 8 === 0;
     }
-    if (match[9]) {
-      tz_hour = +match[10];
-      tz_minute = +(match[11] || 0);
-      delta = (tz_hour * 60 + tz_minute) * 6e4;
-      if (match[9] === "-") delta = -delta;
-    }
-    date = new Date(Date.UTC(year, month, day, hour, minute, second, fraction));
-    if (delta) date.setTime(date.getTime() - delta);
-    return date;
-  }
-  function representYamlTimestamp(object) {
-    return object.toISOString();
-  }
-  var timestamp = new type("tag:yaml.org,2002:timestamp", {
-    kind: "scalar",
-    resolve: resolveYamlTimestamp,
-    construct: constructYamlTimestamp,
-    instanceOf: Date,
-    represent: representYamlTimestamp
-  });
-  function resolveYamlMerge(data) {
-    return data === "<<" || data === null;
-  }
-  var merge = new type("tag:yaml.org,2002:merge", {
-    kind: "scalar",
-    resolve: resolveYamlMerge
-  });
-  var BASE64_MAP = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r";
-  function resolveYamlBinary(data) {
-    if (data === null) return false;
-    var code, idx, bitlen = 0, max = data.length, map2 = BASE64_MAP;
-    for (idx = 0; idx < max; idx++) {
-      code = map2.indexOf(data.charAt(idx));
-      if (code > 64) continue;
-      if (code < 0) return false;
-      bitlen += 6;
-    }
-    return bitlen % 8 === 0;
-  }
-  function constructYamlBinary(data) {
-    var idx, tailbits, input = data.replace(/[\r\n=]/g, ""), max = input.length, map2 = BASE64_MAP, bits = 0, result = [];
-    for (idx = 0; idx < max; idx++) {
-      if (idx % 4 === 0 && idx) {
+    function constructYamlBinary(data) {
+      const input = data.replace(/[\r\n=]/g, "");
+      const max = input.length;
+      const map2 = BASE64_MAP;
+      let bits = 0;
+      const result = [];
+      for (let idx = 0; idx < max; idx++) {
+        if (idx % 4 === 0 && idx) {
+          result.push(bits >> 16 & 255);
+          result.push(bits >> 8 & 255);
+          result.push(bits & 255);
+        }
+        bits = bits << 6 | map2.indexOf(input.charAt(idx));
+      }
+      const tailbits = max % 4 * 6;
+      if (tailbits === 0) {
         result.push(bits >> 16 & 255);
         result.push(bits >> 8 & 255);
         result.push(bits & 255);
+      } else if (tailbits === 18) {
+        result.push(bits >> 10 & 255);
+        result.push(bits >> 2 & 255);
+      } else if (tailbits === 12) {
+        result.push(bits >> 4 & 255);
       }
-      bits = bits << 6 | map2.indexOf(input.charAt(idx));
+      return new Uint8Array(result);
     }
-    tailbits = max % 4 * 6;
-    if (tailbits === 0) {
-      result.push(bits >> 16 & 255);
-      result.push(bits >> 8 & 255);
-      result.push(bits & 255);
-    } else if (tailbits === 18) {
-      result.push(bits >> 10 & 255);
-      result.push(bits >> 2 & 255);
-    } else if (tailbits === 12) {
-      result.push(bits >> 4 & 255);
-    }
-    return new Uint8Array(result);
-  }
-  function representYamlBinary(object) {
-    var result = "", bits = 0, idx, tail, max = object.length, map2 = BASE64_MAP;
-    for (idx = 0; idx < max; idx++) {
-      if (idx % 3 === 0 && idx) {
+    function representYamlBinary(object) {
+      let result = "";
+      let bits = 0;
+      const max = object.length;
+      const map2 = BASE64_MAP;
+      for (let idx = 0; idx < max; idx++) {
+        if (idx % 3 === 0 && idx) {
+          result += map2[bits >> 18 & 63];
+          result += map2[bits >> 12 & 63];
+          result += map2[bits >> 6 & 63];
+          result += map2[bits & 63];
+        }
+        bits = (bits << 8) + object[idx];
+      }
+      const tail = max % 3;
+      if (tail === 0) {
         result += map2[bits >> 18 & 63];
         result += map2[bits >> 12 & 63];
         result += map2[bits >> 6 & 63];
         result += map2[bits & 63];
+      } else if (tail === 2) {
+        result += map2[bits >> 10 & 63];
+        result += map2[bits >> 4 & 63];
+        result += map2[bits << 2 & 63];
+        result += map2[64];
+      } else if (tail === 1) {
+        result += map2[bits >> 2 & 63];
+        result += map2[bits << 4 & 63];
+        result += map2[64];
+        result += map2[64];
       }
-      bits = (bits << 8) + object[idx];
+      return result;
     }
-    tail = max % 3;
-    if (tail === 0) {
-      result += map2[bits >> 18 & 63];
-      result += map2[bits >> 12 & 63];
-      result += map2[bits >> 6 & 63];
-      result += map2[bits & 63];
-    } else if (tail === 2) {
-      result += map2[bits >> 10 & 63];
-      result += map2[bits >> 4 & 63];
-      result += map2[bits << 2 & 63];
-      result += map2[64];
-    } else if (tail === 1) {
-      result += map2[bits >> 2 & 63];
-      result += map2[bits << 4 & 63];
-      result += map2[64];
-      result += map2[64];
+    function isBinary(obj) {
+      return Object.prototype.toString.call(obj) === "[object Uint8Array]";
     }
-    return result;
+    binary = new Type2("tag:yaml.org,2002:binary", {
+      kind: "scalar",
+      resolve: resolveYamlBinary,
+      construct: constructYamlBinary,
+      predicate: isBinary,
+      represent: representYamlBinary
+    });
+    return binary;
   }
-  function isBinary(obj) {
-    return Object.prototype.toString.call(obj) === "[object Uint8Array]";
-  }
-  var binary = new type("tag:yaml.org,2002:binary", {
-    kind: "scalar",
-    resolve: resolveYamlBinary,
-    construct: constructYamlBinary,
-    predicate: isBinary,
-    represent: representYamlBinary
-  });
-  var _hasOwnProperty$3 = Object.prototype.hasOwnProperty;
-  var _toString$2 = Object.prototype.toString;
-  function resolveYamlOmap(data) {
-    if (data === null) return true;
-    var objectKeys = [], index2, length, pair, pairKey, pairHasKey, object = data;
-    for (index2 = 0, length = object.length; index2 < length; index2 += 1) {
-      pair = object[index2];
-      pairHasKey = false;
-      if (_toString$2.call(pair) !== "[object Object]") return false;
-      for (pairKey in pair) {
-        if (_hasOwnProperty$3.call(pair, pairKey)) {
-          if (!pairHasKey) pairHasKey = true;
-          else return false;
-        }
-      }
-      if (!pairHasKey) return false;
-      if (objectKeys.indexOf(pairKey) === -1) objectKeys.push(pairKey);
-      else return false;
-    }
-    return true;
-  }
-  function constructYamlOmap(data) {
-    return data !== null ? data : [];
-  }
-  var omap = new type("tag:yaml.org,2002:omap", {
-    kind: "sequence",
-    resolve: resolveYamlOmap,
-    construct: constructYamlOmap
-  });
-  var _toString$1 = Object.prototype.toString;
-  function resolveYamlPairs(data) {
-    if (data === null) return true;
-    var index2, length, pair, keys, result, object = data;
-    result = new Array(object.length);
-    for (index2 = 0, length = object.length; index2 < length; index2 += 1) {
-      pair = object[index2];
-      if (_toString$1.call(pair) !== "[object Object]") return false;
-      keys = Object.keys(pair);
-      if (keys.length !== 1) return false;
-      result[index2] = [keys[0], pair[keys[0]]];
-    }
-    return true;
-  }
-  function constructYamlPairs(data) {
-    if (data === null) return [];
-    var index2, length, pair, keys, result, object = data;
-    result = new Array(object.length);
-    for (index2 = 0, length = object.length; index2 < length; index2 += 1) {
-      pair = object[index2];
-      keys = Object.keys(pair);
-      result[index2] = [keys[0], pair[keys[0]]];
-    }
-    return result;
-  }
-  var pairs = new type("tag:yaml.org,2002:pairs", {
-    kind: "sequence",
-    resolve: resolveYamlPairs,
-    construct: constructYamlPairs
-  });
-  var _hasOwnProperty$2 = Object.prototype.hasOwnProperty;
-  function resolveYamlSet(data) {
-    if (data === null) return true;
-    var key2, object = data;
-    for (key2 in object) {
-      if (_hasOwnProperty$2.call(object, key2)) {
-        if (object[key2] !== null) return false;
-      }
-    }
-    return true;
-  }
-  function constructYamlSet(data) {
-    return data !== null ? data : {};
-  }
-  var set2 = new type("tag:yaml.org,2002:set", {
-    kind: "mapping",
-    resolve: resolveYamlSet,
-    construct: constructYamlSet
-  });
-  var _default = core.extend({
-    implicit: [
-      timestamp,
-      merge
-    ],
-    explicit: [
-      binary,
-      omap,
-      pairs,
-      set2
-    ]
-  });
-  var _hasOwnProperty$1 = Object.prototype.hasOwnProperty;
-  var CONTEXT_FLOW_IN = 1;
-  var CONTEXT_FLOW_OUT = 2;
-  var CONTEXT_BLOCK_IN = 3;
-  var CONTEXT_BLOCK_OUT = 4;
-  var CHOMPING_CLIP = 1;
-  var CHOMPING_STRIP = 2;
-  var CHOMPING_KEEP = 3;
-  var PATTERN_NON_PRINTABLE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x84\x86-\x9F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
-  var PATTERN_NON_ASCII_LINE_BREAKS = /[\x85\u2028\u2029]/;
-  var PATTERN_FLOW_INDICATORS = /[,\[\]\{\}]/;
-  var PATTERN_TAG_HANDLE = /^(?:!|!!|![a-z\-]+!)$/i;
-  var PATTERN_TAG_URI = /^(?:!|[^,\[\]\{\}])(?:%[0-9a-f]{2}|[0-9a-z\-#;\/\?:@&=\+\$,_\.!~\*'\(\)\[\]])*$/i;
-  function _class(obj) {
-    return Object.prototype.toString.call(obj);
-  }
-  function is_EOL(c) {
-    return c === 10 || c === 13;
-  }
-  function is_WHITE_SPACE(c) {
-    return c === 9 || c === 32;
-  }
-  function is_WS_OR_EOL(c) {
-    return c === 9 || c === 32 || c === 10 || c === 13;
-  }
-  function is_FLOW_INDICATOR(c) {
-    return c === 44 || c === 91 || c === 93 || c === 123 || c === 125;
-  }
-  function fromHexCode(c) {
-    var lc;
-    if (48 <= c && c <= 57) {
-      return c - 48;
-    }
-    lc = c | 32;
-    if (97 <= lc && lc <= 102) {
-      return lc - 97 + 10;
-    }
-    return -1;
-  }
-  function escapedHexLen(c) {
-    if (c === 120) {
-      return 2;
-    }
-    if (c === 117) {
-      return 4;
-    }
-    if (c === 85) {
-      return 8;
-    }
-    return 0;
-  }
-  function fromDecimalCode(c) {
-    if (48 <= c && c <= 57) {
-      return c - 48;
-    }
-    return -1;
-  }
-  function simpleEscapeSequence(c) {
-    return c === 48 ? "\0" : c === 97 ? "\x07" : c === 98 ? "\b" : c === 116 ? "	" : c === 9 ? "	" : c === 110 ? "\n" : c === 118 ? "\v" : c === 102 ? "\f" : c === 114 ? "\r" : c === 101 ? "\x1B" : c === 32 ? " " : c === 34 ? '"' : c === 47 ? "/" : c === 92 ? "\\" : c === 78 ? "\x85" : c === 95 ? "\xA0" : c === 76 ? "\u2028" : c === 80 ? "\u2029" : "";
-  }
-  function charFromCodepoint(c) {
-    if (c <= 65535) {
-      return String.fromCharCode(c);
-    }
-    return String.fromCharCode(
-      (c - 65536 >> 10) + 55296,
-      (c - 65536 & 1023) + 56320
-    );
-  }
-  function setProperty(object, key2, value) {
-    if (key2 === "__proto__") {
-      Object.defineProperty(object, key2, {
-        configurable: true,
-        enumerable: true,
-        writable: true,
-        value
-      });
-    } else {
-      object[key2] = value;
-    }
-  }
-  var simpleEscapeCheck = new Array(256);
-  var simpleEscapeMap = new Array(256);
-  for (i = 0; i < 256; i++) {
-    simpleEscapeCheck[i] = simpleEscapeSequence(i) ? 1 : 0;
-    simpleEscapeMap[i] = simpleEscapeSequence(i);
-  }
-  var i;
-  function State$1(input, options) {
-    this.input = input;
-    this.filename = options["filename"] || null;
-    this.schema = options["schema"] || _default;
-    this.onWarning = options["onWarning"] || null;
-    this.legacy = options["legacy"] || false;
-    this.json = options["json"] || false;
-    this.listener = options["listener"] || null;
-    this.implicitTypes = this.schema.compiledImplicit;
-    this.typeMap = this.schema.compiledTypeMap;
-    this.length = input.length;
-    this.position = 0;
-    this.line = 0;
-    this.lineStart = 0;
-    this.lineIndent = 0;
-    this.firstTabInLine = -1;
-    this.documents = [];
-  }
-  function generateError(state2, message) {
-    var mark = {
-      name: state2.filename,
-      buffer: state2.input.slice(0, -1),
-      // omit trailing \0
-      position: state2.position,
-      line: state2.line,
-      column: state2.position - state2.lineStart
-    };
-    mark.snippet = snippet2(mark);
-    return new exception(message, mark);
-  }
-  function throwError(state2, message) {
-    throw generateError(state2, message);
-  }
-  function throwWarning(state2, message) {
-    if (state2.onWarning) {
-      state2.onWarning.call(null, generateError(state2, message));
-    }
-  }
-  var directiveHandlers = {
-    YAML: function handleYamlDirective(state2, name, args) {
-      var match, major, minor;
-      if (state2.version !== null) {
-        throwError(state2, "duplication of %YAML directive");
-      }
-      if (args.length !== 1) {
-        throwError(state2, "YAML directive accepts exactly one argument");
-      }
-      match = /^([0-9]+)\.([0-9]+)$/.exec(args[0]);
-      if (match === null) {
-        throwError(state2, "ill-formed argument of the YAML directive");
-      }
-      major = parseInt(match[1], 10);
-      minor = parseInt(match[2], 10);
-      if (major !== 1) {
-        throwError(state2, "unacceptable YAML version of the document");
-      }
-      state2.version = args[0];
-      state2.checkLineBreaks = minor < 2;
-      if (minor !== 1 && minor !== 2) {
-        throwWarning(state2, "unsupported YAML version of the document");
-      }
-    },
-    TAG: function handleTagDirective(state2, name, args) {
-      var handle, prefix;
-      if (args.length !== 2) {
-        throwError(state2, "TAG directive accepts exactly two arguments");
-      }
-      handle = args[0];
-      prefix = args[1];
-      if (!PATTERN_TAG_HANDLE.test(handle)) {
-        throwError(state2, "ill-formed tag handle (first argument) of the TAG directive");
-      }
-      if (_hasOwnProperty$1.call(state2.tagMap, handle)) {
-        throwError(state2, 'there is a previously declared suffix for "' + handle + '" tag handle');
-      }
-      if (!PATTERN_TAG_URI.test(prefix)) {
-        throwError(state2, "ill-formed tag prefix (second argument) of the TAG directive");
-      }
-      try {
-        prefix = decodeURIComponent(prefix);
-      } catch (err) {
-        throwError(state2, "tag prefix is malformed: " + prefix);
-      }
-      state2.tagMap[handle] = prefix;
-    }
-  };
-  function captureSegment(state2, start, end, checkJson) {
-    var _position, _length, _character, _result;
-    if (start < end) {
-      _result = state2.input.slice(start, end);
-      if (checkJson) {
-        for (_position = 0, _length = _result.length; _position < _length; _position += 1) {
-          _character = _result.charCodeAt(_position);
-          if (!(_character === 9 || 32 <= _character && _character <= 1114111)) {
-            throwError(state2, "expected valid JSON character");
+  var omap;
+  var hasRequiredOmap;
+  function requireOmap() {
+    if (hasRequiredOmap) return omap;
+    hasRequiredOmap = 1;
+    const Type2 = requireType();
+    const _hasOwnProperty = Object.prototype.hasOwnProperty;
+    const _toString = Object.prototype.toString;
+    function resolveYamlOmap(data) {
+      if (data === null) return true;
+      const objectKeys = [];
+      const object = data;
+      for (let index2 = 0, length = object.length; index2 < length; index2 += 1) {
+        const pair = object[index2];
+        let pairHasKey = false;
+        if (_toString.call(pair) !== "[object Object]") return false;
+        let pairKey;
+        for (pairKey in pair) {
+          if (_hasOwnProperty.call(pair, pairKey)) {
+            if (!pairHasKey) pairHasKey = true;
+            else return false;
           }
         }
-      } else if (PATTERN_NON_PRINTABLE.test(_result)) {
-        throwError(state2, "the stream contains non-printable characters");
+        if (!pairHasKey) return false;
+        if (objectKeys.indexOf(pairKey) === -1) objectKeys.push(pairKey);
+        else return false;
       }
-      state2.result += _result;
+      return true;
     }
+    function constructYamlOmap(data) {
+      return data !== null ? data : [];
+    }
+    omap = new Type2("tag:yaml.org,2002:omap", {
+      kind: "sequence",
+      resolve: resolveYamlOmap,
+      construct: constructYamlOmap
+    });
+    return omap;
   }
-  function mergeMappings(state2, destination, source2, overridableKeys) {
-    var sourceKeys, key2, index2, quantity;
-    if (!common.isObject(source2)) {
-      throwError(state2, "cannot merge mappings; the provided source object is unacceptable");
-    }
-    sourceKeys = Object.keys(source2);
-    for (index2 = 0, quantity = sourceKeys.length; index2 < quantity; index2 += 1) {
-      key2 = sourceKeys[index2];
-      if (!_hasOwnProperty$1.call(destination, key2)) {
-        setProperty(destination, key2, source2[key2]);
-        overridableKeys[key2] = true;
+  var pairs;
+  var hasRequiredPairs;
+  function requirePairs() {
+    if (hasRequiredPairs) return pairs;
+    hasRequiredPairs = 1;
+    const Type2 = requireType();
+    const _toString = Object.prototype.toString;
+    function resolveYamlPairs(data) {
+      if (data === null) return true;
+      const object = data;
+      const result = new Array(object.length);
+      for (let index2 = 0, length = object.length; index2 < length; index2 += 1) {
+        const pair = object[index2];
+        if (_toString.call(pair) !== "[object Object]") return false;
+        const keys = Object.keys(pair);
+        if (keys.length !== 1) return false;
+        result[index2] = [keys[0], pair[keys[0]]];
       }
+      return true;
     }
+    function constructYamlPairs(data) {
+      if (data === null) return [];
+      const object = data;
+      const result = new Array(object.length);
+      for (let index2 = 0, length = object.length; index2 < length; index2 += 1) {
+        const pair = object[index2];
+        const keys = Object.keys(pair);
+        result[index2] = [keys[0], pair[keys[0]]];
+      }
+      return result;
+    }
+    pairs = new Type2("tag:yaml.org,2002:pairs", {
+      kind: "sequence",
+      resolve: resolveYamlPairs,
+      construct: constructYamlPairs
+    });
+    return pairs;
   }
-  function storeMappingPair(state2, _result, overridableKeys, keyTag, keyNode, valueNode, startLine, startLineStart, startPos) {
-    var index2, quantity;
-    if (Array.isArray(keyNode)) {
-      keyNode = Array.prototype.slice.call(keyNode);
-      for (index2 = 0, quantity = keyNode.length; index2 < quantity; index2 += 1) {
-        if (Array.isArray(keyNode[index2])) {
-          throwError(state2, "nested arrays are not supported inside keys");
+  var set2;
+  var hasRequiredSet;
+  function requireSet() {
+    if (hasRequiredSet) return set2;
+    hasRequiredSet = 1;
+    const Type2 = requireType();
+    const _hasOwnProperty = Object.prototype.hasOwnProperty;
+    function resolveYamlSet(data) {
+      if (data === null) return true;
+      const object = data;
+      for (const key2 in object) {
+        if (_hasOwnProperty.call(object, key2)) {
+          if (object[key2] !== null) return false;
         }
-        if (typeof keyNode === "object" && _class(keyNode[index2]) === "[object Object]") {
-          keyNode[index2] = "[object Object]";
+      }
+      return true;
+    }
+    function constructYamlSet(data) {
+      return data !== null ? data : {};
+    }
+    set2 = new Type2("tag:yaml.org,2002:set", {
+      kind: "mapping",
+      resolve: resolveYamlSet,
+      construct: constructYamlSet
+    });
+    return set2;
+  }
+  var _default;
+  var hasRequired_default;
+  function require_default() {
+    if (hasRequired_default) return _default;
+    hasRequired_default = 1;
+    _default = requireCore().extend({
+      implicit: [
+        requireTimestamp(),
+        requireMerge()
+      ],
+      explicit: [
+        requireBinary(),
+        requireOmap(),
+        requirePairs(),
+        requireSet()
+      ]
+    });
+    return _default;
+  }
+  var hasRequiredLoader;
+  function requireLoader() {
+    if (hasRequiredLoader) return loader;
+    hasRequiredLoader = 1;
+    const common2 = requireCommon();
+    const YAMLException2 = requireException();
+    const makeSnippet = requireSnippet();
+    const DEFAULT_SCHEMA2 = require_default();
+    const _hasOwnProperty = Object.prototype.hasOwnProperty;
+    const CONTEXT_FLOW_IN = 1;
+    const CONTEXT_FLOW_OUT = 2;
+    const CONTEXT_BLOCK_IN = 3;
+    const CONTEXT_BLOCK_OUT = 4;
+    const CHOMPING_CLIP = 1;
+    const CHOMPING_STRIP = 2;
+    const CHOMPING_KEEP = 3;
+    const PATTERN_NON_PRINTABLE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x84\x86-\x9F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
+    const PATTERN_NON_ASCII_LINE_BREAKS = /[\x85\u2028\u2029]/;
+    const PATTERN_FLOW_INDICATORS = /[,\[\]{}]/;
+    const PATTERN_TAG_HANDLE = /^(?:!|!!|![0-9A-Za-z-]+!)$/;
+    const PATTERN_TAG_URI = /^(?:!|[^,\[\]{}])(?:%[0-9a-f]{2}|[0-9a-z\-#;/?:@&=+$,_.!~*'()\[\]])*$/i;
+    function _class(obj) {
+      return Object.prototype.toString.call(obj);
+    }
+    function isEol(c) {
+      return c === 10 || c === 13;
+    }
+    function isWhiteSpace(c) {
+      return c === 9 || c === 32;
+    }
+    function isWsOrEol(c) {
+      return c === 9 || c === 32 || c === 10 || c === 13;
+    }
+    function isFlowIndicator(c) {
+      return c === 44 || c === 91 || c === 93 || c === 123 || c === 125;
+    }
+    function fromHexCode(c) {
+      if (c >= 48 && c <= 57) {
+        return c - 48;
+      }
+      const lc = c | 32;
+      if (lc >= 97 && lc <= 102) {
+        return lc - 97 + 10;
+      }
+      return -1;
+    }
+    function escapedHexLen(c) {
+      if (c === 120) {
+        return 2;
+      }
+      if (c === 117) {
+        return 4;
+      }
+      if (c === 85) {
+        return 8;
+      }
+      return 0;
+    }
+    function fromDecimalCode(c) {
+      if (c >= 48 && c <= 57) {
+        return c - 48;
+      }
+      return -1;
+    }
+    function simpleEscapeSequence(c) {
+      switch (c) {
+        case 48:
+          return "\0";
+        case 97:
+          return "\x07";
+        case 98:
+          return "\b";
+        case 116:
+          return "	";
+        case 9:
+          return "	";
+        case 110:
+          return "\n";
+        case 118:
+          return "\v";
+        case 102:
+          return "\f";
+        case 114:
+          return "\r";
+        case 101:
+          return "\x1B";
+        case 32:
+          return " ";
+        case 34:
+          return '"';
+        case 47:
+          return "/";
+        case 92:
+          return "\\";
+        case 78:
+          return "\x85";
+        case 95:
+          return "\xA0";
+        case 76:
+          return "\u2028";
+        case 80:
+          return "\u2029";
+        default:
+          return "";
+      }
+    }
+    function charFromCodepoint(c) {
+      if (c <= 65535) {
+        return String.fromCharCode(c);
+      }
+      return String.fromCharCode(
+        (c - 65536 >> 10) + 55296,
+        (c - 65536 & 1023) + 56320
+      );
+    }
+    function setProperty(object, key2, value) {
+      if (key2 === "__proto__") {
+        Object.defineProperty(object, key2, {
+          configurable: true,
+          enumerable: true,
+          writable: true,
+          value
+        });
+      } else {
+        object[key2] = value;
+      }
+    }
+    const simpleEscapeCheck = new Array(256);
+    const simpleEscapeMap = new Array(256);
+    for (let i = 0; i < 256; i++) {
+      simpleEscapeCheck[i] = simpleEscapeSequence(i) ? 1 : 0;
+      simpleEscapeMap[i] = simpleEscapeSequence(i);
+    }
+    function State(input, options) {
+      this.input = input;
+      this.filename = options["filename"] || null;
+      this.schema = options["schema"] || DEFAULT_SCHEMA2;
+      this.onWarning = options["onWarning"] || null;
+      this.legacy = options["legacy"] || false;
+      this.json = options["json"] || false;
+      this.listener = options["listener"] || null;
+      this.maxDepth = typeof options["maxDepth"] === "number" ? options["maxDepth"] : 100;
+      this.maxTotalMergeKeys = typeof options["maxTotalMergeKeys"] === "number" ? options["maxTotalMergeKeys"] : 1e4;
+      this.implicitTypes = this.schema.compiledImplicit;
+      this.typeMap = this.schema.compiledTypeMap;
+      this.length = input.length;
+      this.position = 0;
+      this.line = 0;
+      this.lineStart = 0;
+      this.lineIndent = 0;
+      this.depth = 0;
+      this.totalMergeKeys = 0;
+      this.firstTabInLine = -1;
+      this.documents = [];
+      this.anchorMapTransactions = [];
+    }
+    function generateError(state2, message) {
+      const mark = {
+        name: state2.filename,
+        buffer: state2.input.slice(0, -1),
+        // omit trailing \0
+        position: state2.position,
+        line: state2.line,
+        column: state2.position - state2.lineStart
+      };
+      mark.snippet = makeSnippet(mark);
+      return new YAMLException2(message, mark);
+    }
+    function throwError(state2, message) {
+      throw generateError(state2, message);
+    }
+    function throwWarning(state2, message) {
+      if (state2.onWarning) {
+        state2.onWarning.call(null, generateError(state2, message));
+      }
+    }
+    function storeAnchor(state2, name, value) {
+      const transactions = state2.anchorMapTransactions;
+      if (transactions.length !== 0) {
+        const transaction = transactions[transactions.length - 1];
+        if (!_hasOwnProperty.call(transaction, name)) {
+          transaction[name] = {
+            existed: _hasOwnProperty.call(state2.anchorMap, name),
+            value: state2.anchorMap[name]
+          };
+        }
+      }
+      state2.anchorMap[name] = value;
+    }
+    function beginAnchorTransaction(state2) {
+      state2.anchorMapTransactions.push(/* @__PURE__ */ Object.create(null));
+    }
+    function commitAnchorTransaction(state2) {
+      const transaction = state2.anchorMapTransactions.pop();
+      const transactions = state2.anchorMapTransactions;
+      if (transactions.length === 0) return;
+      const parent = transactions[transactions.length - 1];
+      const names = Object.keys(transaction);
+      for (let index2 = 0, length = names.length; index2 < length; index2 += 1) {
+        const name = names[index2];
+        if (!_hasOwnProperty.call(parent, name)) {
+          parent[name] = transaction[name];
         }
       }
     }
-    if (typeof keyNode === "object" && _class(keyNode) === "[object Object]") {
-      keyNode = "[object Object]";
+    function rollbackAnchorTransaction(state2) {
+      const transaction = state2.anchorMapTransactions.pop();
+      const names = Object.keys(transaction);
+      for (let index2 = names.length - 1; index2 >= 0; index2 -= 1) {
+        const entry = transaction[names[index2]];
+        if (entry.existed) {
+          state2.anchorMap[names[index2]] = entry.value;
+        } else {
+          delete state2.anchorMap[names[index2]];
+        }
+      }
     }
-    keyNode = String(keyNode);
-    if (_result === null) {
-      _result = {};
+    function snapshotState(state2) {
+      return {
+        position: state2.position,
+        line: state2.line,
+        lineStart: state2.lineStart,
+        lineIndent: state2.lineIndent,
+        firstTabInLine: state2.firstTabInLine,
+        tag: state2.tag,
+        anchor: state2.anchor,
+        kind: state2.kind,
+        result: state2.result
+      };
     }
-    if (keyTag === "tag:yaml.org,2002:merge") {
-      if (Array.isArray(valueNode)) {
-        for (index2 = 0, quantity = valueNode.length; index2 < quantity; index2 += 1) {
-          mergeMappings(state2, _result, valueNode[index2], overridableKeys);
+    function restoreState(state2, snapshot2) {
+      state2.position = snapshot2.position;
+      state2.line = snapshot2.line;
+      state2.lineStart = snapshot2.lineStart;
+      state2.lineIndent = snapshot2.lineIndent;
+      state2.firstTabInLine = snapshot2.firstTabInLine;
+      state2.tag = snapshot2.tag;
+      state2.anchor = snapshot2.anchor;
+      state2.kind = snapshot2.kind;
+      state2.result = snapshot2.result;
+    }
+    const directiveHandlers = {
+      YAML: function handleYamlDirective(state2, name, args) {
+        if (state2.version !== null) {
+          throwError(state2, "duplication of %YAML directive");
+        }
+        if (args.length !== 1) {
+          throwError(state2, "YAML directive accepts exactly one argument");
+        }
+        const match = /^([0-9]+)\.([0-9]+)$/.exec(args[0]);
+        if (match === null) {
+          throwError(state2, "ill-formed argument of the YAML directive");
+        }
+        const major = parseInt(match[1], 10);
+        const minor = parseInt(match[2], 10);
+        if (major !== 1) {
+          throwError(state2, "unacceptable YAML version of the document");
+        }
+        state2.version = args[0];
+        state2.checkLineBreaks = minor < 2;
+        if (minor !== 1 && minor !== 2) {
+          throwWarning(state2, "unsupported YAML version of the document");
+        }
+      },
+      TAG: function handleTagDirective(state2, name, args) {
+        let prefix;
+        if (args.length !== 2) {
+          throwError(state2, "TAG directive accepts exactly two arguments");
+        }
+        const handle = args[0];
+        prefix = args[1];
+        if (!PATTERN_TAG_HANDLE.test(handle)) {
+          throwError(state2, "ill-formed tag handle (first argument) of the TAG directive");
+        }
+        if (_hasOwnProperty.call(state2.tagMap, handle)) {
+          throwError(state2, 'there is a previously declared suffix for "' + handle + '" tag handle');
+        }
+        if (!PATTERN_TAG_URI.test(prefix)) {
+          throwError(state2, "ill-formed tag prefix (second argument) of the TAG directive");
+        }
+        try {
+          prefix = decodeURIComponent(prefix);
+        } catch (err) {
+          throwError(state2, "tag prefix is malformed: " + prefix);
+        }
+        state2.tagMap[handle] = prefix;
+      }
+    };
+    function captureSegment(state2, start, end, checkJson) {
+      if (start < end) {
+        const _result = state2.input.slice(start, end);
+        if (checkJson) {
+          for (let _position = 0, _length = _result.length; _position < _length; _position += 1) {
+            const _character = _result.charCodeAt(_position);
+            if (!(_character === 9 || _character >= 32 && _character <= 1114111)) {
+              throwError(state2, "expected valid JSON character");
+            }
+          }
+        } else if (PATTERN_NON_PRINTABLE.test(_result)) {
+          throwError(state2, "the stream contains non-printable characters");
+        }
+        state2.result += _result;
+      }
+    }
+    function mergeMappings(state2, destination, source2, overridableKeys) {
+      if (!common2.isObject(source2)) {
+        throwError(state2, "cannot merge mappings; the provided source object is unacceptable");
+      }
+      const sourceKeys = Object.keys(source2);
+      for (let index2 = 0, quantity = sourceKeys.length; index2 < quantity; index2 += 1) {
+        const key2 = sourceKeys[index2];
+        if (state2.maxTotalMergeKeys !== -1 && ++state2.totalMergeKeys > state2.maxTotalMergeKeys) {
+          throwError(state2, "merge keys exceeded maxTotalMergeKeys (" + state2.maxTotalMergeKeys + ")");
+        }
+        if (!_hasOwnProperty.call(destination, key2)) {
+          setProperty(destination, key2, source2[key2]);
+          overridableKeys[key2] = true;
+        }
+      }
+    }
+    function storeMappingPair(state2, _result, overridableKeys, keyTag, keyNode, valueNode, startLine, startLineStart, startPos) {
+      if (Array.isArray(keyNode)) {
+        keyNode = Array.prototype.slice.call(keyNode);
+        for (let index2 = 0, quantity = keyNode.length; index2 < quantity; index2 += 1) {
+          if (Array.isArray(keyNode[index2])) {
+            throwError(state2, "nested arrays are not supported inside keys");
+          }
+          if (typeof keyNode === "object" && _class(keyNode[index2]) === "[object Object]") {
+            keyNode[index2] = "[object Object]";
+          }
+        }
+      }
+      if (typeof keyNode === "object" && _class(keyNode) === "[object Object]") {
+        keyNode = "[object Object]";
+      }
+      keyNode = String(keyNode);
+      if (_result === null) {
+        _result = {};
+      }
+      if (keyTag === "tag:yaml.org,2002:merge") {
+        if (Array.isArray(valueNode)) {
+          for (let index2 = 0, quantity = valueNode.length; index2 < quantity; index2 += 1) {
+            mergeMappings(state2, _result, valueNode[index2], overridableKeys);
+          }
+        } else {
+          mergeMappings(state2, _result, valueNode, overridableKeys);
         }
       } else {
-        mergeMappings(state2, _result, valueNode, overridableKeys);
+        if (!state2.json && !_hasOwnProperty.call(overridableKeys, keyNode) && _hasOwnProperty.call(_result, keyNode)) {
+          state2.line = startLine || state2.line;
+          state2.lineStart = startLineStart || state2.lineStart;
+          state2.position = startPos || state2.position;
+          throwError(state2, "duplicated mapping key");
+        }
+        setProperty(_result, keyNode, valueNode);
+        delete overridableKeys[keyNode];
       }
-    } else {
-      if (!state2.json && !_hasOwnProperty$1.call(overridableKeys, keyNode) && _hasOwnProperty$1.call(_result, keyNode)) {
-        state2.line = startLine || state2.line;
-        state2.lineStart = startLineStart || state2.lineStart;
-        state2.position = startPos || state2.position;
-        throwError(state2, "duplicated mapping key");
-      }
-      setProperty(_result, keyNode, valueNode);
-      delete overridableKeys[keyNode];
+      return _result;
     }
-    return _result;
-  }
-  function readLineBreak(state2) {
-    var ch;
-    ch = state2.input.charCodeAt(state2.position);
-    if (ch === 10) {
-      state2.position++;
-    } else if (ch === 13) {
-      state2.position++;
-      if (state2.input.charCodeAt(state2.position) === 10) {
+    function readLineBreak(state2) {
+      const ch = state2.input.charCodeAt(state2.position);
+      if (ch === 10) {
         state2.position++;
+      } else if (ch === 13) {
+        state2.position++;
+        if (state2.input.charCodeAt(state2.position) === 10) {
+          state2.position++;
+        }
+      } else {
+        throwError(state2, "a line break is expected");
       }
-    } else {
-      throwError(state2, "a line break is expected");
+      state2.line += 1;
+      state2.lineStart = state2.position;
+      state2.firstTabInLine = -1;
     }
-    state2.line += 1;
-    state2.lineStart = state2.position;
-    state2.firstTabInLine = -1;
-  }
-  function skipSeparationSpace(state2, allowComments, checkIndent) {
-    var lineBreaks = 0, ch = state2.input.charCodeAt(state2.position);
-    while (ch !== 0) {
-      while (is_WHITE_SPACE(ch)) {
-        if (ch === 9 && state2.firstTabInLine === -1) {
-          state2.firstTabInLine = state2.position;
+    function skipSeparationSpace(state2, allowComments, checkIndent) {
+      let lineBreaks = 0;
+      let ch = state2.input.charCodeAt(state2.position);
+      while (ch !== 0) {
+        while (isWhiteSpace(ch)) {
+          if (ch === 9 && state2.firstTabInLine === -1) {
+            state2.firstTabInLine = state2.position;
+          }
+          ch = state2.input.charCodeAt(++state2.position);
+        }
+        if (allowComments && ch === 35) {
+          do {
+            ch = state2.input.charCodeAt(++state2.position);
+          } while (ch !== 10 && ch !== 13 && ch !== 0);
+        }
+        if (isEol(ch)) {
+          readLineBreak(state2);
+          ch = state2.input.charCodeAt(state2.position);
+          lineBreaks++;
+          state2.lineIndent = 0;
+          while (ch === 32) {
+            state2.lineIndent++;
+            ch = state2.input.charCodeAt(++state2.position);
+          }
+        } else {
+          break;
+        }
+      }
+      if (checkIndent !== -1 && lineBreaks !== 0 && state2.lineIndent < checkIndent) {
+        throwWarning(state2, "deficient indentation");
+      }
+      return lineBreaks;
+    }
+    function testDocumentSeparator(state2) {
+      let _position = state2.position;
+      let ch = state2.input.charCodeAt(_position);
+      if ((ch === 45 || ch === 46) && ch === state2.input.charCodeAt(_position + 1) && ch === state2.input.charCodeAt(_position + 2)) {
+        _position += 3;
+        ch = state2.input.charCodeAt(_position);
+        if (ch === 0 || isWsOrEol(ch)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    function writeFoldedLines(state2, count) {
+      if (count === 1) {
+        state2.result += " ";
+      } else if (count > 1) {
+        state2.result += common2.repeat("\n", count - 1);
+      }
+    }
+    function readPlainScalar(state2, nodeIndent, withinFlowCollection) {
+      let captureStart;
+      let captureEnd;
+      let hasPendingContent;
+      let _line;
+      let _lineStart;
+      let _lineIndent;
+      const _kind = state2.kind;
+      const _result = state2.result;
+      let ch = state2.input.charCodeAt(state2.position);
+      if (isWsOrEol(ch) || isFlowIndicator(ch) || ch === 35 || ch === 38 || ch === 42 || ch === 33 || ch === 124 || ch === 62 || ch === 39 || ch === 34 || ch === 37 || ch === 64 || ch === 96) {
+        return false;
+      }
+      if (ch === 63 || ch === 45) {
+        const following = state2.input.charCodeAt(state2.position + 1);
+        if (isWsOrEol(following) || withinFlowCollection && isFlowIndicator(following)) {
+          return false;
+        }
+      }
+      state2.kind = "scalar";
+      state2.result = "";
+      captureStart = captureEnd = state2.position;
+      hasPendingContent = false;
+      while (ch !== 0) {
+        if (ch === 58) {
+          const following = state2.input.charCodeAt(state2.position + 1);
+          if (isWsOrEol(following) || withinFlowCollection && isFlowIndicator(following)) {
+            break;
+          }
+        } else if (ch === 35) {
+          const preceding = state2.input.charCodeAt(state2.position - 1);
+          if (isWsOrEol(preceding)) {
+            break;
+          }
+        } else if (state2.position === state2.lineStart && testDocumentSeparator(state2) || withinFlowCollection && isFlowIndicator(ch)) {
+          break;
+        } else if (isEol(ch)) {
+          _line = state2.line;
+          _lineStart = state2.lineStart;
+          _lineIndent = state2.lineIndent;
+          skipSeparationSpace(state2, false, -1);
+          if (state2.lineIndent >= nodeIndent) {
+            hasPendingContent = true;
+            ch = state2.input.charCodeAt(state2.position);
+            continue;
+          } else {
+            state2.position = captureEnd;
+            state2.line = _line;
+            state2.lineStart = _lineStart;
+            state2.lineIndent = _lineIndent;
+            break;
+          }
+        }
+        if (hasPendingContent) {
+          captureSegment(state2, captureStart, captureEnd, false);
+          writeFoldedLines(state2, state2.line - _line);
+          captureStart = captureEnd = state2.position;
+          hasPendingContent = false;
+        }
+        if (!isWhiteSpace(ch)) {
+          captureEnd = state2.position + 1;
         }
         ch = state2.input.charCodeAt(++state2.position);
       }
-      if (allowComments && ch === 35) {
+      captureSegment(state2, captureStart, captureEnd, false);
+      if (state2.result) {
+        return true;
+      }
+      state2.kind = _kind;
+      state2.result = _result;
+      return false;
+    }
+    function readSingleQuotedScalar(state2, nodeIndent) {
+      let captureStart;
+      let captureEnd;
+      let ch = state2.input.charCodeAt(state2.position);
+      if (ch !== 39) {
+        return false;
+      }
+      state2.kind = "scalar";
+      state2.result = "";
+      state2.position++;
+      captureStart = captureEnd = state2.position;
+      while ((ch = state2.input.charCodeAt(state2.position)) !== 0) {
+        if (ch === 39) {
+          captureSegment(state2, captureStart, state2.position, true);
+          ch = state2.input.charCodeAt(++state2.position);
+          if (ch === 39) {
+            captureStart = state2.position;
+            state2.position++;
+            captureEnd = state2.position;
+          } else {
+            return true;
+          }
+        } else if (isEol(ch)) {
+          captureSegment(state2, captureStart, captureEnd, true);
+          writeFoldedLines(state2, skipSeparationSpace(state2, false, nodeIndent));
+          captureStart = captureEnd = state2.position;
+        } else if (state2.position === state2.lineStart && testDocumentSeparator(state2)) {
+          throwError(state2, "unexpected end of the document within a single quoted scalar");
+        } else {
+          state2.position++;
+          if (!isWhiteSpace(ch)) {
+            captureEnd = state2.position;
+          }
+        }
+      }
+      throwError(state2, "unexpected end of the stream within a single quoted scalar");
+    }
+    function readDoubleQuotedScalar(state2, nodeIndent) {
+      let captureStart;
+      let captureEnd;
+      let tmp;
+      let ch = state2.input.charCodeAt(state2.position);
+      if (ch !== 34) {
+        return false;
+      }
+      state2.kind = "scalar";
+      state2.result = "";
+      state2.position++;
+      captureStart = captureEnd = state2.position;
+      while ((ch = state2.input.charCodeAt(state2.position)) !== 0) {
+        if (ch === 34) {
+          captureSegment(state2, captureStart, state2.position, true);
+          state2.position++;
+          return true;
+        } else if (ch === 92) {
+          captureSegment(state2, captureStart, state2.position, true);
+          ch = state2.input.charCodeAt(++state2.position);
+          if (isEol(ch)) {
+            skipSeparationSpace(state2, false, nodeIndent);
+          } else if (ch < 256 && simpleEscapeCheck[ch]) {
+            state2.result += simpleEscapeMap[ch];
+            state2.position++;
+          } else if ((tmp = escapedHexLen(ch)) > 0) {
+            let hexLength = tmp;
+            let hexResult = 0;
+            for (; hexLength > 0; hexLength--) {
+              ch = state2.input.charCodeAt(++state2.position);
+              if ((tmp = fromHexCode(ch)) >= 0) {
+                hexResult = (hexResult << 4) + tmp;
+              } else {
+                throwError(state2, "expected hexadecimal character");
+              }
+            }
+            state2.result += charFromCodepoint(hexResult);
+            state2.position++;
+          } else {
+            throwError(state2, "unknown escape sequence");
+          }
+          captureStart = captureEnd = state2.position;
+        } else if (isEol(ch)) {
+          captureSegment(state2, captureStart, captureEnd, true);
+          writeFoldedLines(state2, skipSeparationSpace(state2, false, nodeIndent));
+          captureStart = captureEnd = state2.position;
+        } else if (state2.position === state2.lineStart && testDocumentSeparator(state2)) {
+          throwError(state2, "unexpected end of the document within a double quoted scalar");
+        } else {
+          state2.position++;
+          if (!isWhiteSpace(ch)) {
+            captureEnd = state2.position;
+          }
+        }
+      }
+      throwError(state2, "unexpected end of the stream within a double quoted scalar");
+    }
+    function readFlowCollection(state2, nodeIndent) {
+      let readNext = true;
+      let _line;
+      let _lineStart;
+      let _pos;
+      const _tag = state2.tag;
+      let _result;
+      const _anchor2 = state2.anchor;
+      let terminator;
+      let isPair;
+      let isExplicitPair;
+      let isMapping;
+      const overridableKeys = /* @__PURE__ */ Object.create(null);
+      let keyNode;
+      let keyTag;
+      let valueNode;
+      let ch = state2.input.charCodeAt(state2.position);
+      if (ch === 91) {
+        terminator = 93;
+        isMapping = false;
+        _result = [];
+      } else if (ch === 123) {
+        terminator = 125;
+        isMapping = true;
+        _result = {};
+      } else {
+        return false;
+      }
+      if (state2.anchor !== null) {
+        storeAnchor(state2, state2.anchor, _result);
+      }
+      ch = state2.input.charCodeAt(++state2.position);
+      while (ch !== 0) {
+        skipSeparationSpace(state2, true, nodeIndent);
+        ch = state2.input.charCodeAt(state2.position);
+        if (ch === terminator) {
+          state2.position++;
+          state2.tag = _tag;
+          state2.anchor = _anchor2;
+          state2.kind = isMapping ? "mapping" : "sequence";
+          state2.result = _result;
+          return true;
+        } else if (!readNext) {
+          throwError(state2, "missed comma between flow collection entries");
+        } else if (ch === 44) {
+          throwError(state2, "expected the node content, but found ','");
+        }
+        keyTag = keyNode = valueNode = null;
+        isPair = isExplicitPair = false;
+        if (ch === 63) {
+          const following = state2.input.charCodeAt(state2.position + 1);
+          if (isWsOrEol(following)) {
+            isPair = isExplicitPair = true;
+            state2.position++;
+            skipSeparationSpace(state2, true, nodeIndent);
+          }
+        }
+        _line = state2.line;
+        _lineStart = state2.lineStart;
+        _pos = state2.position;
+        composeNode(state2, nodeIndent, CONTEXT_FLOW_IN, false, true);
+        keyTag = state2.tag;
+        keyNode = state2.result;
+        skipSeparationSpace(state2, true, nodeIndent);
+        ch = state2.input.charCodeAt(state2.position);
+        if ((isExplicitPair || state2.line === _line) && ch === 58) {
+          isPair = true;
+          ch = state2.input.charCodeAt(++state2.position);
+          skipSeparationSpace(state2, true, nodeIndent);
+          composeNode(state2, nodeIndent, CONTEXT_FLOW_IN, false, true);
+          valueNode = state2.result;
+        }
+        if (isMapping) {
+          storeMappingPair(state2, _result, overridableKeys, keyTag, keyNode, valueNode, _line, _lineStart, _pos);
+        } else if (isPair) {
+          _result.push(storeMappingPair(state2, null, overridableKeys, keyTag, keyNode, valueNode, _line, _lineStart, _pos));
+        } else {
+          _result.push(keyNode);
+        }
+        skipSeparationSpace(state2, true, nodeIndent);
+        ch = state2.input.charCodeAt(state2.position);
+        if (ch === 44) {
+          readNext = true;
+          ch = state2.input.charCodeAt(++state2.position);
+        } else {
+          readNext = false;
+        }
+      }
+      throwError(state2, "unexpected end of the stream within a flow collection");
+    }
+    function readBlockScalar(state2, nodeIndent) {
+      let folding;
+      let chomping = CHOMPING_CLIP;
+      let didReadContent = false;
+      let detectedIndent = false;
+      let textIndent = nodeIndent;
+      let emptyLines = 0;
+      let atMoreIndented = false;
+      let tmp;
+      let ch = state2.input.charCodeAt(state2.position);
+      if (ch === 124) {
+        folding = false;
+      } else if (ch === 62) {
+        folding = true;
+      } else {
+        return false;
+      }
+      state2.kind = "scalar";
+      state2.result = "";
+      while (ch !== 0) {
+        ch = state2.input.charCodeAt(++state2.position);
+        if (ch === 43 || ch === 45) {
+          if (CHOMPING_CLIP === chomping) {
+            chomping = ch === 43 ? CHOMPING_KEEP : CHOMPING_STRIP;
+          } else {
+            throwError(state2, "repeat of a chomping mode identifier");
+          }
+        } else if ((tmp = fromDecimalCode(ch)) >= 0) {
+          if (tmp === 0) {
+            throwError(state2, "bad explicit indentation width of a block scalar; it cannot be less than one");
+          } else if (!detectedIndent) {
+            textIndent = nodeIndent + tmp - 1;
+            detectedIndent = true;
+          } else {
+            throwError(state2, "repeat of an indentation width identifier");
+          }
+        } else {
+          break;
+        }
+      }
+      if (isWhiteSpace(ch)) {
         do {
           ch = state2.input.charCodeAt(++state2.position);
-        } while (ch !== 10 && ch !== 13 && ch !== 0);
+        } while (isWhiteSpace(ch));
+        if (ch === 35) {
+          do {
+            ch = state2.input.charCodeAt(++state2.position);
+          } while (!isEol(ch) && ch !== 0);
+        }
       }
-      if (is_EOL(ch)) {
+      while (ch !== 0) {
         readLineBreak(state2);
-        ch = state2.input.charCodeAt(state2.position);
-        lineBreaks++;
         state2.lineIndent = 0;
-        while (ch === 32) {
+        ch = state2.input.charCodeAt(state2.position);
+        while ((!detectedIndent || state2.lineIndent < textIndent) && ch === 32) {
           state2.lineIndent++;
           ch = state2.input.charCodeAt(++state2.position);
         }
-      } else {
-        break;
-      }
-    }
-    if (checkIndent !== -1 && lineBreaks !== 0 && state2.lineIndent < checkIndent) {
-      throwWarning(state2, "deficient indentation");
-    }
-    return lineBreaks;
-  }
-  function testDocumentSeparator(state2) {
-    var _position = state2.position, ch;
-    ch = state2.input.charCodeAt(_position);
-    if ((ch === 45 || ch === 46) && ch === state2.input.charCodeAt(_position + 1) && ch === state2.input.charCodeAt(_position + 2)) {
-      _position += 3;
-      ch = state2.input.charCodeAt(_position);
-      if (ch === 0 || is_WS_OR_EOL(ch)) {
-        return true;
-      }
-    }
-    return false;
-  }
-  function writeFoldedLines(state2, count) {
-    if (count === 1) {
-      state2.result += " ";
-    } else if (count > 1) {
-      state2.result += common.repeat("\n", count - 1);
-    }
-  }
-  function readPlainScalar(state2, nodeIndent, withinFlowCollection) {
-    var preceding, following, captureStart, captureEnd, hasPendingContent, _line, _lineStart, _lineIndent, _kind = state2.kind, _result = state2.result, ch;
-    ch = state2.input.charCodeAt(state2.position);
-    if (is_WS_OR_EOL(ch) || is_FLOW_INDICATOR(ch) || ch === 35 || ch === 38 || ch === 42 || ch === 33 || ch === 124 || ch === 62 || ch === 39 || ch === 34 || ch === 37 || ch === 64 || ch === 96) {
-      return false;
-    }
-    if (ch === 63 || ch === 45) {
-      following = state2.input.charCodeAt(state2.position + 1);
-      if (is_WS_OR_EOL(following) || withinFlowCollection && is_FLOW_INDICATOR(following)) {
-        return false;
-      }
-    }
-    state2.kind = "scalar";
-    state2.result = "";
-    captureStart = captureEnd = state2.position;
-    hasPendingContent = false;
-    while (ch !== 0) {
-      if (ch === 58) {
-        following = state2.input.charCodeAt(state2.position + 1);
-        if (is_WS_OR_EOL(following) || withinFlowCollection && is_FLOW_INDICATOR(following)) {
-          break;
+        if (!detectedIndent && state2.lineIndent > textIndent) {
+          textIndent = state2.lineIndent;
         }
-      } else if (ch === 35) {
-        preceding = state2.input.charCodeAt(state2.position - 1);
-        if (is_WS_OR_EOL(preceding)) {
-          break;
-        }
-      } else if (state2.position === state2.lineStart && testDocumentSeparator(state2) || withinFlowCollection && is_FLOW_INDICATOR(ch)) {
-        break;
-      } else if (is_EOL(ch)) {
-        _line = state2.line;
-        _lineStart = state2.lineStart;
-        _lineIndent = state2.lineIndent;
-        skipSeparationSpace(state2, false, -1);
-        if (state2.lineIndent >= nodeIndent) {
-          hasPendingContent = true;
-          ch = state2.input.charCodeAt(state2.position);
+        if (isEol(ch)) {
+          emptyLines++;
           continue;
-        } else {
-          state2.position = captureEnd;
-          state2.line = _line;
-          state2.lineStart = _lineStart;
-          state2.lineIndent = _lineIndent;
-          break;
         }
-      }
-      if (hasPendingContent) {
-        captureSegment(state2, captureStart, captureEnd, false);
-        writeFoldedLines(state2, state2.line - _line);
-        captureStart = captureEnd = state2.position;
-        hasPendingContent = false;
-      }
-      if (!is_WHITE_SPACE(ch)) {
-        captureEnd = state2.position + 1;
-      }
-      ch = state2.input.charCodeAt(++state2.position);
-    }
-    captureSegment(state2, captureStart, captureEnd, false);
-    if (state2.result) {
-      return true;
-    }
-    state2.kind = _kind;
-    state2.result = _result;
-    return false;
-  }
-  function readSingleQuotedScalar(state2, nodeIndent) {
-    var ch, captureStart, captureEnd;
-    ch = state2.input.charCodeAt(state2.position);
-    if (ch !== 39) {
-      return false;
-    }
-    state2.kind = "scalar";
-    state2.result = "";
-    state2.position++;
-    captureStart = captureEnd = state2.position;
-    while ((ch = state2.input.charCodeAt(state2.position)) !== 0) {
-      if (ch === 39) {
-        captureSegment(state2, captureStart, state2.position, true);
-        ch = state2.input.charCodeAt(++state2.position);
-        if (ch === 39) {
-          captureStart = state2.position;
-          state2.position++;
-          captureEnd = state2.position;
-        } else {
-          return true;
+        if (!detectedIndent && textIndent === 0) {
+          throwError(state2, "missing indentation for block scalar");
         }
-      } else if (is_EOL(ch)) {
-        captureSegment(state2, captureStart, captureEnd, true);
-        writeFoldedLines(state2, skipSeparationSpace(state2, false, nodeIndent));
-        captureStart = captureEnd = state2.position;
-      } else if (state2.position === state2.lineStart && testDocumentSeparator(state2)) {
-        throwError(state2, "unexpected end of the document within a single quoted scalar");
-      } else {
-        state2.position++;
-        captureEnd = state2.position;
-      }
-    }
-    throwError(state2, "unexpected end of the stream within a single quoted scalar");
-  }
-  function readDoubleQuotedScalar(state2, nodeIndent) {
-    var captureStart, captureEnd, hexLength, hexResult, tmp, ch;
-    ch = state2.input.charCodeAt(state2.position);
-    if (ch !== 34) {
-      return false;
-    }
-    state2.kind = "scalar";
-    state2.result = "";
-    state2.position++;
-    captureStart = captureEnd = state2.position;
-    while ((ch = state2.input.charCodeAt(state2.position)) !== 0) {
-      if (ch === 34) {
-        captureSegment(state2, captureStart, state2.position, true);
-        state2.position++;
-        return true;
-      } else if (ch === 92) {
-        captureSegment(state2, captureStart, state2.position, true);
-        ch = state2.input.charCodeAt(++state2.position);
-        if (is_EOL(ch)) {
-          skipSeparationSpace(state2, false, nodeIndent);
-        } else if (ch < 256 && simpleEscapeCheck[ch]) {
-          state2.result += simpleEscapeMap[ch];
-          state2.position++;
-        } else if ((tmp = escapedHexLen(ch)) > 0) {
-          hexLength = tmp;
-          hexResult = 0;
-          for (; hexLength > 0; hexLength--) {
-            ch = state2.input.charCodeAt(++state2.position);
-            if ((tmp = fromHexCode(ch)) >= 0) {
-              hexResult = (hexResult << 4) + tmp;
-            } else {
-              throwError(state2, "expected hexadecimal character");
+        if (state2.lineIndent < textIndent) {
+          if (chomping === CHOMPING_KEEP) {
+            state2.result += common2.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
+          } else if (chomping === CHOMPING_CLIP) {
+            if (didReadContent) {
+              state2.result += "\n";
             }
           }
-          state2.result += charFromCodepoint(hexResult);
-          state2.position++;
-        } else {
-          throwError(state2, "unknown escape sequence");
+          break;
         }
-        captureStart = captureEnd = state2.position;
-      } else if (is_EOL(ch)) {
-        captureSegment(state2, captureStart, captureEnd, true);
-        writeFoldedLines(state2, skipSeparationSpace(state2, false, nodeIndent));
-        captureStart = captureEnd = state2.position;
-      } else if (state2.position === state2.lineStart && testDocumentSeparator(state2)) {
-        throwError(state2, "unexpected end of the document within a double quoted scalar");
-      } else {
-        state2.position++;
-        captureEnd = state2.position;
+        if (folding) {
+          if (isWhiteSpace(ch)) {
+            atMoreIndented = true;
+            state2.result += common2.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
+          } else if (atMoreIndented) {
+            atMoreIndented = false;
+            state2.result += common2.repeat("\n", emptyLines + 1);
+          } else if (emptyLines === 0) {
+            if (didReadContent) {
+              state2.result += " ";
+            }
+          } else {
+            state2.result += common2.repeat("\n", emptyLines);
+          }
+        } else {
+          state2.result += common2.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
+        }
+        didReadContent = true;
+        detectedIndent = true;
+        emptyLines = 0;
+        const captureStart = state2.position;
+        while (!isEol(ch) && ch !== 0) {
+          ch = state2.input.charCodeAt(++state2.position);
+        }
+        captureSegment(state2, captureStart, state2.position, false);
       }
+      return true;
     }
-    throwError(state2, "unexpected end of the stream within a double quoted scalar");
-  }
-  function readFlowCollection(state2, nodeIndent) {
-    var readNext = true, _line, _lineStart, _pos, _tag = state2.tag, _result, _anchor2 = state2.anchor, following, terminator, isPair, isExplicitPair, isMapping, overridableKeys = /* @__PURE__ */ Object.create(null), keyNode, keyTag, valueNode, ch;
-    ch = state2.input.charCodeAt(state2.position);
-    if (ch === 91) {
-      terminator = 93;
-      isMapping = false;
-      _result = [];
-    } else if (ch === 123) {
-      terminator = 125;
-      isMapping = true;
-      _result = {};
-    } else {
-      return false;
-    }
-    if (state2.anchor !== null) {
-      state2.anchorMap[state2.anchor] = _result;
-    }
-    ch = state2.input.charCodeAt(++state2.position);
-    while (ch !== 0) {
-      skipSeparationSpace(state2, true, nodeIndent);
-      ch = state2.input.charCodeAt(state2.position);
-      if (ch === terminator) {
+    function readBlockSequence(state2, nodeIndent) {
+      const _tag = state2.tag;
+      const _anchor2 = state2.anchor;
+      const _result = [];
+      let detected = false;
+      if (state2.firstTabInLine !== -1) return false;
+      if (state2.anchor !== null) {
+        storeAnchor(state2, state2.anchor, _result);
+      }
+      let ch = state2.input.charCodeAt(state2.position);
+      while (ch !== 0) {
+        if (state2.firstTabInLine !== -1) {
+          state2.position = state2.firstTabInLine;
+          throwError(state2, "tab characters must not be used in indentation");
+        }
+        if (ch !== 45) {
+          break;
+        }
+        const following = state2.input.charCodeAt(state2.position + 1);
+        if (!isWsOrEol(following)) {
+          break;
+        }
+        detected = true;
         state2.position++;
+        if (skipSeparationSpace(state2, true, -1)) {
+          if (state2.lineIndent <= nodeIndent) {
+            _result.push(null);
+            ch = state2.input.charCodeAt(state2.position);
+            continue;
+          }
+        }
+        const _line = state2.line;
+        composeNode(state2, nodeIndent, CONTEXT_BLOCK_IN, false, true);
+        _result.push(state2.result);
+        skipSeparationSpace(state2, true, -1);
+        ch = state2.input.charCodeAt(state2.position);
+        if ((state2.line === _line || state2.lineIndent > nodeIndent) && ch !== 0) {
+          throwError(state2, "bad indentation of a sequence entry");
+        } else if (state2.lineIndent < nodeIndent) {
+          break;
+        }
+      }
+      if (detected) {
         state2.tag = _tag;
         state2.anchor = _anchor2;
-        state2.kind = isMapping ? "mapping" : "sequence";
+        state2.kind = "sequence";
         state2.result = _result;
         return true;
-      } else if (!readNext) {
-        throwError(state2, "missed comma between flow collection entries");
-      } else if (ch === 44) {
-        throwError(state2, "expected the node content, but found ','");
       }
-      keyTag = keyNode = valueNode = null;
-      isPair = isExplicitPair = false;
-      if (ch === 63) {
-        following = state2.input.charCodeAt(state2.position + 1);
-        if (is_WS_OR_EOL(following)) {
-          isPair = isExplicitPair = true;
-          state2.position++;
-          skipSeparationSpace(state2, true, nodeIndent);
-        }
-      }
-      _line = state2.line;
-      _lineStart = state2.lineStart;
-      _pos = state2.position;
-      composeNode(state2, nodeIndent, CONTEXT_FLOW_IN, false, true);
-      keyTag = state2.tag;
-      keyNode = state2.result;
-      skipSeparationSpace(state2, true, nodeIndent);
-      ch = state2.input.charCodeAt(state2.position);
-      if ((isExplicitPair || state2.line === _line) && ch === 58) {
-        isPair = true;
-        ch = state2.input.charCodeAt(++state2.position);
-        skipSeparationSpace(state2, true, nodeIndent);
-        composeNode(state2, nodeIndent, CONTEXT_FLOW_IN, false, true);
-        valueNode = state2.result;
-      }
-      if (isMapping) {
-        storeMappingPair(state2, _result, overridableKeys, keyTag, keyNode, valueNode, _line, _lineStart, _pos);
-      } else if (isPair) {
-        _result.push(storeMappingPair(state2, null, overridableKeys, keyTag, keyNode, valueNode, _line, _lineStart, _pos));
-      } else {
-        _result.push(keyNode);
-      }
-      skipSeparationSpace(state2, true, nodeIndent);
-      ch = state2.input.charCodeAt(state2.position);
-      if (ch === 44) {
-        readNext = true;
-        ch = state2.input.charCodeAt(++state2.position);
-      } else {
-        readNext = false;
-      }
-    }
-    throwError(state2, "unexpected end of the stream within a flow collection");
-  }
-  function readBlockScalar(state2, nodeIndent) {
-    var captureStart, folding, chomping = CHOMPING_CLIP, didReadContent = false, detectedIndent = false, textIndent = nodeIndent, emptyLines = 0, atMoreIndented = false, tmp, ch;
-    ch = state2.input.charCodeAt(state2.position);
-    if (ch === 124) {
-      folding = false;
-    } else if (ch === 62) {
-      folding = true;
-    } else {
       return false;
     }
-    state2.kind = "scalar";
-    state2.result = "";
-    while (ch !== 0) {
-      ch = state2.input.charCodeAt(++state2.position);
-      if (ch === 43 || ch === 45) {
-        if (CHOMPING_CLIP === chomping) {
-          chomping = ch === 43 ? CHOMPING_KEEP : CHOMPING_STRIP;
-        } else {
-          throwError(state2, "repeat of a chomping mode identifier");
+    function readBlockMapping(state2, nodeIndent, flowIndent) {
+      let allowCompact;
+      let _keyLine;
+      let _keyLineStart;
+      let _keyPos;
+      const _tag = state2.tag;
+      const _anchor2 = state2.anchor;
+      const _result = {};
+      const overridableKeys = /* @__PURE__ */ Object.create(null);
+      let keyTag = null;
+      let keyNode = null;
+      let valueNode = null;
+      let atExplicitKey = false;
+      let detected = false;
+      if (state2.firstTabInLine !== -1) return false;
+      if (state2.anchor !== null) {
+        storeAnchor(state2, state2.anchor, _result);
+      }
+      let ch = state2.input.charCodeAt(state2.position);
+      while (ch !== 0) {
+        if (!atExplicitKey && state2.firstTabInLine !== -1) {
+          state2.position = state2.firstTabInLine;
+          throwError(state2, "tab characters must not be used in indentation");
         }
-      } else if ((tmp = fromDecimalCode(ch)) >= 0) {
-        if (tmp === 0) {
-          throwError(state2, "bad explicit indentation width of a block scalar; it cannot be less than one");
-        } else if (!detectedIndent) {
-          textIndent = nodeIndent + tmp - 1;
-          detectedIndent = true;
-        } else {
-          throwError(state2, "repeat of an indentation width identifier");
-        }
-      } else {
-        break;
-      }
-    }
-    if (is_WHITE_SPACE(ch)) {
-      do {
-        ch = state2.input.charCodeAt(++state2.position);
-      } while (is_WHITE_SPACE(ch));
-      if (ch === 35) {
-        do {
-          ch = state2.input.charCodeAt(++state2.position);
-        } while (!is_EOL(ch) && ch !== 0);
-      }
-    }
-    while (ch !== 0) {
-      readLineBreak(state2);
-      state2.lineIndent = 0;
-      ch = state2.input.charCodeAt(state2.position);
-      while ((!detectedIndent || state2.lineIndent < textIndent) && ch === 32) {
-        state2.lineIndent++;
-        ch = state2.input.charCodeAt(++state2.position);
-      }
-      if (!detectedIndent && state2.lineIndent > textIndent) {
-        textIndent = state2.lineIndent;
-      }
-      if (is_EOL(ch)) {
-        emptyLines++;
-        continue;
-      }
-      if (state2.lineIndent < textIndent) {
-        if (chomping === CHOMPING_KEEP) {
-          state2.result += common.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
-        } else if (chomping === CHOMPING_CLIP) {
-          if (didReadContent) {
-            state2.result += "\n";
-          }
-        }
-        break;
-      }
-      if (folding) {
-        if (is_WHITE_SPACE(ch)) {
-          atMoreIndented = true;
-          state2.result += common.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
-        } else if (atMoreIndented) {
-          atMoreIndented = false;
-          state2.result += common.repeat("\n", emptyLines + 1);
-        } else if (emptyLines === 0) {
-          if (didReadContent) {
-            state2.result += " ";
-          }
-        } else {
-          state2.result += common.repeat("\n", emptyLines);
-        }
-      } else {
-        state2.result += common.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
-      }
-      didReadContent = true;
-      detectedIndent = true;
-      emptyLines = 0;
-      captureStart = state2.position;
-      while (!is_EOL(ch) && ch !== 0) {
-        ch = state2.input.charCodeAt(++state2.position);
-      }
-      captureSegment(state2, captureStart, state2.position, false);
-    }
-    return true;
-  }
-  function readBlockSequence(state2, nodeIndent) {
-    var _line, _tag = state2.tag, _anchor2 = state2.anchor, _result = [], following, detected = false, ch;
-    if (state2.firstTabInLine !== -1) return false;
-    if (state2.anchor !== null) {
-      state2.anchorMap[state2.anchor] = _result;
-    }
-    ch = state2.input.charCodeAt(state2.position);
-    while (ch !== 0) {
-      if (state2.firstTabInLine !== -1) {
-        state2.position = state2.firstTabInLine;
-        throwError(state2, "tab characters must not be used in indentation");
-      }
-      if (ch !== 45) {
-        break;
-      }
-      following = state2.input.charCodeAt(state2.position + 1);
-      if (!is_WS_OR_EOL(following)) {
-        break;
-      }
-      detected = true;
-      state2.position++;
-      if (skipSeparationSpace(state2, true, -1)) {
-        if (state2.lineIndent <= nodeIndent) {
-          _result.push(null);
-          ch = state2.input.charCodeAt(state2.position);
-          continue;
-        }
-      }
-      _line = state2.line;
-      composeNode(state2, nodeIndent, CONTEXT_BLOCK_IN, false, true);
-      _result.push(state2.result);
-      skipSeparationSpace(state2, true, -1);
-      ch = state2.input.charCodeAt(state2.position);
-      if ((state2.line === _line || state2.lineIndent > nodeIndent) && ch !== 0) {
-        throwError(state2, "bad indentation of a sequence entry");
-      } else if (state2.lineIndent < nodeIndent) {
-        break;
-      }
-    }
-    if (detected) {
-      state2.tag = _tag;
-      state2.anchor = _anchor2;
-      state2.kind = "sequence";
-      state2.result = _result;
-      return true;
-    }
-    return false;
-  }
-  function readBlockMapping(state2, nodeIndent, flowIndent) {
-    var following, allowCompact, _line, _keyLine, _keyLineStart, _keyPos, _tag = state2.tag, _anchor2 = state2.anchor, _result = {}, overridableKeys = /* @__PURE__ */ Object.create(null), keyTag = null, keyNode = null, valueNode = null, atExplicitKey = false, detected = false, ch;
-    if (state2.firstTabInLine !== -1) return false;
-    if (state2.anchor !== null) {
-      state2.anchorMap[state2.anchor] = _result;
-    }
-    ch = state2.input.charCodeAt(state2.position);
-    while (ch !== 0) {
-      if (!atExplicitKey && state2.firstTabInLine !== -1) {
-        state2.position = state2.firstTabInLine;
-        throwError(state2, "tab characters must not be used in indentation");
-      }
-      following = state2.input.charCodeAt(state2.position + 1);
-      _line = state2.line;
-      if ((ch === 63 || ch === 58) && is_WS_OR_EOL(following)) {
-        if (ch === 63) {
-          if (atExplicitKey) {
-            storeMappingPair(state2, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
-            keyTag = keyNode = valueNode = null;
-          }
-          detected = true;
-          atExplicitKey = true;
-          allowCompact = true;
-        } else if (atExplicitKey) {
-          atExplicitKey = false;
-          allowCompact = true;
-        } else {
-          throwError(state2, "incomplete explicit mapping pair; a key node is missed; or followed by a non-tabulated empty line");
-        }
-        state2.position += 1;
-        ch = following;
-      } else {
-        _keyLine = state2.line;
-        _keyLineStart = state2.lineStart;
-        _keyPos = state2.position;
-        if (!composeNode(state2, flowIndent, CONTEXT_FLOW_OUT, false, true)) {
-          break;
-        }
-        if (state2.line === _line) {
-          ch = state2.input.charCodeAt(state2.position);
-          while (is_WHITE_SPACE(ch)) {
-            ch = state2.input.charCodeAt(++state2.position);
-          }
-          if (ch === 58) {
-            ch = state2.input.charCodeAt(++state2.position);
-            if (!is_WS_OR_EOL(ch)) {
-              throwError(state2, "a whitespace character is expected after the key-value separator within a block mapping");
-            }
+        const following = state2.input.charCodeAt(state2.position + 1);
+        const _line = state2.line;
+        if ((ch === 63 || ch === 58) && isWsOrEol(following)) {
+          if (ch === 63) {
             if (atExplicitKey) {
               storeMappingPair(state2, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
               keyTag = keyNode = valueNode = null;
             }
             detected = true;
+            atExplicitKey = true;
+            allowCompact = true;
+          } else if (atExplicitKey) {
             atExplicitKey = false;
-            allowCompact = false;
-            keyTag = state2.tag;
-            keyNode = state2.result;
+            allowCompact = true;
+          } else {
+            throwError(state2, "incomplete explicit mapping pair; a key node is missed; or followed by a non-tabulated empty line");
+          }
+          state2.position += 1;
+          ch = following;
+        } else {
+          _keyLine = state2.line;
+          _keyLineStart = state2.lineStart;
+          _keyPos = state2.position;
+          if (!composeNode(state2, flowIndent, CONTEXT_FLOW_OUT, false, true)) {
+            break;
+          }
+          if (state2.line === _line) {
+            ch = state2.input.charCodeAt(state2.position);
+            while (isWhiteSpace(ch)) {
+              ch = state2.input.charCodeAt(++state2.position);
+            }
+            if (ch === 58) {
+              ch = state2.input.charCodeAt(++state2.position);
+              if (!isWsOrEol(ch)) {
+                throwError(state2, "a whitespace character is expected after the key-value separator within a block mapping");
+              }
+              if (atExplicitKey) {
+                storeMappingPair(state2, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
+                keyTag = keyNode = valueNode = null;
+              }
+              detected = true;
+              atExplicitKey = false;
+              allowCompact = false;
+              keyTag = state2.tag;
+              keyNode = state2.result;
+            } else if (detected) {
+              throwError(state2, "can not read an implicit mapping pair; a colon is missed");
+            } else {
+              state2.tag = _tag;
+              state2.anchor = _anchor2;
+              return true;
+            }
           } else if (detected) {
-            throwError(state2, "can not read an implicit mapping pair; a colon is missed");
+            throwError(state2, "can not read a block mapping entry; a multiline key may not be an implicit key");
           } else {
             state2.tag = _tag;
             state2.anchor = _anchor2;
             return true;
           }
-        } else if (detected) {
-          throwError(state2, "can not read a block mapping entry; a multiline key may not be an implicit key");
-        } else {
-          state2.tag = _tag;
-          state2.anchor = _anchor2;
-          return true;
         }
-      }
-      if (state2.line === _line || state2.lineIndent > nodeIndent) {
-        if (atExplicitKey) {
-          _keyLine = state2.line;
-          _keyLineStart = state2.lineStart;
-          _keyPos = state2.position;
-        }
-        if (composeNode(state2, nodeIndent, CONTEXT_BLOCK_OUT, true, allowCompact)) {
+        if (state2.line === _line || state2.lineIndent > nodeIndent) {
           if (atExplicitKey) {
-            keyNode = state2.result;
-          } else {
-            valueNode = state2.result;
+            _keyLine = state2.line;
+            _keyLineStart = state2.lineStart;
+            _keyPos = state2.position;
           }
+          if (composeNode(state2, nodeIndent, CONTEXT_BLOCK_OUT, true, allowCompact)) {
+            if (atExplicitKey) {
+              keyNode = state2.result;
+            } else {
+              valueNode = state2.result;
+            }
+          }
+          if (!atExplicitKey) {
+            storeMappingPair(state2, _result, overridableKeys, keyTag, keyNode, valueNode, _keyLine, _keyLineStart, _keyPos);
+            keyTag = keyNode = valueNode = null;
+          }
+          skipSeparationSpace(state2, true, -1);
+          ch = state2.input.charCodeAt(state2.position);
         }
-        if (!atExplicitKey) {
-          storeMappingPair(state2, _result, overridableKeys, keyTag, keyNode, valueNode, _keyLine, _keyLineStart, _keyPos);
-          keyTag = keyNode = valueNode = null;
+        if ((state2.line === _line || state2.lineIndent > nodeIndent) && ch !== 0) {
+          throwError(state2, "bad indentation of a mapping entry");
+        } else if (state2.lineIndent < nodeIndent) {
+          break;
         }
-        skipSeparationSpace(state2, true, -1);
-        ch = state2.input.charCodeAt(state2.position);
       }
-      if ((state2.line === _line || state2.lineIndent > nodeIndent) && ch !== 0) {
-        throwError(state2, "bad indentation of a mapping entry");
-      } else if (state2.lineIndent < nodeIndent) {
-        break;
+      if (atExplicitKey) {
+        storeMappingPair(state2, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
       }
+      if (detected) {
+        state2.tag = _tag;
+        state2.anchor = _anchor2;
+        state2.kind = "mapping";
+        state2.result = _result;
+      }
+      return detected;
     }
-    if (atExplicitKey) {
-      storeMappingPair(state2, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
-    }
-    if (detected) {
-      state2.tag = _tag;
-      state2.anchor = _anchor2;
-      state2.kind = "mapping";
-      state2.result = _result;
-    }
-    return detected;
-  }
-  function readTagProperty(state2) {
-    var _position, isVerbatim = false, isNamed = false, tagHandle, tagName, ch;
-    ch = state2.input.charCodeAt(state2.position);
-    if (ch !== 33) return false;
-    if (state2.tag !== null) {
-      throwError(state2, "duplication of a tag property");
-    }
-    ch = state2.input.charCodeAt(++state2.position);
-    if (ch === 60) {
-      isVerbatim = true;
+    function readTagProperty(state2) {
+      let isVerbatim = false;
+      let isNamed = false;
+      let tagHandle;
+      let tagName;
+      let ch = state2.input.charCodeAt(state2.position);
+      if (ch !== 33) return false;
+      if (state2.tag !== null) {
+        throwError(state2, "duplication of a tag property");
+      }
       ch = state2.input.charCodeAt(++state2.position);
-    } else if (ch === 33) {
-      isNamed = true;
-      tagHandle = "!!";
-      ch = state2.input.charCodeAt(++state2.position);
-    } else {
-      tagHandle = "!";
-    }
-    _position = state2.position;
-    if (isVerbatim) {
-      do {
+      if (ch === 60) {
+        isVerbatim = true;
         ch = state2.input.charCodeAt(++state2.position);
-      } while (ch !== 0 && ch !== 62);
-      if (state2.position < state2.length) {
-        tagName = state2.input.slice(_position, state2.position);
+      } else if (ch === 33) {
+        isNamed = true;
+        tagHandle = "!!";
         ch = state2.input.charCodeAt(++state2.position);
       } else {
-        throwError(state2, "unexpected end of the stream within a verbatim tag");
+        tagHandle = "!";
       }
-    } else {
-      while (ch !== 0 && !is_WS_OR_EOL(ch)) {
-        if (ch === 33) {
-          if (!isNamed) {
-            tagHandle = state2.input.slice(_position - 1, state2.position + 1);
-            if (!PATTERN_TAG_HANDLE.test(tagHandle)) {
-              throwError(state2, "named tag handle cannot contain such characters");
-            }
-            isNamed = true;
-            _position = state2.position + 1;
-          } else {
-            throwError(state2, "tag suffix cannot contain exclamation marks");
-          }
+      let _position = state2.position;
+      if (isVerbatim) {
+        do {
+          ch = state2.input.charCodeAt(++state2.position);
+        } while (ch !== 0 && ch !== 62);
+        if (state2.position < state2.length) {
+          tagName = state2.input.slice(_position, state2.position);
+          ch = state2.input.charCodeAt(++state2.position);
+        } else {
+          throwError(state2, "unexpected end of the stream within a verbatim tag");
         }
+      } else {
+        while (ch !== 0 && !isWsOrEol(ch)) {
+          if (ch === 33) {
+            if (!isNamed) {
+              tagHandle = state2.input.slice(_position - 1, state2.position + 1);
+              if (!PATTERN_TAG_HANDLE.test(tagHandle)) {
+                throwError(state2, "named tag handle cannot contain such characters");
+              }
+              isNamed = true;
+              _position = state2.position + 1;
+            } else {
+              throwError(state2, "tag suffix cannot contain exclamation marks");
+            }
+          }
+          ch = state2.input.charCodeAt(++state2.position);
+        }
+        tagName = state2.input.slice(_position, state2.position);
+        if (PATTERN_FLOW_INDICATORS.test(tagName)) {
+          throwError(state2, "tag suffix cannot contain flow indicator characters");
+        }
+      }
+      if (tagName && !PATTERN_TAG_URI.test(tagName)) {
+        throwError(state2, "tag name cannot contain such characters: " + tagName);
+      }
+      try {
+        tagName = decodeURIComponent(tagName);
+      } catch (err) {
+        throwError(state2, "tag name is malformed: " + tagName);
+      }
+      if (isVerbatim) {
+        state2.tag = tagName;
+      } else if (_hasOwnProperty.call(state2.tagMap, tagHandle)) {
+        state2.tag = state2.tagMap[tagHandle] + tagName;
+      } else if (tagHandle === "!") {
+        state2.tag = "!" + tagName;
+      } else if (tagHandle === "!!") {
+        state2.tag = "tag:yaml.org,2002:" + tagName;
+      } else {
+        throwError(state2, 'undeclared tag handle "' + tagHandle + '"');
+      }
+      return true;
+    }
+    function readAnchorProperty(state2) {
+      let ch = state2.input.charCodeAt(state2.position);
+      if (ch !== 38) return false;
+      if (state2.anchor !== null) {
+        throwError(state2, "duplication of an anchor property");
+      }
+      ch = state2.input.charCodeAt(++state2.position);
+      const _position = state2.position;
+      while (ch !== 0 && !isWsOrEol(ch) && !isFlowIndicator(ch)) {
         ch = state2.input.charCodeAt(++state2.position);
       }
-      tagName = state2.input.slice(_position, state2.position);
-      if (PATTERN_FLOW_INDICATORS.test(tagName)) {
-        throwError(state2, "tag suffix cannot contain flow indicator characters");
+      if (state2.position === _position) {
+        throwError(state2, "name of an anchor node must contain at least one character");
       }
+      state2.anchor = state2.input.slice(_position, state2.position);
+      return true;
     }
-    if (tagName && !PATTERN_TAG_URI.test(tagName)) {
-      throwError(state2, "tag name cannot contain such characters: " + tagName);
-    }
-    try {
-      tagName = decodeURIComponent(tagName);
-    } catch (err) {
-      throwError(state2, "tag name is malformed: " + tagName);
-    }
-    if (isVerbatim) {
-      state2.tag = tagName;
-    } else if (_hasOwnProperty$1.call(state2.tagMap, tagHandle)) {
-      state2.tag = state2.tagMap[tagHandle] + tagName;
-    } else if (tagHandle === "!") {
-      state2.tag = "!" + tagName;
-    } else if (tagHandle === "!!") {
-      state2.tag = "tag:yaml.org,2002:" + tagName;
-    } else {
-      throwError(state2, 'undeclared tag handle "' + tagHandle + '"');
-    }
-    return true;
-  }
-  function readAnchorProperty(state2) {
-    var _position, ch;
-    ch = state2.input.charCodeAt(state2.position);
-    if (ch !== 38) return false;
-    if (state2.anchor !== null) {
-      throwError(state2, "duplication of an anchor property");
-    }
-    ch = state2.input.charCodeAt(++state2.position);
-    _position = state2.position;
-    while (ch !== 0 && !is_WS_OR_EOL(ch) && !is_FLOW_INDICATOR(ch)) {
+    function readAlias(state2) {
+      let ch = state2.input.charCodeAt(state2.position);
+      if (ch !== 42) return false;
       ch = state2.input.charCodeAt(++state2.position);
-    }
-    if (state2.position === _position) {
-      throwError(state2, "name of an anchor node must contain at least one character");
-    }
-    state2.anchor = state2.input.slice(_position, state2.position);
-    return true;
-  }
-  function readAlias(state2) {
-    var _position, alias, ch;
-    ch = state2.input.charCodeAt(state2.position);
-    if (ch !== 42) return false;
-    ch = state2.input.charCodeAt(++state2.position);
-    _position = state2.position;
-    while (ch !== 0 && !is_WS_OR_EOL(ch) && !is_FLOW_INDICATOR(ch)) {
-      ch = state2.input.charCodeAt(++state2.position);
-    }
-    if (state2.position === _position) {
-      throwError(state2, "name of an alias node must contain at least one character");
-    }
-    alias = state2.input.slice(_position, state2.position);
-    if (!_hasOwnProperty$1.call(state2.anchorMap, alias)) {
-      throwError(state2, 'unidentified alias "' + alias + '"');
-    }
-    state2.result = state2.anchorMap[alias];
-    skipSeparationSpace(state2, true, -1);
-    return true;
-  }
-  function composeNode(state2, parentIndent, nodeContext, allowToSeek, allowCompact) {
-    var allowBlockStyles, allowBlockScalars, allowBlockCollections, indentStatus = 1, atNewLine = false, hasContent = false, typeIndex, typeQuantity, typeList, type2, flowIndent, blockIndent;
-    if (state2.listener !== null) {
-      state2.listener("open", state2);
-    }
-    state2.tag = null;
-    state2.anchor = null;
-    state2.kind = null;
-    state2.result = null;
-    allowBlockStyles = allowBlockScalars = allowBlockCollections = CONTEXT_BLOCK_OUT === nodeContext || CONTEXT_BLOCK_IN === nodeContext;
-    if (allowToSeek) {
-      if (skipSeparationSpace(state2, true, -1)) {
-        atNewLine = true;
-        if (state2.lineIndent > parentIndent) {
-          indentStatus = 1;
-        } else if (state2.lineIndent === parentIndent) {
-          indentStatus = 0;
-        } else if (state2.lineIndent < parentIndent) {
-          indentStatus = -1;
-        }
+      const _position = state2.position;
+      while (ch !== 0 && !isWsOrEol(ch) && !isFlowIndicator(ch)) {
+        ch = state2.input.charCodeAt(++state2.position);
       }
+      if (state2.position === _position) {
+        throwError(state2, "name of an alias node must contain at least one character");
+      }
+      const alias = state2.input.slice(_position, state2.position);
+      if (!_hasOwnProperty.call(state2.anchorMap, alias)) {
+        throwError(state2, 'unidentified alias "' + alias + '"');
+      }
+      state2.result = state2.anchorMap[alias];
+      skipSeparationSpace(state2, true, -1);
+      return true;
     }
-    if (indentStatus === 1) {
-      while (readTagProperty(state2) || readAnchorProperty(state2)) {
+    function tryReadBlockMappingFromProperty(state2, propertyStart, nodeIndent, flowIndent) {
+      const fallbackState = snapshotState(state2);
+      beginAnchorTransaction(state2);
+      restoreState(state2, propertyStart);
+      state2.tag = null;
+      state2.anchor = null;
+      state2.kind = null;
+      state2.result = null;
+      if (readBlockMapping(state2, nodeIndent, flowIndent) && state2.kind === "mapping") {
+        commitAnchorTransaction(state2);
+        return true;
+      }
+      rollbackAnchorTransaction(state2);
+      restoreState(state2, fallbackState);
+      return false;
+    }
+    function composeNode(state2, parentIndent, nodeContext, allowToSeek, allowCompact) {
+      let allowBlockScalars;
+      let allowBlockCollections;
+      let indentStatus = 1;
+      let atNewLine = false;
+      let hasContent = false;
+      let propertyStart = null;
+      let type2;
+      let flowIndent;
+      let blockIndent;
+      if (state2.depth >= state2.maxDepth) {
+        throwError(state2, "nesting exceeded maxDepth (" + state2.maxDepth + ")");
+      }
+      state2.depth += 1;
+      if (state2.listener !== null) {
+        state2.listener("open", state2);
+      }
+      state2.tag = null;
+      state2.anchor = null;
+      state2.kind = null;
+      state2.result = null;
+      const allowBlockStyles = allowBlockScalars = allowBlockCollections = CONTEXT_BLOCK_OUT === nodeContext || CONTEXT_BLOCK_IN === nodeContext;
+      if (allowToSeek) {
         if (skipSeparationSpace(state2, true, -1)) {
           atNewLine = true;
-          allowBlockCollections = allowBlockStyles;
           if (state2.lineIndent > parentIndent) {
             indentStatus = 1;
           } else if (state2.lineIndent === parentIndent) {
@@ -8472,859 +9320,970 @@ ${component_stack}
           } else if (state2.lineIndent < parentIndent) {
             indentStatus = -1;
           }
-        } else {
-          allowBlockCollections = false;
         }
       }
-    }
-    if (allowBlockCollections) {
-      allowBlockCollections = atNewLine || allowCompact;
-    }
-    if (indentStatus === 1 || CONTEXT_BLOCK_OUT === nodeContext) {
-      if (CONTEXT_FLOW_IN === nodeContext || CONTEXT_FLOW_OUT === nodeContext) {
-        flowIndent = parentIndent;
-      } else {
-        flowIndent = parentIndent + 1;
-      }
-      blockIndent = state2.position - state2.lineStart;
       if (indentStatus === 1) {
-        if (allowBlockCollections && (readBlockSequence(state2, blockIndent) || readBlockMapping(state2, blockIndent, flowIndent)) || readFlowCollection(state2, flowIndent)) {
-          hasContent = true;
+        while (true) {
+          const ch = state2.input.charCodeAt(state2.position);
+          const propertyState = snapshotState(state2);
+          if (atNewLine && (ch === 33 && state2.tag !== null || ch === 38 && state2.anchor !== null)) {
+            break;
+          }
+          if (!readTagProperty(state2) && !readAnchorProperty(state2)) {
+            break;
+          }
+          if (propertyStart === null) {
+            propertyStart = propertyState;
+          }
+          if (skipSeparationSpace(state2, true, -1)) {
+            atNewLine = true;
+            allowBlockCollections = allowBlockStyles;
+            if (state2.lineIndent > parentIndent) {
+              indentStatus = 1;
+            } else if (state2.lineIndent === parentIndent) {
+              indentStatus = 0;
+            } else if (state2.lineIndent < parentIndent) {
+              indentStatus = -1;
+            }
+          } else {
+            allowBlockCollections = false;
+          }
+        }
+      }
+      if (allowBlockCollections) {
+        allowBlockCollections = atNewLine || allowCompact;
+      }
+      if (indentStatus === 1 || CONTEXT_BLOCK_OUT === nodeContext) {
+        if (CONTEXT_FLOW_IN === nodeContext || CONTEXT_FLOW_OUT === nodeContext) {
+          flowIndent = parentIndent;
         } else {
-          if (allowBlockScalars && readBlockScalar(state2, flowIndent) || readSingleQuotedScalar(state2, flowIndent) || readDoubleQuotedScalar(state2, flowIndent)) {
-            hasContent = true;
-          } else if (readAlias(state2)) {
-            hasContent = true;
-            if (state2.tag !== null || state2.anchor !== null) {
-              throwError(state2, "alias node should not have any properties");
-            }
-          } else if (readPlainScalar(state2, flowIndent, CONTEXT_FLOW_IN === nodeContext)) {
-            hasContent = true;
-            if (state2.tag === null) {
-              state2.tag = "?";
-            }
-          }
-          if (state2.anchor !== null) {
-            state2.anchorMap[state2.anchor] = state2.result;
-          }
+          flowIndent = parentIndent + 1;
         }
-      } else if (indentStatus === 0) {
-        hasContent = allowBlockCollections && readBlockSequence(state2, blockIndent);
-      }
-    }
-    if (state2.tag === null) {
-      if (state2.anchor !== null) {
-        state2.anchorMap[state2.anchor] = state2.result;
-      }
-    } else if (state2.tag === "?") {
-      if (state2.result !== null && state2.kind !== "scalar") {
-        throwError(state2, 'unacceptable node kind for !<?> tag; it should be "scalar", not "' + state2.kind + '"');
-      }
-      for (typeIndex = 0, typeQuantity = state2.implicitTypes.length; typeIndex < typeQuantity; typeIndex += 1) {
-        type2 = state2.implicitTypes[typeIndex];
-        if (type2.resolve(state2.result)) {
-          state2.result = type2.construct(state2.result);
-          state2.tag = type2.tag;
-          if (state2.anchor !== null) {
-            state2.anchorMap[state2.anchor] = state2.result;
+        blockIndent = state2.position - state2.lineStart;
+        if (indentStatus === 1) {
+          if (allowBlockCollections && (readBlockSequence(state2, blockIndent) || readBlockMapping(state2, blockIndent, flowIndent)) || readFlowCollection(state2, flowIndent)) {
+            hasContent = true;
+          } else {
+            const ch = state2.input.charCodeAt(state2.position);
+            if (propertyStart !== null && allowBlockStyles && !allowBlockCollections && ch !== 124 && ch !== 62 && tryReadBlockMappingFromProperty(
+              state2,
+              propertyStart,
+              propertyStart.position - propertyStart.lineStart,
+              flowIndent
+            )) {
+              hasContent = true;
+            } else if (allowBlockScalars && readBlockScalar(state2, flowIndent) || readSingleQuotedScalar(state2, flowIndent) || readDoubleQuotedScalar(state2, flowIndent)) {
+              hasContent = true;
+            } else if (readAlias(state2)) {
+              hasContent = true;
+              if (state2.tag !== null || state2.anchor !== null) {
+                throwError(state2, "alias node should not have any properties");
+              }
+            } else if (readPlainScalar(state2, flowIndent, CONTEXT_FLOW_IN === nodeContext)) {
+              hasContent = true;
+              if (state2.tag === null) {
+                state2.tag = "?";
+              }
+            }
+            if (state2.anchor !== null) {
+              storeAnchor(state2, state2.anchor, state2.result);
+            }
           }
-          break;
+        } else if (indentStatus === 0) {
+          hasContent = allowBlockCollections && readBlockSequence(state2, blockIndent);
         }
       }
-    } else if (state2.tag !== "!") {
-      if (_hasOwnProperty$1.call(state2.typeMap[state2.kind || "fallback"], state2.tag)) {
-        type2 = state2.typeMap[state2.kind || "fallback"][state2.tag];
-      } else {
-        type2 = null;
-        typeList = state2.typeMap.multi[state2.kind || "fallback"];
-        for (typeIndex = 0, typeQuantity = typeList.length; typeIndex < typeQuantity; typeIndex += 1) {
-          if (state2.tag.slice(0, typeList[typeIndex].tag.length) === typeList[typeIndex].tag) {
-            type2 = typeList[typeIndex];
+      if (state2.tag === null) {
+        if (state2.anchor !== null) {
+          storeAnchor(state2, state2.anchor, state2.result);
+        }
+      } else if (state2.tag === "?") {
+        if (state2.result !== null && state2.kind !== "scalar") {
+          throwError(state2, 'unacceptable node kind for !<?> tag; it should be "scalar", not "' + state2.kind + '"');
+        }
+        for (let typeIndex = 0, typeQuantity = state2.implicitTypes.length; typeIndex < typeQuantity; typeIndex += 1) {
+          type2 = state2.implicitTypes[typeIndex];
+          if (type2.resolve(state2.result)) {
+            state2.result = type2.construct(state2.result);
+            state2.tag = type2.tag;
+            if (state2.anchor !== null) {
+              storeAnchor(state2, state2.anchor, state2.result);
+            }
             break;
           }
         }
-      }
-      if (!type2) {
-        throwError(state2, "unknown tag !<" + state2.tag + ">");
-      }
-      if (state2.result !== null && type2.kind !== state2.kind) {
-        throwError(state2, "unacceptable node kind for !<" + state2.tag + '> tag; it should be "' + type2.kind + '", not "' + state2.kind + '"');
-      }
-      if (!type2.resolve(state2.result, state2.tag)) {
-        throwError(state2, "cannot resolve a node with !<" + state2.tag + "> explicit tag");
-      } else {
-        state2.result = type2.construct(state2.result, state2.tag);
-        if (state2.anchor !== null) {
-          state2.anchorMap[state2.anchor] = state2.result;
+      } else if (state2.tag !== "!") {
+        if (_hasOwnProperty.call(state2.typeMap[state2.kind || "fallback"], state2.tag)) {
+          type2 = state2.typeMap[state2.kind || "fallback"][state2.tag];
+        } else {
+          type2 = null;
+          const typeList = state2.typeMap.multi[state2.kind || "fallback"];
+          for (let typeIndex = 0, typeQuantity = typeList.length; typeIndex < typeQuantity; typeIndex += 1) {
+            if (state2.tag.slice(0, typeList[typeIndex].tag.length) === typeList[typeIndex].tag) {
+              type2 = typeList[typeIndex];
+              break;
+            }
+          }
+        }
+        if (!type2) {
+          throwError(state2, "unknown tag !<" + state2.tag + ">");
+        }
+        if (state2.result !== null && type2.kind !== state2.kind) {
+          throwError(state2, "unacceptable node kind for !<" + state2.tag + '> tag; it should be "' + type2.kind + '", not "' + state2.kind + '"');
+        }
+        if (!type2.resolve(state2.result, state2.tag)) {
+          throwError(state2, "cannot resolve a node with !<" + state2.tag + "> explicit tag");
+        } else {
+          state2.result = type2.construct(state2.result, state2.tag);
+          if (state2.anchor !== null) {
+            storeAnchor(state2, state2.anchor, state2.result);
+          }
         }
       }
+      if (state2.listener !== null) {
+        state2.listener("close", state2);
+      }
+      state2.depth -= 1;
+      return state2.tag !== null || state2.anchor !== null || hasContent;
     }
-    if (state2.listener !== null) {
-      state2.listener("close", state2);
-    }
-    return state2.tag !== null || state2.anchor !== null || hasContent;
-  }
-  function readDocument(state2) {
-    var documentStart = state2.position, _position, directiveName, directiveArgs, hasDirectives = false, ch;
-    state2.version = null;
-    state2.checkLineBreaks = state2.legacy;
-    state2.tagMap = /* @__PURE__ */ Object.create(null);
-    state2.anchorMap = /* @__PURE__ */ Object.create(null);
-    while ((ch = state2.input.charCodeAt(state2.position)) !== 0) {
-      skipSeparationSpace(state2, true, -1);
-      ch = state2.input.charCodeAt(state2.position);
-      if (state2.lineIndent > 0 || ch !== 37) {
-        break;
-      }
-      hasDirectives = true;
-      ch = state2.input.charCodeAt(++state2.position);
-      _position = state2.position;
-      while (ch !== 0 && !is_WS_OR_EOL(ch)) {
-        ch = state2.input.charCodeAt(++state2.position);
-      }
-      directiveName = state2.input.slice(_position, state2.position);
-      directiveArgs = [];
-      if (directiveName.length < 1) {
-        throwError(state2, "directive name must not be less than one character in length");
-      }
-      while (ch !== 0) {
-        while (is_WHITE_SPACE(ch)) {
-          ch = state2.input.charCodeAt(++state2.position);
-        }
-        if (ch === 35) {
-          do {
-            ch = state2.input.charCodeAt(++state2.position);
-          } while (ch !== 0 && !is_EOL(ch));
+    function readDocument(state2) {
+      const documentStart = state2.position;
+      let hasDirectives = false;
+      let ch;
+      state2.version = null;
+      state2.checkLineBreaks = state2.legacy;
+      state2.tagMap = /* @__PURE__ */ Object.create(null);
+      state2.anchorMap = /* @__PURE__ */ Object.create(null);
+      while ((ch = state2.input.charCodeAt(state2.position)) !== 0) {
+        skipSeparationSpace(state2, true, -1);
+        ch = state2.input.charCodeAt(state2.position);
+        if (state2.lineIndent > 0 || ch !== 37) {
           break;
         }
-        if (is_EOL(ch)) break;
-        _position = state2.position;
-        while (ch !== 0 && !is_WS_OR_EOL(ch)) {
+        hasDirectives = true;
+        ch = state2.input.charCodeAt(++state2.position);
+        let _position = state2.position;
+        while (ch !== 0 && !isWsOrEol(ch)) {
           ch = state2.input.charCodeAt(++state2.position);
         }
-        directiveArgs.push(state2.input.slice(_position, state2.position));
+        const directiveName = state2.input.slice(_position, state2.position);
+        const directiveArgs = [];
+        if (directiveName.length < 1) {
+          throwError(state2, "directive name must not be less than one character in length");
+        }
+        while (ch !== 0) {
+          while (isWhiteSpace(ch)) {
+            ch = state2.input.charCodeAt(++state2.position);
+          }
+          if (ch === 35) {
+            do {
+              ch = state2.input.charCodeAt(++state2.position);
+            } while (ch !== 0 && !isEol(ch));
+            break;
+          }
+          if (isEol(ch)) break;
+          _position = state2.position;
+          while (ch !== 0 && !isWsOrEol(ch)) {
+            ch = state2.input.charCodeAt(++state2.position);
+          }
+          directiveArgs.push(state2.input.slice(_position, state2.position));
+        }
+        if (ch !== 0) readLineBreak(state2);
+        if (_hasOwnProperty.call(directiveHandlers, directiveName)) {
+          directiveHandlers[directiveName](state2, directiveName, directiveArgs);
+        } else {
+          throwWarning(state2, 'unknown document directive "' + directiveName + '"');
+        }
       }
-      if (ch !== 0) readLineBreak(state2);
-      if (_hasOwnProperty$1.call(directiveHandlers, directiveName)) {
-        directiveHandlers[directiveName](state2, directiveName, directiveArgs);
-      } else {
-        throwWarning(state2, 'unknown document directive "' + directiveName + '"');
-      }
-    }
-    skipSeparationSpace(state2, true, -1);
-    if (state2.lineIndent === 0 && state2.input.charCodeAt(state2.position) === 45 && state2.input.charCodeAt(state2.position + 1) === 45 && state2.input.charCodeAt(state2.position + 2) === 45) {
-      state2.position += 3;
       skipSeparationSpace(state2, true, -1);
-    } else if (hasDirectives) {
-      throwError(state2, "directives end mark is expected");
-    }
-    composeNode(state2, state2.lineIndent - 1, CONTEXT_BLOCK_OUT, false, true);
-    skipSeparationSpace(state2, true, -1);
-    if (state2.checkLineBreaks && PATTERN_NON_ASCII_LINE_BREAKS.test(state2.input.slice(documentStart, state2.position))) {
-      throwWarning(state2, "non-ASCII line breaks are interpreted as content");
-    }
-    state2.documents.push(state2.result);
-    if (state2.position === state2.lineStart && testDocumentSeparator(state2)) {
-      if (state2.input.charCodeAt(state2.position) === 46) {
+      if (state2.lineIndent === 0 && state2.input.charCodeAt(state2.position) === 45 && state2.input.charCodeAt(state2.position + 1) === 45 && state2.input.charCodeAt(state2.position + 2) === 45) {
         state2.position += 3;
         skipSeparationSpace(state2, true, -1);
+      } else if (hasDirectives) {
+        throwError(state2, "directives end mark is expected");
       }
-      return;
-    }
-    if (state2.position < state2.length - 1) {
-      throwError(state2, "end of the stream or a document separator is expected");
-    } else {
-      return;
-    }
-  }
-  function loadDocuments(input, options) {
-    input = String(input);
-    options = options || {};
-    if (input.length !== 0) {
-      if (input.charCodeAt(input.length - 1) !== 10 && input.charCodeAt(input.length - 1) !== 13) {
-        input += "\n";
+      composeNode(state2, state2.lineIndent - 1, CONTEXT_BLOCK_OUT, false, true);
+      skipSeparationSpace(state2, true, -1);
+      if (state2.checkLineBreaks && PATTERN_NON_ASCII_LINE_BREAKS.test(state2.input.slice(documentStart, state2.position))) {
+        throwWarning(state2, "non-ASCII line breaks are interpreted as content");
       }
-      if (input.charCodeAt(0) === 65279) {
-        input = input.slice(1);
+      state2.documents.push(state2.result);
+      if (state2.position === state2.lineStart && testDocumentSeparator(state2)) {
+        if (state2.input.charCodeAt(state2.position) === 46) {
+          state2.position += 3;
+          skipSeparationSpace(state2, true, -1);
+        }
+        return;
+      }
+      if (state2.position < state2.length - 1) {
+        throwError(state2, "end of the stream or a document separator is expected");
       }
     }
-    var state2 = new State$1(input, options);
-    var nullpos = input.indexOf("\0");
-    if (nullpos !== -1) {
-      state2.position = nullpos;
-      throwError(state2, "null byte is not allowed in input");
-    }
-    state2.input += "\0";
-    while (state2.input.charCodeAt(state2.position) === 32) {
-      state2.lineIndent += 1;
-      state2.position += 1;
-    }
-    while (state2.position < state2.length - 1) {
-      readDocument(state2);
-    }
-    return state2.documents;
-  }
-  function loadAll$1(input, iterator, options) {
-    if (iterator !== null && typeof iterator === "object" && typeof options === "undefined") {
-      options = iterator;
-      iterator = null;
-    }
-    var documents = loadDocuments(input, options);
-    if (typeof iterator !== "function") {
-      return documents;
-    }
-    for (var index2 = 0, length = documents.length; index2 < length; index2 += 1) {
-      iterator(documents[index2]);
-    }
-  }
-  function load$1(input, options) {
-    var documents = loadDocuments(input, options);
-    if (documents.length === 0) {
-      return void 0;
-    } else if (documents.length === 1) {
-      return documents[0];
-    }
-    throw new exception("expected a single document in the stream, but found more");
-  }
-  var loadAll_1 = loadAll$1;
-  var load_1 = load$1;
-  var loader = {
-    loadAll: loadAll_1,
-    load: load_1
-  };
-  var _toString = Object.prototype.toString;
-  var _hasOwnProperty = Object.prototype.hasOwnProperty;
-  var CHAR_BOM = 65279;
-  var CHAR_TAB = 9;
-  var CHAR_LINE_FEED = 10;
-  var CHAR_CARRIAGE_RETURN = 13;
-  var CHAR_SPACE = 32;
-  var CHAR_EXCLAMATION = 33;
-  var CHAR_DOUBLE_QUOTE = 34;
-  var CHAR_SHARP = 35;
-  var CHAR_PERCENT = 37;
-  var CHAR_AMPERSAND = 38;
-  var CHAR_SINGLE_QUOTE = 39;
-  var CHAR_ASTERISK = 42;
-  var CHAR_COMMA = 44;
-  var CHAR_MINUS = 45;
-  var CHAR_COLON = 58;
-  var CHAR_EQUALS = 61;
-  var CHAR_GREATER_THAN = 62;
-  var CHAR_QUESTION = 63;
-  var CHAR_COMMERCIAL_AT = 64;
-  var CHAR_LEFT_SQUARE_BRACKET = 91;
-  var CHAR_RIGHT_SQUARE_BRACKET = 93;
-  var CHAR_GRAVE_ACCENT = 96;
-  var CHAR_LEFT_CURLY_BRACKET = 123;
-  var CHAR_VERTICAL_LINE = 124;
-  var CHAR_RIGHT_CURLY_BRACKET = 125;
-  var ESCAPE_SEQUENCES = {};
-  ESCAPE_SEQUENCES[0] = "\\0";
-  ESCAPE_SEQUENCES[7] = "\\a";
-  ESCAPE_SEQUENCES[8] = "\\b";
-  ESCAPE_SEQUENCES[9] = "\\t";
-  ESCAPE_SEQUENCES[10] = "\\n";
-  ESCAPE_SEQUENCES[11] = "\\v";
-  ESCAPE_SEQUENCES[12] = "\\f";
-  ESCAPE_SEQUENCES[13] = "\\r";
-  ESCAPE_SEQUENCES[27] = "\\e";
-  ESCAPE_SEQUENCES[34] = '\\"';
-  ESCAPE_SEQUENCES[92] = "\\\\";
-  ESCAPE_SEQUENCES[133] = "\\N";
-  ESCAPE_SEQUENCES[160] = "\\_";
-  ESCAPE_SEQUENCES[8232] = "\\L";
-  ESCAPE_SEQUENCES[8233] = "\\P";
-  var DEPRECATED_BOOLEANS_SYNTAX = [
-    "y",
-    "Y",
-    "yes",
-    "Yes",
-    "YES",
-    "on",
-    "On",
-    "ON",
-    "n",
-    "N",
-    "no",
-    "No",
-    "NO",
-    "off",
-    "Off",
-    "OFF"
-  ];
-  var DEPRECATED_BASE60_SYNTAX = /^[-+]?[0-9_]+(?::[0-9_]+)+(?:\.[0-9_]*)?$/;
-  function compileStyleMap(schema2, map2) {
-    var result, keys, index2, length, tag2, style, type2;
-    if (map2 === null) return {};
-    result = {};
-    keys = Object.keys(map2);
-    for (index2 = 0, length = keys.length; index2 < length; index2 += 1) {
-      tag2 = keys[index2];
-      style = String(map2[tag2]);
-      if (tag2.slice(0, 2) === "!!") {
-        tag2 = "tag:yaml.org,2002:" + tag2.slice(2);
+    function loadDocuments(input, options) {
+      input = String(input);
+      options = options || {};
+      if (input.length !== 0) {
+        if (input.charCodeAt(input.length - 1) !== 10 && input.charCodeAt(input.length - 1) !== 13) {
+          input += "\n";
+        }
+        if (input.charCodeAt(0) === 65279) {
+          input = input.slice(1);
+        }
       }
-      type2 = schema2.compiledTypeMap["fallback"][tag2];
-      if (type2 && _hasOwnProperty.call(type2.styleAliases, style)) {
-        style = type2.styleAliases[style];
+      const state2 = new State(input, options);
+      const nullpos = input.indexOf("\0");
+      if (nullpos !== -1) {
+        state2.position = nullpos;
+        throwError(state2, "null byte is not allowed in input");
       }
-      result[tag2] = style;
+      state2.input += "\0";
+      while (state2.input.charCodeAt(state2.position) === 32) {
+        state2.lineIndent += 1;
+        state2.position += 1;
+      }
+      while (state2.position < state2.length - 1) {
+        readDocument(state2);
+      }
+      return state2.documents;
     }
-    return result;
-  }
-  function encodeHex(character) {
-    var string, handle, length;
-    string = character.toString(16).toUpperCase();
-    if (character <= 255) {
-      handle = "x";
-      length = 2;
-    } else if (character <= 65535) {
-      handle = "u";
-      length = 4;
-    } else if (character <= 4294967295) {
-      handle = "U";
-      length = 8;
-    } else {
-      throw new exception("code point within a string may not be greater than 0xFFFFFFFF");
+    function loadAll2(input, iterator, options) {
+      if (iterator !== null && typeof iterator === "object" && typeof options === "undefined") {
+        options = iterator;
+        iterator = null;
+      }
+      const documents = loadDocuments(input, options);
+      if (typeof iterator !== "function") {
+        return documents;
+      }
+      for (let index2 = 0, length = documents.length; index2 < length; index2 += 1) {
+        iterator(documents[index2]);
+      }
     }
-    return "\\" + handle + common.repeat("0", length - string.length) + string;
+    function load2(input, options) {
+      const documents = loadDocuments(input, options);
+      if (documents.length === 0) {
+        return void 0;
+      } else if (documents.length === 1) {
+        return documents[0];
+      }
+      throw new YAMLException2("expected a single document in the stream, but found more");
+    }
+    loader.loadAll = loadAll2;
+    loader.load = load2;
+    return loader;
   }
-  var QUOTING_TYPE_SINGLE = 1;
-  var QUOTING_TYPE_DOUBLE = 2;
-  function State(options) {
-    this.schema = options["schema"] || _default;
-    this.indent = Math.max(1, options["indent"] || 2);
-    this.noArrayIndent = options["noArrayIndent"] || false;
-    this.skipInvalid = options["skipInvalid"] || false;
-    this.flowLevel = common.isNothing(options["flowLevel"]) ? -1 : options["flowLevel"];
-    this.styleMap = compileStyleMap(this.schema, options["styles"] || null);
-    this.sortKeys = options["sortKeys"] || false;
-    this.lineWidth = options["lineWidth"] || 80;
-    this.noRefs = options["noRefs"] || false;
-    this.noCompatMode = options["noCompatMode"] || false;
-    this.condenseFlow = options["condenseFlow"] || false;
-    this.quotingType = options["quotingType"] === '"' ? QUOTING_TYPE_DOUBLE : QUOTING_TYPE_SINGLE;
-    this.forceQuotes = options["forceQuotes"] || false;
-    this.replacer = typeof options["replacer"] === "function" ? options["replacer"] : null;
-    this.implicitTypes = this.schema.compiledImplicit;
-    this.explicitTypes = this.schema.compiledExplicit;
-    this.tag = null;
-    this.result = "";
-    this.duplicates = [];
-    this.usedDuplicates = null;
-  }
-  function indentString(string, spaces) {
-    var ind = common.repeat(" ", spaces), position = 0, next2 = -1, result = "", line, length = string.length;
-    while (position < length) {
-      next2 = string.indexOf("\n", position);
-      if (next2 === -1) {
-        line = string.slice(position);
-        position = length;
+  var dumper = {};
+  var hasRequiredDumper;
+  function requireDumper() {
+    if (hasRequiredDumper) return dumper;
+    hasRequiredDumper = 1;
+    const common2 = requireCommon();
+    const YAMLException2 = requireException();
+    const DEFAULT_SCHEMA2 = require_default();
+    const _toString = Object.prototype.toString;
+    const _hasOwnProperty = Object.prototype.hasOwnProperty;
+    const CHAR_BOM = 65279;
+    const CHAR_TAB = 9;
+    const CHAR_LINE_FEED = 10;
+    const CHAR_CARRIAGE_RETURN = 13;
+    const CHAR_SPACE = 32;
+    const CHAR_EXCLAMATION = 33;
+    const CHAR_DOUBLE_QUOTE = 34;
+    const CHAR_SHARP = 35;
+    const CHAR_PERCENT = 37;
+    const CHAR_AMPERSAND = 38;
+    const CHAR_SINGLE_QUOTE = 39;
+    const CHAR_ASTERISK = 42;
+    const CHAR_COMMA = 44;
+    const CHAR_MINUS = 45;
+    const CHAR_COLON = 58;
+    const CHAR_EQUALS = 61;
+    const CHAR_GREATER_THAN = 62;
+    const CHAR_QUESTION = 63;
+    const CHAR_COMMERCIAL_AT = 64;
+    const CHAR_LEFT_SQUARE_BRACKET = 91;
+    const CHAR_RIGHT_SQUARE_BRACKET = 93;
+    const CHAR_GRAVE_ACCENT = 96;
+    const CHAR_LEFT_CURLY_BRACKET = 123;
+    const CHAR_VERTICAL_LINE = 124;
+    const CHAR_RIGHT_CURLY_BRACKET = 125;
+    const ESCAPE_SEQUENCES = {};
+    ESCAPE_SEQUENCES[0] = "\\0";
+    ESCAPE_SEQUENCES[7] = "\\a";
+    ESCAPE_SEQUENCES[8] = "\\b";
+    ESCAPE_SEQUENCES[9] = "\\t";
+    ESCAPE_SEQUENCES[10] = "\\n";
+    ESCAPE_SEQUENCES[11] = "\\v";
+    ESCAPE_SEQUENCES[12] = "\\f";
+    ESCAPE_SEQUENCES[13] = "\\r";
+    ESCAPE_SEQUENCES[27] = "\\e";
+    ESCAPE_SEQUENCES[34] = '\\"';
+    ESCAPE_SEQUENCES[92] = "\\\\";
+    ESCAPE_SEQUENCES[133] = "\\N";
+    ESCAPE_SEQUENCES[160] = "\\_";
+    ESCAPE_SEQUENCES[8232] = "\\L";
+    ESCAPE_SEQUENCES[8233] = "\\P";
+    const DEPRECATED_BOOLEANS_SYNTAX = [
+      "y",
+      "Y",
+      "yes",
+      "Yes",
+      "YES",
+      "on",
+      "On",
+      "ON",
+      "n",
+      "N",
+      "no",
+      "No",
+      "NO",
+      "off",
+      "Off",
+      "OFF"
+    ];
+    const DEPRECATED_BASE60_SYNTAX = /^[-+]?[0-9_]+(?::[0-9_]+)+(?:\.[0-9_]*)?$/;
+    function compileStyleMap(schema2, map2) {
+      if (map2 === null) return {};
+      const result = {};
+      const keys = Object.keys(map2);
+      for (let index2 = 0, length = keys.length; index2 < length; index2 += 1) {
+        let tag2 = keys[index2];
+        let style = String(map2[tag2]);
+        if (tag2.slice(0, 2) === "!!") {
+          tag2 = "tag:yaml.org,2002:" + tag2.slice(2);
+        }
+        const type2 = schema2.compiledTypeMap["fallback"][tag2];
+        if (type2 && _hasOwnProperty.call(type2.styleAliases, style)) {
+          style = type2.styleAliases[style];
+        }
+        result[tag2] = style;
+      }
+      return result;
+    }
+    function encodeHex(character) {
+      let handle;
+      let length;
+      const string = character.toString(16).toUpperCase();
+      if (character <= 255) {
+        handle = "x";
+        length = 2;
+      } else if (character <= 65535) {
+        handle = "u";
+        length = 4;
+      } else if (character <= 4294967295) {
+        handle = "U";
+        length = 8;
       } else {
-        line = string.slice(position, next2 + 1);
-        position = next2 + 1;
+        throw new YAMLException2("code point within a string may not be greater than 0xFFFFFFFF");
       }
-      if (line.length && line !== "\n") result += ind;
-      result += line;
+      return "\\" + handle + common2.repeat("0", length - string.length) + string;
     }
-    return result;
-  }
-  function generateNextLine(state2, level) {
-    return "\n" + common.repeat(" ", state2.indent * level);
-  }
-  function testImplicitResolving(state2, str2) {
-    var index2, length, type2;
-    for (index2 = 0, length = state2.implicitTypes.length; index2 < length; index2 += 1) {
-      type2 = state2.implicitTypes[index2];
-      if (type2.resolve(str2)) {
-        return true;
-      }
+    const QUOTING_TYPE_SINGLE = 1;
+    const QUOTING_TYPE_DOUBLE = 2;
+    function State(options) {
+      this.schema = options["schema"] || DEFAULT_SCHEMA2;
+      this.indent = Math.max(1, options["indent"] || 2);
+      this.noArrayIndent = options["noArrayIndent"] || false;
+      this.skipInvalid = options["skipInvalid"] || false;
+      this.flowLevel = common2.isNothing(options["flowLevel"]) ? -1 : options["flowLevel"];
+      this.styleMap = compileStyleMap(this.schema, options["styles"] || null);
+      this.sortKeys = options["sortKeys"] || false;
+      this.lineWidth = options["lineWidth"] || 80;
+      this.noRefs = options["noRefs"] || false;
+      this.noCompatMode = options["noCompatMode"] || false;
+      this.condenseFlow = options["condenseFlow"] || false;
+      this.quotingType = options["quotingType"] === '"' ? QUOTING_TYPE_DOUBLE : QUOTING_TYPE_SINGLE;
+      this.forceQuotes = options["forceQuotes"] || false;
+      this.replacer = typeof options["replacer"] === "function" ? options["replacer"] : null;
+      this.implicitTypes = this.schema.compiledImplicit;
+      this.explicitTypes = this.schema.compiledExplicit;
+      this.tag = null;
+      this.result = "";
+      this.duplicates = [];
+      this.usedDuplicates = null;
     }
-    return false;
-  }
-  function isWhitespace(c) {
-    return c === CHAR_SPACE || c === CHAR_TAB;
-  }
-  function isPrintable(c) {
-    return 32 <= c && c <= 126 || 161 <= c && c <= 55295 && c !== 8232 && c !== 8233 || 57344 <= c && c <= 65533 && c !== CHAR_BOM || 65536 <= c && c <= 1114111;
-  }
-  function isNsCharOrWhitespace(c) {
-    return isPrintable(c) && c !== CHAR_BOM && c !== CHAR_CARRIAGE_RETURN && c !== CHAR_LINE_FEED;
-  }
-  function isPlainSafe(c, prev, inblock) {
-    var cIsNsCharOrWhitespace = isNsCharOrWhitespace(c);
-    var cIsNsChar = cIsNsCharOrWhitespace && !isWhitespace(c);
-    return (
-      // ns-plain-safe
-      (inblock ? (
-        // c = flow-in
-        cIsNsCharOrWhitespace
-      ) : cIsNsCharOrWhitespace && c !== CHAR_COMMA && c !== CHAR_LEFT_SQUARE_BRACKET && c !== CHAR_RIGHT_SQUARE_BRACKET && c !== CHAR_LEFT_CURLY_BRACKET && c !== CHAR_RIGHT_CURLY_BRACKET) && c !== CHAR_SHARP && !(prev === CHAR_COLON && !cIsNsChar) || isNsCharOrWhitespace(prev) && !isWhitespace(prev) && c === CHAR_SHARP || prev === CHAR_COLON && cIsNsChar
-    );
-  }
-  function isPlainSafeFirst(c) {
-    return isPrintable(c) && c !== CHAR_BOM && !isWhitespace(c) && c !== CHAR_MINUS && c !== CHAR_QUESTION && c !== CHAR_COLON && c !== CHAR_COMMA && c !== CHAR_LEFT_SQUARE_BRACKET && c !== CHAR_RIGHT_SQUARE_BRACKET && c !== CHAR_LEFT_CURLY_BRACKET && c !== CHAR_RIGHT_CURLY_BRACKET && c !== CHAR_SHARP && c !== CHAR_AMPERSAND && c !== CHAR_ASTERISK && c !== CHAR_EXCLAMATION && c !== CHAR_VERTICAL_LINE && c !== CHAR_EQUALS && c !== CHAR_GREATER_THAN && c !== CHAR_SINGLE_QUOTE && c !== CHAR_DOUBLE_QUOTE && c !== CHAR_PERCENT && c !== CHAR_COMMERCIAL_AT && c !== CHAR_GRAVE_ACCENT;
-  }
-  function isPlainSafeLast(c) {
-    return !isWhitespace(c) && c !== CHAR_COLON;
-  }
-  function codePointAt(string, pos) {
-    var first = string.charCodeAt(pos), second;
-    if (first >= 55296 && first <= 56319 && pos + 1 < string.length) {
-      second = string.charCodeAt(pos + 1);
-      if (second >= 56320 && second <= 57343) {
-        return (first - 55296) * 1024 + second - 56320 + 65536;
-      }
-    }
-    return first;
-  }
-  function needIndentIndicator(string) {
-    var leadingSpaceRe = /^\n* /;
-    return leadingSpaceRe.test(string);
-  }
-  var STYLE_PLAIN = 1;
-  var STYLE_SINGLE = 2;
-  var STYLE_LITERAL = 3;
-  var STYLE_FOLDED = 4;
-  var STYLE_DOUBLE = 5;
-  function chooseScalarStyle(string, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
-    var i;
-    var char = 0;
-    var prevChar = null;
-    var hasLineBreak = false;
-    var hasFoldableLine = false;
-    var shouldTrackWidth = lineWidth !== -1;
-    var previousLineBreak = -1;
-    var plain = isPlainSafeFirst(codePointAt(string, 0)) && isPlainSafeLast(codePointAt(string, string.length - 1));
-    if (singleLineOnly || forceQuotes) {
-      for (i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
-        char = codePointAt(string, i);
-        if (!isPrintable(char)) {
-          return STYLE_DOUBLE;
+    function indentString(string, spaces) {
+      const ind = common2.repeat(" ", spaces);
+      let position = 0;
+      let result = "";
+      const length = string.length;
+      while (position < length) {
+        let line;
+        const next2 = string.indexOf("\n", position);
+        if (next2 === -1) {
+          line = string.slice(position);
+          position = length;
+        } else {
+          line = string.slice(position, next2 + 1);
+          position = next2 + 1;
         }
-        plain = plain && isPlainSafe(char, prevChar, inblock);
-        prevChar = char;
+        if (line.length && line !== "\n") result += ind;
+        result += line;
       }
-    } else {
-      for (i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
-        char = codePointAt(string, i);
-        if (char === CHAR_LINE_FEED) {
-          hasLineBreak = true;
-          if (shouldTrackWidth) {
-            hasFoldableLine = hasFoldableLine || // Foldable line = too long, and not more-indented.
-            i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ";
-            previousLineBreak = i;
+      return result;
+    }
+    function generateNextLine(state2, level) {
+      return "\n" + common2.repeat(" ", state2.indent * level);
+    }
+    function testImplicitResolving(state2, str2) {
+      for (let index2 = 0, length = state2.implicitTypes.length; index2 < length; index2 += 1) {
+        const type2 = state2.implicitTypes[index2];
+        if (type2.resolve(str2)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    function isWhitespace(c) {
+      return c === CHAR_SPACE || c === CHAR_TAB;
+    }
+    function isPrintable(c) {
+      return c >= 32 && c <= 126 || c >= 161 && c <= 55295 && c !== 8232 && c !== 8233 || c >= 57344 && c <= 65533 && c !== CHAR_BOM || c >= 65536 && c <= 1114111;
+    }
+    function isNsCharOrWhitespace(c) {
+      return isPrintable(c) && c !== CHAR_BOM && // - b-char
+      c !== CHAR_CARRIAGE_RETURN && c !== CHAR_LINE_FEED;
+    }
+    function isPlainSafe(c, prev, inblock) {
+      const cIsNsCharOrWhitespace = isNsCharOrWhitespace(c);
+      const cIsNsChar = cIsNsCharOrWhitespace && !isWhitespace(c);
+      return (
+        // ns-plain-safe
+        (inblock ? cIsNsCharOrWhitespace : cIsNsCharOrWhitespace && // - c-flow-indicator
+        c !== CHAR_COMMA && c !== CHAR_LEFT_SQUARE_BRACKET && c !== CHAR_RIGHT_SQUARE_BRACKET && c !== CHAR_LEFT_CURLY_BRACKET && c !== CHAR_RIGHT_CURLY_BRACKET) && // ns-plain-char
+        c !== CHAR_SHARP && // false on '#'
+        !(prev === CHAR_COLON && !cIsNsChar) || // false on ': '
+        isNsCharOrWhitespace(prev) && !isWhitespace(prev) && c === CHAR_SHARP || // change to true on '[^ ]#'
+        prev === CHAR_COLON && cIsNsChar
+      );
+    }
+    function isPlainSafeFirst(c) {
+      return isPrintable(c) && c !== CHAR_BOM && !isWhitespace(c) && // - s-white
+      // - (c-indicator ::=
+      // “-” | “?” | “:” | “,” | “[” | “]” | “{” | “}”
+      c !== CHAR_MINUS && c !== CHAR_QUESTION && c !== CHAR_COLON && c !== CHAR_COMMA && c !== CHAR_LEFT_SQUARE_BRACKET && c !== CHAR_RIGHT_SQUARE_BRACKET && c !== CHAR_LEFT_CURLY_BRACKET && c !== CHAR_RIGHT_CURLY_BRACKET && // | “#” | “&” | “*” | “!” | “|” | “=” | “>” | “'” | “"”
+      c !== CHAR_SHARP && c !== CHAR_AMPERSAND && c !== CHAR_ASTERISK && c !== CHAR_EXCLAMATION && c !== CHAR_VERTICAL_LINE && c !== CHAR_EQUALS && c !== CHAR_GREATER_THAN && c !== CHAR_SINGLE_QUOTE && c !== CHAR_DOUBLE_QUOTE && // | “%” | “@” | “`”)
+      c !== CHAR_PERCENT && c !== CHAR_COMMERCIAL_AT && c !== CHAR_GRAVE_ACCENT;
+    }
+    function isPlainSafeLast(c) {
+      return !isWhitespace(c) && c !== CHAR_COLON;
+    }
+    function codePointAt(string, pos) {
+      const first = string.charCodeAt(pos);
+      let second;
+      if (first >= 55296 && first <= 56319 && pos + 1 < string.length) {
+        second = string.charCodeAt(pos + 1);
+        if (second >= 56320 && second <= 57343) {
+          return (first - 55296) * 1024 + second - 56320 + 65536;
+        }
+      }
+      return first;
+    }
+    function needIndentIndicator(string) {
+      const leadingSpaceRe = /^\n* /;
+      return leadingSpaceRe.test(string);
+    }
+    const STYLE_PLAIN = 1;
+    const STYLE_SINGLE = 2;
+    const STYLE_LITERAL = 3;
+    const STYLE_FOLDED = 4;
+    const STYLE_DOUBLE = 5;
+    function chooseScalarStyle(string, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
+      let i;
+      let char = 0;
+      let prevChar = null;
+      let hasLineBreak = false;
+      let hasFoldableLine = false;
+      const shouldTrackWidth = lineWidth !== -1;
+      let previousLineBreak = -1;
+      let plain = isPlainSafeFirst(codePointAt(string, 0)) && isPlainSafeLast(codePointAt(string, string.length - 1));
+      if (singleLineOnly || forceQuotes) {
+        for (i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
+          char = codePointAt(string, i);
+          if (!isPrintable(char)) {
+            return STYLE_DOUBLE;
           }
-        } else if (!isPrintable(char)) {
-          return STYLE_DOUBLE;
+          plain = plain && isPlainSafe(char, prevChar, inblock);
+          prevChar = char;
         }
-        plain = plain && isPlainSafe(char, prevChar, inblock);
-        prevChar = char;
+      } else {
+        for (i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
+          char = codePointAt(string, i);
+          if (char === CHAR_LINE_FEED) {
+            hasLineBreak = true;
+            if (shouldTrackWidth) {
+              hasFoldableLine = hasFoldableLine || // Foldable line = too long, and not more-indented.
+              i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ";
+              previousLineBreak = i;
+            }
+          } else if (!isPrintable(char)) {
+            return STYLE_DOUBLE;
+          }
+          plain = plain && isPlainSafe(char, prevChar, inblock);
+          prevChar = char;
+        }
+        hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ");
       }
-      hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ");
-    }
-    if (!hasLineBreak && !hasFoldableLine) {
-      if (plain && !forceQuotes && !testAmbiguousType(string)) {
-        return STYLE_PLAIN;
+      if (!hasLineBreak && !hasFoldableLine) {
+        if (plain && !forceQuotes && !testAmbiguousType(string)) {
+          return STYLE_PLAIN;
+        }
+        return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
+      }
+      if (indentPerLevel > 9 && needIndentIndicator(string)) {
+        return STYLE_DOUBLE;
+      }
+      if (!forceQuotes) {
+        return hasFoldableLine ? STYLE_FOLDED : STYLE_LITERAL;
       }
       return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
     }
-    if (indentPerLevel > 9 && needIndentIndicator(string)) {
-      return STYLE_DOUBLE;
+    function writeScalar(state2, string, level, iskey, inblock) {
+      state2.dump = (function() {
+        if (string.length === 0) {
+          return state2.quotingType === QUOTING_TYPE_DOUBLE ? '""' : "''";
+        }
+        if (!state2.noCompatMode) {
+          if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string)) {
+            return state2.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string + '"' : "'" + string + "'";
+          }
+        }
+        const indent = state2.indent * Math.max(1, level);
+        const lineWidth = state2.lineWidth === -1 ? -1 : Math.max(Math.min(state2.lineWidth, 40), state2.lineWidth - indent);
+        const singleLineOnly = iskey || // No block styles in flow mode.
+        state2.flowLevel > -1 && level >= state2.flowLevel;
+        function testAmbiguity(string2) {
+          return testImplicitResolving(state2, string2);
+        }
+        switch (chooseScalarStyle(
+          string,
+          singleLineOnly,
+          state2.indent,
+          lineWidth,
+          testAmbiguity,
+          state2.quotingType,
+          state2.forceQuotes && !iskey,
+          inblock
+        )) {
+          case STYLE_PLAIN:
+            return string;
+          case STYLE_SINGLE:
+            return "'" + string.replace(/'/g, "''") + "'";
+          case STYLE_LITERAL:
+            return "|" + blockHeader(string, state2.indent) + dropEndingNewline(indentString(string, indent));
+          case STYLE_FOLDED:
+            return ">" + blockHeader(string, state2.indent) + dropEndingNewline(indentString(foldString(string, lineWidth), indent));
+          case STYLE_DOUBLE:
+            return '"' + escapeString(string) + '"';
+          default:
+            throw new YAMLException2("impossible error: invalid scalar style");
+        }
+      })();
     }
-    if (!forceQuotes) {
-      return hasFoldableLine ? STYLE_FOLDED : STYLE_LITERAL;
+    function blockHeader(string, indentPerLevel) {
+      const indentIndicator = needIndentIndicator(string) ? String(indentPerLevel) : "";
+      const clip = string[string.length - 1] === "\n";
+      const keep = clip && (string[string.length - 2] === "\n" || string === "\n");
+      const chomp = keep ? "+" : clip ? "" : "-";
+      return indentIndicator + chomp + "\n";
     }
-    return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
-  }
-  function writeScalar(state2, string, level, iskey, inblock) {
-    state2.dump = (function() {
-      if (string.length === 0) {
-        return state2.quotingType === QUOTING_TYPE_DOUBLE ? '""' : "''";
+    function dropEndingNewline(string) {
+      return string[string.length - 1] === "\n" ? string.slice(0, -1) : string;
+    }
+    function foldString(string, width) {
+      const lineRe = /(\n+)([^\n]*)/g;
+      let result = (function() {
+        let nextLF = string.indexOf("\n");
+        nextLF = nextLF !== -1 ? nextLF : string.length;
+        lineRe.lastIndex = nextLF;
+        return foldLine(string.slice(0, nextLF), width);
+      })();
+      let prevMoreIndented = string[0] === "\n" || string[0] === " ";
+      let moreIndented;
+      let match;
+      while (match = lineRe.exec(string)) {
+        const prefix = match[1];
+        const line = match[2];
+        moreIndented = line[0] === " ";
+        result += prefix + (!prevMoreIndented && !moreIndented && line !== "" ? "\n" : "") + foldLine(line, width);
+        prevMoreIndented = moreIndented;
       }
-      if (!state2.noCompatMode) {
-        if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string)) {
-          return state2.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string + '"' : "'" + string + "'";
+      return result;
+    }
+    function foldLine(line, width) {
+      if (line === "" || line[0] === " ") return line;
+      const breakRe = / [^ ]/g;
+      let match;
+      let start = 0;
+      let end;
+      let curr = 0;
+      let next2 = 0;
+      let result = "";
+      while (match = breakRe.exec(line)) {
+        next2 = match.index;
+        if (next2 - start > width) {
+          end = curr > start ? curr : next2;
+          result += "\n" + line.slice(start, end);
+          start = end + 1;
+        }
+        curr = next2;
+      }
+      result += "\n";
+      if (line.length - start > width && curr > start) {
+        result += line.slice(start, curr) + "\n" + line.slice(curr + 1);
+      } else {
+        result += line.slice(start);
+      }
+      return result.slice(1);
+    }
+    function escapeString(string) {
+      let result = "";
+      let char = 0;
+      for (let i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
+        char = codePointAt(string, i);
+        const escapeSeq = ESCAPE_SEQUENCES[char];
+        if (!escapeSeq && isPrintable(char)) {
+          result += string[i];
+          if (char >= 65536) result += string[i + 1];
+        } else {
+          result += escapeSeq || encodeHex(char);
         }
       }
-      var indent = state2.indent * Math.max(1, level);
-      var lineWidth = state2.lineWidth === -1 ? -1 : Math.max(Math.min(state2.lineWidth, 40), state2.lineWidth - indent);
-      var singleLineOnly = iskey || state2.flowLevel > -1 && level >= state2.flowLevel;
-      function testAmbiguity(string2) {
-        return testImplicitResolving(state2, string2);
-      }
-      switch (chooseScalarStyle(
-        string,
-        singleLineOnly,
-        state2.indent,
-        lineWidth,
-        testAmbiguity,
-        state2.quotingType,
-        state2.forceQuotes && !iskey,
-        inblock
-      )) {
-        case STYLE_PLAIN:
-          return string;
-        case STYLE_SINGLE:
-          return "'" + string.replace(/'/g, "''") + "'";
-        case STYLE_LITERAL:
-          return "|" + blockHeader(string, state2.indent) + dropEndingNewline(indentString(string, indent));
-        case STYLE_FOLDED:
-          return ">" + blockHeader(string, state2.indent) + dropEndingNewline(indentString(foldString(string, lineWidth), indent));
-        case STYLE_DOUBLE:
-          return '"' + escapeString(string) + '"';
-        default:
-          throw new exception("impossible error: invalid scalar style");
-      }
-    })();
-  }
-  function blockHeader(string, indentPerLevel) {
-    var indentIndicator = needIndentIndicator(string) ? String(indentPerLevel) : "";
-    var clip = string[string.length - 1] === "\n";
-    var keep = clip && (string[string.length - 2] === "\n" || string === "\n");
-    var chomp = keep ? "+" : clip ? "" : "-";
-    return indentIndicator + chomp + "\n";
-  }
-  function dropEndingNewline(string) {
-    return string[string.length - 1] === "\n" ? string.slice(0, -1) : string;
-  }
-  function foldString(string, width) {
-    var lineRe = /(\n+)([^\n]*)/g;
-    var result = (function() {
-      var nextLF = string.indexOf("\n");
-      nextLF = nextLF !== -1 ? nextLF : string.length;
-      lineRe.lastIndex = nextLF;
-      return foldLine(string.slice(0, nextLF), width);
-    })();
-    var prevMoreIndented = string[0] === "\n" || string[0] === " ";
-    var moreIndented;
-    var match;
-    while (match = lineRe.exec(string)) {
-      var prefix = match[1], line = match[2];
-      moreIndented = line[0] === " ";
-      result += prefix + (!prevMoreIndented && !moreIndented && line !== "" ? "\n" : "") + foldLine(line, width);
-      prevMoreIndented = moreIndented;
+      return result;
     }
-    return result;
-  }
-  function foldLine(line, width) {
-    if (line === "" || line[0] === " ") return line;
-    var breakRe = / [^ ]/g;
-    var match;
-    var start = 0, end, curr = 0, next2 = 0;
-    var result = "";
-    while (match = breakRe.exec(line)) {
-      next2 = match.index;
-      if (next2 - start > width) {
-        end = curr > start ? curr : next2;
-        result += "\n" + line.slice(start, end);
-        start = end + 1;
+    function writeFlowSequence(state2, level, object) {
+      let _result = "";
+      const _tag = state2.tag;
+      for (let index2 = 0, length = object.length; index2 < length; index2 += 1) {
+        let value = object[index2];
+        if (state2.replacer) {
+          value = state2.replacer.call(object, String(index2), value);
+        }
+        if (writeNode(state2, level, value, false, false) || typeof value === "undefined" && writeNode(state2, level, null, false, false)) {
+          if (_result !== "") _result += "," + (!state2.condenseFlow ? " " : "");
+          _result += state2.dump;
+        }
       }
-      curr = next2;
+      state2.tag = _tag;
+      state2.dump = "[" + _result + "]";
     }
-    result += "\n";
-    if (line.length - start > width && curr > start) {
-      result += line.slice(start, curr) + "\n" + line.slice(curr + 1);
-    } else {
-      result += line.slice(start);
+    function writeBlockSequence(state2, level, object, compact) {
+      let _result = "";
+      const _tag = state2.tag;
+      for (let index2 = 0, length = object.length; index2 < length; index2 += 1) {
+        let value = object[index2];
+        if (state2.replacer) {
+          value = state2.replacer.call(object, String(index2), value);
+        }
+        if (writeNode(state2, level + 1, value, true, true, false, true) || typeof value === "undefined" && writeNode(state2, level + 1, null, true, true, false, true)) {
+          if (!compact || _result !== "") {
+            _result += generateNextLine(state2, level);
+          }
+          if (state2.dump && CHAR_LINE_FEED === state2.dump.charCodeAt(0)) {
+            _result += "-";
+          } else {
+            _result += "- ";
+          }
+          _result += state2.dump;
+        }
+      }
+      state2.tag = _tag;
+      state2.dump = _result || "[]";
     }
-    return result.slice(1);
-  }
-  function escapeString(string) {
-    var result = "";
-    var char = 0;
-    var escapeSeq;
-    for (var i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
-      char = codePointAt(string, i);
-      escapeSeq = ESCAPE_SEQUENCES[char];
-      if (!escapeSeq && isPrintable(char)) {
-        result += string[i];
-        if (char >= 65536) result += string[i + 1];
-      } else {
-        result += escapeSeq || encodeHex(char);
+    function writeFlowMapping(state2, level, object) {
+      let _result = "";
+      const _tag = state2.tag;
+      const objectKeyList = Object.keys(object);
+      for (let index2 = 0, length = objectKeyList.length; index2 < length; index2 += 1) {
+        let pairBuffer = "";
+        if (_result !== "") pairBuffer += ", ";
+        if (state2.condenseFlow) pairBuffer += '"';
+        const objectKey = objectKeyList[index2];
+        let objectValue = object[objectKey];
+        if (state2.replacer) {
+          objectValue = state2.replacer.call(object, objectKey, objectValue);
+        }
+        if (!writeNode(state2, level, objectKey, false, false)) {
+          continue;
+        }
+        if (state2.dump.length > 1024) pairBuffer += "? ";
+        pairBuffer += state2.dump + (state2.condenseFlow ? '"' : "") + ":" + (state2.condenseFlow ? "" : " ");
+        if (!writeNode(state2, level, objectValue, false, false)) {
+          continue;
+        }
+        pairBuffer += state2.dump;
+        _result += pairBuffer;
       }
+      state2.tag = _tag;
+      state2.dump = "{" + _result + "}";
     }
-    return result;
-  }
-  function writeFlowSequence(state2, level, object) {
-    var _result = "", _tag = state2.tag, index2, length, value;
-    for (index2 = 0, length = object.length; index2 < length; index2 += 1) {
-      value = object[index2];
-      if (state2.replacer) {
-        value = state2.replacer.call(object, String(index2), value);
+    function writeBlockMapping(state2, level, object, compact) {
+      let _result = "";
+      const _tag = state2.tag;
+      const objectKeyList = Object.keys(object);
+      if (state2.sortKeys === true) {
+        objectKeyList.sort();
+      } else if (typeof state2.sortKeys === "function") {
+        objectKeyList.sort(state2.sortKeys);
+      } else if (state2.sortKeys) {
+        throw new YAMLException2("sortKeys must be a boolean or a function");
       }
-      if (writeNode(state2, level, value, false, false) || typeof value === "undefined" && writeNode(state2, level, null, false, false)) {
-        if (_result !== "") _result += "," + (!state2.condenseFlow ? " " : "");
-        _result += state2.dump;
-      }
-    }
-    state2.tag = _tag;
-    state2.dump = "[" + _result + "]";
-  }
-  function writeBlockSequence(state2, level, object, compact) {
-    var _result = "", _tag = state2.tag, index2, length, value;
-    for (index2 = 0, length = object.length; index2 < length; index2 += 1) {
-      value = object[index2];
-      if (state2.replacer) {
-        value = state2.replacer.call(object, String(index2), value);
-      }
-      if (writeNode(state2, level + 1, value, true, true, false, true) || typeof value === "undefined" && writeNode(state2, level + 1, null, true, true, false, true)) {
+      for (let index2 = 0, length = objectKeyList.length; index2 < length; index2 += 1) {
+        let pairBuffer = "";
         if (!compact || _result !== "") {
-          _result += generateNextLine(state2, level);
+          pairBuffer += generateNextLine(state2, level);
+        }
+        const objectKey = objectKeyList[index2];
+        let objectValue = object[objectKey];
+        if (state2.replacer) {
+          objectValue = state2.replacer.call(object, objectKey, objectValue);
+        }
+        if (!writeNode(state2, level + 1, objectKey, true, true, true)) {
+          continue;
+        }
+        const explicitPair = state2.tag !== null && state2.tag !== "?" || state2.dump && state2.dump.length > 1024;
+        if (explicitPair) {
+          if (state2.dump && CHAR_LINE_FEED === state2.dump.charCodeAt(0)) {
+            pairBuffer += "?";
+          } else {
+            pairBuffer += "? ";
+          }
+        }
+        pairBuffer += state2.dump;
+        if (explicitPair) {
+          pairBuffer += generateNextLine(state2, level);
+        }
+        if (!writeNode(state2, level + 1, objectValue, true, explicitPair)) {
+          continue;
         }
         if (state2.dump && CHAR_LINE_FEED === state2.dump.charCodeAt(0)) {
-          _result += "-";
+          pairBuffer += ":";
         } else {
-          _result += "- ";
+          pairBuffer += ": ";
         }
-        _result += state2.dump;
+        pairBuffer += state2.dump;
+        _result += pairBuffer;
+      }
+      state2.tag = _tag;
+      state2.dump = _result || "{}";
+    }
+    function detectType(state2, object, explicit) {
+      const typeList = explicit ? state2.explicitTypes : state2.implicitTypes;
+      for (let index2 = 0, length = typeList.length; index2 < length; index2 += 1) {
+        const type2 = typeList[index2];
+        if ((type2.instanceOf || type2.predicate) && (!type2.instanceOf || typeof object === "object" && object instanceof type2.instanceOf) && (!type2.predicate || type2.predicate(object))) {
+          if (explicit) {
+            if (type2.multi && type2.representName) {
+              state2.tag = type2.representName(object);
+            } else {
+              state2.tag = type2.tag;
+            }
+          } else {
+            state2.tag = "?";
+          }
+          if (type2.represent) {
+            const style = state2.styleMap[type2.tag] || type2.defaultStyle;
+            let _result;
+            if (_toString.call(type2.represent) === "[object Function]") {
+              _result = type2.represent(object, style);
+            } else if (_hasOwnProperty.call(type2.represent, style)) {
+              _result = type2.represent[style](object, style);
+            } else {
+              throw new YAMLException2("!<" + type2.tag + '> tag resolver accepts not "' + style + '" style');
+            }
+            state2.dump = _result;
+          }
+          return true;
+        }
+      }
+      return false;
+    }
+    function writeNode(state2, level, object, block2, compact, iskey, isblockseq) {
+      state2.tag = null;
+      state2.dump = object;
+      if (!detectType(state2, object, false)) {
+        detectType(state2, object, true);
+      }
+      const type2 = _toString.call(state2.dump);
+      const inblock = block2;
+      if (block2) {
+        block2 = state2.flowLevel < 0 || state2.flowLevel > level;
+      }
+      const objectOrArray = type2 === "[object Object]" || type2 === "[object Array]";
+      let duplicateIndex;
+      let duplicate;
+      if (objectOrArray) {
+        duplicateIndex = state2.duplicates.indexOf(object);
+        duplicate = duplicateIndex !== -1;
+      }
+      if (state2.tag !== null && state2.tag !== "?" || duplicate || state2.indent !== 2 && level > 0) {
+        compact = false;
+      }
+      if (duplicate && state2.usedDuplicates[duplicateIndex]) {
+        state2.dump = "*ref_" + duplicateIndex;
+      } else {
+        if (objectOrArray && duplicate && !state2.usedDuplicates[duplicateIndex]) {
+          state2.usedDuplicates[duplicateIndex] = true;
+        }
+        if (type2 === "[object Object]") {
+          if (block2 && Object.keys(state2.dump).length !== 0) {
+            writeBlockMapping(state2, level, state2.dump, compact);
+            if (duplicate) {
+              state2.dump = "&ref_" + duplicateIndex + state2.dump;
+            }
+          } else {
+            writeFlowMapping(state2, level, state2.dump);
+            if (duplicate) {
+              state2.dump = "&ref_" + duplicateIndex + " " + state2.dump;
+            }
+          }
+        } else if (type2 === "[object Array]") {
+          if (block2 && state2.dump.length !== 0) {
+            if (state2.noArrayIndent && !isblockseq && level > 0) {
+              writeBlockSequence(state2, level - 1, state2.dump, compact);
+            } else {
+              writeBlockSequence(state2, level, state2.dump, compact);
+            }
+            if (duplicate) {
+              state2.dump = "&ref_" + duplicateIndex + state2.dump;
+            }
+          } else {
+            writeFlowSequence(state2, level, state2.dump);
+            if (duplicate) {
+              state2.dump = "&ref_" + duplicateIndex + " " + state2.dump;
+            }
+          }
+        } else if (type2 === "[object String]") {
+          if (state2.tag !== "?") {
+            writeScalar(state2, state2.dump, level, iskey, inblock);
+          }
+        } else if (type2 === "[object Undefined]") {
+          return false;
+        } else {
+          if (state2.skipInvalid) return false;
+          throw new YAMLException2("unacceptable kind of an object to dump " + type2);
+        }
+        if (state2.tag !== null && state2.tag !== "?") {
+          let tagStr = encodeURI(
+            state2.tag[0] === "!" ? state2.tag.slice(1) : state2.tag
+          ).replace(/!/g, "%21");
+          if (state2.tag[0] === "!") {
+            tagStr = "!" + tagStr;
+          } else if (tagStr.slice(0, 18) === "tag:yaml.org,2002:") {
+            tagStr = "!!" + tagStr.slice(18);
+          } else {
+            tagStr = "!<" + tagStr + ">";
+          }
+          state2.dump = tagStr + " " + state2.dump;
+        }
+      }
+      return true;
+    }
+    function getDuplicateReferences(object, state2) {
+      const objects = [];
+      const duplicatesIndexes = [];
+      inspectNode(object, objects, duplicatesIndexes);
+      const length = duplicatesIndexes.length;
+      for (let index2 = 0; index2 < length; index2 += 1) {
+        state2.duplicates.push(objects[duplicatesIndexes[index2]]);
+      }
+      state2.usedDuplicates = new Array(length);
+    }
+    function inspectNode(object, objects, duplicatesIndexes) {
+      if (object !== null && typeof object === "object") {
+        const index2 = objects.indexOf(object);
+        if (index2 !== -1) {
+          if (duplicatesIndexes.indexOf(index2) === -1) {
+            duplicatesIndexes.push(index2);
+          }
+        } else {
+          objects.push(object);
+          if (Array.isArray(object)) {
+            for (let i = 0, length = object.length; i < length; i += 1) {
+              inspectNode(object[i], objects, duplicatesIndexes);
+            }
+          } else {
+            const objectKeyList = Object.keys(object);
+            for (let i = 0, length = objectKeyList.length; i < length; i += 1) {
+              inspectNode(object[objectKeyList[i]], objects, duplicatesIndexes);
+            }
+          }
+        }
       }
     }
-    state2.tag = _tag;
-    state2.dump = _result || "[]";
-  }
-  function writeFlowMapping(state2, level, object) {
-    var _result = "", _tag = state2.tag, objectKeyList = Object.keys(object), index2, length, objectKey, objectValue, pairBuffer;
-    for (index2 = 0, length = objectKeyList.length; index2 < length; index2 += 1) {
-      pairBuffer = "";
-      if (_result !== "") pairBuffer += ", ";
-      if (state2.condenseFlow) pairBuffer += '"';
-      objectKey = objectKeyList[index2];
-      objectValue = object[objectKey];
+    function dump2(input, options) {
+      options = options || {};
+      const state2 = new State(options);
+      if (!state2.noRefs) getDuplicateReferences(input, state2);
+      let value = input;
       if (state2.replacer) {
-        objectValue = state2.replacer.call(object, objectKey, objectValue);
+        value = state2.replacer.call({ "": value }, "", value);
       }
-      if (!writeNode(state2, level, objectKey, false, false)) {
-        continue;
-      }
-      if (state2.dump.length > 1024) pairBuffer += "? ";
-      pairBuffer += state2.dump + (state2.condenseFlow ? '"' : "") + ":" + (state2.condenseFlow ? "" : " ");
-      if (!writeNode(state2, level, objectValue, false, false)) {
-        continue;
-      }
-      pairBuffer += state2.dump;
-      _result += pairBuffer;
+      if (writeNode(state2, 0, value, true, true)) return state2.dump + "\n";
+      return "";
     }
-    state2.tag = _tag;
-    state2.dump = "{" + _result + "}";
+    dumper.dump = dump2;
+    return dumper;
   }
-  function writeBlockMapping(state2, level, object, compact) {
-    var _result = "", _tag = state2.tag, objectKeyList = Object.keys(object), index2, length, objectKey, objectValue, explicitPair, pairBuffer;
-    if (state2.sortKeys === true) {
-      objectKeyList.sort();
-    } else if (typeof state2.sortKeys === "function") {
-      objectKeyList.sort(state2.sortKeys);
-    } else if (state2.sortKeys) {
-      throw new exception("sortKeys must be a boolean or a function");
+  var hasRequiredJsYaml;
+  function requireJsYaml() {
+    if (hasRequiredJsYaml) return jsYaml;
+    hasRequiredJsYaml = 1;
+    const loader2 = requireLoader();
+    const dumper2 = requireDumper();
+    function renamed(from, to) {
+      return function() {
+        throw new Error("Function yaml." + from + " is removed in js-yaml 4. Use yaml." + to + " instead, which is now safe by default.");
+      };
     }
-    for (index2 = 0, length = objectKeyList.length; index2 < length; index2 += 1) {
-      pairBuffer = "";
-      if (!compact || _result !== "") {
-        pairBuffer += generateNextLine(state2, level);
-      }
-      objectKey = objectKeyList[index2];
-      objectValue = object[objectKey];
-      if (state2.replacer) {
-        objectValue = state2.replacer.call(object, objectKey, objectValue);
-      }
-      if (!writeNode(state2, level + 1, objectKey, true, true, true)) {
-        continue;
-      }
-      explicitPair = state2.tag !== null && state2.tag !== "?" || state2.dump && state2.dump.length > 1024;
-      if (explicitPair) {
-        if (state2.dump && CHAR_LINE_FEED === state2.dump.charCodeAt(0)) {
-          pairBuffer += "?";
-        } else {
-          pairBuffer += "? ";
-        }
-      }
-      pairBuffer += state2.dump;
-      if (explicitPair) {
-        pairBuffer += generateNextLine(state2, level);
-      }
-      if (!writeNode(state2, level + 1, objectValue, true, explicitPair)) {
-        continue;
-      }
-      if (state2.dump && CHAR_LINE_FEED === state2.dump.charCodeAt(0)) {
-        pairBuffer += ":";
-      } else {
-        pairBuffer += ": ";
-      }
-      pairBuffer += state2.dump;
-      _result += pairBuffer;
-    }
-    state2.tag = _tag;
-    state2.dump = _result || "{}";
-  }
-  function detectType(state2, object, explicit) {
-    var _result, typeList, index2, length, type2, style;
-    typeList = explicit ? state2.explicitTypes : state2.implicitTypes;
-    for (index2 = 0, length = typeList.length; index2 < length; index2 += 1) {
-      type2 = typeList[index2];
-      if ((type2.instanceOf || type2.predicate) && (!type2.instanceOf || typeof object === "object" && object instanceof type2.instanceOf) && (!type2.predicate || type2.predicate(object))) {
-        if (explicit) {
-          if (type2.multi && type2.representName) {
-            state2.tag = type2.representName(object);
-          } else {
-            state2.tag = type2.tag;
-          }
-        } else {
-          state2.tag = "?";
-        }
-        if (type2.represent) {
-          style = state2.styleMap[type2.tag] || type2.defaultStyle;
-          if (_toString.call(type2.represent) === "[object Function]") {
-            _result = type2.represent(object, style);
-          } else if (_hasOwnProperty.call(type2.represent, style)) {
-            _result = type2.represent[style](object, style);
-          } else {
-            throw new exception("!<" + type2.tag + '> tag resolver accepts not "' + style + '" style');
-          }
-          state2.dump = _result;
-        }
-        return true;
-      }
-    }
-    return false;
-  }
-  function writeNode(state2, level, object, block2, compact, iskey, isblockseq) {
-    state2.tag = null;
-    state2.dump = object;
-    if (!detectType(state2, object, false)) {
-      detectType(state2, object, true);
-    }
-    var type2 = _toString.call(state2.dump);
-    var inblock = block2;
-    var tagStr;
-    if (block2) {
-      block2 = state2.flowLevel < 0 || state2.flowLevel > level;
-    }
-    var objectOrArray = type2 === "[object Object]" || type2 === "[object Array]", duplicateIndex, duplicate;
-    if (objectOrArray) {
-      duplicateIndex = state2.duplicates.indexOf(object);
-      duplicate = duplicateIndex !== -1;
-    }
-    if (state2.tag !== null && state2.tag !== "?" || duplicate || state2.indent !== 2 && level > 0) {
-      compact = false;
-    }
-    if (duplicate && state2.usedDuplicates[duplicateIndex]) {
-      state2.dump = "*ref_" + duplicateIndex;
-    } else {
-      if (objectOrArray && duplicate && !state2.usedDuplicates[duplicateIndex]) {
-        state2.usedDuplicates[duplicateIndex] = true;
-      }
-      if (type2 === "[object Object]") {
-        if (block2 && Object.keys(state2.dump).length !== 0) {
-          writeBlockMapping(state2, level, state2.dump, compact);
-          if (duplicate) {
-            state2.dump = "&ref_" + duplicateIndex + state2.dump;
-          }
-        } else {
-          writeFlowMapping(state2, level, state2.dump);
-          if (duplicate) {
-            state2.dump = "&ref_" + duplicateIndex + " " + state2.dump;
-          }
-        }
-      } else if (type2 === "[object Array]") {
-        if (block2 && state2.dump.length !== 0) {
-          if (state2.noArrayIndent && !isblockseq && level > 0) {
-            writeBlockSequence(state2, level - 1, state2.dump, compact);
-          } else {
-            writeBlockSequence(state2, level, state2.dump, compact);
-          }
-          if (duplicate) {
-            state2.dump = "&ref_" + duplicateIndex + state2.dump;
-          }
-        } else {
-          writeFlowSequence(state2, level, state2.dump);
-          if (duplicate) {
-            state2.dump = "&ref_" + duplicateIndex + " " + state2.dump;
-          }
-        }
-      } else if (type2 === "[object String]") {
-        if (state2.tag !== "?") {
-          writeScalar(state2, state2.dump, level, iskey, inblock);
-        }
-      } else if (type2 === "[object Undefined]") {
-        return false;
-      } else {
-        if (state2.skipInvalid) return false;
-        throw new exception("unacceptable kind of an object to dump " + type2);
-      }
-      if (state2.tag !== null && state2.tag !== "?") {
-        tagStr = encodeURI(
-          state2.tag[0] === "!" ? state2.tag.slice(1) : state2.tag
-        ).replace(/!/g, "%21");
-        if (state2.tag[0] === "!") {
-          tagStr = "!" + tagStr;
-        } else if (tagStr.slice(0, 18) === "tag:yaml.org,2002:") {
-          tagStr = "!!" + tagStr.slice(18);
-        } else {
-          tagStr = "!<" + tagStr + ">";
-        }
-        state2.dump = tagStr + " " + state2.dump;
-      }
-    }
-    return true;
-  }
-  function getDuplicateReferences(object, state2) {
-    var objects = [], duplicatesIndexes = [], index2, length;
-    inspectNode(object, objects, duplicatesIndexes);
-    for (index2 = 0, length = duplicatesIndexes.length; index2 < length; index2 += 1) {
-      state2.duplicates.push(objects[duplicatesIndexes[index2]]);
-    }
-    state2.usedDuplicates = new Array(length);
-  }
-  function inspectNode(object, objects, duplicatesIndexes) {
-    var objectKeyList, index2, length;
-    if (object !== null && typeof object === "object") {
-      index2 = objects.indexOf(object);
-      if (index2 !== -1) {
-        if (duplicatesIndexes.indexOf(index2) === -1) {
-          duplicatesIndexes.push(index2);
-        }
-      } else {
-        objects.push(object);
-        if (Array.isArray(object)) {
-          for (index2 = 0, length = object.length; index2 < length; index2 += 1) {
-            inspectNode(object[index2], objects, duplicatesIndexes);
-          }
-        } else {
-          objectKeyList = Object.keys(object);
-          for (index2 = 0, length = objectKeyList.length; index2 < length; index2 += 1) {
-            inspectNode(object[objectKeyList[index2]], objects, duplicatesIndexes);
-          }
-        }
-      }
-    }
-  }
-  function dump$1(input, options) {
-    options = options || {};
-    var state2 = new State(options);
-    if (!state2.noRefs) getDuplicateReferences(input, state2);
-    var value = input;
-    if (state2.replacer) {
-      value = state2.replacer.call({ "": value }, "", value);
-    }
-    if (writeNode(state2, 0, value, true, true)) return state2.dump + "\n";
-    return "";
-  }
-  var dump_1 = dump$1;
-  var dumper = {
-    dump: dump_1
-  };
-  function renamed(from, to) {
-    return function() {
-      throw new Error("Function yaml." + from + " is removed in js-yaml 4. Use yaml." + to + " instead, which is now safe by default.");
+    jsYaml.Type = requireType();
+    jsYaml.Schema = requireSchema();
+    jsYaml.FAILSAFE_SCHEMA = requireFailsafe();
+    jsYaml.JSON_SCHEMA = requireJson();
+    jsYaml.CORE_SCHEMA = requireCore();
+    jsYaml.DEFAULT_SCHEMA = require_default();
+    jsYaml.load = loader2.load;
+    jsYaml.loadAll = loader2.loadAll;
+    jsYaml.dump = dumper2.dump;
+    jsYaml.YAMLException = requireException();
+    jsYaml.types = {
+      binary: requireBinary(),
+      float: requireFloat(),
+      map: requireMap(),
+      null: require_null(),
+      pairs: requirePairs(),
+      set: requireSet(),
+      timestamp: requireTimestamp(),
+      bool: requireBool(),
+      int: requireInt(),
+      merge: requireMerge(),
+      omap: requireOmap(),
+      seq: requireSeq(),
+      str: requireStr()
     };
+    jsYaml.safeLoad = renamed("safeLoad", "load");
+    jsYaml.safeLoadAll = renamed("safeLoadAll", "loadAll");
+    jsYaml.safeDump = renamed("safeDump", "dump");
+    return jsYaml;
   }
-  var load = loader.load;
-  var loadAll = loader.loadAll;
-  var dump = dumper.dump;
-  var safeLoad = renamed("safeLoad", "load");
-  var safeLoadAll = renamed("safeLoadAll", "loadAll");
-  var safeDump = renamed("safeDump", "dump");
+  var jsYamlExports = requireJsYaml();
+  var yaml = /* @__PURE__ */ getDefaultExportFromCjs(jsYamlExports);
+  var {
+    Type,
+    Schema,
+    FAILSAFE_SCHEMA,
+    JSON_SCHEMA,
+    CORE_SCHEMA,
+    DEFAULT_SCHEMA,
+    load,
+    loadAll,
+    dump,
+    YAMLException,
+    types,
+    safeLoad,
+    safeLoadAll,
+    safeDump
+  } = yaml;
 
   // node_modules/@plures/praxis/dist/browser/index.js
   function defineFact(tag2) {
@@ -10588,7 +11547,7 @@ ${component_stack}
         );
         return session.id;
       } catch (error) {
-        throw new Error(`Failed to import session: ${error}`);
+        throw new Error(`Failed to import session: ${error}`, { cause: error });
       }
     }
     // ============================================================================
@@ -11528,8 +12487,8 @@ ${component_stack}
 
   // packages/ui-web/src/components/TabBar.svelte
   TabBar[FILENAME] = "packages/ui-web/src/components/TabBar.svelte";
-  var root_1 = add_locations(from_html(`<button type="button" role="tab"> </button>`), TabBar[FILENAME], [[90, 4]]);
-  var root = add_locations(from_html(`<div class="dojo-tab-bar svelte-7bvgl0" role="tablist" aria-orientation="horizontal" tabindex="-1"></div>`), TabBar[FILENAME], [[80, 0]]);
+  var root = add_locations(from_html(`<button type="button" role="tab"> </button>`), TabBar[FILENAME], [[90, 4]]);
+  var root_1 = add_locations(from_html(`<div class="dojo-tab-bar svelte-7bvgl0" role="tablist" aria-orientation="horizontal" tabindex="-1"></div>`), TabBar[FILENAME], [[80, 0]]);
   function TabBar($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, TabBar);
@@ -11538,24 +12497,24 @@ ${component_stack}
       user_derived(() => sort() ? ($$props.tabs || []).slice().sort((a, b) => a.label.localeCompare(b.label)) : ($$props.tabs || []).slice()),
       "sortedTabs"
     );
-    const selectedIndex = tag(user_derived(() => get(sortedTabs).findIndex((t) => strict_equals(t.id, $$props.activeId))), "selectedIndex");
+    const selectedIndex = tag(user_derived(() => get2(sortedTabs).findIndex((t) => strict_equals(t.id, $$props.activeId))), "selectedIndex");
     let tabRefs = tag_proxy(proxy([]), "tabRefs");
     function focusAt(index2) {
       const el = tabRefs[index2];
       if (el) setTimeout(() => el.focus(), 0);
     }
     function handleKeydown(e) {
-      if (!get(sortedTabs).length) return;
-      const last = get(sortedTabs).length - 1;
-      let next2 = get(selectedIndex) < 0 ? 0 : get(selectedIndex);
+      if (!get2(sortedTabs).length) return;
+      const last = get2(sortedTabs).length - 1;
+      let next2 = get2(selectedIndex) < 0 ? 0 : get2(selectedIndex);
       switch (e.key) {
         case "ArrowRight":
         case "ArrowDown":
-          next2 = (get(selectedIndex) + 1) % get(sortedTabs).length;
+          next2 = (get2(selectedIndex) + 1) % get2(sortedTabs).length;
           break;
         case "ArrowLeft":
         case "ArrowUp":
-          next2 = get(selectedIndex) < 0 ? last : (get(selectedIndex) - 1 + get(sortedTabs).length) % get(sortedTabs).length;
+          next2 = get2(selectedIndex) < 0 ? last : (get2(selectedIndex) - 1 + get2(sortedTabs).length) % get2(sortedTabs).length;
           break;
         case "Home":
           next2 = 0;
@@ -11567,32 +12526,32 @@ ${component_stack}
           return;
       }
       e.preventDefault();
-      const target = get(sortedTabs)[next2];
+      const target = get2(sortedTabs)[next2];
       if (target) {
         $$props.onselect(target.id);
         focusAt(next2);
       }
     }
     var $$exports = { ...legacy_api() };
-    var div = root();
+    var div = root_1();
     add_svelte_meta(
-      () => each(div, 21, () => get(sortedTabs), index, ($$anchor2, tab, i) => {
-        const isActive = tag(user_derived(() => strict_equals(get(tab).id, $$props.activeId)), "isActive");
-        get(isActive);
-        var button = root_1();
+      () => each(div, 21, () => get2(sortedTabs), index, ($$anchor2, tab, i) => {
+        const isActive = tag(user_derived(() => strict_equals(get2(tab).id, $$props.activeId)), "isActive");
+        get2(isActive);
+        var button = root();
         let classes;
         var text2 = child(button, true);
         reset(button);
         validate_binding("bind:this={tabRefs[i]}", [], () => tabRefs, () => i, 98, 6);
         bind_this(button, ($$value, i2) => tabRefs[i2] = $$value, (i2) => tabRefs?.[i2], () => [i]);
         template_effect(() => {
-          set_attribute2(button, "aria-selected", get(isActive));
-          set_attribute2(button, "tabindex", get(isActive) ? 0 : -1);
-          classes = set_class(button, 1, "dojo-tab svelte-7bvgl0", null, classes, { "dojo-tab--active": get(isActive) });
-          set_text(text2, get(tab).label);
+          set_attribute2(button, "aria-selected", get2(isActive));
+          set_attribute2(button, "tabindex", get2(isActive) ? 0 : -1);
+          classes = set_class(button, 1, "dojo-tab svelte-7bvgl0", null, classes, { "dojo-tab--active": get2(isActive) });
+          set_text(text2, get2(tab).label);
         });
         delegated("click", button, function click() {
-          return $$props.onselect(get(tab).id);
+          return $$props.onselect(get2(tab).id);
         });
         append($$anchor2, button);
       }),
@@ -11644,10 +12603,10 @@ ${component_stack}
       add_svelte_meta(
         () => TabBar($$anchor, {
           get tabs() {
-            return get(tabs);
+            return get2(tabs);
           },
           get activeId() {
-            return get($0);
+            return get2($0);
           },
           "aria-label": "Project Connections",
           onselect: handleSelect
@@ -11664,9 +12623,9 @@ ${component_stack}
 
   // src/webview/components/Dropdown.svelte
   Dropdown[FILENAME] = "src/webview/components/Dropdown.svelte";
-  var root_2 = add_locations(from_html(`<button type="button" role="option"> </button>`), Dropdown[FILENAME], [[99, 8]]);
+  var root2 = add_locations(from_html(`<button type="button" role="option"> </button>`), Dropdown[FILENAME], [[99, 8]]);
   var root_12 = add_locations(from_html(`<div class="dropdown-menu svelte-y8wbtj" role="listbox"></div>`), Dropdown[FILENAME], [[97, 4]]);
-  var root2 = add_locations(from_html(`<div data-custom-dropdown="true"><button type="button" class="dropdown-button svelte-y8wbtj" aria-haspopup="listbox"><span class="dropdown-label svelte-y8wbtj"> </span> <span>\u25BC</span></button> <!></div>`), Dropdown[FILENAME], [[83, 0, [[84, 2, [[93, 4], [94, 4]]]]]]);
+  var root_2 = add_locations(from_html(`<div data-custom-dropdown="true"><button type="button" class="dropdown-button svelte-y8wbtj" aria-haspopup="listbox"><span class="dropdown-label svelte-y8wbtj"> </span> <span>\u25BC</span></button> <!></div>`), Dropdown[FILENAME], [[83, 0, [[84, 2, [[93, 4], [94, 4]]]]]]);
   function Dropdown($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, Dropdown);
@@ -11676,21 +12635,21 @@ ${component_stack}
     let buttonRef = tag(state(null), "buttonRef");
     const selectedOption = tag(user_derived(() => $$props.options.find((opt) => strict_equals(opt.value, $$props.value)) || $$props.options[0] || { value: "", label: $$props.placeholder || "Select..." }), "selectedOption");
     function toggle() {
-      set(isOpen, !get(isOpen));
+      set(isOpen, !get2(isOpen));
     }
     function select(optionValue) {
       $$props.onChange(optionValue);
       set(isOpen, false);
     }
     function handleClickOutside(event2) {
-      if (get(dropdownRef) && !get(dropdownRef).contains(event2.target)) {
+      if (get2(dropdownRef) && !get2(dropdownRef).contains(event2.target)) {
         set(isOpen, false);
       }
     }
     function handleKeydown(event2) {
       if (strict_equals(event2.key, "Escape")) {
         set(isOpen, false);
-        get(buttonRef)?.focus();
+        get2(buttonRef)?.focus();
       } else if (strict_equals(event2.key, "ArrowDown") || strict_equals(event2.key, "ArrowUp")) {
         event2.preventDefault();
         const currentIndex = $$props.options.findIndex((opt) => strict_equals(opt.value, $$props.value));
@@ -11709,7 +12668,7 @@ ${component_stack}
       }
     }
     user_effect(() => {
-      if (get(isOpen)) {
+      if (get2(isOpen)) {
         document.addEventListener("click", handleClickOutside);
         return () => {
           document.removeEventListener("click", handleClickOutside);
@@ -11717,7 +12676,7 @@ ${component_stack}
       }
     });
     var $$exports = { ...legacy_api() };
-    var div = root2();
+    var div = root_2();
     var button = child(div);
     var span = child(button);
     var text2 = child(span, true);
@@ -11725,26 +12684,26 @@ ${component_stack}
     var span_1 = sibling(span, 2);
     let classes;
     reset(button);
-    bind_this(button, ($$value) => set(buttonRef, $$value), () => get(buttonRef));
+    bind_this(button, ($$value) => set(buttonRef, $$value), () => get2(buttonRef));
     var node = sibling(button, 2);
     {
       var consequent = ($$anchor2) => {
         var div_1 = root_12();
         add_svelte_meta(
           () => each(div_1, 21, () => $$props.options, (option) => option.value, ($$anchor3, option) => {
-            var button_1 = root_2();
+            var button_1 = root2();
             let classes_1;
             var text_1 = child(button_1, true);
             reset(button_1);
             template_effect(() => {
               classes_1 = set_class(button_1, 1, "dropdown-option svelte-y8wbtj", null, classes_1, {
-                selected: strict_equals(get(option).value, $$props.value)
+                selected: strict_equals(get2(option).value, $$props.value)
               });
-              set_attribute2(button_1, "aria-selected", strict_equals(get(option).value, $$props.value));
-              set_text(text_1, get(option).label);
+              set_attribute2(button_1, "aria-selected", strict_equals(get2(option).value, $$props.value));
+              set_text(text_1, get2(option).label);
             });
             delegated("click", button_1, function click() {
-              return select(get(option).value);
+              return select(get2(option).value);
             });
             append($$anchor3, button_1);
           }),
@@ -11758,7 +12717,7 @@ ${component_stack}
       };
       add_svelte_meta(
         () => if_block(node, ($$render) => {
-          if (get(isOpen)) $$render(consequent);
+          if (get2(isOpen)) $$render(consequent);
         }),
         "if",
         Dropdown,
@@ -11767,12 +12726,12 @@ ${component_stack}
       );
     }
     reset(div);
-    bind_this(div, ($$value) => set(dropdownRef, $$value), () => get(dropdownRef));
+    bind_this(div, ($$value) => set(dropdownRef, $$value), () => get2(dropdownRef));
     template_effect(() => {
       set_class(div, 1, `custom-dropdown ${className() ?? ""}`, "svelte-y8wbtj");
-      set_attribute2(button, "aria-expanded", get(isOpen));
-      set_text(text2, get(selectedOption).label);
-      classes = set_class(span_1, 1, "dropdown-arrow svelte-y8wbtj", null, classes, { open: get(isOpen) });
+      set_attribute2(button, "aria-expanded", get2(isOpen));
+      set_text(text2, get2(selectedOption).label);
+      classes = set_class(span_1, 1, "dropdown-arrow svelte-y8wbtj", null, classes, { open: get2(isOpen) });
     });
     delegated("click", button, toggle);
     delegated("keydown", button, handleKeydown);
@@ -11783,10 +12742,10 @@ ${component_stack}
 
   // packages/ui-web/src/components/Alert.svelte
   Alert[FILENAME] = "packages/ui-web/src/components/Alert.svelte";
-  var root_13 = add_locations(from_html(`<span class="dojo-alert__hint svelte-dhhn2a"> </span>`), Alert[FILENAME], [[45, 8]]);
-  var root_22 = add_locations(from_html(`<button type="button" class="dojo-alert__btn dojo-alert__btn--action svelte-dhhn2a"> </button>`), Alert[FILENAME], [[51, 6]]);
-  var root_3 = add_locations(from_html(`<button type="button" class="dojo-alert__btn dojo-alert__btn--dismiss svelte-dhhn2a" aria-label="Dismiss" title="Dismiss">\u2715</button>`), Alert[FILENAME], [[56, 6]]);
-  var root3 = add_locations(from_html(`<div role="alert"><div class="dojo-alert__body svelte-dhhn2a"><span class="dojo-alert__icon svelte-dhhn2a" aria-hidden="true"> </span> <div class="dojo-alert__text svelte-dhhn2a"><span class="dojo-alert__message svelte-dhhn2a"> </span> <!></div></div> <div class="dojo-alert__actions svelte-dhhn2a"><!> <!></div></div>`), Alert[FILENAME], [[39, 0, [[40, 2, [[41, 4], [42, 4, [[43, 6]]]]], [49, 2]]]]);
+  var root3 = add_locations(from_html(`<span class="dojo-alert__hint svelte-dhhn2a"> </span>`), Alert[FILENAME], [[45, 8]]);
+  var root_13 = add_locations(from_html(`<button type="button" class="dojo-alert__btn dojo-alert__btn--action svelte-dhhn2a"> </button>`), Alert[FILENAME], [[51, 6]]);
+  var root_22 = add_locations(from_html(`<button type="button" class="dojo-alert__btn dojo-alert__btn--dismiss svelte-dhhn2a" aria-label="Dismiss" title="Dismiss">\u2715</button>`), Alert[FILENAME], [[56, 6]]);
+  var root_3 = add_locations(from_html(`<div role="alert"><div class="dojo-alert__body svelte-dhhn2a"><span class="dojo-alert__icon svelte-dhhn2a" aria-hidden="true"> </span> <div class="dojo-alert__text svelte-dhhn2a"><span class="dojo-alert__message svelte-dhhn2a"> </span> <!></div></div> <div class="dojo-alert__actions svelte-dhhn2a"><!> <!></div></div>`), Alert[FILENAME], [[39, 0, [[40, 2, [[41, 4], [42, 4, [[43, 6]]]]], [49, 2]]]]);
   function Alert($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, Alert);
@@ -11794,7 +12753,7 @@ ${component_stack}
     const iconMap = { error: "\u26A0", warning: "\u26A0", info: "\u2139", success: "\u2713" };
     const icon = tag(user_derived(() => iconMap[$$props.type] ?? "\u2139"), "icon");
     var $$exports = { ...legacy_api() };
-    var div = root3();
+    var div = root_3();
     var div_1 = child(div);
     var span = child(div_1);
     var text2 = child(span, true);
@@ -11806,7 +12765,7 @@ ${component_stack}
     var node = sibling(span_1, 2);
     {
       var consequent = ($$anchor2) => {
-        var span_2 = root_13();
+        var span_2 = root3();
         var text_2 = child(span_2, true);
         reset(span_2);
         template_effect(() => set_text(text_2, $$props.hint));
@@ -11828,7 +12787,7 @@ ${component_stack}
     var node_1 = child(div_3);
     {
       var consequent_1 = ($$anchor2) => {
-        var button = root_22();
+        var button = root_13();
         var text_3 = child(button, true);
         reset(button);
         template_effect(() => set_text(text_3, $$props.actionLabel));
@@ -11850,7 +12809,7 @@ ${component_stack}
     var node_2 = sibling(node_1, 2);
     {
       var consequent_2 = ($$anchor2) => {
-        var button_1 = root_3();
+        var button_1 = root_22();
         delegated("click", button_1, function(...$$args) {
           apply(() => $$props.ondismiss, this, $$args, Alert, [59, 17]);
         });
@@ -11870,7 +12829,7 @@ ${component_stack}
     reset(div);
     template_effect(() => {
       set_class(div, 1, `dojo-alert dojo-alert--${$$props.type ?? ""}`, "svelte-dhhn2a");
-      set_text(text2, get(icon));
+      set_text(text2, get2(icon));
       set_text(text_1, $$props.message);
     });
     append($$anchor, div);
@@ -11920,24 +12879,24 @@ ${component_stack}
     {
       var consequent = ($$anchor2) => {
         {
-          let $0 = user_derived(() => $$props.error.recoverable ? get(actionLabel) : void 0);
+          let $0 = user_derived(() => $$props.error.recoverable ? get2(actionLabel) : void 0);
           let $1 = user_derived(() => !!$$props.onDismiss);
           add_svelte_meta(
             () => Alert($$anchor2, {
               get type() {
-                return get(alertType);
+                return get2(alertType);
               },
               get message() {
                 return $$props.error.message;
               },
               get hint() {
-                return get(hint);
+                return get2(hint);
               },
               get actionLabel() {
-                return get($0);
+                return get2($0);
               },
               get dismissible() {
-                return get($1);
+                return get2($1);
               },
               onaction: handleAction,
               get ondismiss() {
@@ -11968,20 +12927,20 @@ ${component_stack}
 
   // packages/ui-web/src/components/EmptyState.svelte
   EmptyState[FILENAME] = "packages/ui-web/src/components/EmptyState.svelte";
-  var root_14 = add_locations(from_html(`<span class="dojo-empty-state__icon svelte-8jlr7m" aria-hidden="true"> </span>`), EmptyState[FILENAME], [[19, 4]]);
-  var root_23 = add_locations(from_html(`<p class="dojo-empty-state__description svelte-8jlr7m"> </p>`), EmptyState[FILENAME], [[23, 4]]);
-  var root_32 = add_locations(from_html(`<button type="button" class="dojo-empty-state__btn svelte-8jlr7m"> </button>`), EmptyState[FILENAME], [[26, 4]]);
-  var root4 = add_locations(from_html(`<div class="dojo-empty-state svelte-8jlr7m" role="status"><!> <p class="dojo-empty-state__heading svelte-8jlr7m"> </p> <!> <!></div>`), EmptyState[FILENAME], [[17, 0, [[21, 2]]]]);
+  var root4 = add_locations(from_html(`<span class="dojo-empty-state__icon svelte-8jlr7m" aria-hidden="true"> </span>`), EmptyState[FILENAME], [[19, 4]]);
+  var root_14 = add_locations(from_html(`<p class="dojo-empty-state__description svelte-8jlr7m"> </p>`), EmptyState[FILENAME], [[23, 4]]);
+  var root_23 = add_locations(from_html(`<button type="button" class="dojo-empty-state__btn svelte-8jlr7m"> </button>`), EmptyState[FILENAME], [[26, 4]]);
+  var root_32 = add_locations(from_html(`<div class="dojo-empty-state svelte-8jlr7m" role="status"><!> <p class="dojo-empty-state__heading svelte-8jlr7m"> </p> <!> <!></div>`), EmptyState[FILENAME], [[17, 0, [[21, 2]]]]);
   function EmptyState($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, EmptyState);
     const icon = prop($$props, "icon", 3, "\u25CB");
     var $$exports = { ...legacy_api() };
-    var div = root4();
+    var div = root_32();
     var node = child(div);
     {
       var consequent = ($$anchor2) => {
-        var span = root_14();
+        var span = root4();
         var text2 = child(span, true);
         reset(span);
         template_effect(() => set_text(text2, icon()));
@@ -12003,7 +12962,7 @@ ${component_stack}
     var node_1 = sibling(p, 2);
     {
       var consequent_1 = ($$anchor2) => {
-        var p_1 = root_23();
+        var p_1 = root_14();
         var text_2 = child(p_1, true);
         reset(p_1);
         template_effect(() => set_text(text_2, $$props.description));
@@ -12022,7 +12981,7 @@ ${component_stack}
     var node_2 = sibling(node_1, 2);
     {
       var consequent_2 = ($$anchor2) => {
-        var button = root_32();
+        var button = root_23();
         var text_3 = child(button, true);
         reset(button);
         template_effect(() => set_text(text_3, $$props.actionLabel));
@@ -12083,17 +13042,17 @@ ${component_stack}
     {
       var consequent = ($$anchor2) => {
         {
-          let $0 = user_derived(() => $$props.error.recoverable ? get(actionLabel) : void 0);
+          let $0 = user_derived(() => $$props.error.recoverable ? get2(actionLabel) : void 0);
           add_svelte_meta(
             () => Alert($$anchor2, {
               get type() {
-                return get(alertType);
+                return get2(alertType);
               },
               get message() {
                 return $$props.error.message;
               },
               get actionLabel() {
-                return get($0);
+                return get2($0);
               },
               onaction: handleAction
             }),
@@ -12136,14 +13095,14 @@ ${component_stack}
 
   // src/webview/components/WorkItemList.svelte
   WorkItemList[FILENAME] = "src/webview/components/WorkItemList.svelte";
-  var root_15 = add_locations(from_html(`<div class="empty-state svelte-1uil3z2"><p class="svelte-1uil3z2">No active connection selected.</p> <p class="hint svelte-1uil3z2">Configure a connection in settings to get started.</p></div>`), WorkItemList[FILENAME], [[259, 4, [[260, 6], [261, 6]]]]);
-  var root_33 = add_locations(from_html(`<div class="query-selector-bar svelte-1uil3z2"><label for="query-select" class="query-label svelte-1uil3z2">Query:</label> <!></div>`), WorkItemList[FILENAME], [[266, 6, [[267, 8]]]]);
-  var root_5 = add_locations(from_html(`<div class="loading-indicator svelte-1uil3z2"><div class="loading-spinner svelte-1uil3z2"></div> <p class="svelte-1uil3z2">Loading work items...</p></div>`), WorkItemList[FILENAME], [[327, 8, [[328, 10], [329, 10]]]]);
-  var root_6 = add_locations(from_html(`<div class="loading-spinner-container svelte-1uil3z2"><div class="loading-spinner small svelte-1uil3z2"></div></div>`), WorkItemList[FILENAME], [[333, 8, [[334, 10]]]]);
-  var root_9 = add_locations(from_html(`<div class="empty-state svelte-1uil3z2"><p class="svelte-1uil3z2">No items match your filters.</p> <button class="svelte-1uil3z2">Clear Filters</button></div>`), WorkItemList[FILENAME], [[363, 6, [[364, 8], [365, 8]]]]);
-  var root_122 = add_locations(from_html(`<span class="meta-badge assignee svelte-1uil3z2"> </span>`), WorkItemList[FILENAME], [[403, 18]]);
-  var root_132 = add_locations(from_html(`<span class="meta-badge timer-badge svelte-1uil3z2" title="Timer Active" role="button" tabindex="0"><span class="codicon svelte-1uil3z2">\u23F1</span> </span>`), WorkItemList[FILENAME], [[409, 18, [[417, 20]]]]);
-  var root_11 = add_locations(from_html(`<div class="work-item-card svelte-1uil3z2"><div class="card-header svelte-1uil3z2"><span class="type-icon svelte-1uil3z2"> </span> <span class="item-id svelte-1uil3z2"> </span> <span> </span></div> <div class="card-body svelte-1uil3z2"><div class="item-title svelte-1uil3z2"> </div> <div class="item-meta svelte-1uil3z2"><span class="meta-badge type svelte-1uil3z2"> </span> <span> </span> <!> <!></div> <div class="item-actions svelte-1uil3z2"><button class="action-btn primary svelte-1uil3z2"><span class="codicon svelte-1uil3z2"> </span></button> <button class="action-btn svelte-1uil3z2" title="Edit Work Item" aria-label="Edit Work Item"><span class="codicon svelte-1uil3z2">\u270E</span></button> <button class="action-btn svelte-1uil3z2" title="Create Branch" aria-label="Create Branch"><span class="codicon svelte-1uil3z2">\u2387</span></button> <button class="action-btn svelte-1uil3z2" title="Open in Azure DevOps" aria-label="Open in Azure DevOps"><span class="codicon svelte-1uil3z2">\u{1F310}</span></button></div></div></div>`), WorkItemList[FILENAME], [
+  var root5 = add_locations(from_html(`<div class="empty-state svelte-1uil3z2"><p class="svelte-1uil3z2">No active connection selected.</p> <p class="hint svelte-1uil3z2">Configure a connection in settings to get started.</p></div>`), WorkItemList[FILENAME], [[259, 4, [[260, 6], [261, 6]]]]);
+  var root_15 = add_locations(from_html(`<div class="query-selector-bar svelte-1uil3z2"><label for="query-select" class="query-label svelte-1uil3z2">Query:</label> <!></div>`), WorkItemList[FILENAME], [[266, 6, [[267, 8]]]]);
+  var root_24 = add_locations(from_html(`<div class="loading-indicator svelte-1uil3z2"><div class="loading-spinner svelte-1uil3z2"></div> <p class="svelte-1uil3z2">Loading work items...</p></div>`), WorkItemList[FILENAME], [[327, 8, [[328, 10], [329, 10]]]]);
+  var root_33 = add_locations(from_html(`<div class="loading-spinner-container svelte-1uil3z2"><div class="loading-spinner small svelte-1uil3z2"></div></div>`), WorkItemList[FILENAME], [[333, 8, [[334, 10]]]]);
+  var root_4 = add_locations(from_html(`<div class="empty-state svelte-1uil3z2"><p class="svelte-1uil3z2">No items match your filters.</p> <button class="svelte-1uil3z2">Clear Filters</button></div>`), WorkItemList[FILENAME], [[363, 6, [[364, 8], [365, 8]]]]);
+  var root_5 = add_locations(from_html(`<span class="meta-badge assignee svelte-1uil3z2"> </span>`), WorkItemList[FILENAME], [[403, 18]]);
+  var root_6 = add_locations(from_html(`<span class="meta-badge timer-badge svelte-1uil3z2" title="Timer Active" role="button" tabindex="0"><span class="codicon svelte-1uil3z2">\u23F1</span> </span>`), WorkItemList[FILENAME], [[409, 18, [[417, 20]]]]);
+  var root_7 = add_locations(from_html(`<div class="work-item-card svelte-1uil3z2"><div class="card-header svelte-1uil3z2"><span class="type-icon svelte-1uil3z2"> </span> <span class="item-id svelte-1uil3z2"> </span> <span> </span></div> <div class="card-body svelte-1uil3z2"><div class="item-title svelte-1uil3z2"> </div> <div class="item-meta svelte-1uil3z2"><span class="meta-badge type svelte-1uil3z2"> </span> <span> </span> <!> <!></div> <div class="item-actions svelte-1uil3z2"><button class="action-btn primary svelte-1uil3z2"><span class="codicon svelte-1uil3z2"> </span></button> <button class="action-btn svelte-1uil3z2" title="Edit Work Item" aria-label="Edit Work Item"><span class="codicon svelte-1uil3z2">\u270E</span></button> <button class="action-btn svelte-1uil3z2" title="Create Branch" aria-label="Create Branch"><span class="codicon svelte-1uil3z2">\u2387</span></button> <button class="action-btn svelte-1uil3z2" title="Open in Azure DevOps" aria-label="Open in Azure DevOps"><span class="codicon svelte-1uil3z2">\u{1F310}</span></button></div></div></div>`), WorkItemList[FILENAME], [
     [
       376,
       10,
@@ -12170,9 +13129,9 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_10 = add_locations(from_html(`<div class="items-container svelte-1uil3z2"></div>`), WorkItemList[FILENAME], [[374, 6]]);
-  var root_24 = add_locations(from_html(`<!> <div class="filters-bar svelte-1uil3z2"><input type="text" placeholder="Filter by title..." class="filter-input svelte-1uil3z2"/> <!> <!> <!></div> <!> <!> <!>`, 1), WorkItemList[FILENAME], [[283, 4, [[284, 6]]]]);
-  var root5 = add_locations(from_html(`<div class="work-item-list svelte-1uil3z2" style="position: relative;"><!></div>`), WorkItemList[FILENAME], [[257, 0]]);
+  var root_8 = add_locations(from_html(`<div class="items-container svelte-1uil3z2"></div>`), WorkItemList[FILENAME], [[374, 6]]);
+  var root_9 = add_locations(from_html(`<!> <div class="filters-bar svelte-1uil3z2"><input type="text" placeholder="Filter by title..." class="filter-input svelte-1uil3z2"/> <!> <!> <!></div> <!> <!> <!>`, 1), WorkItemList[FILENAME], [[283, 4, [[284, 6]]]]);
+  var root_10 = add_locations(from_html(`<div class="work-item-list svelte-1uil3z2" style="position: relative;"><!></div>`), WorkItemList[FILENAME], [[257, 0]]);
   function WorkItemList($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, WorkItemList);
@@ -12191,13 +13150,13 @@ ${component_stack}
     const connectionWorkItems = tag(user_derived(() => $$props.context?.connectionWorkItems || {}), "connectionWorkItems");
     const workItems = tag(
       user_derived(() => {
-        if (!get(activeConnectionId)) {
+        if (!get2(activeConnectionId)) {
           return [];
         }
-        if (strict_equals(get(pendingWorkItemsConnectionId), get(activeConnectionId)) && $$props.context?.pendingWorkItems?.workItems) {
+        if (strict_equals(get2(pendingWorkItemsConnectionId), get2(activeConnectionId)) && $$props.context?.pendingWorkItems?.workItems) {
           return $$props.context.pendingWorkItems.workItems;
         }
-        const connectionItems = get(connectionWorkItems)[get(activeConnectionId)];
+        const connectionItems = get2(connectionWorkItems)[get2(activeConnectionId)];
         if (Array.isArray(connectionItems) && connectionItems.length > 0) {
           return connectionItems;
         }
@@ -12211,25 +13170,25 @@ ${component_stack}
     const timerState = tag(user_derived(() => $$props.context?.timerState), "timerState");
     const workItemsError = tag(user_derived(() => $$props.context?.workItemsError), "workItemsError");
     const workItemsErrorConnectionId = tag(user_derived(() => $$props.context?.workItemsErrorConnectionId), "workItemsErrorConnectionId");
-    const showError = tag(user_derived(() => get(workItemsError) && strict_equals(get(workItemsErrorConnectionId), get(activeConnectionId))), "showError");
+    const showError = tag(user_derived(() => get2(workItemsError) && strict_equals(get2(workItemsErrorConnectionId), get2(activeConnectionId))), "showError");
     const uiState = tag(user_derived(() => $$props.context?.ui), "uiState");
-    const connectionHealth = tag(user_derived(() => get(uiState)?.connectionHealth), "connectionHealth");
-    const hasConnectionError = tag(user_derived(() => strict_equals(get(connectionHealth)?.status, "error") && get(connectionHealth)?.lastError), "hasConnectionError");
-    const connectionError = tag(user_derived(() => get(connectionHealth)?.lastError), "connectionError");
-    const showLoading = tag(user_derived(() => strict_equals(get(uiState)?.loading?.workItems, true)), "showLoading");
+    const connectionHealth = tag(user_derived(() => get2(uiState)?.connectionHealth), "connectionHealth");
+    const hasConnectionError = tag(user_derived(() => strict_equals(get2(connectionHealth)?.status, "error") && get2(connectionHealth)?.lastError), "hasConnectionError");
+    const connectionError = tag(user_derived(() => get2(connectionHealth)?.lastError), "connectionError");
+    const showLoading = tag(user_derived(() => strict_equals(get2(uiState)?.loading?.workItems, true)), "showLoading");
     let tick2 = tag(state(0), "tick");
     setInterval(
       () => {
-        set(tick2, (get(tick2) + 1) % 1e3);
+        set(tick2, (get2(tick2) + 1) % 1e3);
       },
       1e3
     );
     const timerElapsedSeconds = tag(
       user_derived(() => {
-        if (!get(timerState)?.startTime) return 0;
-        const stopTime = get(timerState).stopTime;
+        if (!get2(timerState)?.startTime) return 0;
+        const stopTime = get2(timerState).stopTime;
         const now = stopTime || Date.now();
-        const elapsed = Math.floor((now - get(timerState).startTime) / 1e3);
+        const elapsed = Math.floor((now - get2(timerState).startTime) / 1e3);
         return Math.max(0, elapsed);
       }),
       "timerElapsedSeconds"
@@ -12240,26 +13199,26 @@ ${component_stack}
     let sortKey = tag(state("updated-desc"), "sortKey");
     const availableTypes = tag(
       user_derived(() => [
-        ...new Set(get(workItems).map((w) => w.fields?.["System.WorkItemType"]).filter(Boolean))
+        ...new Set(get2(workItems).map((w) => w.fields?.["System.WorkItemType"]).filter(Boolean))
       ]),
       "availableTypes"
     );
     const availableStates = tag(
       user_derived(() => [
-        ...new Set(get(workItems).map((w) => normalizeState(w.fields?.["System.State"])).filter(Boolean))
+        ...new Set(get2(workItems).map((w) => normalizeState(w.fields?.["System.State"])).filter(Boolean))
       ]),
       "availableStates"
     );
     const filteredItems = tag(
-      user_derived(() => get(workItems).filter((item) => {
+      user_derived(() => get2(workItems).filter((item) => {
         const title = (item.fields?.["System.Title"] || "").toLowerCase();
-        const matchesText = !get(filterText) || title.includes(get(filterText).toLowerCase());
-        const matchesType = !get(typeFilter) || strict_equals(item.fields?.["System.WorkItemType"], get(typeFilter));
+        const matchesText = !get2(filterText) || title.includes(get2(filterText).toLowerCase());
+        const matchesType = !get2(typeFilter) || strict_equals(item.fields?.["System.WorkItemType"], get2(typeFilter));
         const itemState = normalizeState(item.fields?.["System.State"]);
-        const matchesState = strict_equals(get(stateFilter), "all") || strict_equals(itemState, get(stateFilter));
+        const matchesState = strict_equals(get2(stateFilter), "all") || strict_equals(itemState, get2(stateFilter));
         return matchesText && matchesType && matchesState;
       }).sort((a, b) => {
-        switch (get(sortKey)) {
+        switch (get2(sortKey)) {
           case "id-asc":
             return Number(a.id) - Number(b.id);
           case "id-desc":
@@ -12304,7 +13263,7 @@ ${component_stack}
     }
     function handleStartTimer(item, event2) {
       event2.stopPropagation();
-      if (strict_equals(get(timerState)?.workItemId, item.id) && strict_equals(get(timerState)?.state, "idle", false)) {
+      if (strict_equals(get2(timerState)?.workItemId, item.id) && strict_equals(get2(timerState)?.state, "idle", false)) {
         $$props.sendEvent({ type: "STOP_TIMER" });
       } else {
         $$props.sendEvent({
@@ -12332,7 +13291,7 @@ ${component_stack}
       const hours = Math.floor(seconds / 3600);
       const mins = Math.floor(seconds % 3600 / 60);
       const secs = Math.floor(seconds % 60);
-      const showSeconds = forceShowSeconds && (seconds < 30 || displayTimerSeconds || get(timerHoverStart) > 0 && Date.now() - get(timerHoverStart) < 3e4);
+      const showSeconds = forceShowSeconds && (seconds < 30 || displayTimerSeconds || get2(timerHoverStart) > 0 && Date.now() - get2(timerHoverStart) < 3e4);
       if (hours > 0) {
         return showSeconds ? `${hours}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}` : `${hours}:${String(mins).padStart(2, "0")}`;
       }
@@ -12350,29 +13309,29 @@ ${component_stack}
       );
     }
     var $$exports = { ...legacy_api() };
-    var div = root5();
+    var div = root_10();
     var node = child(div);
     {
       var consequent = ($$anchor2) => {
-        var div_1 = root_15();
+        var div_1 = root5();
         append($$anchor2, div_1);
       };
       var alternate_2 = ($$anchor2) => {
-        var fragment = root_24();
+        var fragment = root_9();
         var node_1 = first_child(fragment);
         {
           var consequent_1 = ($$anchor3) => {
-            var div_2 = root_33();
+            var div_2 = root_15();
             var node_2 = sibling(child(div_2), 2);
             {
               let $0 = user_derived(() => predefinedQueries.map((q) => ({ value: q, label: q })));
               add_svelte_meta(
                 () => Dropdown(node_2, {
                   get value() {
-                    return get(currentQuery);
+                    return get2(currentQuery);
                   },
                   get options() {
-                    return get($0);
+                    return get2($0);
                   },
                   onChange: (value) => {
                     if ($$props.onQueryChange) {
@@ -12408,15 +13367,15 @@ ${component_stack}
         {
           let $0 = user_derived(() => [
             { value: "", label: "All Types" },
-            ...get(availableTypes).map((type2) => ({ value: type2, label: type2 }))
+            ...get2(availableTypes).map((type2) => ({ value: type2, label: type2 }))
           ]);
           add_svelte_meta(
             () => Dropdown(node_3, {
               get value() {
-                return get(typeFilter);
+                return get2(typeFilter);
               },
               get options() {
-                return get($0);
+                return get2($0);
               },
               onChange: (value) => {
                 set(typeFilter, value, true);
@@ -12433,15 +13392,15 @@ ${component_stack}
         {
           let $0 = user_derived(() => [
             { value: "all", label: "All States" },
-            ...get(availableStates).map((state2) => ({ value: state2, label: state2 }))
+            ...get2(availableStates).map((state2) => ({ value: state2, label: state2 }))
           ]);
           add_svelte_meta(
             () => Dropdown(node_4, {
               get value() {
-                return get(stateFilter);
+                return get2(stateFilter);
               },
               get options() {
-                return get($0);
+                return get2($0);
               },
               onChange: (value) => {
                 set(stateFilter, value, true);
@@ -12458,7 +13417,7 @@ ${component_stack}
         add_svelte_meta(
           () => Dropdown(node_5, {
             get value() {
-              return get(sortKey);
+              return get2(sortKey);
             },
             options: [
               { value: "updated-desc", label: "Updated \u2193" },
@@ -12484,16 +13443,16 @@ ${component_stack}
             var node_7 = first_child(fragment_1);
             {
               var consequent_2 = ($$anchor4) => {
-                var div_4 = root_5();
+                var div_4 = root_24();
                 append($$anchor4, div_4);
               };
               var alternate = ($$anchor4) => {
-                var div_5 = root_6();
+                var div_5 = root_33();
                 append($$anchor4, div_5);
               };
               add_svelte_meta(
                 () => if_block(node_7, ($$render) => {
-                  if (strict_equals(get(workItems).length, 0)) $$render(consequent_2);
+                  if (strict_equals(get2(workItems).length, 0)) $$render(consequent_2);
                   else $$render(alternate, -1);
                 }),
                 "if",
@@ -12506,7 +13465,7 @@ ${component_stack}
           };
           add_svelte_meta(
             () => if_block(node_6, ($$render) => {
-              if (get(showLoading)) $$render(consequent_3);
+              if (get2(showLoading)) $$render(consequent_3);
             }),
             "if",
             WorkItemList,
@@ -12518,17 +13477,17 @@ ${component_stack}
         {
           var consequent_4 = ($$anchor3) => {
             {
-              let $0 = user_derived(() => strict_equals(get(connectionError).type, "authentication") ? {
-                ...get(connectionError),
+              let $0 = user_derived(() => strict_equals(get2(connectionError).type, "authentication") ? {
+                ...get2(connectionError),
                 suggestedAction: "Change auth / start new sign-in"
-              } : get(connectionError));
+              } : get2(connectionError));
               add_svelte_meta(
                 () => ErrorBanner($$anchor3, {
                   get error() {
-                    return get($0);
+                    return get2($0);
                   },
                   onRetry: () => $$props.sendEvent({ type: "REFRESH_DATA" }),
-                  onFixAuth: () => $$props.sendEvent({ type: "RESET_AUTH", connectionId: get(activeConnectionId) }),
+                  onFixAuth: () => $$props.sendEvent({ type: "RESET_AUTH", connectionId: get2(activeConnectionId) }),
                   onDismiss: () => {
                   }
                 }),
@@ -12542,7 +13501,7 @@ ${component_stack}
           };
           add_svelte_meta(
             () => if_block(node_8, ($$render) => {
-              if (get(hasConnectionError) && get(connectionError)) $$render(consequent_4);
+              if (get2(hasConnectionError) && get2(connectionError)) $$render(consequent_4);
             }),
             "if",
             WorkItemList,
@@ -12554,8 +13513,8 @@ ${component_stack}
         {
           var consequent_5 = ($$anchor3) => {
             {
-              let $0 = user_derived(() => get(connectionError) || (get(showError) ? {
-                message: get(workItemsError) || "Unable to load work items",
+              let $0 = user_derived(() => get2(connectionError) || (get2(showError) ? {
+                message: get2(workItemsError) || "Unable to load work items",
                 type: "authentication",
                 recoverable: true,
                 suggestedAction: "Change auth / start new sign-in"
@@ -12564,10 +13523,10 @@ ${component_stack}
                 () => EmptyState2($$anchor3, {
                   hasError: true,
                   get error() {
-                    return get($0);
+                    return get2($0);
                   },
                   onRetry: () => $$props.sendEvent({ type: "REFRESH_DATA" }),
-                  onFixAuth: () => $$props.sendEvent({ type: "RESET_AUTH", connectionId: get(activeConnectionId) })
+                  onFixAuth: () => $$props.sendEvent({ type: "RESET_AUTH", connectionId: get2(activeConnectionId) })
                 }),
                 "component",
                 WorkItemList,
@@ -12578,7 +13537,7 @@ ${component_stack}
             }
           };
           var consequent_6 = ($$anchor3) => {
-            var div_6 = root_9();
+            var div_6 = root_4();
             var button = sibling(child(div_6), 2);
             reset(div_6);
             delegated("click", button, function click() {
@@ -12589,10 +13548,10 @@ ${component_stack}
             append($$anchor3, div_6);
           };
           var alternate_1 = ($$anchor3) => {
-            var div_7 = root_10();
+            var div_7 = root_8();
             add_svelte_meta(
-              () => each(div_7, 21, () => get(filteredItems), (item) => item.id, ($$anchor4, item) => {
-                var div_8 = root_11();
+              () => each(div_7, 21, () => get2(filteredItems), (item) => item.id, ($$anchor4, item) => {
+                var div_8 = root_7();
                 var div_9 = child(div_8);
                 var span = child(div_9);
                 var text2 = child(span, true);
@@ -12618,15 +13577,15 @@ ${component_stack}
                 var node_10 = sibling(span_4, 2);
                 {
                   var consequent_7 = ($$anchor5) => {
-                    var span_5 = root_122();
+                    var span_5 = root_5();
                     var text_6 = child(span_5, true);
                     reset(span_5);
-                    template_effect(() => set_text(text_6, get(item).fields["System.AssignedTo"].displayName || get(item).fields["System.AssignedTo"]));
+                    template_effect(() => set_text(text_6, get2(item).fields["System.AssignedTo"].displayName || get2(item).fields["System.AssignedTo"]));
                     append($$anchor5, span_5);
                   };
                   add_svelte_meta(
                     () => if_block(node_10, ($$render) => {
-                      if (get(item).fields?.["System.AssignedTo"]) $$render(consequent_7);
+                      if (get2(item).fields?.["System.AssignedTo"]) $$render(consequent_7);
                     }),
                     "if",
                     WorkItemList,
@@ -12637,17 +13596,17 @@ ${component_stack}
                 var node_11 = sibling(node_10, 2);
                 {
                   var consequent_8 = ($$anchor5) => {
-                    var span_6 = root_132();
+                    var span_6 = root_6();
                     var text_7 = sibling(child(span_6));
                     reset(span_6);
-                    template_effect(($0) => set_text(text_7, ` ${$0 ?? ""}`), [() => formatElapsedTime(get(timerElapsedSeconds))]);
+                    template_effect(($0) => set_text(text_7, ` ${$0 ?? ""}`), [() => formatElapsedTime(get2(timerElapsedSeconds))]);
                     event("mouseenter", span_6, handleTimerMouseEnter);
                     event("mouseleave", span_6, handleTimerMouseLeave);
                     append($$anchor5, span_6);
                   };
                   add_svelte_meta(
                     () => if_block(node_11, ($$render) => {
-                      if (strict_equals(get(timerState)?.workItemId, get(item).id)) $$render(consequent_8);
+                      if (strict_equals(get2(timerState)?.workItemId, get2(item).id)) $$render(consequent_8);
                     }),
                     "if",
                     WorkItemList,
@@ -12671,34 +13630,34 @@ ${component_stack}
                 template_effect(
                   ($0, $1, $2) => {
                     set_text(text2, $0);
-                    set_text(text_1, `#${get(item).id ?? ""}`);
+                    set_text(text_1, `#${get2(item).id ?? ""}`);
                     set_class(span_2, 1, `priority ${$1 ?? ""}`, "svelte-1uil3z2");
-                    set_text(text_2, `P${(get(item).fields?.["Microsoft.VSTS.Common.Priority"] || "3") ?? ""}`);
-                    set_text(text_3, get(item).fields?.["System.Title"] || `Work Item #${get(item).id}`);
-                    set_text(text_4, get(item).fields?.["System.WorkItemType"] || "Task");
+                    set_text(text_2, `P${(get2(item).fields?.["Microsoft.VSTS.Common.Priority"] || "3") ?? ""}`);
+                    set_text(text_3, get2(item).fields?.["System.Title"] || `Work Item #${get2(item).id}`);
+                    set_text(text_4, get2(item).fields?.["System.WorkItemType"] || "Task");
                     set_class(span_4, 1, `meta-badge state state-${$2 ?? ""}`, "svelte-1uil3z2");
-                    set_text(text_5, get(item).fields?.["System.State"] || "New");
-                    set_attribute2(button_1, "title", strict_equals(get(timerState)?.workItemId, get(item).id) ? "Stop Timer" : "Start Timer");
-                    set_attribute2(button_1, "aria-label", strict_equals(get(timerState)?.workItemId, get(item).id) ? "Stop Timer" : "Start Timer");
-                    set_text(text_8, strict_equals(get(timerState)?.workItemId, get(item).id) ? "\u23F9" : "\u25B6");
+                    set_text(text_5, get2(item).fields?.["System.State"] || "New");
+                    set_attribute2(button_1, "title", strict_equals(get2(timerState)?.workItemId, get2(item).id) ? "Stop Timer" : "Start Timer");
+                    set_attribute2(button_1, "aria-label", strict_equals(get2(timerState)?.workItemId, get2(item).id) ? "Stop Timer" : "Start Timer");
+                    set_text(text_8, strict_equals(get2(timerState)?.workItemId, get2(item).id) ? "\u23F9" : "\u25B6");
                   },
                   [
-                    () => getWorkItemTypeIcon(get(item).fields?.["System.WorkItemType"]),
-                    () => getPriorityClass(get(item).fields?.["Microsoft.VSTS.Common.Priority"]),
-                    () => normalizeState(get(item).fields?.["System.State"])
+                    () => getWorkItemTypeIcon(get2(item).fields?.["System.WorkItemType"]),
+                    () => getPriorityClass(get2(item).fields?.["Microsoft.VSTS.Common.Priority"]),
+                    () => normalizeState(get2(item).fields?.["System.State"])
                   ]
                 );
                 delegated("click", button_1, function click_1(e) {
-                  return handleStartTimer(get(item), e);
+                  return handleStartTimer(get2(item), e);
                 });
                 delegated("click", button_2, function click_2(e) {
-                  return handleEditItem(get(item), e);
+                  return handleEditItem(get2(item), e);
                 });
                 delegated("click", button_3, function click_3(e) {
-                  return handleCreateBranch(get(item), e);
+                  return handleCreateBranch(get2(item), e);
                 });
                 delegated("click", button_4, function click_4(e) {
-                  return handleOpenInBrowser(get(item), e);
+                  return handleOpenInBrowser(get2(item), e);
                 });
                 append($$anchor4, div_8);
               }),
@@ -12712,8 +13671,8 @@ ${component_stack}
           };
           add_svelte_meta(
             () => if_block(node_9, ($$render) => {
-              if ((get(hasConnectionError) || get(showError)) && strict_equals(get(workItems).length, 0) && !get(showLoading)) $$render(consequent_5);
-              else if (strict_equals(get(filteredItems).length, 0) && get(workItems).length > 0) $$render(consequent_6, 1);
+              if ((get2(hasConnectionError) || get2(showError)) && strict_equals(get2(workItems).length, 0) && !get2(showLoading)) $$render(consequent_5);
+              else if (strict_equals(get2(filteredItems).length, 0) && get2(workItems).length > 0) $$render(consequent_6, 1);
               else $$render(alternate_1, -1);
             }),
             "if",
@@ -12725,7 +13684,7 @@ ${component_stack}
         bind_value(
           input,
           function get3() {
-            return get(filterText);
+            return get2(filterText);
           },
           function set3($$value) {
             set(filterText, $$value);
@@ -12735,7 +13694,7 @@ ${component_stack}
       };
       add_svelte_meta(
         () => if_block(node, ($$render) => {
-          if (!get(activeConnectionId)) $$render(consequent);
+          if (!get2(activeConnectionId)) $$render(consequent);
           else $$render(alternate_2, -1);
         }),
         "if",
@@ -12752,10 +13711,10 @@ ${component_stack}
 
   // src/webview/components/KanbanBoard.svelte
   KanbanBoard[FILENAME] = "src/webview/components/KanbanBoard.svelte";
-  var root_16 = add_locations(from_html(`<div class="empty svelte-j9p4i1">No columns available \u2013 load work items or switch view.</div>`), KanbanBoard[FILENAME], [[101, 4]]);
-  var root_62 = add_locations(from_html(`<span class="meta-badge assignee svelte-j9p4i1"> </span>`), KanbanBoard[FILENAME], [[140, 22]]);
-  var root_7 = add_locations(from_html(`<span class="meta-badge timer-badge svelte-j9p4i1" title="Timer Active">\u23F1</span>`), KanbanBoard[FILENAME], [[145, 22]]);
-  var root_52 = add_locations(from_html(`<div role="button" tabindex="0"><div class="kanban-item-header svelte-j9p4i1"><span class="type-icon svelte-j9p4i1"> </span> <span class="item-id svelte-j9p4i1"> </span> <span> </span></div> <div class="kanban-item-title svelte-j9p4i1"> </div> <div class="kanban-item-meta svelte-j9p4i1"><span class="meta-badge type svelte-j9p4i1"> </span> <!> <!></div> <div class="kanban-item-actions svelte-j9p4i1"><button class="action-btn svelte-j9p4i1"><span class="codicon svelte-j9p4i1"> </span></button> <button class="action-btn svelte-j9p4i1" title="Open in Azure DevOps"><span class="codicon svelte-j9p4i1">\u{1F310}</span></button></div></div>`), KanbanBoard[FILENAME], [
+  var root6 = add_locations(from_html(`<div class="empty svelte-j9p4i1">No columns available \u2013 load work items or switch view.</div>`), KanbanBoard[FILENAME], [[101, 4]]);
+  var root_16 = add_locations(from_html(`<span class="meta-badge assignee svelte-j9p4i1"> </span>`), KanbanBoard[FILENAME], [[140, 22]]);
+  var root_25 = add_locations(from_html(`<span class="meta-badge timer-badge svelte-j9p4i1" title="Timer Active">\u23F1</span>`), KanbanBoard[FILENAME], [[145, 22]]);
+  var root_34 = add_locations(from_html(`<div role="button" tabindex="0"><div class="kanban-item-header svelte-j9p4i1"><span class="type-icon svelte-j9p4i1"> </span> <span class="item-id svelte-j9p4i1"> </span> <span> </span></div> <div class="kanban-item-title svelte-j9p4i1"> </div> <div class="kanban-item-meta svelte-j9p4i1"><span class="meta-badge type svelte-j9p4i1"> </span> <!> <!></div> <div class="kanban-item-actions svelte-j9p4i1"><button class="action-btn svelte-j9p4i1"><span class="codicon svelte-j9p4i1"> </span></button> <button class="action-btn svelte-j9p4i1" title="Open in Azure DevOps"><span class="codicon svelte-j9p4i1">\u{1F310}</span></button></div></div>`), KanbanBoard[FILENAME], [
     [
       114,
       16,
@@ -12767,10 +13726,10 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_8 = add_locations(from_html(`<div class="kanban-item kanban-item-placeholder svelte-j9p4i1"><span> </span></div>`), KanbanBoard[FILENAME], [[167, 16, [[168, 18]]]]);
-  var root_34 = add_locations(from_html(`<div class="column svelte-j9p4i1"><div class="column-header svelte-j9p4i1"><h3 class="svelte-j9p4i1"> </h3> <span class="count svelte-j9p4i1"> </span></div> <div class="items svelte-j9p4i1"></div></div>`), KanbanBoard[FILENAME], [[105, 8, [[106, 10, [[107, 12], [108, 12]]], [110, 10]]]]);
-  var root_25 = add_locations(from_html(`<div class="columns svelte-j9p4i1"></div>`), KanbanBoard[FILENAME], [[103, 4]]);
-  var root6 = add_locations(from_html(`<div class="kanban-board svelte-j9p4i1"><!></div>`), KanbanBoard[FILENAME], [[99, 0]]);
+  var root_42 = add_locations(from_html(`<div class="kanban-item kanban-item-placeholder svelte-j9p4i1"><span> </span></div>`), KanbanBoard[FILENAME], [[167, 16, [[168, 18]]]]);
+  var root_52 = add_locations(from_html(`<div class="column svelte-j9p4i1"><div class="column-header svelte-j9p4i1"><h3 class="svelte-j9p4i1"> </h3> <span class="count svelte-j9p4i1"> </span></div> <div class="items svelte-j9p4i1"></div></div>`), KanbanBoard[FILENAME], [[105, 8, [[106, 10, [[107, 12], [108, 12]]], [110, 10]]]]);
+  var root_62 = add_locations(from_html(`<div class="columns svelte-j9p4i1"></div>`), KanbanBoard[FILENAME], [[103, 4]]);
+  var root_72 = add_locations(from_html(`<div class="kanban-board svelte-j9p4i1"><!></div>`), KanbanBoard[FILENAME], [[99, 0]]);
   function KanbanBoard($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, KanbanBoard);
@@ -12780,13 +13739,13 @@ ${component_stack}
     const pendingWorkItemsConnectionId = tag(user_derived(() => $$props.context?.pendingWorkItems?.connectionId), "pendingWorkItemsConnectionId");
     const workItems = tag(
       user_derived(() => {
-        if (get(pendingWorkItemsConnectionId)) {
-          if (strict_equals(get(pendingWorkItemsConnectionId), get(activeConnectionId))) {
-            return get(allWorkItems);
+        if (get2(pendingWorkItemsConnectionId)) {
+          if (strict_equals(get2(pendingWorkItemsConnectionId), get2(activeConnectionId))) {
+            return get2(allWorkItems);
           }
           return [];
         }
-        return get(activeConnectionId) ? get(allWorkItems) : [];
+        return get2(activeConnectionId) ? get2(allWorkItems) : [];
       }),
       "workItems"
     );
@@ -12795,7 +13754,7 @@ ${component_stack}
     const workItemsMap = tag(
       user_derived(() => {
         const map2 = /* @__PURE__ */ new Map();
-        get(workItems).forEach((item) => {
+        get2(workItems).forEach((item) => {
           if (item?.id) {
             map2.set(String(item.id), item);
           }
@@ -12827,7 +13786,7 @@ ${component_stack}
     }
     function handleStartTimer(item, event2) {
       event2.stopPropagation();
-      if (strict_equals(get(timerState)?.workItemId, item.id) && strict_equals(get(timerState)?.state, "idle", false)) {
+      if (strict_equals(get2(timerState)?.workItemId, item.id) && strict_equals(get2(timerState)?.state, "idle", false)) {
         $$props.sendEvent({ type: "STOP_TIMER" });
       } else {
         $$props.sendEvent({
@@ -12838,18 +13797,18 @@ ${component_stack}
       }
     }
     var $$exports = { ...legacy_api() };
-    var div = root6();
+    var div = root_72();
     var node = child(div);
     {
       var consequent = ($$anchor2) => {
-        var div_1 = root_16();
+        var div_1 = root6();
         append($$anchor2, div_1);
       };
       var alternate_1 = ($$anchor2) => {
-        var div_2 = root_25();
+        var div_2 = root_62();
         add_svelte_meta(
-          () => each(div_2, 21, () => get(columns), (col) => col.id, ($$anchor3, col) => {
-            var div_3 = root_34();
+          () => each(div_2, 21, () => get2(columns), (col) => col.id, ($$anchor3, col) => {
+            var div_3 = root_52();
             var div_4 = child(div_3);
             var h3 = child(div_4);
             var text2 = child(h3, true);
@@ -12860,14 +13819,14 @@ ${component_stack}
             reset(div_4);
             var div_5 = sibling(div_4, 2);
             add_svelte_meta(
-              () => each(div_5, 20, () => get(col).itemIds, (id) => id, ($$anchor4, id) => {
-                const item = tag(user_derived(() => get(workItemsMap).get(String(id))), "item");
-                get(item);
+              () => each(div_5, 20, () => get2(col).itemIds, (id) => id, ($$anchor4, id) => {
+                const item = tag(user_derived(() => get2(workItemsMap).get(String(id))), "item");
+                get2(item);
                 var fragment = comment();
                 var node_1 = first_child(fragment);
                 {
                   var consequent_3 = ($$anchor5) => {
-                    var div_6 = root_52();
+                    var div_6 = root_34();
                     let classes;
                     var div_7 = child(div_6);
                     var span_1 = child(div_7);
@@ -12890,15 +13849,15 @@ ${component_stack}
                     var node_2 = sibling(span_4, 2);
                     {
                       var consequent_1 = ($$anchor6) => {
-                        var span_5 = root_62();
+                        var span_5 = root_16();
                         var text_7 = child(span_5, true);
                         reset(span_5);
-                        template_effect(() => set_text(text_7, get(item).fields["System.AssignedTo"].displayName || get(item).fields["System.AssignedTo"]));
+                        template_effect(() => set_text(text_7, get2(item).fields["System.AssignedTo"].displayName || get2(item).fields["System.AssignedTo"]));
                         append($$anchor6, span_5);
                       };
                       add_svelte_meta(
                         () => if_block(node_2, ($$render) => {
-                          if (get(item).fields?.["System.AssignedTo"]) $$render(consequent_1);
+                          if (get2(item).fields?.["System.AssignedTo"]) $$render(consequent_1);
                         }),
                         "if",
                         KanbanBoard,
@@ -12909,12 +13868,12 @@ ${component_stack}
                     var node_3 = sibling(node_2, 2);
                     {
                       var consequent_2 = ($$anchor6) => {
-                        var span_6 = root_7();
+                        var span_6 = root_25();
                         append($$anchor6, span_6);
                       };
                       add_svelte_meta(
                         () => if_block(node_3, ($$render) => {
-                          if (strict_equals(get(timerState)?.workItemId, get(item).id)) $$render(consequent_2);
+                          if (strict_equals(get2(timerState)?.workItemId, get2(item).id)) $$render(consequent_2);
                         }),
                         "if",
                         KanbanBoard,
@@ -12936,42 +13895,42 @@ ${component_stack}
                       ($0, $1, $2) => {
                         classes = set_class(div_6, 1, "kanban-item svelte-j9p4i1", null, classes, $0);
                         set_text(text_2, $1);
-                        set_text(text_3, `#${get(item).id ?? ""}`);
+                        set_text(text_3, `#${get2(item).id ?? ""}`);
                         set_class(span_3, 1, `priority ${$2 ?? ""}`, "svelte-j9p4i1");
-                        set_text(text_4, `P${(get(item).fields?.["Microsoft.VSTS.Common.Priority"] || "3") ?? ""}`);
-                        set_text(text_5, get(item).fields?.["System.Title"] || `Work Item #${get(item).id}`);
-                        set_text(text_6, get(item).fields?.["System.WorkItemType"] || "Task");
-                        set_attribute2(button, "title", strict_equals(get(timerState)?.workItemId, get(item).id) ? "Stop Timer" : "Start Timer");
-                        set_text(text_8, strict_equals(get(timerState)?.workItemId, get(item).id) ? "\u23F9" : "\u25B6");
+                        set_text(text_4, `P${(get2(item).fields?.["Microsoft.VSTS.Common.Priority"] || "3") ?? ""}`);
+                        set_text(text_5, get2(item).fields?.["System.Title"] || `Work Item #${get2(item).id}`);
+                        set_text(text_6, get2(item).fields?.["System.WorkItemType"] || "Task");
+                        set_attribute2(button, "title", strict_equals(get2(timerState)?.workItemId, get2(item).id) ? "Stop Timer" : "Start Timer");
+                        set_text(text_8, strict_equals(get2(timerState)?.workItemId, get2(item).id) ? "\u23F9" : "\u25B6");
                       },
                       [
                         () => ({
-                          selected: strict_equals(get(selectedItemId), String(get(item).id))
+                          selected: strict_equals(get2(selectedItemId), String(get2(item).id))
                         }),
-                        () => getWorkItemTypeIcon(get(item).fields?.["System.WorkItemType"]),
-                        () => getPriorityClass(get(item).fields?.["Microsoft.VSTS.Common.Priority"])
+                        () => getWorkItemTypeIcon(get2(item).fields?.["System.WorkItemType"]),
+                        () => getPriorityClass(get2(item).fields?.["Microsoft.VSTS.Common.Priority"])
                       ]
                     );
                     delegated("click", div_6, function click(e) {
-                      return handleItemClick(get(item), e);
+                      return handleItemClick(get2(item), e);
                     });
                     delegated("keydown", div_6, function keydown(e) {
                       if (strict_equals(e.key, "Enter") || strict_equals(e.key, " ")) {
                         e.preventDefault();
-                        handleItemClick(get(item), e);
+                        handleItemClick(get2(item), e);
                       }
                     });
                     delegated("click", button, function click_1(e) {
-                      return handleStartTimer(get(item), e);
+                      return handleStartTimer(get2(item), e);
                     });
                     delegated("click", button_1, function click_2(e) {
                       e.stopPropagation();
-                      $$props.sendEvent({ type: "OPEN_IN_BROWSER", workItemId: get(item).id });
+                      $$props.sendEvent({ type: "OPEN_IN_BROWSER", workItemId: get2(item).id });
                     });
                     append($$anchor5, div_6);
                   };
                   var alternate = ($$anchor5) => {
-                    var div_11 = root_8();
+                    var div_11 = root_42();
                     var span_8 = child(div_11);
                     var text_9 = child(span_8);
                     reset(span_8);
@@ -12981,7 +13940,7 @@ ${component_stack}
                   };
                   add_svelte_meta(
                     () => if_block(node_1, ($$render) => {
-                      if (get(item)) $$render(consequent_3);
+                      if (get2(item)) $$render(consequent_3);
                       else $$render(alternate, -1);
                     }),
                     "if",
@@ -13000,8 +13959,8 @@ ${component_stack}
             reset(div_5);
             reset(div_3);
             template_effect(() => {
-              set_text(text2, get(col).title);
-              set_text(text_1, get(col).itemIds.length);
+              set_text(text2, get2(col).title);
+              set_text(text_1, get2(col).itemIds.length);
             });
             append($$anchor3, div_3);
           }),
@@ -13015,7 +13974,7 @@ ${component_stack}
       };
       add_svelte_meta(
         () => if_block(node, ($$render) => {
-          if (strict_equals(get(columns).length, 0)) $$render(consequent);
+          if (strict_equals(get2(columns).length, 0)) $$render(consequent);
           else $$render(alternate_1, -1);
         }),
         "if",
@@ -13032,9 +13991,9 @@ ${component_stack}
 
   // src/webview/components/ConnectionStatus.svelte
   ConnectionStatus[FILENAME] = "src/webview/components/ConnectionStatus.svelte";
-  var root_17 = add_locations(from_html(`<div class="status-indicator svelte-ky1zja"><span class="status-dot svelte-ky1zja"></span> <span class="status-text svelte-ky1zja"> </span></div>`), ConnectionStatus[FILENAME], [[84, 4, [[85, 6], [86, 6]]]]);
-  var root_26 = add_locations(from_html(`<div class="refresh-status svelte-ky1zja"><span class="refresh-icon svelte-ky1zja"> </span> <span class="refresh-text svelte-ky1zja"> </span></div>`), ConnectionStatus[FILENAME], [[90, 4, [[91, 6], [92, 6]]]]);
-  var root7 = add_locations(from_html(`<div class="connection-status svelte-ky1zja"><!> <!></div>`), ConnectionStatus[FILENAME], [[82, 0]]);
+  var root7 = add_locations(from_html(`<div class="status-indicator svelte-ky1zja"><span class="status-dot svelte-ky1zja"></span> <span class="status-text svelte-ky1zja"> </span></div>`), ConnectionStatus[FILENAME], [[84, 4, [[85, 6], [86, 6]]]]);
+  var root_17 = add_locations(from_html(`<div class="refresh-status svelte-ky1zja"><span class="refresh-icon svelte-ky1zja"> </span> <span class="refresh-text svelte-ky1zja"> </span></div>`), ConnectionStatus[FILENAME], [[90, 4, [[91, 6], [92, 6]]]]);
+  var root_26 = add_locations(from_html(`<div class="connection-status svelte-ky1zja"><!> <!></div>`), ConnectionStatus[FILENAME], [[82, 0]]);
   function ConnectionStatus($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, ConnectionStatus);
@@ -13084,11 +14043,11 @@ ${component_stack}
       }
     }
     var $$exports = { ...legacy_api() };
-    var div = root7();
+    var div = root_26();
     var node = child(div);
     {
       var consequent = ($$anchor2) => {
-        var div_1 = root_17();
+        var div_1 = root7();
         var span = sibling(child(div_1), 2);
         var text2 = child(span, true);
         reset(span);
@@ -13098,7 +14057,7 @@ ${component_stack}
             set_style(div_1, `--status-color: ${$0 ?? ""}`);
             set_text(text2, $1);
           },
-          [getStatusColor, getStatusText]
+          [() => getStatusColor(), () => getStatusText()]
         );
         append($$anchor2, div_1);
       };
@@ -13115,7 +14074,7 @@ ${component_stack}
     var node_1 = sibling(node, 2);
     {
       var consequent_1 = ($$anchor2) => {
-        var div_2 = root_26();
+        var div_2 = root_17();
         var span_1 = child(div_2);
         var text_1 = child(span_1, true);
         reset(span_1);
@@ -13128,7 +14087,7 @@ ${component_stack}
             set_text(text_1, $$props.refreshStatus.success ? "\u2713" : "\u2717");
             set_text(text_2, $0);
           },
-          [getRefreshStatusText]
+          [() => getRefreshStatusText()]
         );
         append($$anchor2, div_2);
       };
@@ -13149,19 +14108,19 @@ ${component_stack}
 
   // src/webview/components/StatusBar.svelte
   StatusBar[FILENAME] = "src/webview/components/StatusBar.svelte";
-  var root_18 = add_locations(from_html(`<div class="status-section connection-info svelte-1764dnv"><span class="label svelte-1764dnv">Connection:</span> <span class="value svelte-1764dnv"> </span></div>`), StatusBar[FILENAME], [[79, 4, [[80, 6], [81, 6]]]]);
-  var root_35 = add_locations(from_html(`<div class="status-section timer-active svelte-1764dnv"><span class="label svelte-1764dnv">Timer:</span> <span class="value svelte-1764dnv"> </span></div>`), StatusBar[FILENAME], [[88, 4, [[89, 6], [90, 6]]]]);
-  var root8 = add_locations(from_html(`<div class="status-bar svelte-1764dnv"><!> <!> <!></div>`), StatusBar[FILENAME], [[77, 0]]);
+  var root8 = add_locations(from_html(`<div class="status-section connection-info svelte-1764dnv"><span class="label svelte-1764dnv">Connection:</span> <span class="value svelte-1764dnv"> </span></div>`), StatusBar[FILENAME], [[79, 4, [[80, 6], [81, 6]]]]);
+  var root_18 = add_locations(from_html(`<div class="status-section timer-active svelte-1764dnv"><span class="label svelte-1764dnv">Timer:</span> <span class="value svelte-1764dnv"> </span></div>`), StatusBar[FILENAME], [[88, 4, [[89, 6], [90, 6]]]]);
+  var root_27 = add_locations(from_html(`<div class="status-bar svelte-1764dnv"><!> <!> <!></div>`), StatusBar[FILENAME], [[77, 0]]);
   function StatusBar($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, StatusBar);
     const timerState = tag(user_derived(() => $$props.context?.timerActor?.state || "idle"), "timerState");
     const activeConnectionId = tag(user_derived(() => $$props.context?.activeConnectionId), "activeConnectionId");
     const connections = tag(user_derived(() => $$props.context?.connections || []), "connections");
-    const activeConnection = tag(user_derived(() => get(connections).find((c) => strict_equals(c.id, get(activeConnectionId)))), "activeConnection");
+    const activeConnection = tag(user_derived(() => get2(connections).find((c) => strict_equals(c.id, get2(activeConnectionId)))), "activeConnection");
     const uiState = tag(user_derived(() => $$props.context?.ui), "uiState");
-    const connectionHealth = tag(user_derived(() => get(uiState)?.connectionHealth), "connectionHealth");
-    const refreshStatus = tag(user_derived(() => get(uiState)?.refreshStatus), "refreshStatus");
+    const connectionHealth = tag(user_derived(() => get2(uiState)?.connectionHealth), "connectionHealth");
+    const refreshStatus = tag(user_derived(() => get2(uiState)?.refreshStatus), "refreshStatus");
     function formatConnectionLabel(conn) {
       if (!conn) return "No connection";
       if (conn.label) return conn.label;
@@ -13171,21 +14130,21 @@ ${component_stack}
       return conn.id;
     }
     var $$exports = { ...legacy_api() };
-    var div = root8();
+    var div = root_27();
     var node = child(div);
     {
       var consequent = ($$anchor2) => {
-        var div_1 = root_18();
+        var div_1 = root8();
         var span = sibling(child(div_1), 2);
         var text2 = child(span, true);
         reset(span);
         reset(div_1);
-        template_effect(($0) => set_text(text2, $0), [() => formatConnectionLabel(get(activeConnection))]);
+        template_effect(($0) => set_text(text2, $0), [() => formatConnectionLabel(get2(activeConnection))]);
         append($$anchor2, div_1);
       };
       add_svelte_meta(
         () => if_block(node, ($$render) => {
-          if (get(activeConnection)) $$render(consequent);
+          if (get2(activeConnection)) $$render(consequent);
         }),
         "if",
         StatusBar,
@@ -13199,10 +14158,10 @@ ${component_stack}
         add_svelte_meta(
           () => ConnectionStatus($$anchor2, {
             get connectionHealth() {
-              return get(connectionHealth);
+              return get2(connectionHealth);
             },
             get refreshStatus() {
-              return get(refreshStatus);
+              return get2(refreshStatus);
             }
           }),
           "component",
@@ -13214,7 +14173,7 @@ ${component_stack}
       };
       add_svelte_meta(
         () => if_block(node_1, ($$render) => {
-          if (get(connectionHealth) || get(refreshStatus)) $$render(consequent_1);
+          if (get2(connectionHealth) || get2(refreshStatus)) $$render(consequent_1);
         }),
         "if",
         StatusBar,
@@ -13225,17 +14184,17 @@ ${component_stack}
     var node_2 = sibling(node_1, 2);
     {
       var consequent_2 = ($$anchor2) => {
-        var div_2 = root_35();
+        var div_2 = root_18();
         var span_1 = sibling(child(div_2), 2);
         var text_1 = child(span_1, true);
         reset(span_1);
         reset(div_2);
-        template_effect(() => set_text(text_1, get(timerState)));
+        template_effect(() => set_text(text_1, get2(timerState)));
         append($$anchor2, div_2);
       };
       add_svelte_meta(
         () => if_block(node_2, ($$render) => {
-          if (strict_equals(get(timerState), "idle", false)) $$render(consequent_2);
+          if (strict_equals(get2(timerState), "idle", false)) $$render(consequent_2);
         }),
         "if",
         StatusBar,
@@ -13250,8 +14209,8 @@ ${component_stack}
 
   // src/webview/components/ConnectionView.svelte
   ConnectionView[FILENAME] = "src/webview/components/ConnectionView.svelte";
-  var root_19 = add_locations(from_html(`<div class="connection-content svelte-5unw23"><!> <!></div>`), ConnectionView[FILENAME], [[51, 4]]);
-  var root9 = add_locations(from_html(`<div><!></div>`), ConnectionView[FILENAME], [[44, 0]]);
+  var root9 = add_locations(from_html(`<div class="connection-content svelte-5unw23"><!> <!></div>`), ConnectionView[FILENAME], [[51, 4]]);
+  var root_19 = add_locations(from_html(`<div><!></div>`), ConnectionView[FILENAME], [[44, 0]]);
   function ConnectionView($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, ConnectionView);
@@ -13263,7 +14222,7 @@ ${component_stack}
       });
     }
     var $$exports = { ...legacy_api() };
-    var div = root9();
+    var div = root_19();
     let classes;
     var node = child(div);
     {
@@ -13278,15 +14237,15 @@ ${component_stack}
           })),
           "contextWithWorkItems"
         );
-        get(contextWithWorkItems);
-        var div_1 = root_19();
+        get2(contextWithWorkItems);
+        var div_1 = root9();
         var node_1 = child(div_1);
         {
           var consequent = ($$anchor3) => {
             add_svelte_meta(
               () => KanbanBoard($$anchor3, {
                 get context() {
-                  return get(contextWithWorkItems);
+                  return get2(contextWithWorkItems);
                 },
                 get sendEvent() {
                   return $$props.sendEvent;
@@ -13303,7 +14262,7 @@ ${component_stack}
             add_svelte_meta(
               () => WorkItemList($$anchor3, {
                 get context() {
-                  return get(contextWithWorkItems);
+                  return get2(contextWithWorkItems);
                 },
                 get matches() {
                   return $$props.matches;
@@ -13415,35 +14374,35 @@ ${component_stack}
     var div = root10();
     add_svelte_meta(
       () => each(div, 21, () => $$props.connections, (connection) => connection.id, ($$anchor2, connection) => {
-        const isActive = tag(user_derived(() => strict_equals(get(connection).id, $$props.activeConnectionId)), "isActive");
-        get(isActive);
-        const query = tag(user_derived(() => get(connectionQueries).get(get(connection).id) || $$props.context?.activeQuery || "My Activity"), "query");
-        get(query);
-        const workItems = tag(user_derived(() => get(connectionWorkItems).get(get(connection).id) || []), "workItems");
-        get(workItems);
-        const filters = tag(user_derived(() => get(connectionFilters).get(get(connection).id) || {}), "filters");
-        get(filters);
-        const viewMode = tag(user_derived(() => get(connectionViewModes).get(get(connection).id) || $$props.context?.viewMode || "list"), "viewMode");
-        get(viewMode);
+        const isActive = tag(user_derived(() => strict_equals(get2(connection).id, $$props.activeConnectionId)), "isActive");
+        get2(isActive);
+        const query = tag(user_derived(() => get2(connectionQueries).get(get2(connection).id) || $$props.context?.activeQuery || "My Activity"), "query");
+        get2(query);
+        const workItems = tag(user_derived(() => get2(connectionWorkItems).get(get2(connection).id) || []), "workItems");
+        get2(workItems);
+        const filters = tag(user_derived(() => get2(connectionFilters).get(get2(connection).id) || {}), "filters");
+        get2(filters);
+        const viewMode = tag(user_derived(() => get2(connectionViewModes).get(get2(connection).id) || $$props.context?.viewMode || "list"), "viewMode");
+        get2(viewMode);
         add_svelte_meta(
           () => ConnectionView($$anchor2, {
             get connection() {
-              return get(connection);
+              return get2(connection);
             },
             get isActive() {
-              return get(isActive);
+              return get2(isActive);
             },
             get query() {
-              return get(query);
+              return get2(query);
             },
             get workItems() {
-              return get(workItems);
+              return get2(workItems);
             },
             get filters() {
-              return get(filters);
+              return get2(filters);
             },
             get viewMode() {
-              return get(viewMode);
+              return get2(viewMode);
             },
             get context() {
               return $$props.context;
@@ -13474,7 +14433,7 @@ ${component_stack}
 
   // src/webview/components/AuthReminder.svelte
   AuthReminder[FILENAME] = "src/webview/components/AuthReminder.svelte";
-  var root_110 = add_locations(from_html(`<div class="auth-reminder-banner warning svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u{1F510}</span> <div class="auth-message-container svelte-cv3w9g"><span class="auth-message svelte-cv3w9g"> </span></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g" title="Open browser to complete sign-in" aria-label="Open browser to complete sign-in"><span class="codicon svelte-cv3w9g">\u{1F310}</span> Open browser</button> <button class="auth-action secondary svelte-cv3w9g" title="Cancel authentication" aria-label="Cancel authentication"><span class="codicon svelte-cv3w9g">\u2717</span> Cancel</button></div></div>`), AuthReminder[FILENAME], [
+  var root11 = add_locations(from_html(`<div class="auth-reminder-banner warning svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u{1F510}</span> <div class="auth-message-container svelte-cv3w9g"><span class="auth-message svelte-cv3w9g"> </span></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g" title="Open browser to complete sign-in" aria-label="Open browser to complete sign-in"><span class="codicon svelte-cv3w9g">\u{1F310}</span> Open browser</button> <button class="auth-action secondary svelte-cv3w9g" title="Cancel authentication" aria-label="Cancel authentication"><span class="codicon svelte-cv3w9g">\u2717</span> Cancel</button></div></div>`), AuthReminder[FILENAME], [
     [
       206,
       2,
@@ -13485,7 +14444,7 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_27 = add_locations(from_html(`<div class="auth-reminder-banner warning svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u{1F510}</span> <div class="auth-message-container svelte-cv3w9g"><span class="auth-message svelte-cv3w9g">Authentication Required: Enter code <strong class="svelte-cv3w9g"> </strong> </span></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g" title="Copy code" aria-label="Copy code"><span class="codicon svelte-cv3w9g">\u{1F4CB}</span> Copy code</button> <button class="auth-action svelte-cv3w9g" title="Copy code and open browser" aria-label="Copy code and open browser"><span class="codicon svelte-cv3w9g">\u{1F310}</span> Open browser</button> <button class="auth-action secondary svelte-cv3w9g" title="Cancel authentication" aria-label="Cancel authentication"><span class="codicon svelte-cv3w9g">\u2717</span> Cancel</button></div></div>`), AuthReminder[FILENAME], [
+  var root_110 = add_locations(from_html(`<div class="auth-reminder-banner warning svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u{1F510}</span> <div class="auth-message-container svelte-cv3w9g"><span class="auth-message svelte-cv3w9g">Authentication Required: Enter code <strong class="svelte-cv3w9g"> </strong> </span></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g" title="Copy code" aria-label="Copy code"><span class="codicon svelte-cv3w9g">\u{1F4CB}</span> Copy code</button> <button class="auth-action svelte-cv3w9g" title="Copy code and open browser" aria-label="Copy code and open browser"><span class="codicon svelte-cv3w9g">\u{1F310}</span> Open browser</button> <button class="auth-action secondary svelte-cv3w9g" title="Cancel authentication" aria-label="Cancel authentication"><span class="codicon svelte-cv3w9g">\u2717</span> Cancel</button></div></div>`), AuthReminder[FILENAME], [
     [
       236,
       2,
@@ -13504,8 +14463,8 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_4 = add_locations(from_html(`<span class="error-hint svelte-cv3w9g"> </span>`), AuthReminder[FILENAME], [[284, 8]]);
-  var root_36 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Failed</strong> <span class="error-detail svelte-cv3w9g"> </span> <!></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
+  var root_28 = add_locations(from_html(`<span class="error-hint svelte-cv3w9g"> </span>`), AuthReminder[FILENAME], [[284, 8]]);
+  var root_35 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Failed</strong> <span class="error-detail svelte-cv3w9g"> </span> <!></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
     [
       276,
       2,
@@ -13516,7 +14475,7 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_53 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Failed</strong> <span class="error-detail svelte-cv3w9g"> </span></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
+  var root_43 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Failed</strong> <span class="error-detail svelte-cv3w9g"> </span></div> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
     [
       299,
       2,
@@ -13527,16 +14486,16 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_63 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0</span> <span class="auth-message svelte-cv3w9g"> </span> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Retry</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
+  var root_53 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0</span> <span class="auth-message svelte-cv3w9g"> </span> <div class="auth-actions svelte-cv3w9g"><button class="auth-action svelte-cv3w9g">Retry</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
     [
       319,
       2,
       [[320, 4], [321, 4], [322, 4, [[323, 6], [324, 6], [325, 6]]]]
     ]
   ]);
-  var root_82 = add_locations(from_html(`<button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button>`, 1), AuthReminder[FILENAME], [[338, 8], [341, 8]]);
-  var root_92 = add_locations(from_html(`<button class="auth-action svelte-cv3w9g">Retry</button>`), AuthReminder[FILENAME], [[345, 8]]);
-  var root_72 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Required</strong> <span class="error-detail svelte-cv3w9g"> </span></div> <div class="auth-actions svelte-cv3w9g"><!> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
+  var root_63 = add_locations(from_html(`<button class="auth-action svelte-cv3w9g">Start device code sign-in</button> <button class="auth-action svelte-cv3w9g">Change auth / start new sign-in</button>`, 1), AuthReminder[FILENAME], [[338, 8], [341, 8]]);
+  var root_73 = add_locations(from_html(`<button class="auth-action svelte-cv3w9g">Retry</button>`), AuthReminder[FILENAME], [[345, 8]]);
+  var root_82 = add_locations(from_html(`<div class="auth-reminder-banner error svelte-cv3w9g"><span class="auth-icon svelte-cv3w9g">\u26A0\uFE0F</span> <div class="auth-message svelte-cv3w9g"><strong class="svelte-cv3w9g">Authentication Required</strong> <span class="error-detail svelte-cv3w9g"> </span></div> <div class="auth-actions svelte-cv3w9g"><!> <button class="auth-action secondary svelte-cv3w9g">Settings</button></div></div>`), AuthReminder[FILENAME], [
     [
       330,
       2,
@@ -13552,57 +14511,57 @@ ${component_stack}
     push($$props, true, AuthReminder);
     const deviceCodeSession = tag(user_derived(() => $$props.context?.deviceCodeSession), "deviceCodeSession");
     const deviceCodeRemainingMs = tag(
-      user_derived(() => get(deviceCodeSession) ? Math.max(get(deviceCodeSession).expiresAt - Date.now(), 0) : 0),
+      user_derived(() => get2(deviceCodeSession) ? Math.max(get2(deviceCodeSession).expiresAt - Date.now(), 0) : 0),
       "deviceCodeRemainingMs"
     );
-    const deviceCodeExpiresInMinutes = tag(user_derived(() => get(deviceCodeSession) ? Math.ceil(get(deviceCodeRemainingMs) / 6e4) : 0), "deviceCodeExpiresInMinutes");
-    const deviceCodeExpired = tag(user_derived(() => get(deviceCodeSession) ? get(deviceCodeRemainingMs) <= 0 : true), "deviceCodeExpired");
+    const deviceCodeExpiresInMinutes = tag(user_derived(() => get2(deviceCodeSession) ? Math.ceil(get2(deviceCodeRemainingMs) / 6e4) : 0), "deviceCodeExpiresInMinutes");
+    const deviceCodeExpired = tag(user_derived(() => get2(deviceCodeSession) ? get2(deviceCodeRemainingMs) <= 0 : true), "deviceCodeExpired");
     const authCodeFlowSession = tag(user_derived(() => $$props.context?.authCodeFlowSession), "authCodeFlowSession");
     const authCodeFlowRemainingMs = tag(
-      user_derived(() => get(authCodeFlowSession) ? Math.max(get(authCodeFlowSession).expiresAt - Date.now(), 0) : 0),
+      user_derived(() => get2(authCodeFlowSession) ? Math.max(get2(authCodeFlowSession).expiresAt - Date.now(), 0) : 0),
       "authCodeFlowRemainingMs"
     );
-    const authCodeFlowExpiresInMinutes = tag(user_derived(() => get(authCodeFlowSession) ? Math.ceil(get(authCodeFlowRemainingMs) / 6e4) : 0), "authCodeFlowExpiresInMinutes");
-    const authCodeFlowExpired = tag(user_derived(() => get(authCodeFlowSession) ? get(authCodeFlowRemainingMs) <= 0 : true), "authCodeFlowExpired");
+    const authCodeFlowExpiresInMinutes = tag(user_derived(() => get2(authCodeFlowSession) ? Math.ceil(get2(authCodeFlowRemainingMs) / 6e4) : 0), "authCodeFlowExpiresInMinutes");
+    const authCodeFlowExpired = tag(user_derived(() => get2(authCodeFlowSession) ? get2(authCodeFlowRemainingMs) <= 0 : true), "authCodeFlowExpired");
     const workItemsError = tag(user_derived(() => $$props.context?.workItemsError), "workItemsError");
     const workItemsErrorConnectionId = tag(user_derived(() => $$props.context?.workItemsErrorConnectionId), "workItemsErrorConnectionId");
     const activeConnectionId = tag(user_derived(() => $$props.context?.activeConnectionId), "activeConnectionId");
     const uiState = tag(user_derived(() => $$props.context?.ui), "uiState");
-    const connectionHealth = tag(user_derived(() => get(uiState)?.connectionHealth), "connectionHealth");
-    const connectionHealthError = tag(user_derived(() => get(connectionHealth)?.lastError), "connectionHealthError");
-    const hasConnectionHealthError = tag(user_derived(() => strict_equals(get(connectionHealth)?.status, "error") && get(connectionHealthError) && strict_equals(get(connectionHealthError).type, "authentication")), "hasConnectionHealthError");
+    const connectionHealth = tag(user_derived(() => get2(uiState)?.connectionHealth), "connectionHealth");
+    const connectionHealthError = tag(user_derived(() => get2(connectionHealth)?.lastError), "connectionHealthError");
+    const hasConnectionHealthError = tag(user_derived(() => strict_equals(get2(connectionHealth)?.status, "error") && get2(connectionHealthError) && strict_equals(get2(connectionHealthError).type, "authentication")), "hasConnectionHealthError");
     const pendingAuthReminders = tag(user_derived(() => $$props.context?.pendingAuthReminders), "pendingAuthReminders");
     const currentAuthReminder = tag(
-      user_derived(() => get(pendingAuthReminders) && get(activeConnectionId) ? get(pendingAuthReminders) instanceof Map ? get(pendingAuthReminders).get(get(activeConnectionId)) : get(pendingAuthReminders)[get(activeConnectionId)] : void 0),
+      user_derived(() => get2(pendingAuthReminders) && get2(activeConnectionId) ? get2(pendingAuthReminders) instanceof Map ? get2(pendingAuthReminders).get(get2(activeConnectionId)) : get2(pendingAuthReminders)[get2(activeConnectionId)] : void 0),
       "currentAuthReminder"
     );
     const connections = tag(user_derived(() => $$props.context?.connections || []), "connections");
-    const activeConnection = tag(user_derived(() => get(connections).find((c) => strict_equals(c.id, get(activeConnectionId)))), "activeConnection");
-    const isEntraAuth = tag(user_derived(() => strict_equals(get(activeConnection)?.authMethod, "entra")), "isEntraAuth");
-    const showPatError = tag(user_derived(() => get(workItemsError) && strict_equals(get(workItemsErrorConnectionId), get(activeConnectionId)) && !get(
+    const activeConnection = tag(user_derived(() => get2(connections).find((c) => strict_equals(c.id, get2(activeConnectionId)))), "activeConnection");
+    const isEntraAuth = tag(user_derived(() => strict_equals(get2(activeConnection)?.authMethod, "entra")), "isEntraAuth");
+    const showPatError = tag(user_derived(() => get2(workItemsError) && strict_equals(get2(workItemsErrorConnectionId), get2(activeConnectionId)) && !get2(
       isEntraAuth
       // Don't show PAT error for Entra connections
     )), "showPatError");
-    const showWorkItemsEntraAuthError = tag(user_derived(() => get(workItemsError) && strict_equals(get(workItemsErrorConnectionId), get(activeConnectionId)) && get(isEntraAuth)), "showWorkItemsEntraAuthError");
-    const canShowDeviceCodeBase = tag(user_derived(() => get(deviceCodeSession) && !get(deviceCodeExpired) && strict_equals(get(deviceCodeSession).connectionId, get(activeConnectionId))), "canShowDeviceCodeBase");
-    const canShowAuthCodeFlowBase = tag(user_derived(() => get(authCodeFlowSession) && !get(authCodeFlowExpired) && strict_equals(get(authCodeFlowSession).connectionId, get(activeConnectionId))), "canShowAuthCodeFlowBase");
-    const entraAuthErrorEligible = tag(user_derived(() => get(hasConnectionHealthError) && !!get(activeConnectionId) && get(isEntraAuth)), "entraAuthErrorEligible");
-    const showAuthCodeFlow = tag(user_derived(() => Boolean(get(canShowAuthCodeFlowBase))), "showAuthCodeFlow");
-    const showDeviceCode = tag(user_derived(() => Boolean(get(canShowDeviceCodeBase) && !get(showAuthCodeFlow))), "showDeviceCode");
-    const showEntraAuthError = tag(user_derived(() => Boolean(get(entraAuthErrorEligible) && !get(showDeviceCode) && !get(showAuthCodeFlow))), "showEntraAuthError");
-    const showAuthReminder = tag(user_derived(() => Boolean(get(currentAuthReminder) && !get(showAuthCodeFlow) && !get(showDeviceCode) && !get(showEntraAuthError) && !get(showWorkItemsEntraAuthError) && !get(showPatError))), "showAuthReminder");
+    const showWorkItemsEntraAuthError = tag(user_derived(() => get2(workItemsError) && strict_equals(get2(workItemsErrorConnectionId), get2(activeConnectionId)) && get2(isEntraAuth)), "showWorkItemsEntraAuthError");
+    const canShowDeviceCodeBase = tag(user_derived(() => get2(deviceCodeSession) && !get2(deviceCodeExpired) && strict_equals(get2(deviceCodeSession).connectionId, get2(activeConnectionId))), "canShowDeviceCodeBase");
+    const canShowAuthCodeFlowBase = tag(user_derived(() => get2(authCodeFlowSession) && !get2(authCodeFlowExpired) && strict_equals(get2(authCodeFlowSession).connectionId, get2(activeConnectionId))), "canShowAuthCodeFlowBase");
+    const entraAuthErrorEligible = tag(user_derived(() => get2(hasConnectionHealthError) && !!get2(activeConnectionId) && get2(isEntraAuth)), "entraAuthErrorEligible");
+    const showAuthCodeFlow = tag(user_derived(() => Boolean(get2(canShowAuthCodeFlowBase))), "showAuthCodeFlow");
+    const showDeviceCode = tag(user_derived(() => Boolean(get2(canShowDeviceCodeBase) && !get2(showAuthCodeFlow))), "showDeviceCode");
+    const showEntraAuthError = tag(user_derived(() => Boolean(get2(entraAuthErrorEligible) && !get2(showDeviceCode) && !get2(showAuthCodeFlow))), "showEntraAuthError");
+    const showAuthReminder = tag(user_derived(() => Boolean(get2(currentAuthReminder) && !get2(showAuthCodeFlow) && !get2(showDeviceCode) && !get2(showEntraAuthError) && !get2(showWorkItemsEntraAuthError) && !get2(showPatError))), "showAuthReminder");
     function copyAndOpenDeviceCode() {
-      if (!get(deviceCodeSession)) return;
+      if (!get2(deviceCodeSession)) return;
       $$props.sendEvent({
         type: "OPEN_DEVICE_CODE_BROWSER",
-        connectionId: get(deviceCodeSession).connectionId
+        connectionId: get2(deviceCodeSession).connectionId
       });
     }
     function copyDeviceCodeOnly() {
-      if (!get(deviceCodeSession)) return;
+      if (!get2(deviceCodeSession)) return;
       $$props.sendEvent({
         type: "COPY_DEVICE_CODE",
-        connectionId: get(deviceCodeSession).connectionId
+        connectionId: get2(deviceCodeSession).connectionId
       });
     }
     function handleRetry() {
@@ -13612,32 +14571,32 @@ ${component_stack}
       $$props.sendEvent({ type: "OPEN_SETTINGS" });
     }
     function handleResetAuth() {
-      if (get(activeConnectionId)) {
-        $$props.sendEvent({ type: "RESET_AUTH", connectionId: get(activeConnectionId) });
+      if (get2(activeConnectionId)) {
+        $$props.sendEvent({ type: "RESET_AUTH", connectionId: get2(activeConnectionId) });
       } else {
         $$props.sendEvent({ type: "RESET_AUTH" });
       }
     }
     function handleCancelDeviceCode() {
-      if (get(deviceCodeSession)) {
+      if (get2(deviceCodeSession)) {
         $$props.sendEvent({
           type: "SIGN_OUT_ENTRA",
-          connectionId: get(deviceCodeSession).connectionId
+          connectionId: get2(deviceCodeSession).connectionId
         });
       }
     }
     function handleOpenAuthCodeFlowBrowser() {
-      if (!get(authCodeFlowSession)) return;
+      if (!get2(authCodeFlowSession)) return;
       $$props.sendEvent({
         type: "OPEN_AUTH_CODE_FLOW_BROWSER",
-        connectionId: get(authCodeFlowSession).connectionId
+        connectionId: get2(authCodeFlowSession).connectionId
       });
     }
     function handleCancelAuthCodeFlow() {
-      if (get(authCodeFlowSession)) {
+      if (get2(authCodeFlowSession)) {
         $$props.sendEvent({
           type: "SIGN_OUT_ENTRA",
-          connectionId: get(authCodeFlowSession).connectionId
+          connectionId: get2(authCodeFlowSession).connectionId
         });
       }
     }
@@ -13645,8 +14604,8 @@ ${component_stack}
       handleResetAuth();
     }
     function startDeviceCodeSignIn() {
-      if (!get(isEntraAuth)) return;
-      const connectionId = get(deviceCodeSession)?.connectionId ?? get(activeConnectionId);
+      if (!get2(isEntraAuth)) return;
+      const connectionId = get2(deviceCodeSession)?.connectionId ?? get2(activeConnectionId);
       if (!connectionId) return;
       $$props.sendEvent({ type: "SIGN_IN_ENTRA", connectionId, forceInteractive: true });
     }
@@ -13655,7 +14614,7 @@ ${component_stack}
     var node = first_child(fragment);
     {
       var consequent = ($$anchor2) => {
-        var div = root_110();
+        var div = root11();
         var div_1 = sibling(child(div), 2);
         var span = child(div_1);
         var text2 = child(span);
@@ -13666,13 +14625,13 @@ ${component_stack}
         var button_1 = sibling(button, 2);
         reset(div_2);
         reset(div);
-        template_effect(() => set_text(text2, `Authentication Required: Complete sign-in in your browser (${get(authCodeFlowExpiresInMinutes) ?? ""}m left)`));
+        template_effect(() => set_text(text2, `Authentication Required: Complete sign-in in your browser (${get2(authCodeFlowExpiresInMinutes) ?? ""}m left)`));
         delegated("click", button, handleOpenAuthCodeFlowBrowser);
         delegated("click", button_1, handleCancelAuthCodeFlow);
         append($$anchor2, div);
       };
       var consequent_1 = ($$anchor2) => {
-        var div_3 = root_27();
+        var div_3 = root_110();
         var div_4 = sibling(child(div_3), 2);
         var span_1 = child(div_4);
         var strong = sibling(child(span_1));
@@ -13688,9 +14647,9 @@ ${component_stack}
         reset(div_5);
         reset(div_3);
         template_effect(() => {
-          set_text(text_1, get(deviceCodeSession).userCode);
+          set_text(text_1, get2(deviceCodeSession).userCode);
           set_text(text_2, ` in your
-        browser (${get(deviceCodeExpiresInMinutes) ?? ""}m left)`);
+        browser (${get2(deviceCodeExpiresInMinutes) ?? ""}m left)`);
         });
         delegated("click", button_2, copyDeviceCodeOnly);
         delegated("click", button_3, copyAndOpenDeviceCode);
@@ -13698,7 +14657,7 @@ ${component_stack}
         append($$anchor2, div_3);
       };
       var consequent_3 = ($$anchor2) => {
-        var div_6 = root_36();
+        var div_6 = root_35();
         var div_7 = sibling(child(div_6), 2);
         var span_2 = sibling(child(div_7), 2);
         var text_3 = child(span_2, true);
@@ -13706,15 +14665,15 @@ ${component_stack}
         var node_1 = sibling(span_2, 2);
         {
           var consequent_2 = ($$anchor3) => {
-            var span_3 = root_4();
+            var span_3 = root_28();
             var text_4 = child(span_3);
             reset(span_3);
-            template_effect(() => set_text(text_4, `Suggested: ${get(connectionHealthError).suggestedAction ?? ""}`));
+            template_effect(() => set_text(text_4, `Suggested: ${get2(connectionHealthError).suggestedAction ?? ""}`));
             append($$anchor3, span_3);
           };
           add_svelte_meta(
             () => if_block(node_1, ($$render) => {
-              if (get(connectionHealthError)?.suggestedAction) $$render(consequent_2);
+              if (get2(connectionHealthError)?.suggestedAction) $$render(consequent_2);
             }),
             "if",
             AuthReminder,
@@ -13729,14 +14688,14 @@ ${component_stack}
         var button_7 = sibling(button_6, 2);
         reset(div_8);
         reset(div_6);
-        template_effect(() => set_text(text_3, get(connectionHealthError)?.message || "Entra ID authentication failed. Start a new sign-in to choose PAT or begin device code again."));
+        template_effect(() => set_text(text_3, get2(connectionHealthError)?.message || "Entra ID authentication failed. Start a new sign-in to choose PAT or begin device code again."));
         delegated("click", button_5, startDeviceCodeSignIn);
         delegated("click", button_6, handleStartFreshAuth);
         delegated("click", button_7, handleOpenSettings);
         append($$anchor2, div_6);
       };
       var consequent_4 = ($$anchor2) => {
-        var div_9 = root_53();
+        var div_9 = root_43();
         var div_10 = sibling(child(div_9), 2);
         var span_4 = sibling(child(div_10), 2);
         var text_5 = child(span_4, true);
@@ -13748,14 +14707,14 @@ ${component_stack}
         var button_10 = sibling(button_9, 2);
         reset(div_11);
         reset(div_9);
-        template_effect(() => set_text(text_5, get(workItemsError) || "Authentication failed. Start a new sign-in to choose PAT or device code."));
+        template_effect(() => set_text(text_5, get2(workItemsError) || "Authentication failed. Start a new sign-in to choose PAT or device code."));
         delegated("click", button_8, startDeviceCodeSignIn);
         delegated("click", button_9, handleStartFreshAuth);
         delegated("click", button_10, handleOpenSettings);
         append($$anchor2, div_9);
       };
       var consequent_5 = ($$anchor2) => {
-        var div_12 = root_63();
+        var div_12 = root_53();
         var span_5 = sibling(child(div_12), 2);
         var text_6 = child(span_5, true);
         reset(span_5);
@@ -13765,14 +14724,14 @@ ${component_stack}
         var button_13 = sibling(button_12, 2);
         reset(div_13);
         reset(div_12);
-        template_effect(() => set_text(text_6, get(workItemsError)));
+        template_effect(() => set_text(text_6, get2(workItemsError)));
         delegated("click", button_11, handleRetry);
         delegated("click", button_12, handleStartFreshAuth);
         delegated("click", button_13, handleOpenSettings);
         append($$anchor2, div_12);
       };
       var consequent_7 = ($$anchor2) => {
-        var div_14 = root_72();
+        var div_14 = root_82();
         var div_15 = sibling(child(div_14), 2);
         var span_6 = sibling(child(div_15), 2);
         var text_7 = child(span_6, true);
@@ -13782,7 +14741,7 @@ ${component_stack}
         var node_2 = child(div_16);
         {
           var consequent_6 = ($$anchor3) => {
-            var fragment_1 = root_82();
+            var fragment_1 = root_63();
             var button_14 = first_child(fragment_1);
             var button_15 = sibling(button_14, 2);
             delegated("click", button_14, startDeviceCodeSignIn);
@@ -13790,13 +14749,13 @@ ${component_stack}
             append($$anchor3, fragment_1);
           };
           var alternate = ($$anchor3) => {
-            var button_16 = root_92();
+            var button_16 = root_73();
             delegated("click", button_16, handleRetry);
             append($$anchor3, button_16);
           };
           add_svelte_meta(
             () => if_block(node_2, ($$render) => {
-              if (get(isEntraAuth)) $$render(consequent_6);
+              if (get2(isEntraAuth)) $$render(consequent_6);
               else $$render(alternate, -1);
             }),
             "if",
@@ -13808,18 +14767,18 @@ ${component_stack}
         var button_17 = sibling(node_2, 2);
         reset(div_16);
         reset(div_14);
-        template_effect(() => set_text(text_7, get(currentAuthReminder)?.reason || "Sign in to continue."));
+        template_effect(() => set_text(text_7, get2(currentAuthReminder)?.reason || "Sign in to continue."));
         delegated("click", button_17, handleOpenSettings);
         append($$anchor2, div_14);
       };
       add_svelte_meta(
         () => if_block(node, ($$render) => {
-          if (get(showAuthCodeFlow)) $$render(consequent);
-          else if (get(showDeviceCode)) $$render(consequent_1, 1);
-          else if (get(showEntraAuthError)) $$render(consequent_3, 2);
-          else if (get(showWorkItemsEntraAuthError)) $$render(consequent_4, 3);
-          else if (get(showPatError)) $$render(consequent_5, 4);
-          else if (get(showAuthReminder)) $$render(consequent_7, 5);
+          if (get2(showAuthCodeFlow)) $$render(consequent);
+          else if (get2(showDeviceCode)) $$render(consequent_1, 1);
+          else if (get2(showEntraAuthError)) $$render(consequent_3, 2);
+          else if (get2(showWorkItemsEntraAuthError)) $$render(consequent_4, 3);
+          else if (get2(showPatError)) $$render(consequent_5, 4);
+          else if (get2(showAuthReminder)) $$render(consequent_7, 5);
         }),
         "if",
         AuthReminder,
@@ -13834,13 +14793,13 @@ ${component_stack}
 
   // packages/ui-web/src/components/IconButton.svelte
   IconButton[FILENAME] = "packages/ui-web/src/components/IconButton.svelte";
-  var root11 = add_locations(from_html(`<button><span class="dojo-icon-btn__icon svelte-4udubj" aria-hidden="true"> </span></button>`), IconButton[FILENAME], [[29, 0, [[39, 2]]]]);
+  var root12 = add_locations(from_html(`<button><span class="dojo-icon-btn__icon svelte-4udubj" aria-hidden="true"> </span></button>`), IconButton[FILENAME], [[29, 0, [[39, 2]]]]);
   function IconButton($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, IconButton);
     const disabled = prop($$props, "disabled", 3, false), active = prop($$props, "active", 3, false), type2 = prop($$props, "type", 3, "button");
     var $$exports = { ...legacy_api() };
-    var button = root11();
+    var button = root12();
     let classes;
     var span = child(button);
     var text2 = child(span, true);
@@ -13865,7 +14824,7 @@ ${component_stack}
 
   // src/webview/components/WebviewHeader.svelte
   WebviewHeader[FILENAME] = "src/webview/components/WebviewHeader.svelte";
-  var root12 = add_locations(from_html(`<header class="webview-header svelte-1bw0sfy"><div class="header-actions svelte-1bw0sfy"><!> <span><!></span> <!> <!> <!></div></header>`), WebviewHeader[FILENAME], [[48, 0, [[49, 2, [[58, 4]]]]]]);
+  var root13 = add_locations(from_html(`<header class="webview-header svelte-1bw0sfy"><div class="header-actions svelte-1bw0sfy"><!> <span><!></span> <!> <!> <!></div></header>`), WebviewHeader[FILENAME], [[48, 0, [[49, 2, [[58, 4]]]]]]);
   function WebviewHeader($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, WebviewHeader);
@@ -13895,7 +14854,7 @@ ${component_stack}
     const showDebugButton = tag(user_derived(() => strict_equals($$props.context?.debugLoggingEnabled, true)), "showDebugButton");
     const isKanban = tag(user_derived(() => strict_equals($$props.context?.viewMode, "kanban")), "isKanban");
     var $$exports = { ...legacy_api() };
-    var header = root12();
+    var header = root13();
     var div = child(header);
     var node = child(div);
     add_svelte_meta(
@@ -13904,7 +14863,7 @@ ${component_stack}
         "aria-label": "Toggle Kanban View",
         title: "Toggle Kanban View",
         get active() {
-          return get(isKanban);
+          return get2(isKanban);
         },
         onclick: handleToggleKanban
       }),
@@ -13978,7 +14937,7 @@ ${component_stack}
       };
       add_svelte_meta(
         () => if_block(node_4, ($$render) => {
-          if (get(showDebugButton)) $$render(consequent);
+          if (get2(showDebugButton)) $$render(consequent);
         }),
         "if",
         WebviewHeader,
@@ -13988,7 +14947,7 @@ ${component_stack}
     }
     reset(div);
     reset(header);
-    template_effect(() => classes = set_class(span, 1, "refresh-wrapper svelte-1bw0sfy", null, classes, { refreshing: get(isRefreshing) }));
+    template_effect(() => classes = set_class(span, 1, "refresh-wrapper svelte-1bw0sfy", null, classes, { refreshing: get2(isRefreshing) }));
     append($$anchor, header);
     return pop($$exports);
   }
@@ -13998,7 +14957,7 @@ ${component_stack}
 
   // packages/ui-web/src/components/Toast.svelte
   Toast[FILENAME] = "packages/ui-web/src/components/Toast.svelte";
-  var root13 = add_locations(from_html(`<div role="alert" aria-live="polite"><span class="dojo-toast__message svelte-1sc699v"> </span> <button type="button" class="dojo-toast__close svelte-1sc699v" aria-label="Dismiss notification" title="Dismiss">\xD7</button></div>`), Toast[FILENAME], [[45, 0, [[51, 2], [52, 2]]]]);
+  var root14 = add_locations(from_html(`<div role="alert" aria-live="polite"><span class="dojo-toast__message svelte-1sc699v"> </span> <button type="button" class="dojo-toast__close svelte-1sc699v" aria-label="Dismiss notification" title="Dismiss">\xD7</button></div>`), Toast[FILENAME], [[45, 0, [[51, 2], [52, 2]]]]);
   function Toast($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, Toast);
@@ -14018,14 +14977,14 @@ ${component_stack}
       $$props.ondismiss?.();
     }
     onMount(() => {
-      if (get(autoDismissMs) > 0) {
-        const timer = setTimeout(dismiss, get(autoDismissMs));
+      if (get2(autoDismissMs) > 0) {
+        const timer = setTimeout(dismiss, get2(autoDismissMs));
         return () => clearTimeout(timer);
       }
       return void 0;
     });
     var $$exports = { ...legacy_api() };
-    var div = root13();
+    var div = root14();
     var span = child(div);
     var text2 = child(span, true);
     reset(span);
@@ -14033,7 +14992,7 @@ ${component_stack}
     reset(div);
     template_effect(() => {
       set_class(div, 1, `dojo-toast dojo-toast--${type2() ?? ""}`, "svelte-1sc699v");
-      set_style(div, `--_toast-bg: ${get(bg) ?? ""}`);
+      set_style(div, `--_toast-bg: ${get2(bg) ?? ""}`);
       set_text(text2, $$props.message);
     });
     delegated("click", button, dismiss);
@@ -14076,7 +15035,7 @@ ${component_stack}
 
   // src/webview/components/ComposeCommentDialog.svelte
   ComposeCommentDialog[FILENAME] = "src/webview/components/ComposeCommentDialog.svelte";
-  var root14 = add_locations(from_html(`<div class="modal-overlay svelte-w8xrzn"><div class="modal svelte-w8xrzn" role="dialog" aria-modal="true" aria-labelledby="modal-title"><h3 id="modal-title" class="svelte-w8xrzn"> </h3> <div class="content"><textarea placeholder="Type your comment here..." rows="5" class="svelte-w8xrzn"></textarea></div> <div class="actions svelte-w8xrzn"><button class="secondary svelte-w8xrzn">Cancel</button> <button class="primary svelte-w8xrzn"> </button></div></div></div>`), ComposeCommentDialog[FILENAME], [
+  var root15 = add_locations(from_html(`<div class="modal-overlay svelte-w8xrzn"><div class="modal svelte-w8xrzn" role="dialog" aria-modal="true" aria-labelledby="modal-title"><h3 id="modal-title" class="svelte-w8xrzn"> </h3> <div class="content"><textarea placeholder="Type your comment here..." rows="5" class="svelte-w8xrzn"></textarea></div> <div class="actions svelte-w8xrzn"><button class="secondary svelte-w8xrzn">Cancel</button> <button class="primary svelte-w8xrzn"> </button></div></div></div>`), ComposeCommentDialog[FILENAME], [
     [
       23,
       0,
@@ -14094,24 +15053,24 @@ ${component_stack}
     push($$props, false, ComposeCommentDialog);
     let workItemId = prop($$props, "workItemId", 8);
     let mode = prop($$props, "mode", 8, "addComment");
-    let comment2 = mutable_source("");
-    let isSubmitting = mutable_source(false);
+    let comment2 = tag(mutable_source(""), "comment");
+    let isSubmitting = tag(mutable_source(false), "isSubmitting");
     const dispatch = createEventDispatcher();
     function cancel() {
       dispatch("cancel");
     }
     function submit() {
-      if (!get(comment2).trim()) return;
+      if (!get2(comment2).trim()) return;
       set(isSubmitting, true);
       dispatch("submit", {
         workItemId: workItemId(),
-        comment: get(comment2),
+        comment: get2(comment2),
         mode: mode()
       });
     }
     var $$exports = { ...legacy_api() };
     init();
-    var div = root14();
+    var div = root15();
     var div_1 = child(div);
     var h3 = child(div_1);
     var text2 = child(h3);
@@ -14131,19 +15090,19 @@ ${component_stack}
     template_effect(
       ($0) => {
         set_text(text2, `Add Comment to Work Item #${workItemId() ?? ""}`);
-        textarea.disabled = get(isSubmitting);
-        button.disabled = get(isSubmitting);
+        textarea.disabled = get2(isSubmitting);
+        button.disabled = get2(isSubmitting);
         button_1.disabled = $0;
-        set_text(text_1, get(isSubmitting) ? "Submitting..." : "Add Comment");
+        set_text(text_1, get2(isSubmitting) ? "Submitting..." : "Add Comment");
       },
       [
-        () => (get(isSubmitting), get(comment2), untrack(() => get(isSubmitting) || !get(comment2).trim()))
+        () => (get2(isSubmitting), get2(comment2), untrack(() => get2(isSubmitting) || !get2(comment2).trim()))
       ]
     );
     bind_value(
       textarea,
       function get3() {
-        return get(comment2);
+        return get2(comment2);
       },
       function set3($$value) {
         set(comment2, $$value);
@@ -14157,7 +15116,7 @@ ${component_stack}
 
   // src/webview/components/HistoryControls.svelte
   HistoryControls[FILENAME] = "src/webview/components/HistoryControls.svelte";
-  var root15 = add_locations(from_html(`<div class="history-controls svelte-11qegyq"><button class="history-button undo svelte-11qegyq" title="Undo last action (Ctrl+Z)">\u27F2 Undo</button> <button class="history-button redo svelte-11qegyq" title="Redo last action (Ctrl+Shift+Z)">\u27F3 Redo</button></div>`), HistoryControls[FILENAME], [[50, 0, [[51, 2], [59, 2]]]]);
+  var root16 = add_locations(from_html(`<div class="history-controls svelte-11qegyq"><button class="history-button undo svelte-11qegyq" title="Undo last action (Ctrl+Z)">\u27F2 Undo</button> <button class="history-button redo svelte-11qegyq" title="Redo last action (Ctrl+Shift+Z)">\u27F3 Redo</button></div>`), HistoryControls[FILENAME], [[50, 0, [[51, 2], [59, 2]]]]);
   function HistoryControls($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, HistoryControls);
@@ -14196,13 +15155,13 @@ ${component_stack}
       }
     }
     var $$exports = { ...legacy_api() };
-    var div = root15();
+    var div = root16();
     var button = child(div);
     var button_1 = sibling(button, 2);
     reset(div);
     template_effect(() => {
-      button.disabled = !get(canUndo);
-      button_1.disabled = !get(canRedo);
+      button.disabled = !get2(canUndo);
+      button_1.disabled = !get2(canRedo);
     });
     delegated("click", button, handleUndo);
     delegated("click", button_1, handleRedo);
@@ -14362,19 +15321,19 @@ ${component_stack}
 
   // src/webview/components/HistoryTimeline.svelte
   HistoryTimeline[FILENAME] = "src/webview/components/HistoryTimeline.svelte";
-  var root_28 = add_locations(from_html(`<div class="entry-label svelte-uzfmon"> </div>`), HistoryTimeline[FILENAME], [[108, 12]]);
-  var root_42 = add_locations(from_html(`<span class="event-tag svelte-uzfmon"> </span>`), HistoryTimeline[FILENAME], [[113, 16]]);
-  var root_54 = add_locations(from_html(`<span class="event-more svelte-uzfmon"> </span>`), HistoryTimeline[FILENAME], [[116, 16]]);
-  var root_37 = add_locations(from_html(`<div class="entry-events svelte-uzfmon"><!> <!></div>`), HistoryTimeline[FILENAME], [[111, 12]]);
-  var root_64 = add_locations(from_html(`<button class="action-button svelte-uzfmon" title="Compare with previous">Diff</button>`), HistoryTimeline[FILENAME], [[124, 12]]);
-  var root_111 = add_locations(from_html(`<div title="Click to jump to this snapshot"><div class="entry-index svelte-uzfmon"></div> <div class="entry-content svelte-uzfmon"><div class="entry-state svelte-uzfmon"> </div> <!> <!> <div class="entry-timestamp svelte-uzfmon"> </div></div> <div class="entry-actions svelte-uzfmon"><!></div></div>`), HistoryTimeline[FILENAME], [
+  var root17 = add_locations(from_html(`<div class="entry-label svelte-uzfmon"> </div>`), HistoryTimeline[FILENAME], [[108, 12]]);
+  var root_111 = add_locations(from_html(`<span class="event-tag svelte-uzfmon"> </span>`), HistoryTimeline[FILENAME], [[113, 16]]);
+  var root_29 = add_locations(from_html(`<span class="event-more svelte-uzfmon"> </span>`), HistoryTimeline[FILENAME], [[116, 16]]);
+  var root_36 = add_locations(from_html(`<div class="entry-events svelte-uzfmon"><!> <!></div>`), HistoryTimeline[FILENAME], [[111, 12]]);
+  var root_44 = add_locations(from_html(`<button class="action-button svelte-uzfmon" title="Compare with previous">Diff</button>`), HistoryTimeline[FILENAME], [[124, 12]]);
+  var root_54 = add_locations(from_html(`<div title="Click to jump to this snapshot"><div class="entry-index svelte-uzfmon"></div> <div class="entry-content svelte-uzfmon"><div class="entry-state svelte-uzfmon"> </div> <!> <!> <div class="entry-timestamp svelte-uzfmon"> </div></div> <div class="entry-actions svelte-uzfmon"><!></div></div>`), HistoryTimeline[FILENAME], [
     [
       97,
       6,
       [[104, 8], [105, 8, [[106, 10], [120, 10]]], [122, 8]]
     ]
   ]);
-  var root_73 = add_locations(from_html(`<div class="diff-panel svelte-uzfmon"><div class="diff-header svelte-uzfmon"><h4 class="svelte-uzfmon">State Diff</h4> <button class="close-button svelte-uzfmon">\xD7</button></div> <div class="diff-content svelte-uzfmon"><div class="diff-summary svelte-uzfmon"> </div> <pre class="diff-text svelte-uzfmon"> </pre></div></div>`), HistoryTimeline[FILENAME], [
+  var root_64 = add_locations(from_html(`<div class="diff-panel svelte-uzfmon"><div class="diff-header svelte-uzfmon"><h4 class="svelte-uzfmon">State Diff</h4> <button class="close-button svelte-uzfmon">\xD7</button></div> <div class="diff-content svelte-uzfmon"><div class="diff-summary svelte-uzfmon"> </div> <pre class="diff-text svelte-uzfmon"> </pre></div></div>`), HistoryTimeline[FILENAME], [
     [
       141,
       4,
@@ -14384,7 +15343,7 @@ ${component_stack}
       ]
     ]
   ]);
-  var root16 = add_locations(from_html(`<div class="history-timeline-container svelte-uzfmon"><div class="timeline-header svelte-uzfmon"><h3 class="svelte-uzfmon">State History Timeline</h3> <div class="timeline-controls svelte-uzfmon"><button class="control-button svelte-uzfmon" title="Clear history">Clear</button> <span class="history-count svelte-uzfmon"> </span></div></div> <div class="timeline-entries svelte-uzfmon"></div> <!></div>`), HistoryTimeline[FILENAME], [
+  var root_74 = add_locations(from_html(`<div class="history-timeline-container svelte-uzfmon"><div class="timeline-header svelte-uzfmon"><h3 class="svelte-uzfmon">State History Timeline</h3> <div class="timeline-controls svelte-uzfmon"><button class="control-button svelte-uzfmon" title="Clear history">Clear</button> <span class="history-count svelte-uzfmon"> </span></div></div> <div class="timeline-entries svelte-uzfmon"></div> <!></div>`), HistoryTimeline[FILENAME], [
     [
       78,
       0,
@@ -14395,7 +15354,7 @@ ${component_stack}
     check_target(new.target);
     push($$props, true, HistoryTimeline);
     let historyEntries = tag(state(proxy(history.getHistory())), "historyEntries");
-    let currentIndex = tag(state(get(historyEntries).length - 1), "currentIndex");
+    let currentIndex = tag(state(get2(historyEntries).length - 1), "currentIndex");
     let selectedIndex = tag(state(null), "selectedIndex");
     let showDiff = tag(state(false), "showDiff");
     let diffFromIndex = tag(state(null), "diffFromIndex");
@@ -14403,9 +15362,9 @@ ${component_stack}
       const interval = setInterval(
         () => {
           const newEntries = history.getHistory();
-          if (strict_equals(newEntries.length, get(historyEntries).length, false)) {
+          if (strict_equals(newEntries.length, get2(historyEntries).length, false)) {
             set(historyEntries, newEntries, true);
-            set(currentIndex, get(historyEntries).length - 1);
+            set(currentIndex, get2(historyEntries).length - 1);
           }
         },
         100
@@ -14419,8 +15378,8 @@ ${component_stack}
       }
     }
     function compareSnapshots(index1, index2) {
-      const entry1 = get(historyEntries)[index1];
-      const entry2 = get(historyEntries)[index2];
+      const entry1 = get2(historyEntries)[index1];
+      const entry2 = get2(historyEntries)[index2];
       if (!entry1 || !entry2) return null;
       const diff = diffStates(entry1.state.context, entry2.state.context);
       return diff;
@@ -14438,15 +15397,15 @@ ${component_stack}
     }
     const selectedDiff = tag(
       user_derived(() => {
-        if (!get(showDiff) || strict_equals(get(diffFromIndex), null) || strict_equals(get(selectedIndex), null)) {
+        if (!get2(showDiff) || strict_equals(get2(diffFromIndex), null) || strict_equals(get2(selectedIndex), null)) {
           return null;
         }
-        return compareSnapshots(get(diffFromIndex), get(selectedIndex));
+        return compareSnapshots(get2(diffFromIndex), get2(selectedIndex));
       }),
       "selectedDiff"
     );
     var $$exports = { ...legacy_api() };
-    var div = root16();
+    var div = root_74();
     var div_1 = child(div);
     var div_2 = sibling(child(div_1), 2);
     var button = child(div_2);
@@ -14457,8 +15416,8 @@ ${component_stack}
     reset(div_1);
     var div_3 = sibling(div_1, 2);
     add_svelte_meta(
-      () => each(div_3, 21, () => get(historyEntries), index, ($$anchor2, entry, index2) => {
-        var div_4 = root_111();
+      () => each(div_3, 21, () => get2(historyEntries), index, ($$anchor2, entry, index2) => {
+        var div_4 = root_54();
         let classes;
         var div_5 = child(div_4);
         div_5.textContent = index2;
@@ -14469,15 +15428,15 @@ ${component_stack}
         var node = sibling(div_7, 2);
         {
           var consequent = ($$anchor3) => {
-            var div_8 = root_28();
+            var div_8 = root17();
             var text_2 = child(div_8, true);
             reset(div_8);
-            template_effect(() => set_text(text_2, get(entry).label));
+            template_effect(() => set_text(text_2, get2(entry).label));
             append($$anchor3, div_8);
           };
           add_svelte_meta(
             () => if_block(node, ($$render) => {
-              if (get(entry).label) $$render(consequent);
+              if (get2(entry).label) $$render(consequent);
             }),
             "if",
             HistoryTimeline,
@@ -14488,14 +15447,14 @@ ${component_stack}
         var node_1 = sibling(node, 2);
         {
           var consequent_2 = ($$anchor3) => {
-            var div_9 = root_37();
+            var div_9 = root_36();
             var node_2 = child(div_9);
             add_svelte_meta(
-              () => each(node_2, 17, () => get(entry).events.slice(0, 2), index, ($$anchor4, event2) => {
-                var span_1 = root_42();
+              () => each(node_2, 17, () => get2(entry).events.slice(0, 2), index, ($$anchor4, event2) => {
+                var span_1 = root_111();
                 var text_3 = child(span_1, true);
                 reset(span_1);
-                template_effect(($0) => set_text(text_3, $0), [() => formatEventTag(get(event2).tag)]);
+                template_effect(($0) => set_text(text_3, $0), [() => formatEventTag(get2(event2).tag)]);
                 append($$anchor4, span_1);
               }),
               "each",
@@ -14506,15 +15465,15 @@ ${component_stack}
             var node_3 = sibling(node_2, 2);
             {
               var consequent_1 = ($$anchor4) => {
-                var span_2 = root_54();
+                var span_2 = root_29();
                 var text_4 = child(span_2);
                 reset(span_2);
-                template_effect(() => set_text(text_4, `+${get(entry).events.length - 2} more`));
+                template_effect(() => set_text(text_4, `+${get2(entry).events.length - 2} more`));
                 append($$anchor4, span_2);
               };
               add_svelte_meta(
                 () => if_block(node_3, ($$render) => {
-                  if (get(entry).events.length > 2) $$render(consequent_1);
+                  if (get2(entry).events.length > 2) $$render(consequent_1);
                 }),
                 "if",
                 HistoryTimeline,
@@ -14527,7 +15486,7 @@ ${component_stack}
           };
           add_svelte_meta(
             () => if_block(node_1, ($$render) => {
-              if (get(entry).events && get(entry).events.length > 0) $$render(consequent_2);
+              if (get2(entry).events && get2(entry).events.length > 0) $$render(consequent_2);
             }),
             "if",
             HistoryTimeline,
@@ -14543,7 +15502,7 @@ ${component_stack}
         var node_4 = child(div_11);
         {
           var consequent_3 = ($$anchor3) => {
-            var button_1 = root_64();
+            var button_1 = root_44();
             delegated("click", button_1, function click_2(e) {
               e.stopPropagation();
               showDiffBetween(index2 - 1, index2);
@@ -14565,13 +15524,13 @@ ${component_stack}
         template_effect(
           ($0) => {
             classes = set_class(div_4, 1, "timeline-entry svelte-uzfmon", null, classes, {
-              active: strict_equals(index2, get(currentIndex)),
-              selected: strict_equals(index2, get(selectedIndex))
+              active: strict_equals(index2, get2(currentIndex)),
+              selected: strict_equals(index2, get2(selectedIndex))
             });
-            set_text(text_1, get(entry).state.state);
+            set_text(text_1, get2(entry).state.state);
             set_text(text_5, $0);
           },
-          [() => formatTimestamp(get(entry).timestamp)]
+          [() => formatTimestamp(get2(entry).timestamp)]
         );
         delegated("click", div_4, function click_1() {
           return goToSnapshot(index2);
@@ -14587,7 +15546,7 @@ ${component_stack}
     var node_5 = sibling(div_3, 2);
     {
       var consequent_4 = ($$anchor2) => {
-        var div_12 = root_73();
+        var div_12 = root_64();
         var div_13 = child(div_12);
         var button_2 = sibling(child(div_13), 2);
         reset(div_13);
@@ -14606,8 +15565,8 @@ ${component_stack}
             set_text(text_7, $1);
           },
           [
-            () => getDiffSummary(get(selectedDiff)),
-            () => formatDiff(get(selectedDiff))
+            () => getDiffSummary(get2(selectedDiff)),
+            () => formatDiff(get2(selectedDiff))
           ]
         );
         delegated("click", button_2, function click_3() {
@@ -14617,7 +15576,7 @@ ${component_stack}
       };
       add_svelte_meta(
         () => if_block(node_5, ($$render) => {
-          if (get(showDiff) && get(selectedDiff) && strict_equals(get(diffFromIndex), null, false) && strict_equals(get(selectedIndex), null, false)) $$render(consequent_4);
+          if (get2(showDiff) && get2(selectedDiff) && strict_equals(get2(diffFromIndex), null, false) && strict_equals(get2(selectedIndex), null, false)) $$render(consequent_4);
         }),
         "if",
         HistoryTimeline,
@@ -14626,7 +15585,7 @@ ${component_stack}
       );
     }
     reset(div);
-    template_effect(() => set_text(text2, `${get(historyEntries).length ?? ""} snapshots`));
+    template_effect(() => set_text(text2, `${get2(historyEntries).length ?? ""} snapshots`));
     delegated("click", button, function click() {
       return history.clearHistory();
     });
@@ -14763,8 +15722,8 @@ ${component_stack}
 
   // src/webview/components/PerformanceDashboard.svelte
   PerformanceDashboard[FILENAME] = "src/webview/components/PerformanceDashboard.svelte";
-  var root_43 = add_locations(from_html(`<span class="transition-label svelte-1rs9uqy"> </span>`), PerformanceDashboard[FILENAME], [[110, 18]]);
-  var root_38 = add_locations(from_html(`<div class="transition-item slow svelte-1rs9uqy"><div class="transition-header svelte-1rs9uqy"><span class="transition-states svelte-1rs9uqy"> </span> <span class="transition-duration slow svelte-1rs9uqy"> </span></div> <div class="transition-details svelte-1rs9uqy"><span> </span> <span> </span> <!></div></div>`), PerformanceDashboard[FILENAME], [
+  var root18 = add_locations(from_html(`<span class="transition-label svelte-1rs9uqy"> </span>`), PerformanceDashboard[FILENAME], [[110, 18]]);
+  var root_112 = add_locations(from_html(`<div class="transition-item slow svelte-1rs9uqy"><div class="transition-header svelte-1rs9uqy"><span class="transition-states svelte-1rs9uqy"> </span> <span class="transition-duration slow svelte-1rs9uqy"> </span></div> <div class="transition-details svelte-1rs9uqy"><span> </span> <span> </span> <!></div></div>`), PerformanceDashboard[FILENAME], [
     [
       97,
       12,
@@ -14774,9 +15733,9 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_29 = add_locations(from_html(`<div class="slow-transitions svelte-1rs9uqy"><h4 class="svelte-1rs9uqy"> </h4> <div class="transitions-list svelte-1rs9uqy"></div></div>`), PerformanceDashboard[FILENAME], [[93, 6, [[94, 8], [95, 8]]]]);
-  var root_65 = add_locations(from_html(`<span class="transition-label svelte-1rs9uqy"> </span>`), PerformanceDashboard[FILENAME], [[136, 16]]);
-  var root_55 = add_locations(from_html(`<div><div class="transition-header svelte-1rs9uqy"><span class="transition-states svelte-1rs9uqy"> </span> <span> </span></div> <div class="transition-details svelte-1rs9uqy"><span> </span> <span> </span> <!></div></div>`), PerformanceDashboard[FILENAME], [
+  var root_210 = add_locations(from_html(`<div class="slow-transitions svelte-1rs9uqy"><h4 class="svelte-1rs9uqy"> </h4> <div class="transitions-list svelte-1rs9uqy"></div></div>`), PerformanceDashboard[FILENAME], [[93, 6, [[94, 8], [95, 8]]]]);
+  var root_37 = add_locations(from_html(`<span class="transition-label svelte-1rs9uqy"> </span>`), PerformanceDashboard[FILENAME], [[136, 16]]);
+  var root_45 = add_locations(from_html(`<div><div class="transition-header svelte-1rs9uqy"><span class="transition-states svelte-1rs9uqy"> </span> <span> </span></div> <div class="transition-details svelte-1rs9uqy"><span> </span> <span> </span> <!></div></div>`), PerformanceDashboard[FILENAME], [
     [
       123,
       10,
@@ -14786,7 +15745,7 @@ ${component_stack}
       ]
     ]
   ]);
-  var root_112 = add_locations(from_html(`<div class="dashboard-summary svelte-1rs9uqy"><div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Total Transitions</span> <span class="summary-value svelte-1rs9uqy"> </span></div> <div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Avg Transition</span> <span class="summary-value svelte-1rs9uqy"> </span></div> <div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Total Duration</span> <span class="summary-value svelte-1rs9uqy"> </span></div> <div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Avg Context Size</span> <span class="summary-value svelte-1rs9uqy"> </span></div></div> <!> <div class="all-transitions svelte-1rs9uqy"><h4 class="svelte-1rs9uqy">All Transitions</h4> <div class="transitions-list svelte-1rs9uqy"></div></div>`, 1), PerformanceDashboard[FILENAME], [
+  var root_55 = add_locations(from_html(`<div class="dashboard-summary svelte-1rs9uqy"><div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Total Transitions</span> <span class="summary-value svelte-1rs9uqy"> </span></div> <div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Avg Transition</span> <span class="summary-value svelte-1rs9uqy"> </span></div> <div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Total Duration</span> <span class="summary-value svelte-1rs9uqy"> </span></div> <div class="summary-item svelte-1rs9uqy"><span class="summary-label svelte-1rs9uqy">Avg Context Size</span> <span class="summary-value svelte-1rs9uqy"> </span></div></div> <!> <div class="all-transitions svelte-1rs9uqy"><h4 class="svelte-1rs9uqy">All Transitions</h4> <div class="transitions-list svelte-1rs9uqy"></div></div>`, 1), PerformanceDashboard[FILENAME], [
     [
       73,
       4,
@@ -14799,8 +15758,8 @@ ${component_stack}
     ],
     [119, 4, [[120, 6], [121, 6]]]
   ]);
-  var root_74 = add_locations(from_html(`<div class="no-data svelte-1rs9uqy"><p>No performance data available. Perform some actions to see metrics.</p></div>`), PerformanceDashboard[FILENAME], [[144, 4, [[145, 6]]]]);
-  var root17 = add_locations(from_html(`<div class="performance-dashboard svelte-1rs9uqy"><div class="dashboard-header svelte-1rs9uqy"><h3 class="svelte-1rs9uqy">Performance Dashboard</h3> <div class="dashboard-controls svelte-1rs9uqy"><label><input type="checkbox"/> </label> <input type="range" min="0" max="1000" step="10" class="threshold-slider svelte-1rs9uqy"/> <span class="threshold-value svelte-1rs9uqy"> </span></div></div> <!></div>`), PerformanceDashboard[FILENAME], [
+  var root_65 = add_locations(from_html(`<div class="no-data svelte-1rs9uqy"><p>No performance data available. Perform some actions to see metrics.</p></div>`), PerformanceDashboard[FILENAME], [[144, 4, [[145, 6]]]]);
+  var root_75 = add_locations(from_html(`<div class="performance-dashboard svelte-1rs9uqy"><div class="dashboard-header svelte-1rs9uqy"><h3 class="svelte-1rs9uqy">Performance Dashboard</h3> <div class="dashboard-controls svelte-1rs9uqy"><label><input type="checkbox"/> </label> <input type="range" min="0" max="1000" step="10" class="threshold-slider svelte-1rs9uqy"/> <span class="threshold-value svelte-1rs9uqy"> </span></div></div> <!></div>`), PerformanceDashboard[FILENAME], [
     [
       52,
       0,
@@ -14843,23 +15802,23 @@ ${component_stack}
     }
     const displayedTransitions = tag(
       user_derived(() => {
-        if (!get(profile)) return [];
-        if (get(showSlowOnly)) {
-          return get(profile).transitions.filter((t) => t.duration > get(threshold));
+        if (!get2(profile)) return [];
+        if (get2(showSlowOnly)) {
+          return get2(profile).transitions.filter((t) => t.duration > get2(threshold));
         }
-        return get(profile).transitions;
+        return get2(profile).transitions;
       }),
       "displayedTransitions"
     );
     const slowTransitions = tag(
       user_derived(() => {
-        if (!get(profile)) return [];
-        return PerformanceProfiler.getSlowTransitions(get(threshold));
+        if (!get2(profile)) return [];
+        return PerformanceProfiler.getSlowTransitions(get2(threshold));
       }),
       "slowTransitions"
     );
     var $$exports = { ...legacy_api() };
-    var div = root17();
+    var div = root_75();
     var div_1 = child(div);
     var div_2 = sibling(child(div_1), 2);
     var label = child(div_2);
@@ -14877,7 +15836,7 @@ ${component_stack}
     var node = sibling(div_1, 2);
     {
       var consequent_3 = ($$anchor2) => {
-        var fragment = root_112();
+        var fragment = root_55();
         var div_3 = first_child(fragment);
         var div_4 = child(div_3);
         var span_1 = sibling(child(div_4), 2);
@@ -14903,14 +15862,14 @@ ${component_stack}
         var node_1 = sibling(div_3, 2);
         {
           var consequent_1 = ($$anchor3) => {
-            var div_8 = root_29();
+            var div_8 = root_210();
             var h4 = child(div_8);
             var text_6 = child(h4);
             reset(h4);
             var div_9 = sibling(h4, 2);
             add_svelte_meta(
-              () => each(div_9, 21, () => get(slowTransitions), index, ($$anchor4, transition2) => {
-                var div_10 = root_38();
+              () => each(div_9, 21, () => get2(slowTransitions), index, ($$anchor4, transition2) => {
+                var div_10 = root_112();
                 var div_11 = child(div_10);
                 var span_5 = child(div_11);
                 var text_7 = child(span_5);
@@ -14929,15 +15888,15 @@ ${component_stack}
                 var node_2 = sibling(span_8, 2);
                 {
                   var consequent = ($$anchor5) => {
-                    var span_9 = root_43();
+                    var span_9 = root18();
                     var text_11 = child(span_9, true);
                     reset(span_9);
-                    template_effect(() => set_text(text_11, get(transition2).label));
+                    template_effect(() => set_text(text_11, get2(transition2).label));
                     append($$anchor5, span_9);
                   };
                   add_svelte_meta(
                     () => if_block(node_2, ($$render) => {
-                      if (get(transition2).label) $$render(consequent);
+                      if (get2(transition2).label) $$render(consequent);
                     }),
                     "if",
                     PerformanceDashboard,
@@ -14949,14 +15908,14 @@ ${component_stack}
                 reset(div_10);
                 template_effect(
                   ($0, $1) => {
-                    set_text(text_7, `${get(transition2).from ?? ""} \u2192 ${get(transition2).to ?? ""}`);
+                    set_text(text_7, `${get2(transition2).from ?? ""} \u2192 ${get2(transition2).to ?? ""}`);
                     set_text(text_8, $0);
-                    set_text(text_9, `${get(transition2).eventCount ?? ""} events`);
+                    set_text(text_9, `${get2(transition2).eventCount ?? ""} events`);
                     set_text(text_10, $1);
                   },
                   [
-                    () => formatDuration(get(transition2).duration),
-                    () => formatSize(get(transition2).contextSize)
+                    () => formatDuration(get2(transition2).duration),
+                    () => formatSize(get2(transition2).contextSize)
                   ]
                 );
                 append($$anchor4, div_10);
@@ -14968,12 +15927,12 @@ ${component_stack}
             );
             reset(div_9);
             reset(div_8);
-            template_effect(() => set_text(text_6, `Slow Transitions (> ${get(threshold) ?? ""}ms)`));
+            template_effect(() => set_text(text_6, `Slow Transitions (> ${get2(threshold) ?? ""}ms)`));
             append($$anchor3, div_8);
           };
           add_svelte_meta(
             () => if_block(node_1, ($$render) => {
-              if (get(slowTransitions).length > 0) $$render(consequent_1);
+              if (get2(slowTransitions).length > 0) $$render(consequent_1);
             }),
             "if",
             PerformanceDashboard,
@@ -14984,8 +15943,8 @@ ${component_stack}
         var div_13 = sibling(node_1, 2);
         var div_14 = sibling(child(div_13), 2);
         add_svelte_meta(
-          () => each(div_14, 21, () => get(displayedTransitions), index, ($$anchor3, transition2) => {
-            var div_15 = root_55();
+          () => each(div_14, 21, () => get2(displayedTransitions), index, ($$anchor3, transition2) => {
+            var div_15 = root_45();
             let classes;
             var div_16 = child(div_15);
             var span_10 = child(div_16);
@@ -15006,15 +15965,15 @@ ${component_stack}
             var node_3 = sibling(span_13, 2);
             {
               var consequent_2 = ($$anchor4) => {
-                var span_14 = root_65();
+                var span_14 = root_37();
                 var text_16 = child(span_14, true);
                 reset(span_14);
-                template_effect(() => set_text(text_16, get(transition2).label));
+                template_effect(() => set_text(text_16, get2(transition2).label));
                 append($$anchor4, span_14);
               };
               add_svelte_meta(
                 () => if_block(node_3, ($$render) => {
-                  if (get(transition2).label) $$render(consequent_2);
+                  if (get2(transition2).label) $$render(consequent_2);
                 }),
                 "if",
                 PerformanceDashboard,
@@ -15026,16 +15985,16 @@ ${component_stack}
             reset(div_15);
             template_effect(
               ($0, $1) => {
-                classes = set_class(div_15, 1, "transition-item svelte-1rs9uqy", null, classes, { slow: get(transition2).duration > get(threshold) });
-                set_text(text_12, `${get(transition2).from ?? ""} \u2192 ${get(transition2).to ?? ""}`);
-                classes_1 = set_class(span_11, 1, "transition-duration svelte-1rs9uqy", null, classes_1, { slow: get(transition2).duration > get(threshold) });
+                classes = set_class(div_15, 1, "transition-item svelte-1rs9uqy", null, classes, { slow: get2(transition2).duration > get2(threshold) });
+                set_text(text_12, `${get2(transition2).from ?? ""} \u2192 ${get2(transition2).to ?? ""}`);
+                classes_1 = set_class(span_11, 1, "transition-duration svelte-1rs9uqy", null, classes_1, { slow: get2(transition2).duration > get2(threshold) });
                 set_text(text_13, $0);
-                set_text(text_14, `${get(transition2).eventCount ?? ""} events`);
+                set_text(text_14, `${get2(transition2).eventCount ?? ""} events`);
                 set_text(text_15, $1);
               },
               [
-                () => formatDuration(get(transition2).duration),
-                () => formatSize(get(transition2).contextSize)
+                () => formatDuration(get2(transition2).duration),
+                () => formatSize(get2(transition2).contextSize)
               ]
             );
             append($$anchor3, div_15);
@@ -15049,26 +16008,26 @@ ${component_stack}
         reset(div_13);
         template_effect(
           ($0, $1, $2) => {
-            set_text(text_2, get(profile).summary.totalTransitions);
+            set_text(text_2, get2(profile).summary.totalTransitions);
             set_text(text_3, $0);
             set_text(text_4, $1);
             set_text(text_5, $2);
           },
           [
-            () => formatDuration(get(profile).summary.averageTransitionTime),
-            () => formatDuration(get(profile).summary.totalDuration),
-            () => formatSize(get(profile).summary.averageContextSize)
+            () => formatDuration(get2(profile).summary.averageTransitionTime),
+            () => formatDuration(get2(profile).summary.totalDuration),
+            () => formatSize(get2(profile).summary.averageContextSize)
           ]
         );
         append($$anchor2, fragment);
       };
       var alternate = ($$anchor2) => {
-        var div_18 = root_74();
+        var div_18 = root_65();
         append($$anchor2, div_18);
       };
       add_svelte_meta(
         () => if_block(node, ($$render) => {
-          if (get(profile)) $$render(consequent_3);
+          if (get2(profile)) $$render(consequent_3);
           else $$render(alternate, -1);
         }),
         "if",
@@ -15079,13 +16038,13 @@ ${component_stack}
     }
     reset(div);
     template_effect(() => {
-      set_text(text2, ` Show slow only (> ${get(threshold) ?? ""}ms)`);
-      set_text(text_1, `${get(threshold) ?? ""}ms`);
+      set_text(text2, ` Show slow only (> ${get2(threshold) ?? ""}ms)`);
+      set_text(text_1, `${get2(threshold) ?? ""}ms`);
     });
     bind_checked(
       input,
       function get3() {
-        return get(showSlowOnly);
+        return get2(showSlowOnly);
       },
       function set3($$value) {
         set(showSlowOnly, $$value);
@@ -15094,7 +16053,7 @@ ${component_stack}
     bind_value(
       input_1,
       function get3() {
-        return get(threshold);
+        return get2(threshold);
       },
       function set3($$value) {
         set(threshold, $$value);
@@ -15106,14 +16065,14 @@ ${component_stack}
 
   // src/webview/App.svelte
   App[FILENAME] = "src/webview/App.svelte";
-  var root_39 = add_locations(from_html(`<div class="single-connection-header svelte-db2r4i"><span class="single-connection-label svelte-db2r4i" title="Active Connection"> </span></div>`), App[FILENAME], [[169, 6, [[170, 8]]]]);
-  var root_44 = add_locations(from_html(`<div class="error-banner svelte-db2r4i"><span class="codicon codicon-error"></span> <span> </span> <button class="retry-btn svelte-db2r4i">Retry</button></div>`), App[FILENAME], [[178, 6, [[179, 8], [180, 8], [181, 8]]]]);
-  var root_56 = add_locations(from_html(`<div class="debug-panel svelte-db2r4i" role="region" aria-label="Debug View"><h3 class="svelte-db2r4i">Debug View</h3> <pre class="debug-json svelte-db2r4i"> </pre></div> <div class="history-timeline-panel svelte-db2r4i"><!></div> <div class="performance-dashboard-panel svelte-db2r4i"><!></div>`, 1), App[FILENAME], [[195, 6, [[196, 8], [197, 8]]], [209, 6], [214, 6]]);
-  var root_113 = add_locations(from_html(`<!> <div class="history-controls-container svelte-db2r4i"><!></div> <!> <!> <!> <!> <!> <!> <!>`, 1), App[FILENAME], [[159, 4]]);
-  var root_93 = add_locations(from_html(`<div class="loading svelte-db2r4i"><p>Initializing Azure DevOps Integration...</p> <p class="sub-text">Waiting for connection data...</p> <p class="sub-text" style="font-size: 0.8em; margin-top: 10px;">If this persists, check the browser console (F12) for errors.</p></div>`), App[FILENAME], [[240, 6, [[241, 8], [242, 8], [243, 8]]]]);
-  var root_114 = add_locations(from_html(`<p style="font-size: 0.9em; margin-top: 10px;"> </p>`), App[FILENAME], [[252, 10]]);
-  var root_102 = add_locations(from_html(`<div class="error-container svelte-db2r4i"><h2>Connection Error</h2> <p> </p> <!> <button class="svelte-db2r4i">Retry</button></div>`), App[FILENAME], [[248, 6, [[249, 8], [250, 8], [256, 8]]]]);
-  var root_123 = add_locations(from_html(`<div class="empty-state"><p>No connections configured.</p> <button class="svelte-db2r4i">Configure Connections</button> <div style="margin-top: 20px; font-size: 0.8em; color: var(--vscode-descriptionForeground); text-align: left;"><details><summary>Debug Info (v2)</summary> <pre> </pre></details></div></div>`), App[FILENAME], [
+  var root19 = add_locations(from_html(`<div class="single-connection-header svelte-db2r4i"><span class="single-connection-label svelte-db2r4i" title="Active Connection"> </span></div>`), App[FILENAME], [[169, 6, [[170, 8]]]]);
+  var root_113 = add_locations(from_html(`<div class="error-banner svelte-db2r4i"><span class="codicon codicon-error"></span> <span> </span> <button class="retry-btn svelte-db2r4i">Retry</button></div>`), App[FILENAME], [[178, 6, [[179, 8], [180, 8], [181, 8]]]]);
+  var root_211 = add_locations(from_html(`<div class="debug-panel svelte-db2r4i" role="region" aria-label="Debug View"><h3 class="svelte-db2r4i">Debug View</h3> <pre class="debug-json svelte-db2r4i"> </pre></div> <div class="history-timeline-panel svelte-db2r4i"><!></div> <div class="performance-dashboard-panel svelte-db2r4i"><!></div>`, 1), App[FILENAME], [[195, 6, [[196, 8], [197, 8]]], [209, 6], [214, 6]]);
+  var root_38 = add_locations(from_html(`<!> <div class="history-controls-container svelte-db2r4i"><!></div> <!> <!> <!> <!> <!> <!> <!>`, 1), App[FILENAME], [[159, 4]]);
+  var root_46 = add_locations(from_html(`<div class="loading svelte-db2r4i"><p>Initializing Azure DevOps Integration...</p> <p class="sub-text">Waiting for connection data...</p> <p class="sub-text" style="font-size: 0.8em; margin-top: 10px;">If this persists, check the browser console (F12) for errors.</p></div>`), App[FILENAME], [[240, 6, [[241, 8], [242, 8], [243, 8]]]]);
+  var root_56 = add_locations(from_html(`<p style="font-size: 0.9em; margin-top: 10px;"> </p>`), App[FILENAME], [[252, 10]]);
+  var root_66 = add_locations(from_html(`<div class="error-container svelte-db2r4i"><h2>Connection Error</h2> <p> </p> <!> <button class="svelte-db2r4i">Retry</button></div>`), App[FILENAME], [[248, 6, [[249, 8], [250, 8], [256, 8]]]]);
+  var root_76 = add_locations(from_html(`<div class="empty-state"><p>No connections configured.</p> <button class="svelte-db2r4i">Configure Connections</button> <div style="margin-top: 20px; font-size: 0.8em; color: var(--vscode-descriptionForeground); text-align: left;"><details><summary>Debug Info (v2)</summary> <pre> </pre></details></div></div>`), App[FILENAME], [
     [
       259,
       6,
@@ -15124,13 +16083,13 @@ ${component_stack}
       ]
     ]
   ]);
-  var root18 = add_locations(from_html(`<main class="svelte-db2r4i"><!></main>`), App[FILENAME], [[153, 0]]);
+  var root_83 = add_locations(from_html(`<main class="svelte-db2r4i"><!></main>`), App[FILENAME], [[153, 0]]);
   function App($$anchor, $$props) {
     check_target(new.target);
     push($$props, true, App);
     console.debug("[webview] App.svelte initializing");
-    let currentState = tag(state(proxy(get2(praxisStore))), "currentState");
-    let snapshotState = tag(state(proxy(get2(applicationSnapshot))), "snapshotState");
+    let currentState = tag(state(proxy(get(praxisStore))), "currentState");
+    let snapshotState = tag(state(proxy(get(applicationSnapshot))), "snapshotState");
     user_effect(() => {
       const unsubscribe = praxisStore.subscribe((value) => {
         set(currentState, value, true);
@@ -15140,13 +16099,13 @@ ${component_stack}
     user_effect(() => {
       const unsubscribe = applicationSnapshot.subscribe((snapshot2) => {
         set(snapshotState, snapshot2, true);
-        if (snapshot2 && snapshot2.context && (!get(currentState)?.context || strict_equals(get(currentState).context.connections?.length, 0))) {
+        if (snapshot2 && snapshot2.context && (!get2(currentState)?.context || strict_equals(get2(currentState).context.connections?.length, 0))) {
           set(
             currentState,
             {
-              value: snapshot2.value || get(currentState)?.value,
+              value: snapshot2.value || get2(currentState)?.value,
               context: snapshot2.context,
-              matches: snapshot2.matches || get(currentState)?.matches || {}
+              matches: snapshot2.matches || get2(currentState)?.matches || {}
             },
             true
           );
@@ -15156,8 +16115,8 @@ ${component_stack}
     });
     const appContext = tag(
       user_derived(() => {
-        const storeContext = get(currentState)?.context;
-        const snapshotContext = get(snapshotState)?.context;
+        const storeContext = get2(currentState)?.context;
+        const snapshotContext = get2(snapshotState)?.context;
         if (storeContext && (storeContext.connections?.length > 0 || Object.keys(storeContext).length > 5)) {
           return storeContext;
         }
@@ -15170,10 +16129,10 @@ ${component_stack}
     );
     user_effect(() => {
       console.debug(...log_if_contains_state("debug", "[AzureDevOpsInt][webview] App reactive - context:", {
-        appState: get(appContext)?.applicationState,
-        connections: get(appContext)?.connections?.length,
-        activeConnectionId: get(appContext)?.activeConnectionId,
-        viewMode: get(appContext)?.viewMode
+        appState: get2(appContext)?.applicationState,
+        connections: get2(appContext)?.connections?.length,
+        activeConnectionId: get2(appContext)?.activeConnectionId,
+        viewMode: get2(appContext)?.viewMode
       }));
     });
     const vscode2 = window.__vscodeApi;
@@ -15182,35 +16141,35 @@ ${component_stack}
         vscode2.postMessage({ type: "appEvent", event: event2 });
       }
     }
-    const hasConnections = tag(user_derived(() => (get(appContext)?.connections?.length || 0) > 0), "hasConnections");
-    const isActivating = tag(user_derived(() => strict_equals(get(appContext)?.applicationState, "activating") || strict_equals(get(appContext)?.applicationState, "initializing") || strict_equals(get(appContext)?.applicationState, "inactive")), "isActivating");
-    const isActivationFailed = tag(user_derived(() => strict_equals(get(appContext)?.applicationState, "activation_error") || get(appContext)?.lastError || get(appContext)?.workItemsError && strict_equals(get(appContext)?.workItemsErrorConnectionId, get(appContext)?.activeConnectionId)), "isActivationFailed");
-    const connectionsArray = tag(user_derived(() => get(appContext)?.connections || []), "connectionsArray");
-    const activeId = tag(user_derived(() => get(appContext)?.activeConnectionId), "activeId");
+    const hasConnections = tag(user_derived(() => (get2(appContext)?.connections?.length || 0) > 0), "hasConnections");
+    const isActivating = tag(user_derived(() => strict_equals(get2(appContext)?.applicationState, "activating") || strict_equals(get2(appContext)?.applicationState, "initializing") || strict_equals(get2(appContext)?.applicationState, "inactive")), "isActivating");
+    const isActivationFailed = tag(user_derived(() => strict_equals(get2(appContext)?.applicationState, "activation_error") || get2(appContext)?.lastError || get2(appContext)?.workItemsError && strict_equals(get2(appContext)?.workItemsErrorConnectionId, get2(appContext)?.activeConnectionId)), "isActivationFailed");
+    const connectionsArray = tag(user_derived(() => get2(appContext)?.connections || []), "connectionsArray");
+    const activeId = tag(user_derived(() => get2(appContext)?.activeConnectionId), "activeId");
     onMount(() => {
     });
     let localDebugViewVisible = tag(state(false), "localDebugViewVisible");
     user_effect(() => {
-      if (strict_equals(get(appContext)?.debugViewVisible, void 0, false)) {
-        set(localDebugViewVisible, get(appContext).debugViewVisible, true);
+      if (strict_equals(get2(appContext)?.debugViewVisible, void 0, false)) {
+        set(localDebugViewVisible, get2(appContext).debugViewVisible, true);
       }
     });
     function toggleDebugView() {
-      set(localDebugViewVisible, !get(localDebugViewVisible));
+      set(localDebugViewVisible, !get2(localDebugViewVisible));
       sendEvent({ type: "TOGGLE_DEBUG_VIEW" });
     }
     window.__toggleDebugView = toggleDebugView;
     var $$exports = { ...legacy_api() };
-    var main = root18();
+    var main = root_83();
     var node = child(main);
     {
       var consequent_6 = ($$anchor2) => {
-        var fragment = root_113();
+        var fragment = root_38();
         var node_1 = first_child(fragment);
         add_svelte_meta(
           () => WebviewHeader(node_1, {
             get context() {
-              return get(appContext);
+              return get2(appContext);
             },
             sendEvent
           }),
@@ -15230,10 +16189,10 @@ ${component_stack}
             add_svelte_meta(
               () => ConnectionTabs($$anchor3, {
                 get connections() {
-                  return get(appContext).connections;
+                  return get2(appContext).connections;
                 },
                 get activeConnectionId() {
-                  return get(appContext).activeConnectionId;
+                  return get2(appContext).activeConnectionId;
                 }
               }),
               "component",
@@ -15244,20 +16203,20 @@ ${component_stack}
             );
           };
           var consequent_1 = ($$anchor3) => {
-            var div_1 = root_39();
+            var div_1 = root19();
             var span = child(div_1);
             var text2 = child(span, true);
             reset(span);
             reset(div_1);
             template_effect(($0) => set_text(text2, $0), [
-              () => get(connectionsArray).find((c) => strict_equals(c.id, get(activeId)))?.label || get(activeId)
+              () => get2(connectionsArray).find((c) => strict_equals(c.id, get2(activeId)))?.label || get2(activeId)
             ]);
             append($$anchor3, div_1);
           };
           add_svelte_meta(
             () => if_block(node_3, ($$render) => {
-              if (get(connectionsArray).length > 1) $$render(consequent);
-              else if (get(activeId)) $$render(consequent_1, 1);
+              if (get2(connectionsArray).length > 1) $$render(consequent);
+              else if (get2(activeId)) $$render(consequent_1, 1);
             }),
             "if",
             App,
@@ -15268,13 +16227,13 @@ ${component_stack}
         var node_4 = sibling(node_3, 2);
         {
           var consequent_2 = ($$anchor3) => {
-            var div_2 = root_44();
+            var div_2 = root_113();
             var span_1 = sibling(child(div_2), 2);
             var text_1 = child(span_1, true);
             reset(span_1);
             var button = sibling(span_1, 2);
             reset(div_2);
-            template_effect(() => set_text(text_1, get(appContext)?.lastError?.message || "Connection Error"));
+            template_effect(() => set_text(text_1, get2(appContext)?.lastError?.message || "Connection Error"));
             delegated("click", button, function click() {
               return sendEvent({ type: "RETRY" });
             });
@@ -15282,7 +16241,7 @@ ${component_stack}
           };
           add_svelte_meta(
             () => if_block(node_4, ($$render) => {
-              if (get(isActivationFailed)) $$render(consequent_2);
+              if (get2(isActivationFailed)) $$render(consequent_2);
             }),
             "if",
             App,
@@ -15294,13 +16253,13 @@ ${component_stack}
         add_svelte_meta(
           () => ConnectionViews(node_5, {
             get connections() {
-              return get(connectionsArray);
+              return get2(connectionsArray);
             },
             get activeConnectionId() {
-              return get(activeId);
+              return get2(activeId);
             },
             get context() {
-              return get(appContext);
+              return get2(appContext);
             },
             matches: {},
             sendEvent
@@ -15315,7 +16274,7 @@ ${component_stack}
         add_svelte_meta(
           () => AuthReminder(node_6, {
             get context() {
-              return get(appContext);
+              return get2(appContext);
             },
             sendEvent
           }),
@@ -15328,7 +16287,7 @@ ${component_stack}
         var node_7 = sibling(node_6, 2);
         {
           var consequent_3 = ($$anchor3) => {
-            var fragment_2 = root_56();
+            var fragment_2 = root_211();
             var div_3 = first_child(fragment_2);
             var pre = sibling(child(div_3), 2);
             var text_2 = child(pre, true);
@@ -15345,9 +16304,9 @@ ${component_stack}
             template_effect(($0) => set_text(text_2, $0), [
               () => JSON.stringify(
                 {
-                  appState: get(appContext).applicationState,
-                  activeConnectionId: get(appContext).activeConnectionId,
-                  viewMode: get(appContext).viewMode
+                  appState: get2(appContext).applicationState,
+                  activeConnectionId: get2(appContext).activeConnectionId,
+                  viewMode: get2(appContext).viewMode
                 },
                 null,
                 2
@@ -15357,7 +16316,7 @@ ${component_stack}
           };
           add_svelte_meta(
             () => if_block(node_7, ($$render) => {
-              if (get(appContext)?.debugLoggingEnabled && get(localDebugViewVisible)) $$render(consequent_3);
+              if (get2(appContext)?.debugLoggingEnabled && get2(localDebugViewVisible)) $$render(consequent_3);
             }),
             "if",
             App,
@@ -15371,10 +16330,10 @@ ${component_stack}
             add_svelte_meta(
               () => Notification($$anchor3, {
                 get message() {
-                  return get(appContext).ui.statusMessage.text;
+                  return get2(appContext).ui.statusMessage.text;
                 },
                 get type() {
-                  return get(appContext).ui.statusMessage.type;
+                  return get2(appContext).ui.statusMessage.type;
                 },
                 $$events: { dismiss: () => sendEvent({ type: "DISMISS_NOTIFICATION" }) }
               }),
@@ -15387,7 +16346,7 @@ ${component_stack}
           };
           add_svelte_meta(
             () => if_block(node_10, ($$render) => {
-              if (get(appContext)?.ui?.statusMessage) $$render(consequent_4);
+              if (get2(appContext)?.ui?.statusMessage) $$render(consequent_4);
             }),
             "if",
             App,
@@ -15401,10 +16360,10 @@ ${component_stack}
             add_svelte_meta(
               () => ComposeCommentDialog($$anchor3, {
                 get workItemId() {
-                  return get(appContext).ui.modal.workItemId;
+                  return get2(appContext).ui.modal.workItemId;
                 },
                 get mode() {
-                  return get(appContext).ui.modal.mode;
+                  return get2(appContext).ui.modal.mode;
                 },
                 $$events: {
                   cancel: () => sendEvent({ type: "DISMISS_DIALOG" }),
@@ -15420,7 +16379,7 @@ ${component_stack}
           };
           add_svelte_meta(
             () => if_block(node_11, ($$render) => {
-              if (strict_equals(get(appContext)?.ui?.modal?.type, "composeComment")) $$render(consequent_5);
+              if (strict_equals(get2(appContext)?.ui?.modal?.type, "composeComment")) $$render(consequent_5);
             }),
             "if",
             App,
@@ -15435,26 +16394,26 @@ ${component_stack}
         var node_12 = first_child(fragment_5);
         {
           var consequent_7 = ($$anchor3) => {
-            var div_6 = root_93();
+            var div_6 = root_46();
             append($$anchor3, div_6);
           };
           var consequent_9 = ($$anchor3) => {
-            var div_7 = root_102();
+            var div_7 = root_66();
             var p = sibling(child(div_7), 2);
             var text_3 = child(p, true);
             reset(p);
             var node_13 = sibling(p, 2);
             {
               var consequent_8 = ($$anchor4) => {
-                var p_1 = root_114();
+                var p_1 = root_56();
                 var text_4 = child(p_1);
                 reset(p_1);
-                template_effect(() => set_text(text_4, `Connection: ${get(appContext).activeConnectionId ?? ""}`));
+                template_effect(() => set_text(text_4, `Connection: ${get2(appContext).activeConnectionId ?? ""}`));
                 append($$anchor4, p_1);
               };
               add_svelte_meta(
                 () => if_block(node_13, ($$render) => {
-                  if (get(appContext)?.activeConnectionId) $$render(consequent_8);
+                  if (get2(appContext)?.activeConnectionId) $$render(consequent_8);
                 }),
                 "if",
                 App,
@@ -15464,14 +16423,14 @@ ${component_stack}
             }
             var button_1 = sibling(node_13, 2);
             reset(div_7);
-            template_effect(() => set_text(text_3, get(appContext)?.workItemsError || get(appContext)?.lastError?.message || "Unknown error"));
+            template_effect(() => set_text(text_3, get2(appContext)?.workItemsError || get2(appContext)?.lastError?.message || "Unknown error"));
             delegated("click", button_1, function click_1() {
               return sendEvent({ type: "RETRY" });
             });
             append($$anchor3, div_7);
           };
           var alternate = ($$anchor3) => {
-            var div_8 = root_123();
+            var div_8 = root_76();
             var button_2 = sibling(child(div_8), 2);
             var div_9 = sibling(button_2, 2);
             var details = child(div_9);
@@ -15484,15 +16443,15 @@ ${component_stack}
             template_effect(($0) => set_text(text_5, $0), [
               () => JSON.stringify(
                 {
-                  hasConnections: get(hasConnections),
-                  connectionsLength: get(appContext)?.connections?.length || 0,
-                  appState: get(appContext)?.applicationState || "unknown",
-                  activeConnectionId: get(appContext)?.activeConnectionId,
-                  contextKeys: get(appContext) ? Object.keys(get(appContext)) : [],
-                  rawConnections: get(appContext)?.connections || [],
-                  hasAppContext: !!get(appContext),
-                  storeValue: get(currentState)?.value,
-                  snapshotValue: get2(applicationSnapshot)?.value
+                  hasConnections: get2(hasConnections),
+                  connectionsLength: get2(appContext)?.connections?.length || 0,
+                  appState: get2(appContext)?.applicationState || "unknown",
+                  activeConnectionId: get2(appContext)?.activeConnectionId,
+                  contextKeys: get2(appContext) ? Object.keys(get2(appContext)) : [],
+                  rawConnections: get2(appContext)?.connections || [],
+                  hasAppContext: !!get2(appContext),
+                  storeValue: get2(currentState)?.value,
+                  snapshotValue: get(applicationSnapshot)?.value
                 },
                 null,
                 2
@@ -15505,8 +16464,8 @@ ${component_stack}
           };
           add_svelte_meta(
             () => if_block(node_12, ($$render) => {
-              if (get(isActivating) && (!get(appContext) || strict_equals(get(appContext).applicationState, "inactive"))) $$render(consequent_7);
-              else if (get(isActivationFailed)) $$render(consequent_9, 1);
+              if (get2(isActivating) && (!get2(appContext) || strict_equals(get2(appContext).applicationState, "inactive"))) $$render(consequent_7);
+              else if (get2(isActivationFailed)) $$render(consequent_9, 1);
               else $$render(alternate, -1);
             }),
             "if",
@@ -15519,7 +16478,7 @@ ${component_stack}
       };
       add_svelte_meta(
         () => if_block(node, ($$render) => {
-          if (get(hasConnections)) $$render(consequent_6);
+          if (get2(hasConnections)) $$render(consequent_6);
           else $$render(alternate_1, -1);
         }),
         "if",
@@ -15918,16 +16877,16 @@ ${component_stack}
   function tryBootstrap(reason) {
     if (mountAttempted) return;
     mountAttempted = true;
-    const root19 = ensureMountTarget();
-    rootRef = root19;
+    const root20 = ensureMountTarget();
+    rootRef = root20;
     try {
-      root19.dataset.bootstrap = reason;
-      root19.innerText = `Bootstrapping webview (${reason})\u2026`;
+      root20.dataset.bootstrap = reason;
+      root20.innerText = `Bootstrapping webview (${reason})\u2026`;
     } catch {
     }
     try {
       const vscode2 = getVsCodeApi();
-      mount(App, { target: root19 });
+      mount(App, { target: root20 });
       mounted = true;
       if (vscode2) {
         vscode2.postMessage({ type: "webviewReady" });
@@ -15945,7 +16904,7 @@ ${component_stack}
           pre.textContent = detail.stack;
           errorDiv.appendChild(pre);
         }
-        root19.replaceChildren(errorDiv);
+        root20.replaceChildren(errorDiv);
       } catch {
       }
     }
@@ -15970,9 +16929,4 @@ ${component_stack}
     target.replaceChildren(hint);
   }, 300);
 })();
-/*! Bundled license information:
-
-js-yaml/dist/js-yaml.mjs:
-  (*! js-yaml 4.1.1 https://github.com/nodeca/js-yaml @license MIT *)
-*/
 //# sourceMappingURL=main.js.map
