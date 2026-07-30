@@ -1,6 +1,6 @@
 {
   "name": "@architectural-discipline/core",
-  "version": "3.2.5",
+  "version": "3.2.6",
   "description": "Core statistical analysis engine and architectural rule definitions",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

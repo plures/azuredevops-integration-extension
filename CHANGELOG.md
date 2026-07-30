@@ -1,3 +1,7 @@
+## [3.2.6] — 2026-07-30
+
+- diag: dump npm debug log tail on windows install failure (temporary) (#278) (df93ef4d)
+
 ## [3.2.5] — 2026-07-30
 
 - fix(app-desktop): downgrade typescript to ^5.9.3 to satisfy svelte-check peer range (#277) (9a8a1bbb)
