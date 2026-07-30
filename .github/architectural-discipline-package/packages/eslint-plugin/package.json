@@ -1,6 +1,6 @@
 {
   "name": "@architectural-discipline/eslint-plugin",
-  "version": "3.1.2",
+  "version": "3.1.4",
   "description": "ESLint plugin for architectural discipline rules",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

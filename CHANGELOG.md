@@ -1,3 +1,9 @@
+## [3.1.4] — 2026-07-30
+
+- chore: upgrade all dependencies, fix security vulnerabilities, modernize README (#272) (e5d04602)
+- fix: replace Math.random() with crypto.getRandomValues() for trace session IDs (#273) (72530f34)
+- Initial plan (#274) (f3fd00fe)
+
 ## [3.1.2] — 2026-07-30
 
 - Update package.json (079b0ecb)
