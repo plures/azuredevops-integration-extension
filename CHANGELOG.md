@@ -1,3 +1,7 @@
+## [3.2.1] — 2026-07-30
+
+- fix: bump engines.vscode to ^1.125.0 to match @types/vscode devDependency (#275) (34524c60)
+
 ## [3.2.0] — 2026-07-30
 
 - chore(release): scope installer targets to windows only per kbristol (734a528a)
