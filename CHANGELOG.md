@@ -1,3 +1,7 @@
+## [3.2.5] — 2026-07-30
+
+- fix(app-desktop): downgrade typescript to ^5.9.3 to satisfy svelte-check peer range (#277) (9a8a1bbb)
+
 ## [3.2.4] — 2026-07-30
 
 
