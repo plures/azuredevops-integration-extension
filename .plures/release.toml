@@ -1,0 +1,20 @@
+# Plures per-repo release metadata.
+# Consumed by plures/.github -> release-reusable.yml (+ the platform installer matrix).
+# See: development-guide/practices/even-odd-release-versioning.md
+#      pares-radix/.praxis/decisions/ADR-0029-even-odd-release-gating.md
+#
+# RESTORED 2026-07-30: this repo's own release.yml built a Windows .msi + uploaded
+# .vsix on every release until the 2026-04-07 org-wide reusable-workflow migration
+# (commit 59762d53) silently dropped both artifact types (no parity-law opt-in was
+# added at migration time). This file restores installer-building intent; the .vsix
+# upload-on-every-release is fixed separately in the shared workflow itself.
+
+publishPlatformInstallers = true
+
+# apps/app-desktop/src-tauri targets windows/macos/linux per tauri.conf.json.
+platformTargets = ["windows", "macos", "linux"]
+
+# Tauri app lives nested under apps/app-desktop, not at repo root.
+tauriProjectPath = "apps/app-desktop"
+
+trackBuildMetrics = true
