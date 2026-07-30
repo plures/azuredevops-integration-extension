@@ -27,6 +27,6 @@ jobs:
     with:
       bump: ${{ inputs.bump || '' }}
       target_version: ${{ inputs.target_version || '' }}
-      frontend_install: cd apps/app-desktop && npm install
+      frontend_install: cd apps/app-desktop && (npm install || (Get-ChildItem "C:\npm\cache\_logs\*.log" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1 | Get-Content -Tail 80; exit 1))
       frontend_build: cd apps/app-desktop && npm run build
     secrets: inherit
