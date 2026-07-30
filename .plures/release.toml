@@ -11,8 +11,8 @@
 
 publishPlatformInstallers = true
 
-# apps/app-desktop/src-tauri targets windows/macos/linux per tauri.conf.json.
-platformTargets = ["windows", "macos", "linux"]
+# Windows-only for now (macos/linux deferred until there's real demand/signing).
+platformTargets = ["windows"]
 
 # Tauri app lives nested under apps/app-desktop, not at repo root.
 tauriProjectPath = "apps/app-desktop"
