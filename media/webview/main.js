@@ -10376,7 +10376,7 @@ ${component_stack}
     // SESSION MANAGEMENT
     // ============================================================================
     startNewSession(description) {
-      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const sessionId = `session_${Date.now()}_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(5)), (b) => b.toString(36)).join("").substring(0, 9)}`;
       if (this.currentSession) {
         this.currentSession.endTime = Date.now();
       }
