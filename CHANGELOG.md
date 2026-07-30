@@ -1,3 +1,7 @@
+## [3.1.2] — 2026-07-30
+
+- Update package.json (079b0ecb)
+
 ## [3.1.1] — 2026-07-30
 
 - fix: resolve duplicate prompt when creating feature branch from work item (#270) (63637e96)
