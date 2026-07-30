@@ -1,3 +1,7 @@
+## [3.2.3] — 2026-07-30
+
+- fix(ci): override frontend_install/build with npm for Tauri installer builds (#276) (a707c19b)
+
 ## [3.2.2] — 2026-07-30
 
 
