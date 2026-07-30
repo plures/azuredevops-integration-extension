@@ -227,17 +227,46 @@ export function handleMessage(message: any): void {
     case 'createBranch': {
       // Praxis-requested branch creation
       if (message.suggestedName) {
-        vscode.window
-          .showInputBox({
+        (async () => {
+          const name = await vscode.window.showInputBox({
             prompt: 'Enter branch name',
             value: message.suggestedName,
             placeHolder: 'feature/123-my-work-item',
-          })
-          .then((name) => {
-            if (name) {
-              vscode.commands.executeCommand('git.branch', name);
-            }
           });
+          if (!name) {
+            return;
+          }
+
+          const gitExt = vscode.extensions.getExtension('vscode.git');
+          const gitApi = gitExt?.isActive
+            ? gitExt.exports.getAPI?.(1)
+            : (await gitExt?.activate())?.getAPI?.(1);
+          const repo = gitApi?.repositories?.[0];
+
+          if (!repo) {
+            vscode.window.showErrorMessage('No Git repository found');
+            return;
+          }
+
+          const refs = repo.state?.refs || [];
+          const headBranches: string[] = refs
+            .filter((r: any) => r.type === 0 && r.name)
+            .map((r: any) => r.name as string);
+          const currentBranch = repo.state?.HEAD?.name || 'main';
+
+          const sourceBranch = await vscode.window.showQuickPick(
+            headBranches.length > 0 ? headBranches : [currentBranch],
+            {
+              placeHolder: 'Select source branch',
+              title: 'Create branch from',
+            }
+          );
+          if (!sourceBranch) {
+            return;
+          }
+
+          await repo.createBranch(name, true, sourceBranch);
+        })();
       }
       break;
     }
@@ -889,8 +918,37 @@ export function dispatchApplicationEvent(event: unknown): void {
 
                 if (name) {
                   try {
-                    // Create the branch
-                    await vscode.commands.executeCommand('git.branch', name);
+                    // Get the Git API to create branch without extra prompt
+                    const gitExt = vscode.extensions.getExtension('vscode.git');
+                    const gitApi = gitExt?.isActive
+                      ? gitExt.exports.getAPI?.(1)
+                      : (await gitExt?.activate())?.getAPI?.(1);
+                    const repo = gitApi?.repositories?.[0];
+
+                    if (!repo) {
+                      vscode.window.showErrorMessage('No Git repository found');
+                      return;
+                    }
+
+                    const refs = repo.state?.refs || [];
+                    const headBranches: string[] = refs
+                      .filter((r: any) => r.type === 0 && r.name)
+                      .map((r: any) => r.name as string);
+                    const currentBranch = repo.state?.HEAD?.name || 'main';
+
+                    const sourceBranch = await vscode.window.showQuickPick(
+                      headBranches.length > 0 ? headBranches : [currentBranch],
+                      {
+                        placeHolder: 'Select source branch',
+                        title: 'Create branch from',
+                      }
+                    );
+                    if (!sourceBranch) {
+                      return;
+                    }
+
+                    // Create the branch from selected source
+                    await repo.createBranch(name, true, sourceBranch);
 
                     // Add comment to work item linking the branch
                     if (client) {
