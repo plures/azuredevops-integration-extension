@@ -1,3 +1,20 @@
+## [3.1.1] — 2026-07-30
+
+- fix: resolve duplicate prompt when creating feature branch from work item (#270) (63637e96)
+- chore: delegate dependabot-auto-merge.yml to org reusable template (#269) (8569ef39)
+- build(deps-dev): bump vite from 6.4.3 to 8.1.5 in /apps/app-desktop (#267) (55584e16)
+- build(deps-dev): bump svelte-preprocess in /apps/app-desktop (#265) (097c0c19)
+- build(deps-dev): bump typescript from 5.9.3 to 7.0.2 (#263) (824c5119)
+- build(deps-dev): bump typescript from 5.9.2 to 7.0.2 in /mcp-server (#268) (f68e34dc)
+- build(deps-dev): bump @sveltejs/vite-plugin-svelte in /apps/app-desktop (#266) (3c04bcaf)
+- build(deps-dev): bump typescript in /apps/app-desktop (#264) (a817aace)
+- build(deps): bump the npm-minor-patch group across 1 directory with 10 updates (#262) (792b9592)
+- build(deps): bump serde_json in /apps/app-desktop/src-tauri (#261) (30ed3f98)
+- build(deps): bump serde in /apps/app-desktop/src-tauri (#260) (37389329)
+- build(deps): bump tauri in /apps/app-desktop/src-tauri (#259) (25f3701f)
+- build(deps): bump fast-uri from 3.1.3 to 3.1.4 (#258) (39a13932)
+- build(deps): bump body-parser from 1.20.4 to 1.20.6 (#257) (e86d87b6)
+
 ## [3.1.0] — 2026-07-24
 
 - ci(release): trigger release on merge to main (#256) (08a97316)
