@@ -1,3 +1,8 @@
+## [3.1.3] — 2026-07-30
+
+- fix: replace Math.random() with crypto.getRandomValues() for trace session IDs (#273) (72530f34)
+- Initial plan (#274) (f3fd00fe)
+
 ## [3.1.2] — 2026-07-30
 
 - Update package.json (079b0ecb)
