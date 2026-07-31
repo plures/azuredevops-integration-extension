@@ -1,3 +1,7 @@
+## [3.2.8] — 2026-07-31
+
+- revert diagnostic npm-install fallback (root cause found upstream) (30cf3659)
+
 ## [3.2.7] — 2026-07-30
 
 - Merge PR #279: diag verbose npm install log (2c46d74d)
