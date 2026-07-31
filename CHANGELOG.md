@@ -1,3 +1,8 @@
+## [3.2.10] — 2026-07-31
+
+- fix(app-desktop): pin @plures/praxis to 2.4.39, last known-good pre-workspace-protocol version (#283) (5163893c)
+- Initial plan (#282) (7ea43a9b)
+
 ## [3.2.8] — 2026-07-31
 
 - revert diagnostic npm-install fallback (root cause found upstream) (30cf3659)

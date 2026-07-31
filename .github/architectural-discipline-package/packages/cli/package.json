@@ -1,6 +1,6 @@
 {
   "name": "@architectural-discipline/cli",
-  "version": "3.2.8",
+  "version": "3.2.10",
   "description": "Command-line interface for architectural discipline analysis",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
