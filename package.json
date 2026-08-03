@@ -976,7 +976,7 @@
     "svelte": "^5.56.8",
     "svelte-preprocess": "^6.0.5",
     "tsx": "^4.23.1",
-    "typescript": "^7.0.2",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   },
   "dependencies": {
