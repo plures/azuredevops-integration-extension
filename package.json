@@ -981,7 +981,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@azure/msal-node": "^5.4.3",
+    "@azure/msal-node": "^6.0.0",
     "@plures/praxis": "^1.2.0",
     "@types/ws": "^8.18.1",
     "axios": "^1.19.0",
